@@ -1,0 +1,58 @@
+{
+  "name": "@aikdna/kdna-cli",
+  "version": "0.9.0",
+  "description": "KDNA CLI — create, validate, install, and manage domain cognition packages for AI agents.",
+  "type": "commonjs",
+  "bin": {
+    "kdna": "src/cli.js",
+    "kdna-lint": "validators/kdna-lint.js",
+    "kdna-validate": "validators/kdna-validate.js"
+  },
+  "files": [
+    "src/",
+    "validators/",
+    "templates/",
+    "skills/",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "lint": "eslint src/ validators/ tests/",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node --test tests/v07-commands.test.js tests/validator.test.js",
+    "pretest": "npm install --ignore-scripts"
+  },
+  "keywords": [
+    "kdna",
+    "kdna-cli",
+    "ai-agent",
+    "domain-cognition",
+    "aikdna",
+    "cli"
+  ],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aikdna/kdna-cli.git"
+  },
+  "homepage": "https://aikdna.com",
+  "bugs": {
+    "url": "https://github.com/aikdna/kdna-cli/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@aikdna/kdna-core": "^0.3.0"
+  },
+  "optionalDependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "eslint": "^9.39.0",
+    "prettier": "^3.8.3"
+  }
+}

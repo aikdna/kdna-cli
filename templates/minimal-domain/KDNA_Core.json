@@ -1,0 +1,54 @@
+{
+  "meta": {
+    "version": "0.4",
+    "domain": "example_domain",
+    "created": "YYYY-MM-DD",
+    "purpose": "Define the core cognition of this domain.",
+    "load_condition": "Always load when this domain is selected."
+  },
+  "axioms": [
+    {
+      "id": "ed_ax_foundation",
+      "one_sentence": "One core judgment principle that changes how the agent evaluates situations.",
+      "full_statement": "A testable, domain-specific principle. Must be specific enough that two experts would agree on when it applies. Avoid slogans.",
+      "why": "Explain what the agent would get wrong WITHOUT this axiom, and what it gets right WITH it.",
+      "applies_when": ["When the task involves evaluating [situation type]"],
+      "does_not_apply_when": ["When the task is purely mechanical or factual lookup"],
+      "failure_risk": "Without this axiom, the agent would treat [situation] as [wrong assumption], leading to [bad outcome].",
+      "confidence": "medium",
+      "evidence_type": "practice_patterns"
+    }
+  ],
+  "ontology": [
+    {
+      "id": "ed_con_core_distinction",
+      "one_sentence": "Name one central concept the agent must distinguish.",
+      "essence": "What this concept really means in this domain. Not a dictionary definition — the operational meaning.",
+      "boundary": "What this concept is NOT. A real distinction the agent must not blur.",
+      "trigger_signal": "Words, phrases, or situations that signal this concept is relevant."
+    }
+  ],
+  "frameworks": [
+    {
+      "id": "ed_fw_assessment",
+      "name": "Assessment Framework",
+      "when_to_use": "When the agent needs to evaluate a situation in this domain.",
+      "steps": [
+        "Step 1: Identify the core signal",
+        "Step 2: Check against domain principles",
+        "Step 3: Form a domain-informed judgment"
+      ]
+    }
+  ],
+  "core_structure": [
+    {
+      "from": "Surface symptom or common mistake the agent makes without domain cognition",
+      "to": "Deeper cause or correct judgment the agent should reach",
+      "via": "The cognitive shift or diagnostic path that bridges the gap"
+    }
+  ],
+  "stances": [
+    "The domain's default position on an issue. A concise assertion the agent should bias toward.",
+    "What the domain rejects. The position the agent should argue against by default."
+  ]
+}
