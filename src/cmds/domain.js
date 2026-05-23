@@ -333,7 +333,8 @@ function cmdUnpack(filePath, force) {
   const outDir = path.join(path.dirname(abs), domainName);
 
   if (fs.existsSync(outDir)) {
-    if (!force) error(`Directory already exists: ${outDir}\nUse --force to overwrite.`, EXIT.INPUT_ERROR);
+    if (!force)
+      error(`Directory already exists: ${outDir}\nUse --force to overwrite.`, EXIT.INPUT_ERROR);
     fs.rmSync(outDir, { recursive: true, force: true });
   }
 
@@ -645,7 +646,11 @@ function cmdInspect(dir, jsonMode = false, locale = null) {
         frameworks: (c.frameworks || []).length,
         core_structures: (c.core_structure || []).length,
         stances: (c.stances || []).length,
-        preferred_terms: (pat?.terminology?.preferred_terms || pat?.terminology?.standard_terms || []).length,
+        preferred_terms: (
+          pat?.terminology?.preferred_terms ||
+          pat?.terminology?.standard_terms ||
+          []
+        ).length,
         banned_terms: (pat?.terminology?.banned_terms || []).length,
         misunderstandings: (pat?.misunderstandings || []).length,
         self_checks: (pat?.self_check || []).length,
@@ -725,7 +730,7 @@ function cmdInspect(dir, jsonMode = false, locale = null) {
 
   if (rea) console.log(`  Reasoning chains:   ${(rea.reasoning_chains || []).length}`);
 
-  if (evo)   console.log(`  Evolution stages:   ${(evo.stages || []).length}`);
+  if (evo) console.log(`  Evolution stages:   ${(evo.stages || []).length}`);
 
   // Governance metadata (with locale support)
   let kdnaCard = readJson(path.join(abs, 'KDNA_CARD.json'));
@@ -745,9 +750,18 @@ function cmdInspect(dir, jsonMode = false, locale = null) {
     if (summary && locale) console.log(`  Summary:        ${summary}`);
     console.log(`  Risk level:     ${kdnaCard.risk_level || '?'}`);
     console.log(`  Review status:  ${kdnaCard.review_status || '?'}`);
-    if (kdnaCard.intended_use?.length) console.log(`  Intended use:   ${kdnaCard.intended_use[0]}${kdnaCard.intended_use.length > 1 ? ` (+${kdnaCard.intended_use.length - 1} more)` : ''}`);
-    if (kdnaCard.out_of_scope?.length) console.log(`  Out of scope:   ${kdnaCard.out_of_scope[0]}${kdnaCard.out_of_scope.length > 1 ? ` (+${kdnaCard.out_of_scope.length - 1} more)` : ''}`);
-    if (kdnaCard.known_limitations?.length) console.log(`  Limitations:    ${kdnaCard.known_limitations[0]}${kdnaCard.known_limitations.length > 1 ? ` (+${kdnaCard.known_limitations.length - 1} more)` : ''}`);
+    if (kdnaCard.intended_use?.length)
+      console.log(
+        `  Intended use:   ${kdnaCard.intended_use[0]}${kdnaCard.intended_use.length > 1 ? ` (+${kdnaCard.intended_use.length - 1} more)` : ''}`,
+      );
+    if (kdnaCard.out_of_scope?.length)
+      console.log(
+        `  Out of scope:   ${kdnaCard.out_of_scope[0]}${kdnaCard.out_of_scope.length > 1 ? ` (+${kdnaCard.out_of_scope.length - 1} more)` : ''}`,
+      );
+    if (kdnaCard.known_limitations?.length)
+      console.log(
+        `  Limitations:    ${kdnaCard.known_limitations[0]}${kdnaCard.known_limitations.length > 1 ? ` (+${kdnaCard.known_limitations.length - 1} more)` : ''}`,
+      );
     if (kdnaCard.requires_expert_review) console.log(`  ⚠ Expert review required`);
   }
 
@@ -778,7 +792,9 @@ function cmdPackEncrypt(dir, args = []) {
 
   let manifest = readJson(path.join(abs, 'kdna.json'));
   if (!manifest) {
-    const jsonCount = fs.readdirSync(abs).filter(f => f.endsWith('.json') && f !== 'kdna.json').length;
+    const jsonCount = fs
+      .readdirSync(abs)
+      .filter((f) => f.endsWith('.json') && f !== 'kdna.json').length;
     manifest = {
       kdna_spec: '1.0-rc',
       name: domainName,
@@ -803,7 +819,8 @@ function cmdPackEncrypt(dir, args = []) {
 
   if (licenseIdx >= 0) {
     const licensePath = args[licenseIdx + 1];
-    if (!licensePath || !fs.existsSync(licensePath)) error('License file not found', EXIT.INPUT_ERROR);
+    if (!licensePath || !fs.existsSync(licensePath))
+      error('License file not found', EXIT.INPUT_ERROR);
     const license = JSON.parse(fs.readFileSync(licensePath, 'utf8'));
     const licenseKey = license.license_id;
     const fp = machineFingerprint();
@@ -813,7 +830,10 @@ function cmdPackEncrypt(dir, args = []) {
     if (!rawKey) error('--key requires a value', EXIT.INPUT_ERROR);
     encKey = deriveKey(rawKey, machineFingerprint());
   } else {
-    error('Use --license <license.json> or --key <secret> to provide encryption key', EXIT.INPUT_ERROR);
+    error(
+      'Use --license <license.json> or --key <secret> to provide encryption key',
+      EXIT.INPUT_ERROR,
+    );
   }
 
   const outputDir = args.includes('--output') ? args[args.indexOf('--output') + 1] : null;
@@ -823,7 +843,7 @@ function cmdPackEncrypt(dir, args = []) {
 
   // Build encrypted ZIP
   const zlib = require('zlib');
-  const files = fs.readdirSync(abs).filter(f => {
+  const files = fs.readdirSync(abs).filter((f) => {
     if (f.startsWith('.')) return false;
     const ext = path.extname(f);
     return ext === '.json' || f === 'README.md' || f === 'LICENSE' || f === 'kdna.json';
@@ -897,7 +917,9 @@ function cmdPackEncrypt(dir, args = []) {
 
   console.log(`✓ Encrypted pack: ${outPath}`);
   console.log(`  Domain: ${domainName} v${manifest.version}`);
-  console.log(`  Files: ${files.length} (${files.filter(isEncryptable).length} encrypted, ${files.filter(f => !isEncryptable(f)).length} plaintext)`);
+  console.log(
+    `  Files: ${files.length} (${files.filter(isEncryptable).length} encrypted, ${files.filter((f) => !isEncryptable(f)).length} plaintext)`,
+  );
   console.log(`  Container: AES-256-GCM .kdnae`);
 }
 
@@ -916,7 +938,8 @@ function cmdUnpackEncrypt(filePath, args = []) {
 
   if (licenseIdx >= 0) {
     const licensePath = args[licenseIdx + 1];
-    if (!licensePath || !fs.existsSync(licensePath)) error('License file not found', EXIT.INPUT_ERROR);
+    if (!licensePath || !fs.existsSync(licensePath))
+      error('License file not found', EXIT.INPUT_ERROR);
     const license = JSON.parse(fs.readFileSync(licensePath, 'utf8'));
     const licenseKey = license.license_id;
     const fp = machineFingerprint();
@@ -934,7 +957,8 @@ function cmdUnpackEncrypt(filePath, args = []) {
   const force = args.includes('--force');
 
   if (fs.existsSync(outDir)) {
-    if (!force) error(`Directory already exists: ${outDir}\nUse --force to overwrite.`, EXIT.INPUT_ERROR);
+    if (!force)
+      error(`Directory already exists: ${outDir}\nUse --force to overwrite.`, EXIT.INPUT_ERROR);
     fs.rmSync(outDir, { recursive: true, force: true });
   }
   fs.mkdirSync(outDir, { recursive: true });
@@ -954,10 +978,17 @@ zf.close()
       fs.writeFileSync(tmpPy, script);
       execSync(`python3 ${tmpPy}`, { stdio: 'pipe' });
     } catch {
-      try { execSync(`unzip -q -o "${abs}" -d "${tmpDir}"`, { stdio: 'pipe' }); }
-      catch { error('Cannot unpack .kdnae container'); }
+      try {
+        execSync(`unzip -q -o "${abs}" -d "${tmpDir}"`, { stdio: 'pipe' });
+      } catch {
+        error('Cannot unpack .kdnae container');
+      }
     } finally {
-      try { fs.unlinkSync(tmpPy); } catch { /* cleanup */ }
+      try {
+        fs.unlinkSync(tmpPy);
+      } catch {
+        /* cleanup */
+      }
     }
 
     // Copy plaintext files, decrypt KDNA files
@@ -979,13 +1010,93 @@ zf.close()
       }
     }
   } finally {
-    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* cleanup */ }
+    try {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    } catch {
+      /* cleanup */
+    }
   }
 
   console.log(`✓ Decrypted: ${outDir}`);
   const files = fs.readdirSync(outDir);
   console.log(`  Files: ${files.length}`);
-  files.forEach(f => console.log(`    ${f}`));
+  files.forEach((f) => console.log(`    ${f}`));
+}
+
+// ─── KDNA Card (locale-aware) ────────────────────────────────────
+
+function cmdCard(dir, locale = null) {
+  const abs = path.resolve(dir);
+  let card = readJson(path.join(abs, 'KDNA_CARD.json'));
+
+  if (locale) {
+    const localeCard = readJson(path.join(abs, 'locales', locale, 'KDNA_CARD.json'));
+    if (localeCard) {
+      card = { ...card, ...localeCard };
+    }
+  }
+
+  if (!card) {
+    error(
+      `No KDNA_CARD.json found in ${abs}${locale ? ` or locales/${locale}/` : ''}`,
+      EXIT.INPUT_ERROR,
+    );
+  }
+
+  const jsonMode = process.argv.includes('--json');
+
+  if (jsonMode) {
+    console.log(JSON.stringify(card, null, 2));
+    return;
+  }
+
+  console.log('═'.repeat(60));
+  console.log(`  KDNA Card${locale ? ` (${locale})` : ''}`);
+  console.log('═'.repeat(60));
+  console.log('');
+  if (card.display_name) console.log(`  Display name:   ${card.display_name}`);
+  console.log(`  Domain:         ${card.name || '?'}`);
+  console.log(`  Version:        ${card.version || '?'}`);
+  console.log(`  Risk level:     ${card.risk_level || '?'}`);
+  console.log(`  Quality:        ${card.quality_badge || '?'}`);
+  console.log(`  Review:         ${card.review_status || '?'}`);
+  console.log(`  License:        ${card.license || '?'}`);
+  if (card.summary) console.log(`  Summary:        ${card.summary}`);
+  console.log('');
+  if (card.intended_use?.length) {
+    console.log('  ── Intended Use ──');
+    card.intended_use.forEach((u) => console.log(`  ✓ ${u}`));
+    console.log('');
+  }
+  if (card.out_of_scope?.length) {
+    console.log('  ── Out of Scope ──');
+    card.out_of_scope.forEach((o) => console.log(`  ✗ ${o}`));
+    console.log('');
+  }
+  if (card.known_limitations?.length) {
+    console.log('  ── Known Limitations ──');
+    card.known_limitations.forEach((l) => console.log(`  ⚠ ${l}`));
+    console.log('');
+  }
+  if (card.risk_warnings?.length) {
+    console.log('  ── Risk Warnings ──');
+    card.risk_warnings.forEach((w) => console.log(`  ⚡ ${w}`));
+    console.log('');
+  }
+  if (card.author_responsibility) {
+    console.log(`  Author: ${card.author_responsibility}`);
+    console.log('');
+  }
+  if (card.provenance) {
+    console.log('  ── Provenance ──');
+    console.log(`  Studio:    ${card.provenance.studio_core || '?'}`);
+    console.log(`  Version:   ${card.provenance.studio_core_version || '?'}`);
+    console.log(`  Built:     ${card.provenance.built_at || '?'}`);
+    if (card.provenance.content_fingerprint)
+      console.log(`  Fingerprint: ${card.provenance.content_fingerprint}`);
+    console.log('');
+  }
+  console.log('═'.repeat(60));
 }
 
 module.exports = {
@@ -995,4 +1106,5 @@ module.exports = {
   cmdUnpack,
   cmdUnpackEncrypt,
   cmdInspect,
+  cmdCard,
 };
