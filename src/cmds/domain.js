@@ -587,14 +587,14 @@ function parseSimpleYaml(raw) {
 
 // ─── Inspect ───────────────────────────────────────────────────────────
 
-function cmdInspect(dir, jsonMode = false) {
+function cmdInspect(dir, jsonMode = false, locale = null) {
   const abs = path.resolve(dir);
   const stat = fs.existsSync(abs) ? fs.statSync(abs) : null;
   if (!stat) error(`Path not found: ${abs}`, EXIT.INPUT_ERROR);
 
   // Single .kdna file
   if (stat.isFile() && abs.endsWith('.kdna')) {
-    inspectKdnaFile(abs, jsonMode);
+    inspectKdnaFile(abs, jsonMode, locale);
     return;
   }
 
@@ -657,18 +657,27 @@ function cmdInspect(dir, jsonMode = false) {
       axioms: (c.axioms || []).map((a) => a.one_sentence || null).filter(Boolean),
     };
 
-    // Governance metadata (KDNA_CARD.json)
-    const card = readJson(path.join(abs, 'KDNA_CARD.json'));
-    if (card) {
+    // Add governance + locale data
+    if (kdnaCard) {
       result.governance = {
-        risk_level: card.risk_level || null,
-        review_status: card.review_status || null,
-        intended_use: card.intended_use || [],
-        out_of_scope: card.out_of_scope || [],
-        known_limitations: card.known_limitations || [],
-        requires_expert_review: card.requires_expert_review || false,
+        risk_level: kdnaCard.risk_level || null,
+        review_status: kdnaCard.review_status || null,
+        intended_use: kdnaCard.intended_use || [],
+        out_of_scope: kdnaCard.out_of_scope || [],
+        known_limitations: kdnaCard.known_limitations || [],
+        requires_expert_review: kdnaCard.requires_expert_review || false,
       };
+      if (locale) {
+        result.governance.display_name = kdnaCard.display_name || null;
+        result.governance.summary = kdnaCard.summary || null;
+        result.governance.locale = locale;
+      }
     }
+    // Add i18n info from kdna.json
+    if (m.languages) result.languages = m.languages;
+    if (m.default_language) result.default_language = m.default_language;
+    if (m.i18n_level) result.i18n_level = m.i18n_level;
+
     console.log(JSON.stringify(result, null, 2));
     return;
   }
@@ -718,11 +727,22 @@ function cmdInspect(dir, jsonMode = false) {
 
   if (evo)   console.log(`  Evolution stages:   ${(evo.stages || []).length}`);
 
-  // Governance metadata
-  const kdnaCard = readJson(path.join(abs, 'KDNA_CARD.json'));
+  // Governance metadata (with locale support)
+  let kdnaCard = readJson(path.join(abs, 'KDNA_CARD.json'));
+  if (locale && !kdnaCard) {
+    kdnaCard = readJson(path.join(abs, 'locales', locale, 'KDNA_CARD.json'));
+  }
+  if (locale && kdnaCard) {
+    const localeCard = readJson(path.join(abs, 'locales', locale, 'KDNA_CARD.json'));
+    if (localeCard) kdnaCard = localeCard;
+  }
   if (kdnaCard) {
+    const displayName = kdnaCard.display_name || '';
+    const summary = kdnaCard.summary || '';
     console.log('');
     console.log('  ── Governance ──');
+    if (displayName && locale) console.log(`  Display name:   ${displayName}`);
+    if (summary && locale) console.log(`  Summary:        ${summary}`);
     console.log(`  Risk level:     ${kdnaCard.risk_level || '?'}`);
     console.log(`  Review status:  ${kdnaCard.review_status || '?'}`);
     if (kdnaCard.intended_use?.length) console.log(`  Intended use:   ${kdnaCard.intended_use[0]}${kdnaCard.intended_use.length > 1 ? ` (+${kdnaCard.intended_use.length - 1} more)` : ''}`);
