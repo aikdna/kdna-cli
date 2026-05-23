@@ -14,6 +14,7 @@ const {
   cmdUnpack,
   cmdUnpackEncrypt,
   cmdInspect,
+  cmdCard,
 } = require('./cmds/domain');
 const { cmdList, cmdRegistry } = require('./cmds/registry');
 const {
@@ -85,6 +86,8 @@ Domain Authoring:
   unpack <file>                    Unpack .kdna container
   unpack <file> --license <file>   Unpack encrypted .kdnae container
   inspect <path>                   Inspect domain or .kdna file
+  inspect <path> --locale zh-CN     Inspect with localized governance data
+  card <path> [--locale zh-CN]      Display KDNA Card (governance metadata)
   publish <path>                   Pack + sign + publish
   publish --check <path>           Quality gate check only
   version bump <level> [path]      Bump domain version
@@ -284,6 +287,14 @@ switch (cmd) {
     const localeIdx = args.indexOf('--locale');
     const locale = localeIdx >= 0 ? args[localeIdx + 1] : null;
     cmdInspect(target, args.includes('--json'), locale);
+    break;
+  }
+  case 'card': {
+    const target = args.filter((a) => !a.startsWith('--'))[1];
+    if (!target) error('Usage: kdna card <path> [--json] [--locale zh-CN]');
+    const localeIdx = args.indexOf('--locale');
+    const locale = localeIdx >= 0 ? args[localeIdx + 1] : null;
+    cmdCard(target, locale);
     break;
   }
   case 'verify': {
