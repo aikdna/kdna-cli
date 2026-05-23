@@ -656,6 +656,19 @@ function cmdInspect(dir, jsonMode = false) {
       },
       axioms: (c.axioms || []).map((a) => a.one_sentence || null).filter(Boolean),
     };
+
+    // Governance metadata (KDNA_CARD.json)
+    const card = readJson(path.join(abs, 'KDNA_CARD.json'));
+    if (card) {
+      result.governance = {
+        risk_level: card.risk_level || null,
+        review_status: card.review_status || null,
+        intended_use: card.intended_use || [],
+        out_of_scope: card.out_of_scope || [],
+        known_limitations: card.known_limitations || [],
+        requires_expert_review: card.requires_expert_review || false,
+      };
+    }
     console.log(JSON.stringify(result, null, 2));
     return;
   }
@@ -703,7 +716,20 @@ function cmdInspect(dir, jsonMode = false) {
 
   if (rea) console.log(`  Reasoning chains:   ${(rea.reasoning_chains || []).length}`);
 
-  if (evo) console.log(`  Evolution stages:   ${(evo.stages || []).length}`);
+  if (evo)   console.log(`  Evolution stages:   ${(evo.stages || []).length}`);
+
+  // Governance metadata
+  const kdnaCard = readJson(path.join(abs, 'KDNA_CARD.json'));
+  if (kdnaCard) {
+    console.log('');
+    console.log('  ── Governance ──');
+    console.log(`  Risk level:     ${kdnaCard.risk_level || '?'}`);
+    console.log(`  Review status:  ${kdnaCard.review_status || '?'}`);
+    if (kdnaCard.intended_use?.length) console.log(`  Intended use:   ${kdnaCard.intended_use[0]}${kdnaCard.intended_use.length > 1 ? ` (+${kdnaCard.intended_use.length - 1} more)` : ''}`);
+    if (kdnaCard.out_of_scope?.length) console.log(`  Out of scope:   ${kdnaCard.out_of_scope[0]}${kdnaCard.out_of_scope.length > 1 ? ` (+${kdnaCard.out_of_scope.length - 1} more)` : ''}`);
+    if (kdnaCard.known_limitations?.length) console.log(`  Limitations:    ${kdnaCard.known_limitations[0]}${kdnaCard.known_limitations.length > 1 ? ` (+${kdnaCard.known_limitations.length - 1} more)` : ''}`);
+    if (kdnaCard.requires_expert_review) console.log(`  ⚠ Expert review required`);
+  }
 
   console.log('');
   console.log('  ── Axioms ──');
