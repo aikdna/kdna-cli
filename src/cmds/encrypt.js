@@ -49,23 +49,32 @@ function machineFingerprint() {
       const uuid = execSync('ioreg -d2 -c IOPlatformExpertDevice | grep IOPlatformUUID', {
         encoding: 'utf8',
         timeout: 3000,
-      }).match(/"[A-F0-9-]{36}"/)?.[0]?.replace(/"/g, '');
+      })
+        .match(/"[A-F0-9-]{36}"/)?.[0]
+        ?.replace(/"/g, '');
       if (uuid) parts.push(uuid);
     }
     if (os.platform() === 'linux') {
       try {
         const mid = require('fs').readFileSync('/etc/machine-id', 'utf8').trim();
         if (mid) parts.push(mid);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
-  } catch { /* non-critical */ }
+  } catch {
+    /* non-critical */
+  }
   return crypto.createHash('sha256').update(parts.join('|')).digest('hex');
 }
 
 // ─── Key Derivation ─────────────────────────────────────────────────────
 
 function deriveKey(licenseKey, fingerprint) {
-  const salt = crypto.createHash('sha256').update(fingerprint || machineFingerprint()).digest();
+  const salt = crypto
+    .createHash('sha256')
+    .update(fingerprint || machineFingerprint())
+    .digest();
   return crypto.pbkdf2Sync(licenseKey, salt, PBKDF2_ITERATIONS, KEY_LENGTH, 'sha512');
 }
 
@@ -103,7 +112,7 @@ function isEncryptedContainer(filePath) {
 function createLicense(domain, options = {}) {
   const {
     issuedTo = 'licensee@example.com',
-    expiresAt = null,       // ISO date or null for perpetual
+    expiresAt = null, // ISO date or null for perpetual
     maxAgents = 1,
     requireMachineBinding = true,
     requireOnlineCheck = false,

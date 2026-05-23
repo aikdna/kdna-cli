@@ -20,7 +20,10 @@ function todayFile() {
 
 function traceFiles(sinceDate) {
   ensureTracesDir();
-  let files = fs.readdirSync(TRACES_DIR).filter((f) => f.endsWith('.jsonl')).sort();
+  let files = fs
+    .readdirSync(TRACES_DIR)
+    .filter((f) => f.endsWith('.jsonl'))
+    .sort();
   if (sinceDate) {
     const since = sinceDate instanceof Date ? sinceDate : new Date(sinceDate);
     files = files.filter((f) => {
@@ -45,9 +48,13 @@ function readAllTraces(opts = {}) {
           if (agent && entry.agent !== agent) continue;
           if (domain && entry.domain !== domain) continue;
           entries.push(entry);
-        } catch { /* skip malformed lines */ }
+        } catch {
+          /* skip malformed lines */
+        }
       }
-    } catch { /* skip unreadable files */ }
+    } catch {
+      /* skip unreadable files */
+    }
   }
   return entries;
 }
@@ -129,14 +136,18 @@ function cmdTrace(args) {
   console.log(`${'Timestamp'.padEnd(20)} ${'Agent'.padEnd(15)} ${'Domain'.padEnd(25)} ${'Result'}`);
   console.log('-'.repeat(75));
   for (const e of entries.slice(-50).reverse()) {
-    const ts = e.timestamp ? new Date(e.timestamp).toISOString().replace('T', ' ').slice(0, 19) : 'unknown';
+    const ts = e.timestamp
+      ? new Date(e.timestamp).toISOString().replace('T', ' ').slice(0, 19)
+      : 'unknown';
     const agent = (e.agent || 'unknown').padEnd(15);
     const domain = (e.domain || '(none)').padEnd(25);
     const result = e.postvalidate?.result || 'loaded';
     console.log(`${ts} ${agent} ${domain} ${result}`);
   }
   console.log('');
-  console.log(`${entries.length} entries total. --export <file> for audit export. --clear to reset.`);
+  console.log(
+    `${entries.length} entries total. --export <file> for audit export. --clear to reset.`,
+  );
 }
 
 function cmdHistory(args) {
@@ -166,13 +177,19 @@ function cmdHistory(args) {
     }
 
     if (json) {
-      console.log(JSON.stringify({
-        total,
-        skipped,
-        domainCounts,
-        agentCounts,
-        skipRate: total > 0 ? Math.round((skipped / total) * 100) : 0,
-      }, null, 2));
+      console.log(
+        JSON.stringify(
+          {
+            total,
+            skipped,
+            domainCounts,
+            agentCounts,
+            skipRate: total > 0 ? Math.round((skipped / total) * 100) : 0,
+          },
+          null,
+          2,
+        ),
+      );
     } else {
       console.log(`Total KDNA loads: ${total}`);
       console.log(`Skipped (no domain): ${skipped}`);
@@ -208,10 +225,14 @@ function cmdHistory(args) {
     process.exit(EXIT.OK);
   }
 
-  console.log(`${'Timestamp'.padEnd(20)} ${'Agent'.padEnd(15)} ${'Domain'.padEnd(28)} ${'Result'.padEnd(10)} ${'Score'}`);
+  console.log(
+    `${'Timestamp'.padEnd(20)} ${'Agent'.padEnd(15)} ${'Domain'.padEnd(28)} ${'Result'.padEnd(10)} ${'Score'}`,
+  );
   console.log('-'.repeat(85));
   for (const e of recent) {
-    const ts = e.timestamp ? new Date(e.timestamp).toISOString().replace('T', ' ').slice(0, 19) : 'unknown';
+    const ts = e.timestamp
+      ? new Date(e.timestamp).toISOString().replace('T', ' ').slice(0, 19)
+      : 'unknown';
     const agent = (e.agent || 'unknown').padEnd(15);
     const domain = (e.domain || '(none)').padEnd(28);
     const result = (e.postvalidate?.result || 'loaded').padEnd(10);
@@ -219,7 +240,9 @@ function cmdHistory(args) {
     console.log(`${ts} ${agent} ${domain} ${result} ${score}`);
   }
   console.log('');
-  console.log(`Showing ${recent.length} of ${entries.length} total entries. --stats for summary. --domain <name> to filter.`);
+  console.log(
+    `Showing ${recent.length} of ${entries.length} total entries. --stats for summary. --domain <name> to filter.`,
+  );
 }
 
 module.exports = { cmdTrace, cmdHistory, recordTrace, readAllTraces };

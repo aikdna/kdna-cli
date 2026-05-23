@@ -11,9 +11,19 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { EXIT, error } = require('./_common');
-const { createLicense, signLicense, verifyLicense, verifyLicenseSignature, machineFingerprint } = require('./encrypt');
+const {
+  createLicense,
+  signLicense,
+  verifyLicense,
+  verifyLicenseSignature,
+  machineFingerprint,
+} = require('./encrypt');
 
-const IDENTITY_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna', 'identity');
+const IDENTITY_DIR = path.join(
+  process.env.HOME || process.env.USERPROFILE || '.',
+  '.kdna',
+  'identity',
+);
 const PRIVATE_KEY_PATH = path.join(IDENTITY_DIR, 'kdna.key');
 const PUBLIC_KEY_PATH = path.join(IDENTITY_DIR, 'kdna.pub');
 
@@ -29,7 +39,11 @@ function readIdentity() {
 
 function cmdLicenseGenerate(args) {
   const domain = args[0];
-  if (!domain) error('Usage: kdna license generate <domain> --to <email> [--expires <date>] [--max-agents <n>]', EXIT.INPUT_ERROR);
+  if (!domain)
+    error(
+      'Usage: kdna license generate <domain> --to <email> [--expires <date>] [--max-agents <n>]',
+      EXIT.INPUT_ERROR,
+    );
 
   const emailIdx = args.indexOf('--to');
   const email = emailIdx >= 0 ? args[emailIdx + 1] : null;
@@ -82,7 +96,7 @@ function cmdLicenseGenerate(args) {
 
 function cmdLicenseVerify(args) {
   const jsonMode = args.includes('--json');
-  const filtered = args.filter(a => !a.startsWith('--'));
+  const filtered = args.filter((a) => !a.startsWith('--'));
   const licensePath = filtered[0];
   if (!licensePath) error('Usage: kdna license verify <license.json>', EXIT.INPUT_ERROR);
 
@@ -99,15 +113,21 @@ function cmdLicenseVerify(args) {
   const result = verifyLicense(license, publicKey, fp);
 
   if (jsonMode) {
-    console.log(JSON.stringify({
-      domain: license.domain,
-      license_id: license.license_id,
-      issued_to: license.issued_to,
-      signature_valid: signatureValid,
-      valid: result.valid,
-      issues: result.issues,
-      fingerprint: license.require_machine_binding ? fp : 'not required',
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          domain: license.domain,
+          license_id: license.license_id,
+          issued_to: license.issued_to,
+          signature_valid: signatureValid,
+          valid: result.valid,
+          issues: result.issues,
+          fingerprint: license.require_machine_binding ? fp : 'not required',
+        },
+        null,
+        2,
+      ),
+    );
   } else {
     console.log(`License: ${license.license_id}`);
     console.log(`Domain:  ${license.domain}`);
@@ -124,7 +144,7 @@ function cmdLicenseVerify(args) {
     if (result.issues.length) {
       console.log('');
       console.log('Issues:');
-      result.issues.forEach(i => console.log(`  ✗ ${i}`));
+      result.issues.forEach((i) => console.log(`  ✗ ${i}`));
     } else {
       console.log('');
       console.log('✓ License valid');
@@ -135,7 +155,7 @@ function cmdLicenseVerify(args) {
 }
 
 function cmdLicenseBind(args) {
-  const filtered = args.filter(a => !a.startsWith('--'));
+  const filtered = args.filter((a) => !a.startsWith('--'));
   const licensePath = filtered[0];
   if (!licensePath) error('Usage: kdna license bind <license.json>', EXIT.INPUT_ERROR);
 
@@ -166,7 +186,7 @@ function cmdLicenseBind(args) {
 }
 
 function cmdLicenseShow(args) {
-  const filtered = args.filter(a => !a.startsWith('--'));
+  const filtered = args.filter((a) => !a.startsWith('--'));
   const licensePath = filtered[0];
   if (!licensePath) {
     const local = path.join(process.cwd(), 'license.json');
@@ -189,7 +209,11 @@ function cmdLicenseInstall(args) {
 
   if (!license.domain) error('License missing domain field', EXIT.INPUT_ERROR);
 
-  const licenseDir = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna', 'licenses');
+  const licenseDir = path.join(
+    process.env.HOME || process.env.USERPROFILE || '.',
+    '.kdna',
+    'licenses',
+  );
   fs.mkdirSync(licenseDir, { recursive: true });
 
   const safeName = license.domain.replace(/^@/, '').replace('/', '-');
@@ -204,4 +228,10 @@ function cmdLicenseInstall(args) {
   console.log(`Now install the domain: kdna install ${license.domain}`);
 }
 
-module.exports = { cmdLicenseGenerate, cmdLicenseVerify, cmdLicenseBind, cmdLicenseShow, cmdLicenseInstall };
+module.exports = {
+  cmdLicenseGenerate,
+  cmdLicenseVerify,
+  cmdLicenseBind,
+  cmdLicenseShow,
+  cmdLicenseInstall,
+};
