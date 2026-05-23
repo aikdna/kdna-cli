@@ -57,8 +57,9 @@ Usage:
   kdna validate <path>          Validate a domain directory
   kdna validate --schema <path>   ...with JSON Schema
   kdna pack <path>              Pack a domain folder into a .kdna container
+  kdna pack <path> --encrypt --license <file>   Pack encrypted .kdnae container
   kdna pack --output <dir> <path>   Output .kdna to specific directory
-  kdna unpack <path>            Unpack a .kdna container to a folder
+  kdna unpack <path>            Unpack a .kdna or .kdnae container to a folder
   kdna inspect <path>           Inspect a domain directory or .kdna file
   kdna publish <path>           Pack + sign + output registry patch
   kdna publish <path> --release-tag <tag> --repo <o/r>   ...also upload to GitHub
