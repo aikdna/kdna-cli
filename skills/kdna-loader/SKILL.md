@@ -215,6 +215,51 @@ KDNA does not override:
 
 ---
 
+## Safety & Governance
+
+KDNA domains influence agent judgment. The loader MUST apply safety rules before loading any domain.
+
+### Loading Priority
+
+When KDNA is loaded, the agent MUST respect this priority order:
+1. System safety policy (highest — cannot be overridden)
+2. Legal and compliance requirements
+3. User's explicit intent
+4. KDNA domain judgment
+5. Tool/skill instructions (lowest)
+
+KDNA MUST NOT override system safety policies, legal requirements, or the user's explicit refusal to apply domain judgment.
+
+### Risk-Level Checks
+
+Before loading a KDNA domain, check its risk level in `kdna.json` or `KDNA_CARD.json`:
+
+| Risk Level | Loading Behavior |
+|-----------|-----------------|
+| **R0** (Low) | Load silently |
+| **R1** (Medium) | Load silently; log |
+| **R2** (High) | Warn user before loading; require confirmation |
+| **R3** (Restricted) | Reject loading unless explicitly authorized |
+
+### Signature & Trust Checks
+
+- Yanked domains: **REJECT** loading (domain has been withdrawn for safety)
+- Deprecated domains: warn; suggest replacement if `replaced_by` is set
+- Unsigned domains: warn; load only if user confirms
+- Unknown scope domains: warn; load only if user confirms
+
+### Runtime Logging
+
+Every KDNA load MUST be logged with:
+- Domain name and version
+- Risk level
+- Signature status
+- Which axioms were triggered
+- Which misunderstandings were avoided
+- Self-check pass rate
+
+This enables audit and accountability.
+
 ## Failure handling
 
 | Situation | What to do |
