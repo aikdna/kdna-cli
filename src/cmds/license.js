@@ -81,7 +81,9 @@ function cmdLicenseGenerate(args) {
 }
 
 function cmdLicenseVerify(args) {
-  const licensePath = args[0];
+  const jsonMode = args.includes('--json');
+  const filtered = args.filter(a => !a.startsWith('--'));
+  const licensePath = filtered[0];
   if (!licensePath) error('Usage: kdna license verify <license.json>', EXIT.INPUT_ERROR);
 
   let license;
@@ -95,8 +97,6 @@ function cmdLicenseVerify(args) {
   const signatureValid = verifyLicenseSignature(license, publicKey);
   const fp = machineFingerprint();
   const result = verifyLicense(license, publicKey, fp);
-
-  const jsonMode = args.includes('--json');
 
   if (jsonMode) {
     console.log(JSON.stringify({
@@ -135,7 +135,8 @@ function cmdLicenseVerify(args) {
 }
 
 function cmdLicenseBind(args) {
-  const licensePath = args[0];
+  const filtered = args.filter(a => !a.startsWith('--'));
+  const licensePath = filtered[0];
   if (!licensePath) error('Usage: kdna license bind <license.json>', EXIT.INPUT_ERROR);
 
   let license;
@@ -165,7 +166,8 @@ function cmdLicenseBind(args) {
 }
 
 function cmdLicenseShow(args) {
-  const licensePath = args[0];
+  const filtered = args.filter(a => !a.startsWith('--'));
+  const licensePath = filtered[0];
   if (!licensePath) {
     const local = path.join(process.cwd(), 'license.json');
     if (fs.existsSync(local)) return cmdLicenseVerify([local, ...args.slice(1)]);
