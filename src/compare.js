@@ -299,17 +299,21 @@ function emitMarkdownReport(parsed, manifest, core, pat, responseA, responseB, d
   const domainScore = scoreDiff(axes);
   const axioms = core.axioms || [];
   const selfChecks = pat.self_check || [];
-  const bannedTerms = (pat.terminology?.banned_terms || []).map(t => typeof t === 'string' ? t : t.term);
+  const bannedTerms = (pat.terminology?.banned_terms || []).map((t) =>
+    typeof t === 'string' ? t : t.term,
+  );
   const misunderstandings = pat.misunderstandings || [];
 
   const lines = [];
   lines.push('# KDNA Judgment Comparison Report');
   lines.push('');
   lines.push(`**Domain:** ${parsed.full} (v${manifest.version || '?'})`);
-  lines.push(`**Input:** "${(args => {
-    const i = args.indexOf('--input');
-    return i >= 0 ? args[i + 1].slice(0, 120) : '?';
-  })(process.argv.slice(2))}"`);
+  lines.push(
+    `**Input:** "${((args) => {
+      const i = args.indexOf('--input');
+      return i >= 0 ? args[i + 1].slice(0, 120) : '?';
+    })(process.argv.slice(2))}"`,
+  );
   lines.push(`**Model:** ${llm.provider} / ${llm.model}`);
   lines.push(`**Date:** ${new Date().toISOString()}`);
   lines.push('');
@@ -318,7 +322,14 @@ function emitMarkdownReport(parsed, manifest, core, pat, responseA, responseB, d
   lines.push('## Without KDNA');
   lines.push('');
   lines.push('### Judgment Path');
-  lines.push(responseA.split('\n').filter(l => l.trim()).slice(0, 3).map(l => `- ${l}`).join('\n'));
+  lines.push(
+    responseA
+      .split('\n')
+      .filter((l) => l.trim())
+      .slice(0, 3)
+      .map((l) => `- ${l}`)
+      .join('\n'),
+  );
   lines.push('');
   lines.push('### Key Deficiencies');
   lines.push('- No domain-specific diagnosis applied');
@@ -331,12 +342,21 @@ function emitMarkdownReport(parsed, manifest, core, pat, responseA, responseB, d
   lines.push(`### Domain Loaded`);
   lines.push(`- Name: ${parsed.full}`);
   lines.push(`- Axioms applied: ${axioms.length} total`);
-  lines.push(`- Frameworks: ${(core.frameworks || []).map(f => f.id).join(', ') || 'none declared'}`);
+  lines.push(
+    `- Frameworks: ${(core.frameworks || []).map((f) => f.id).join(', ') || 'none declared'}`,
+  );
   lines.push(`- Self-checks: ${selfChecks.length} items`);
   lines.push(`- Banned terms: ${bannedTerms.length}`);
   lines.push('');
   lines.push('### Judgment Path');
-  lines.push(responseB.split('\n').filter(l => l.trim()).slice(0, 3).map(l => `- ${l}`).join('\n'));
+  lines.push(
+    responseB
+      .split('\n')
+      .filter((l) => l.trim())
+      .slice(0, 3)
+      .map((l) => `- ${l}`)
+      .join('\n'),
+  );
   lines.push('');
   lines.push('---');
   lines.push('');
@@ -354,9 +374,13 @@ function emitMarkdownReport(parsed, manifest, core, pat, responseA, responseB, d
   for (const d of dims) {
     const v = axes[d.axis];
     const changed = v && v.toUpperCase() !== 'SAME';
-    lines.push(`| **${d.name}** | Generic | Domain-specific | **${changed ? 'Improved' : 'Same'}** |`);
+    lines.push(
+      `| **${d.name}** | Generic | Domain-specific | **${changed ? 'Improved' : 'Same'}** |`,
+    );
   }
-  lines.push(`| **Self-check rate** | N/A | ${selfChecks.length > 0 ? 'Domain applied' : 'N/A'} | **Improved** |`);
+  lines.push(
+    `| **Self-check rate** | N/A | ${selfChecks.length > 0 ? 'Domain applied' : 'N/A'} | **Improved** |`,
+  );
   lines.push('');
   lines.push(`**Verdict:** ${verdict.replace(/_/g, ' ')}`);
   lines.push('');
@@ -366,27 +390,47 @@ function emitMarkdownReport(parsed, manifest, core, pat, responseA, responseB, d
   lines.push('');
   lines.push(`| D# | Dimension | Score (0-10) |`);
   lines.push('|----|-----------|:-----------:|');
-  lines.push(`| D1 | Diagnostic depth | ${domainScore.changed.includes('diagnosis') ? '8' : '5'} |`);
-  lines.push(`| D2 | Terminology precision | ${domainScore.changed.includes('terminology') ? '8' : '5'} |`);
+  lines.push(
+    `| D1 | Diagnostic depth | ${domainScore.changed.includes('diagnosis') ? '8' : '5'} |`,
+  );
+  lines.push(
+    `| D2 | Terminology precision | ${domainScore.changed.includes('terminology') ? '8' : '5'} |`,
+  );
   lines.push(`| D3 | Misunderstanding detection | 5 |`);
   lines.push(`| D4 | Axiom alignment | ${domainScore.score} |`);
   lines.push(`| D5 | Self-check pass rate | ${selfChecks.length > 0 ? '100%' : 'N/A'} |`);
-  lines.push(`| D6 | Boundary respect | ${domainScore.changed.includes('boundary') ? 'Pass' : 'N/A'} |`);
+  lines.push(
+    `| D6 | Boundary respect | ${domainScore.changed.includes('boundary') ? 'Pass' : 'N/A'} |`,
+  );
   lines.push(`| D7 | Risk avoidance | ${axes.failure ? 'Pass' : 'N/A'} |`);
   lines.push('');
   lines.push('---');
   lines.push('');
   lines.push('## Summary');
   lines.push('');
-  const changedDims = domainScore.changed.map(c => `**${c}**`).join(', ');
-  lines.push(`Loading \`${parsed.full}\` changed the agent's response across ${domainScore.changed.length} dimensions: ${changedDims || 'no significant change'}. ${verdict.includes('changed') ? 'The reasoning trajectory shifted from generic to domain-specific judgment.' : 'The domain did not significantly alter the judgment trajectory for this input.'}`);
+  const changedDims = domainScore.changed.map((c) => `**${c}**`).join(', ');
+  lines.push(
+    `Loading \`${parsed.full}\` changed the agent's response across ${domainScore.changed.length} dimensions: ${changedDims || 'no significant change'}. ${verdict.includes('changed') ? 'The reasoning trajectory shifted from generic to domain-specific judgment.' : 'The domain did not significantly alter the judgment trajectory for this input.'}`,
+  );
   lines.push('');
-  lines.push('*Generated by kdna compare. Copy-pasteable as a GitHub comment, Slack message, or tweet.*');
+  lines.push(
+    '*Generated by kdna compare. Copy-pasteable as a GitHub comment, Slack message, or tweet.*',
+  );
 
   return lines.join('\n');
 }
 
-function emitJsonReport(parsed, manifest, core, pat, responseA, responseB, diffText, llm, userInput) {
+function emitJsonReport(
+  parsed,
+  manifest,
+  core,
+  pat,
+  responseA,
+  responseB,
+  diffText,
+  llm,
+  userInput,
+) {
   const { axes, verdict } = parseDiffText(diffText);
   const domainScore = scoreDiff(axes);
   const axioms = core.axioms || [];
@@ -442,7 +486,10 @@ async function cmdCompare(input, args = []) {
   const outputFile = args.includes('--output') ? args[args.indexOf('--output') + 1] : null;
   const idxInput = args.indexOf('--input');
   if (idxInput < 0 || !args[idxInput + 1]) {
-    error('Usage: kdna compare <name> --input "<text>" [--report-md|--report-json] [--output <file>]', EXIT.INPUT_ERROR);
+    error(
+      'Usage: kdna compare <name> --input "<text>" [--report-md|--report-json] [--output <file>]',
+      EXIT.INPUT_ERROR,
+    );
   }
   const userInput = args[idxInput + 1];
 
@@ -477,11 +524,13 @@ async function cmdCompare(input, args = []) {
 
   if (!jsonMode && !reportMd && !reportJson) console.log('[1/3] Running baseline (no KDNA)...');
   const responseA = await callLlm(llm, BASELINE_SYSTEM, userInput);
-  if (!jsonMode && !reportMd && !reportJson) console.log(`      ${responseA.length} chars returned`);
+  if (!jsonMode && !reportMd && !reportJson)
+    console.log(`      ${responseA.length} chars returned`);
 
   if (!jsonMode && !reportMd && !reportJson) console.log('[2/3] Running with KDNA loaded...');
   const responseB = await callLlm(llm, TREATMENT_SYSTEM, userInput);
-  if (!jsonMode && !reportMd && !reportJson) console.log(`      ${responseB.length} chars returned`);
+  if (!jsonMode && !reportMd && !reportJson)
+    console.log(`      ${responseB.length} chars returned`);
 
   if (!jsonMode && !reportMd && !reportJson) console.log('[3/3] Diffing reasoning trajectories...');
   const diffPrompt = makeDiffPrompt(userInput, responseA, responseB);
@@ -508,7 +557,17 @@ async function cmdCompare(input, args = []) {
   }
 
   if (reportJson) {
-    const report = emitJsonReport(parsed, manifest, core, pat, responseA, responseB, diff, llm, userInput);
+    const report = emitJsonReport(
+      parsed,
+      manifest,
+      core,
+      pat,
+      responseA,
+      responseB,
+      diff,
+      llm,
+      userInput,
+    );
     if (outputFile) {
       fs.writeFileSync(outputFile, JSON.stringify(report, null, 2) + '\n');
       console.log(`Report saved to ${outputFile}`);

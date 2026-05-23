@@ -20,7 +20,13 @@ const crypto = require('crypto');
 const { execSync, execFileSync } = require('child_process');
 const { RegistryResolver, parseName } = require('./registry');
 const { EXIT, error } = require('./cmds/_common');
-const { decrypt, deriveKey, machineFingerprint, isEncryptedContainer, ENCRYPTED_FILES } = require('./cmds/encrypt');
+const {
+  decrypt,
+  deriveKey,
+  machineFingerprint,
+  isEncryptedContainer,
+  ENCRYPTED_FILES,
+} = require('./cmds/encrypt');
 
 const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
 const INSTALL_DIR = path.join(USER_KDNA_DIR, 'domains');
@@ -306,11 +312,16 @@ function extractAndDecrypt(kdnaPath, destDir, licenseKey) {
 
 function findLicense(domainName) {
   const licenseDir = path.join(USER_KDNA_DIR, 'licenses');
-  const licensePath = path.join(licenseDir, `${domainName.replace(/^@/, '').replace('/', '-')}.json`);
+  const licensePath = path.join(
+    licenseDir,
+    `${domainName.replace(/^@/, '').replace('/', '-')}.json`,
+  );
   if (fs.existsSync(licensePath)) {
     try {
       return JSON.parse(fs.readFileSync(licensePath, 'utf8'));
-    } catch { /* invalid license */ }
+    } catch {
+      /* invalid license */
+    }
   }
   return null;
 }
@@ -325,7 +336,11 @@ function findLicenseForDomain(domainFull) {
   for (const c of candidates) {
     const p = path.join(licenseDir, `${c}.json`);
     if (fs.existsSync(p)) {
-      try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { /* skip */ }
+      try {
+        return JSON.parse(fs.readFileSync(p, 'utf8'));
+      } catch {
+        /* skip */
+      }
     }
   }
   return null;
@@ -362,7 +377,10 @@ function verifySignature({ destDir, scope, entry, lenient = true }) {
 
   // Author pubkey fingerprint must match scope trust_pubkey
   if (manifest.author?.pubkey !== trustKey) {
-    error(`${entry.name}: author.pubkey does not match scope trust key. Refusing to install.`, EXIT.TRUST_FAILED);
+    error(
+      `${entry.name}: author.pubkey does not match scope trust key. Refusing to install.`,
+      EXIT.TRUST_FAILED,
+    );
   }
 
   // Full Ed25519 verify (requires public_key_pem embedded in the package)
@@ -414,7 +432,10 @@ function verifySignature({ destDir, scope, entry, lenient = true }) {
     const publicKey = crypto.createPublicKey(pem);
     const ok = crypto.verify(null, Buffer.from(payload), publicKey, Buffer.from(sigHex, 'hex'));
     if (!ok) {
-      error(`${entry.name}: Ed25519 signature INVALID. Package may be tampered. Refusing.`, EXIT.TRUST_FAILED);
+      error(
+        `${entry.name}: Ed25519 signature INVALID. Package may be tampered. Refusing.`,
+        EXIT.TRUST_FAILED,
+      );
     }
     console.log('  ✓ Signature OK (Ed25519 verified)');
   } catch (e) {
@@ -510,7 +531,10 @@ function installFromRegistry(parsed, yes, jsonMode = false) {
     }
   }
   if (entry.access && entry.access !== 'open') {
-    error(`${entry.name} requires "${entry.access}" access. Not installable via CLI yet.`, EXIT.POLICY_VIOLATION);
+    error(
+      `${entry.name} requires "${entry.access}" access. Not installable via CLI yet.`,
+      EXIT.POLICY_VIOLATION,
+    );
   }
 
   if (entry.type === 'cluster') {
@@ -587,13 +611,15 @@ function installSingleFromUrl({ entry, scope }, jsonMode = false) {
   fs.writeFileSync(path.join(dest, 'kdna.json'), JSON.stringify(manifest, null, 2) + '\n');
 
   if (jsonMode) {
-    console.log(JSON.stringify({
-      name: entry.name,
-      version: entry.version,
-      installed: true,
-      path: dest,
-      type: entry.type || 'domain',
-    }));
+    console.log(
+      JSON.stringify({
+        name: entry.name,
+        version: entry.version,
+        installed: true,
+        path: dest,
+        type: entry.type || 'domain',
+      }),
+    );
   } else {
     console.log(`✓ Installed ${entry.name}@${entry.version}`);
     console.log(`  Location: ${dest}`);
@@ -643,14 +669,16 @@ function installCluster(clusterEntry, resolver, _yes, jsonMode = false) {
   );
 
   if (jsonMode) {
-    console.log(JSON.stringify({
-      name: clusterEntry.name,
-      version: clusterEntry.version,
-      type: 'cluster',
-      installed: true,
-      path: clusterDest,
-      subdomains: subdomains.length,
-    }));
+    console.log(
+      JSON.stringify({
+        name: clusterEntry.name,
+        version: clusterEntry.version,
+        type: 'cluster',
+        installed: true,
+        path: clusterDest,
+        subdomains: subdomains.length,
+      }),
+    );
   } else {
     console.log('');
     console.log(`✓ Cluster ${clusterEntry.name} installed`);
@@ -677,7 +705,9 @@ function installFromLocalFile(filePath, _yes, jsonMode = false) {
       try {
         const lic = JSON.parse(fs.readFileSync(licenseFromArgs, 'utf8'));
         licenseKey = lic.license_id;
-      } catch { /* invalid license file */ }
+      } catch {
+        /* invalid license file */
+      }
     }
 
     if (!licenseKey) {
@@ -734,14 +764,16 @@ function installFromLocalFile(filePath, _yes, jsonMode = false) {
   fs.writeFileSync(path.join(dest, 'kdna.json'), JSON.stringify(destManifest, null, 2) + '\n');
 
   if (jsonMode) {
-    console.log(JSON.stringify({
-      name: declared,
-      installed: true,
-      path: dest,
-      source: 'local-file',
-      source_path: abs,
-      encrypted: isEncrypted,
-    }));
+    console.log(
+      JSON.stringify({
+        name: declared,
+        installed: true,
+        path: dest,
+        source: 'local-file',
+        source_path: abs,
+        encrypted: isEncrypted,
+      }),
+    );
   } else {
     console.log(`✓ Installed ${declared} from ${isEncrypted ? 'encrypted' : 'local'} file`);
     console.log(`  Location: ${dest}`);
@@ -770,13 +802,15 @@ function installFromLocalDir(dirPath, _yes, jsonMode = false) {
   fs.writeFileSync(path.join(dest, 'kdna.json'), JSON.stringify(destManifest, null, 2) + '\n');
 
   if (jsonMode) {
-    console.log(JSON.stringify({
-      name: declared,
-      installed: true,
-      path: dest,
-      source: 'local-dir',
-      source_path: abs,
-    }));
+    console.log(
+      JSON.stringify({
+        name: declared,
+        installed: true,
+        path: dest,
+        source: 'local-dir',
+        source_path: abs,
+      }),
+    );
   } else {
     console.log(`✓ Installed ${declared} from local directory (dev mode)`);
     console.log(`  Location: ${dest}`);

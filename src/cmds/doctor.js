@@ -9,7 +9,11 @@ const AGENTS = [
   { name: 'Codex', dir: path.join(process.env.HOME || '', '.codex'), skillsDir: 'skills' },
   { name: 'Claude Code', dir: path.join(process.env.HOME || '', '.claude'), skillsDir: 'skills' },
   { name: 'Cursor', dir: path.join(process.env.HOME || '', '.cursor'), skillsDir: 'skills' },
-  { name: 'Gemini Antigravity', dir: path.join(process.env.HOME || '', '.gemini', 'antigravity'), skillsDir: 'skills' },
+  {
+    name: 'Gemini Antigravity',
+    dir: path.join(process.env.HOME || '', '.gemini', 'antigravity'),
+    skillsDir: 'skills',
+  },
 ];
 
 const V2_1_MARKER = 'kdna available';
@@ -91,7 +95,11 @@ function cmdDoctor(args) {
         detail: `${domains} domain${domains !== 1 ? 's' : ''} installed`,
       });
     } else {
-      checks.push({ name: 'Domains directory', status: 'warn', detail: '~/.kdna/domains/ not found' });
+      checks.push({
+        name: 'Domains directory',
+        status: 'warn',
+        detail: '~/.kdna/domains/ not found',
+      });
     }
   }
 
@@ -100,7 +108,9 @@ function cmdDoctor(args) {
     const detected = detectAgents();
     for (const agent of AGENTS) {
       const agentDirExists = fs.existsSync(agent.dir);
-      const skill = agentDirExists ? checkAgentSkill(agent) : { installed: false, version: null, path: null };
+      const skill = agentDirExists
+        ? checkAgentSkill(agent)
+        : { installed: false, version: null, path: null };
 
       let status, detail;
       if (!agentDirExists) {
@@ -159,7 +169,11 @@ function cmdDoctor(args) {
         checks.push({ name: 'Registry cache', status: 'warn', detail: 'cannot read cache' });
       }
     } else {
-      checks.push({ name: 'Registry cache', status: 'warn', detail: 'not cached (run: kdna registry refresh)' });
+      checks.push({
+        name: 'Registry cache',
+        status: 'warn',
+        detail: 'not cached (run: kdna registry refresh)',
+      });
     }
 
     // 8. Schema files available
@@ -184,7 +198,11 @@ function cmdDoctor(args) {
     if (fs.existsSync(projectConfig)) {
       checks.push({ name: 'Project config', status: 'ok', detail: projectConfig });
     } else {
-      checks.push({ name: 'Project config', status: 'warn', detail: 'No .kdna/config.json in current project' });
+      checks.push({
+        name: 'Project config',
+        status: 'warn',
+        detail: 'No .kdna/config.json in current project',
+      });
     }
   }
 
@@ -196,7 +214,11 @@ function cmdDoctor(args) {
         name: c.name,
         status: c.status,
         detail: c.detail,
-        ...(c.agent && { agent: c.agent, skillInstalled: c.skillInstalled, skillVersion: c.skillVersion }),
+        ...(c.agent && {
+          agent: c.agent,
+          skillInstalled: c.skillInstalled,
+          skillVersion: c.skillVersion,
+        }),
       })),
       ok: checks.filter((c) => c.status === 'ok').length,
       warnings: checks.filter((c) => c.status === 'warn').length,
@@ -218,9 +240,13 @@ function cmdDoctor(args) {
     const fails = checks.filter((c) => c.status === 'fail').length;
     console.log('');
     if (fails > 0) {
-      console.log(`${ok}/${checks.length} checks passed (${fails} failure${fails !== 1 ? 's' : ''}, ${warns} warning${warns !== 1 ? 's' : ''})`);
+      console.log(
+        `${ok}/${checks.length} checks passed (${fails} failure${fails !== 1 ? 's' : ''}, ${warns} warning${warns !== 1 ? 's' : ''})`,
+      );
     } else if (warns > 0) {
-      console.log(`${ok}/${checks.length} checks passed (${warns} warning${warns !== 1 ? 's' : ''})`);
+      console.log(
+        `${ok}/${checks.length} checks passed (${warns} warning${warns !== 1 ? 's' : ''})`,
+      );
     } else {
       console.log(`${ok}/${checks.length} checks passed`);
     }

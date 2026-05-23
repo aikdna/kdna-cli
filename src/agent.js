@@ -371,7 +371,12 @@ function cmdLoad(input, args = []) {
   // JSON format
   if (format === 'json') {
     process.stdout.write(JSON.stringify({ manifest, core, patterns: pat }, null, 2) + '\n');
-    recordTrace({ timestamp: new Date().toISOString(), agent: detectAgent(), domain: parsed.full, format: 'json' });
+    recordTrace({
+      timestamp: new Date().toISOString(),
+      agent: detectAgent(),
+      domain: parsed.full,
+      format: 'json',
+    });
     return;
   }
 
@@ -384,20 +389,35 @@ function cmdLoad(input, args = []) {
         process.stdout.write(fs.readFileSync(p, 'utf8'));
       }
     }
-    recordTrace({ timestamp: new Date().toISOString(), agent: detectAgent(), domain: parsed.full, format: 'raw' });
+    recordTrace({
+      timestamp: new Date().toISOString(),
+      agent: detectAgent(),
+      domain: parsed.full,
+      format: 'raw',
+    });
     return;
   }
 
   // Load profiles
   if (profile) {
     emitProfile(parsed, manifest, core, pat, profile, profileInput);
-    recordTrace({ timestamp: new Date().toISOString(), agent: detectAgent(), domain: parsed.full, format: `profile:${profile}` });
+    recordTrace({
+      timestamp: new Date().toISOString(),
+      agent: detectAgent(),
+      domain: parsed.full,
+      format: `profile:${profile}`,
+    });
     return;
   }
 
   // Default: --as=prompt — compact text optimized for system-prompt injection.
   emitCompact(parsed, manifest, core, pat);
-  recordTrace({ timestamp: new Date().toISOString(), agent: detectAgent(), domain: parsed.full, format: 'prompt' });
+  recordTrace({
+    timestamp: new Date().toISOString(),
+    agent: detectAgent(),
+    domain: parsed.full,
+    format: 'prompt',
+  });
 }
 
 // ─── Load profiles ─────────────────────────────────────────────────────
@@ -420,7 +440,8 @@ function emitProfile(parsed, manifest, core, pat, profile, input) {
         for (const a of axioms) {
           lines.push(`- ${a.one_sentence}`);
           if (a.applies_when?.length) lines.push(`  APPLIES: ${a.applies_when.join('; ')}`);
-          if (a.does_not_apply_when?.length) lines.push(`  NOT: ${a.does_not_apply_when.join('; ')}`);
+          if (a.does_not_apply_when?.length)
+            lines.push(`  NOT: ${a.does_not_apply_when.join('; ')}`);
         }
         lines.push('');
       }
@@ -434,7 +455,11 @@ function emitProfile(parsed, manifest, core, pat, profile, input) {
         const taskTokens = tokenize(input || '');
         const relevant = axioms.filter((a) => {
           if (!a.applies_when?.length) return false;
-          const combinedText = [...a.applies_when, a.one_sentence || '', a.full_statement || ''].join(' ');
+          const combinedText = [
+            ...a.applies_when,
+            a.one_sentence || '',
+            a.full_statement || '',
+          ].join(' ');
           const score = overlapScore(taskTokens, combinedText);
           return score.hits >= 1 || score.coverage >= 0.1;
         });
@@ -603,7 +628,9 @@ function cmdSelect(args = []) {
 
   if (!input) {
     if (wantJson) {
-      console.log(JSON.stringify({ error: 'Usage: kdna select --input "<task>" [--max-domains=N] [--json]' }));
+      console.log(
+        JSON.stringify({ error: 'Usage: kdna select --input "<task>" [--max-domains=N] [--json]' }),
+      );
       process.exit(2);
     }
     console.error('Usage: kdna select --input "<task>" [--max-domains=N] [--json]');
@@ -664,12 +691,18 @@ function cmdSelect(args = []) {
   const selected = scores.slice(0, maxDomains);
 
   if (wantJson) {
-    console.log(JSON.stringify({
-      input: input.slice(0, 200),
-      selected,
-      max_domains: maxDomains,
-      total_candidates: scores.length,
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          input: input.slice(0, 200),
+          selected,
+          max_domains: maxDomains,
+          total_candidates: scores.length,
+        },
+        null,
+        2,
+      ),
+    );
     return;
   }
 
@@ -775,7 +808,9 @@ function cmdPostvalidate(args = []) {
     for (const sc of selfChecks) {
       const text = typeof sc === 'string' ? sc : sc.question;
       if (text) {
-        const keywords = tokenize(text).filter((t) => t.length > 3).slice(0, 3);
+        const keywords = tokenize(text)
+          .filter((t) => t.length > 3)
+          .slice(0, 3);
         const found = keywords.some((k) => agentOutput.toLowerCase().includes(k));
         if (found) foundChecks++;
       }
@@ -794,7 +829,9 @@ function cmdPostvalidate(args = []) {
     for (const notApply of ax.does_not_apply_when || []) {
       if (overlapScore(tokenize(agentOutput), notApply).hits >= 2) {
         boundaryViolations++;
-        results.violations.push(`boundary violation: ${ax.id} (should not apply when "${notApply.slice(0, 80)}")`);
+        results.violations.push(
+          `boundary violation: ${ax.id} (should not apply when "${notApply.slice(0, 80)}")`,
+        );
         break;
       }
     }
@@ -828,14 +865,20 @@ function cmdPostvalidate(args = []) {
       agent: detectAgent(),
       domain: parsed.full,
       type: 'postvalidate',
-      postvalidate: { result: results.violations.length ? 'fail' : 'pass', violations: results.violations.length, passed: results.passed.length },
+      postvalidate: {
+        result: results.violations.length ? 'fail' : 'pass',
+        violations: results.violations.length,
+        passed: results.passed.length,
+      },
     });
     process.exit(results.violations.length ? 1 : 0);
   }
 
   console.log(`Post-validation: ${parsed.full}`);
   console.log('');
-  console.log(`  Violations: ${results.violations.length}  Warnings: ${results.warnings.length}  Passed: ${results.passed.length}`);
+  console.log(
+    `  Violations: ${results.violations.length}  Warnings: ${results.warnings.length}  Passed: ${results.passed.length}`,
+  );
   console.log('');
 
   if (results.violations.length) {
@@ -858,7 +901,11 @@ function cmdPostvalidate(args = []) {
     agent: detectAgent(),
     domain: parsed.full,
     type: 'postvalidate',
-    postvalidate: { result: results.violations.length ? 'fail' : 'pass', violations: results.violations.length, passed: results.passed.length },
+    postvalidate: {
+      result: results.violations.length ? 'fail' : 'pass',
+      violations: results.violations.length,
+      passed: results.passed.length,
+    },
   });
   process.exit(results.violations.length ? 1 : 0);
 }
