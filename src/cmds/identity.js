@@ -1,4 +1,4 @@
-const { error } = require('./_common');
+const { error, EXIT } = require('./_common');
 
 function cmdIdentity(args) {
   const {
@@ -11,17 +11,18 @@ function cmdIdentity(args) {
   if (sub === 'init') {
     cmdIdentityInit();
   } else if (sub === 'show') {
-    cmdIdentityShow();
+    cmdIdentityShow(args.includes('--json'));
   } else if (sub === 'export') {
     const outIdx = args.indexOf('--out');
     cmdIdentityExport(outIdx >= 0 ? args[outIdx + 1] : null);
   } else if (sub === 'import') {
     const target = args[2];
-    if (!target) error('Usage: kdna identity import <file>');
+    if (!target) error('Usage: kdna identity import <file>', EXIT.INPUT_ERROR);
     cmdIdentityImport(target);
   } else {
     error(
-      `Usage: kdna identity init\n       kdna identity show\n       kdna identity export [--out <file>]\n       kdna identity import <file>`,
+      `Usage: kdna identity init\n       kdna identity show [--json]\n       kdna identity export [--out <file>]\n       kdna identity import <file>`,
+      EXIT.INPUT_ERROR,
     );
   }
 }

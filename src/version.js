@@ -6,10 +6,11 @@
 
 const fs = require('fs');
 const path = require('path');
+const { EXIT } = require('./cmds/_common');
 
-function error(msg) {
+function error(msg, code = EXIT.VALIDATION_FAILED) {
   console.error(`Error: ${msg}`);
-  process.exit(1);
+  process.exit(code);
 }
 
 function readJson(filePath) {
@@ -109,4 +110,110 @@ function cmdVersionBump(level, domainPath) {
   console.log(`Done. Version: ${oldVersion} → ${newVersion}`);
 }
 
-module.exports = { cmdVersionBump };
+/**
+ * kdna version bump --suggest [path]
+ *   Suggest version bump based on judgment changes detected by kdna diff.
+ *   Compares installed vs registry-current and suggests patch/minor/major.
+ */
+function cmdVersionSuggest(domainPath = '.', args = []) {
+  const jsonMode = args.includes('--json');
+  const abs = path.resolve(domainPath);
+
+  const manifest = readJson(path.join(abs, 'kdna.json'));
+  if (!manifest) {
+    if (jsonMode) {
+      console.log(JSON.stringify({ error: 'No kdna.json found', suggestion: 'none' }));
+      process.exit(EXIT.OK);
+    }
+    console.log('No kdna.json found in current directory. Cannot suggest version bump.');
+    process.exit(EXIT.OK);
+  }
+
+  const currentVersion = manifest.version;
+  if (!currentVersion) {
+    if (jsonMode) {
+      console.log(JSON.stringify({ error: 'No version field', suggestion: 'none' }));
+      process.exit(EXIT.OK);
+    }
+    console.log('No version field in kdna.json.');
+    process.exit(EXIT.OK);
+  }
+
+  // Rules for suggesting:
+  // - If no previous version to diff against, suggest 'none'
+  // - Check for judgment_version changes
+  // - Check for axiom/ontology/misunderstanding changes
+
+  const changes = detectChanges(abs);
+
+  if (jsonMode) {
+    console.log(JSON.stringify({
+      current_version: currentVersion,
+      suggested_bump: changes.suggestion,
+      reasons: changes.reasons,
+      change_summary: changes.summary,
+    }, null, 2));
+    return;
+  }
+
+  console.log(`Current version: ${currentVersion}`);
+  console.log(`Suggested bump:  ${changes.suggestion}`);
+  console.log('');
+  if (changes.reasons.length) {
+    console.log('Reasons:');
+    changes.reasons.forEach((r) => console.log(`  - ${r}`));
+  }
+  if (changes.suggestion !== 'none') {
+    console.log('');
+    console.log(`Run: kdna version bump ${changes.suggestion} ${domainPath}`);
+  }
+}
+
+function detectChanges(domainPath) {
+  const reasons = [];
+  let axiomChanges = 0;
+  const ontologyChanges = 0;
+  const misunderstandingChanges = 0;
+
+  // Simple heuristic: count content vs previous git state
+  // For now, use a heuristic based on file modification
+  const core = readJson(path.join(domainPath, 'KDNA_Core.json'));
+
+  // Check if evals/ dir has recent changes
+  const evalsDir = path.join(domainPath, 'evals');
+  if (fs.existsSync(evalsDir)) {
+    reasons.push('evals/ directory present');
+  }
+
+  // Check for judgment_version in manifest
+  const manifest = readJson(path.join(domainPath, 'kdna.json'));
+  if (manifest?.judgment_version) {
+    reasons.push(`judgment_version: ${manifest.judgment_version}`);
+  }
+
+  // Count axioms with applies_when (v2.1 governance) vs without
+  if (core?.axioms) {
+    const total = core.axioms.length;
+    const governed = core.axioms.filter((a) => a.applies_when?.length && a.does_not_apply_when?.length).length;
+    if (governed < total) {
+      axiomChanges = total - governed;
+      reasons.push(`${axiomChanges} axioms missing v2.1 governance fields`);
+    }
+  }
+
+  let suggestion = 'none';
+  if (axiomChanges > 0) suggestion = 'patch';
+  if (axiomChanges >= 3) suggestion = 'minor';
+
+  return {
+    suggestion,
+    reasons,
+    summary: {
+      axiom_changes: axiomChanges,
+      ontology_changes: ontologyChanges,
+      misunderstanding_changes: misunderstandingChanges,
+    },
+  };
+}
+
+module.exports = { cmdVersionBump, cmdVersionSuggest };

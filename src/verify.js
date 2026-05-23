@@ -7,15 +7,19 @@
  *
  * No flag = run all three.
  *
- * Exit codes:
+ * Exit codes (semantic, from cmds/_common.js):
  *   0  all checks passed (warnings allowed)
- *   1  one or more layers failed
+ *   1  VALIDATION_FAILED — structure layer failed
+ *   2  INPUT_ERROR — invalid name or not installed
+ *   3  TRUST_FAILED — trust layer failed
+ *   4  JUDGMENT_QUALITY_FAILED — judgment layer failed
  */
 
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { RegistryResolver, parseName } = require('./registry');
+const { EXIT } = require('./cmds/_common');
 
 const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
 const INSTALL_DIR = path.join(USER_KDNA_DIR, 'domains');
@@ -355,6 +359,8 @@ function renderLayer(result) {
 // ─── Main ──────────────────────────────────────────────────────────────
 
 function cmdVerify(input, args = []) {
+  const jsonMode = args.includes('--json');
+
   const want = {
     structure: args.includes('--structure'),
     trust: args.includes('--trust'),
@@ -366,14 +372,22 @@ function cmdVerify(input, args = []) {
   // Resolve name → installed path + scope/entry
   const parsed = parseName(input);
   if (!parsed) {
-    console.error(`Invalid name "${input}". Use @scope/name or bare name.`);
-    process.exit(2);
+    if (jsonMode) {
+      console.log(JSON.stringify({ name: input, ok: false, error: `Invalid name "${input}". Use @scope/name or bare name.` }));
+    } else {
+      console.error(`Invalid name "${input}". Use @scope/name or bare name.`);
+    }
+    process.exit(EXIT.INPUT_ERROR);
   }
 
   const destDir = path.join(INSTALL_DIR, parsed.scope, parsed.ident);
   if (!fs.existsSync(destDir)) {
-    console.error(`${parsed.full} is not installed. Run: kdna install ${input}`);
-    process.exit(2);
+    if (jsonMode) {
+      console.log(JSON.stringify({ name: parsed.full, ok: false, error: `${parsed.full} is not installed. Run: kdna install ${input}` }));
+    } else {
+      console.error(`${parsed.full} is not installed. Run: kdna install ${input}`);
+    }
+    process.exit(EXIT.INPUT_ERROR);
   }
 
   let scope = null,
@@ -385,19 +399,54 @@ function cmdVerify(input, args = []) {
       scope = r.scope;
       entry = r.entry;
     } catch (e) {
-      console.warn(`  ⚠ registry lookup failed: ${e.message.split('\n')[0]}`);
+      if (!jsonMode) console.warn(`  ⚠ registry lookup failed: ${e.message.split('\n')[0]}`);
     }
   }
-
-  console.log('═'.repeat(64));
-  console.log(`  Verify ${parsed.full}`);
-  console.log(`  Path:  ${destDir}`);
-  console.log('═'.repeat(64));
 
   const results = [];
   if (want.structure) results.push(checkStructure(destDir));
   if (want.trust) results.push(checkTrust(destDir, scope, entry));
   if (want.judgment) results.push(checkJudgment(destDir));
+
+  // ── JSON output ──────────────────────────────────────────────────────
+  if (jsonMode) {
+    const layers = {};
+    for (const r of results) {
+      layers[r.layer] = {
+        passed: r.passed,
+        errors: r.issues.filter((i) => i.severity === 'error').map((i) => i.msg),
+        warnings: r.issues.filter((i) => i.severity === 'warn').map((i) => i.msg),
+      };
+      if (r.score) layers[r.layer].score = r.score;
+    }
+
+    const structureResult = results.find((r) => r.layer === 'structure');
+    const trustResult = results.find((r) => r.layer === 'trust');
+    const judgmentResult = results.find((r) => r.layer === 'judgment');
+
+    let exitCode = EXIT.OK;
+    if (structureResult && structureResult.issues.some((i) => i.severity === 'error')) {
+      exitCode = EXIT.VALIDATION_FAILED;
+    } else if (trustResult && trustResult.issues.some((i) => i.severity === 'error')) {
+      exitCode = EXIT.TRUST_FAILED;
+    } else if (judgmentResult && judgmentResult.issues.some((i) => i.severity === 'error')) {
+      exitCode = EXIT.JUDGMENT_QUALITY_FAILED;
+    }
+
+    console.log(JSON.stringify({
+      name: parsed.full,
+      path: destDir,
+      layers,
+      ok: exitCode === EXIT.OK,
+    }, null, 2));
+    process.exit(exitCode);
+  }
+
+  // ── Text output (default) ────────────────────────────────────────────
+  console.log('═'.repeat(64));
+  console.log(`  Verify ${parsed.full}`);
+  console.log(`  Path:  ${destDir}`);
+  console.log('═'.repeat(64));
 
   for (const r of results) renderLayer(r);
 
@@ -417,7 +466,21 @@ function cmdVerify(input, args = []) {
   }
   console.log('═'.repeat(64));
 
-  process.exit(totalErrors === 0 ? 0 : 1);
+  // Semantic exit codes for text mode
+  const structureResult = results.find((r) => r.layer === 'structure');
+  const trustResult = results.find((r) => r.layer === 'trust');
+  const judgmentResult = results.find((r) => r.layer === 'judgment');
+
+  let exitCode = EXIT.OK;
+  if (structureResult && structureResult.issues.some((i) => i.severity === 'error')) {
+    exitCode = EXIT.VALIDATION_FAILED;
+  } else if (trustResult && trustResult.issues.some((i) => i.severity === 'error')) {
+    exitCode = EXIT.TRUST_FAILED;
+  } else if (judgmentResult && judgmentResult.issues.some((i) => i.severity === 'error')) {
+    exitCode = EXIT.JUDGMENT_QUALITY_FAILED;
+  }
+
+  process.exit(exitCode);
 }
 
 module.exports = { cmdVerify, checkStructure, checkTrust, checkJudgment };

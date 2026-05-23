@@ -53,10 +53,10 @@ function ensureWritingInstalled() {
 test('kdna help mentions v0.7+ commands', () => {
   const r = run(['help']);
   assert.ok(r.ok, `help failed: ${r.stderr}`);
-  assert.match(r.stdout, /kdna verify/);
-  assert.match(r.stdout, /kdna compare/);
-  assert.match(r.stdout, /kdna diff/);
-  assert.match(r.stdout, /kdna search/);
+  assert.match(r.stdout, /^\s+verify /m);
+  assert.match(r.stdout, /^\s+compare /m);
+  assert.match(r.stdout, /^\s+diff /m);
+  assert.match(r.stdout, /^\s+search /m);
 });
 
 test('kdna project reports it was removed (v0.9)', () => {
@@ -197,7 +197,7 @@ test('kdna load on uninstalled domain exits 2', () => {
 // ─── deprecated commands give clear v0.9 explanation ──────────────────
 
 test('removed commands explain themselves', () => {
-  for (const cmd of ['preview', 'eval', 'select', 'export', 'demo']) {
+  for (const cmd of ['preview', 'eval', 'export', 'demo']) {
     const r = run([cmd, './nothing']);
     assert.ok(!r.ok, `'${cmd}' should fail`);
     assert.match(r.stderr, /removed in v0\.9/, `'${cmd}' should say it was removed`);

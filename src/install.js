@@ -19,6 +19,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { execSync, execFileSync } = require('child_process');
 const { RegistryResolver, parseName } = require('./registry');
+const { EXIT, error } = require('./cmds/_common');
 
 const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
 const INSTALL_DIR = path.join(USER_KDNA_DIR, 'domains');
@@ -137,11 +138,6 @@ function ensureLoaderSkill() {
     console.log('   ⚠ Could not install kdna-loader anywhere.');
     console.log('   Run: kdna setup');
   }
-}
-
-function error(msg) {
-  console.error(`Error: ${msg}`);
-  process.exit(1);
 }
 
 function ensureDir(dir) {
@@ -296,7 +292,7 @@ function verifySignature({ destDir, scope, entry, lenient = true }) {
       console.warn('  ⚠ No kdna.json — cannot verify signature.');
       return;
     }
-    error('No kdna.json in package — cannot verify signature.');
+    error('No kdna.json in package — cannot verify signature.', EXIT.TRUST_FAILED);
   }
 
   const trustKey = scope.trust_pubkey;
@@ -318,7 +314,7 @@ function verifySignature({ destDir, scope, entry, lenient = true }) {
 
   // Author pubkey fingerprint must match scope trust_pubkey
   if (manifest.author?.pubkey !== trustKey) {
-    error(`${entry.name}: author.pubkey does not match scope trust key. Refusing to install.`);
+    error(`${entry.name}: author.pubkey does not match scope trust key. Refusing to install.`, EXIT.TRUST_FAILED);
   }
 
   // Full Ed25519 verify (requires public_key_pem embedded in the package)
@@ -334,6 +330,7 @@ function verifySignature({ destDir, scope, entry, lenient = true }) {
   if (computedFingerprint !== manifest.author.pubkey) {
     error(
       `${entry.name}: embedded public_key_pem does not match author.pubkey fingerprint. Refusing.`,
+      EXIT.TRUST_FAILED,
     );
   }
 
@@ -369,12 +366,12 @@ function verifySignature({ destDir, scope, entry, lenient = true }) {
     const publicKey = crypto.createPublicKey(pem);
     const ok = crypto.verify(null, Buffer.from(payload), publicKey, Buffer.from(sigHex, 'hex'));
     if (!ok) {
-      error(`${entry.name}: Ed25519 signature INVALID. Package may be tampered. Refusing.`);
+      error(`${entry.name}: Ed25519 signature INVALID. Package may be tampered. Refusing.`, EXIT.TRUST_FAILED);
     }
     console.log('  ✓ Signature OK (Ed25519 verified)');
   } catch (e) {
     if (e.message?.includes('INVALID')) throw e;
-    error(`${entry.name}: signature verification failed: ${e.message}`);
+    error(`${entry.name}: signature verification failed: ${e.message}`, EXIT.TRUST_FAILED);
   }
 }
 
@@ -431,42 +428,45 @@ function cmdInstallExtended(input, args = []) {
   ensureLoaderSkill();
 
   const yes = args.includes('--yes');
+  const jsonMode = args.includes('--json');
   const source = parseSource(input);
 
   switch (source.type) {
     case 'registry':
-      return installFromRegistry(source.parsed, yes);
+      return installFromRegistry(source.parsed, yes, jsonMode);
     case 'local-file':
-      return installFromLocalFile(source.path, yes);
+      return installFromLocalFile(source.path, yes, jsonMode);
     case 'local-dir':
-      return installFromLocalDir(source.path, yes);
+      return installFromLocalDir(source.path, yes, jsonMode);
   }
 }
 
-function installFromRegistry(parsed, yes) {
+function installFromRegistry(parsed, yes, jsonMode = false) {
   const resolver = new RegistryResolver({ allowNetwork: true });
   let scope, entry;
   try {
     ({ scope, entry } = resolver.resolve(parsed.full));
   } catch (e) {
-    error(e.message);
+    error(e.message, EXIT.REGISTRY_ERROR);
   }
 
   if (parsed.wasShort) {
-    console.log(`  Resolved "${parsed.ident}" → ${entry.name}`);
+    if (!jsonMode) console.log(`  Resolved "${parsed.ident}" → ${entry.name}`);
   }
 
   if (entry.deprecated) {
-    console.warn(
-      `  ⚠ ${entry.name} is deprecated.${entry.replaced_by ? ` Use ${entry.replaced_by} instead.` : ''}`,
-    );
+    if (!jsonMode) {
+      console.warn(
+        `  ⚠ ${entry.name} is deprecated.${entry.replaced_by ? ` Use ${entry.replaced_by} instead.` : ''}`,
+      );
+    }
   }
   if (entry.access && entry.access !== 'open') {
-    error(`${entry.name} requires "${entry.access}" access. Not installable via CLI yet.`);
+    error(`${entry.name} requires "${entry.access}" access. Not installable via CLI yet.`, EXIT.POLICY_VIOLATION);
   }
 
   if (entry.type === 'cluster') {
-    return installCluster(entry, resolver, yes);
+    return installCluster(entry, resolver, yes, jsonMode);
   }
 
   if (!entry.kdna_url) {
@@ -474,6 +474,7 @@ function installFromRegistry(parsed, yes) {
       `${entry.name}@${entry.version} has no kdna_url in registry.\n` +
         `release_status: ${entry.release_status || 'unknown'}\n` +
         `(This domain has not been published as a .kdna file yet. It will be available after v0.7 republish.)`,
+      EXIT.REGISTRY_ERROR,
     );
   }
 
@@ -482,20 +483,20 @@ function installFromRegistry(parsed, yes) {
     process.exit(0);
   }
 
-  installSingleFromUrl({ entry, scope });
+  installSingleFromUrl({ entry, scope }, jsonMode);
 }
 
-function installSingleFromUrl({ entry, scope }) {
+function installSingleFromUrl({ entry, scope }, jsonMode = false) {
   const [scopeName, ident] = entry.name.split('/');
   const dest = domainDir(scopeName, ident);
   const tmpFile = path.join(scopeDir(scopeName), `.${ident}-${Date.now()}.kdna.tmp`);
 
-  console.log(`  Downloading ${entry.name}@${entry.version}...`);
+  if (!jsonMode) console.log(`  Downloading ${entry.name}@${entry.version}...`);
   ensureDir(scopeDir(scopeName));
   try {
     downloadFile(entry.kdna_url, tmpFile);
   } catch {
-    error(`Failed to download ${entry.kdna_url}`);
+    error(`Failed to download ${entry.kdna_url}`, EXIT.REGISTRY_ERROR);
   }
 
   // sha256 check
@@ -508,7 +509,7 @@ function installSingleFromUrl({ entry, scope }) {
     }
     error(`sha256 mismatch for ${entry.name}: expected ${entry.sha256}, got ${actual}`);
   }
-  console.log(`  ✓ sha256 verified`);
+  if (!jsonMode) console.log(`  ✓ sha256 verified`);
 
   // Replace existing install atomically-ish
   if (fs.existsSync(dest)) {
@@ -537,29 +538,39 @@ function installSingleFromUrl({ entry, scope }) {
   };
   fs.writeFileSync(path.join(dest, 'kdna.json'), JSON.stringify(manifest, null, 2) + '\n');
 
-  console.log(`✓ Installed ${entry.name}@${entry.version}`);
-  console.log(`  Location: ${dest}`);
+  if (jsonMode) {
+    console.log(JSON.stringify({
+      name: entry.name,
+      version: entry.version,
+      installed: true,
+      path: dest,
+      type: entry.type || 'domain',
+    }));
+  } else {
+    console.log(`✓ Installed ${entry.name}@${entry.version}`);
+    console.log(`  Location: ${dest}`);
+  }
 }
 
-function installCluster(clusterEntry, resolver, _yes) {
+function installCluster(clusterEntry, resolver, _yes, jsonMode = false) {
   const subdomains = clusterEntry.cluster?.domains || [];
   if (!subdomains.length) {
     error(`Cluster ${clusterEntry.name} has no sub-domains listed.`);
   }
 
-  console.log(`Cluster ${clusterEntry.name} → ${subdomains.length} sub-domains`);
+  if (!jsonMode) console.log(`Cluster ${clusterEntry.name} → ${subdomains.length} sub-domains`);
 
   for (const sub of subdomains) {
     try {
       const resolved = resolver.resolve(sub);
       if (!resolved.entry.kdna_url) {
-        console.warn(`  ⚠ ${sub}: no kdna_url (skipping)`);
+        if (!jsonMode) console.warn(`  ⚠ ${sub}: no kdna_url (skipping)`);
         continue;
       }
-      console.log('');
-      installSingleFromUrl({ entry: resolved.entry, scope: resolved.scope });
+      if (!jsonMode) console.log('');
+      installSingleFromUrl({ entry: resolved.entry, scope: resolved.scope }, jsonMode);
     } catch (e) {
-      console.warn(`  ⚠ ${sub}: ${e.message.split('\n')[0]}`);
+      if (!jsonMode) console.warn(`  ⚠ ${sub}: ${e.message.split('\n')[0]}`);
     }
   }
 
@@ -582,11 +593,23 @@ function installCluster(clusterEntry, resolver, _yes) {
       2,
     ) + '\n',
   );
-  console.log('');
-  console.log(`✓ Cluster ${clusterEntry.name} installed`);
+
+  if (jsonMode) {
+    console.log(JSON.stringify({
+      name: clusterEntry.name,
+      version: clusterEntry.version,
+      type: 'cluster',
+      installed: true,
+      path: clusterDest,
+      subdomains: subdomains.length,
+    }));
+  } else {
+    console.log('');
+    console.log(`✓ Cluster ${clusterEntry.name} installed`);
+  }
 }
 
-function installFromLocalFile(filePath, _yes) {
+function installFromLocalFile(filePath, _yes, jsonMode = false) {
   const abs = path.resolve(filePath);
   if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) error(`Not a file: ${abs}`);
 
@@ -617,11 +640,21 @@ function installFromLocalFile(filePath, _yes) {
   };
   fs.writeFileSync(path.join(dest, 'kdna.json'), JSON.stringify(destManifest, null, 2) + '\n');
 
-  console.log(`✓ Installed ${declared} from local file`);
-  console.log(`  Location: ${dest}`);
+  if (jsonMode) {
+    console.log(JSON.stringify({
+      name: declared,
+      installed: true,
+      path: dest,
+      source: 'local-file',
+      source_path: abs,
+    }));
+  } else {
+    console.log(`✓ Installed ${declared} from local file`);
+    console.log(`  Location: ${dest}`);
+  }
 }
 
-function installFromLocalDir(dirPath, _yes) {
+function installFromLocalDir(dirPath, _yes, jsonMode = false) {
   const abs = path.resolve(dirPath);
   const manifest = readJson(path.join(abs, 'kdna.json'));
   const declared = manifest?.name;
@@ -642,8 +675,18 @@ function installFromLocalDir(dirPath, _yes) {
   };
   fs.writeFileSync(path.join(dest, 'kdna.json'), JSON.stringify(destManifest, null, 2) + '\n');
 
-  console.log(`✓ Installed ${declared} from local directory (dev mode)`);
-  console.log(`  Location: ${dest}`);
+  if (jsonMode) {
+    console.log(JSON.stringify({
+      name: declared,
+      installed: true,
+      path: dest,
+      source: 'local-dir',
+      source_path: abs,
+    }));
+  } else {
+    console.log(`✓ Installed ${declared} from local directory (dev mode)`);
+    console.log(`  Location: ${dest}`);
+  }
 }
 
 // ─── Remove ─────────────────────────────────────────────────────────────
@@ -663,17 +706,101 @@ function cmdRemove(input) {
 
 // ─── Info ───────────────────────────────────────────────────────────────
 
-function cmdInfo(input) {
+function cmdInfo(input, jsonMode = false) {
   warnLegacy();
   const parsed = parseName(input);
-  if (!parsed) error(`Invalid name "${input}".`);
+  if (!parsed) error(`Invalid name "${input}".`, EXIT.INPUT_ERROR);
   const dest = domainDir(parsed.scope, parsed.ident);
-  if (!fs.existsSync(dest)) error(`${parsed.full} is not installed.`);
+  if (!fs.existsSync(dest)) error(`${parsed.full} is not installed.`, EXIT.INPUT_ERROR);
 
   const manifest = readJson(path.join(dest, 'kdna.json'));
   const core = readJson(path.join(dest, 'KDNA_Core.json'));
   const pat = readJson(path.join(dest, 'KDNA_Patterns.json'));
   const source = manifest?._source || {};
+
+  // ─── Judgment surface (computed for both modes) ────────────────────
+  const axiomCount = (core?.axioms || []).length;
+  const ontologyCount = (core?.ontology || []).length;
+  const stanceCount = (core?.stances || []).length;
+  const misCount = (pat?.misunderstandings || []).length;
+  const selfCheckCount = (pat?.self_check || []).length;
+
+  // ─── v2.1 governance score ─────────────────────────────────────────
+  let governance = null;
+  if (axiomCount > 0) {
+    const withApplies = (core?.axioms || []).filter(
+      (a) => Array.isArray(a.applies_when) && a.applies_when.length,
+    ).length;
+    const withDoesNotApply = (core?.axioms || []).filter(
+      (a) => Array.isArray(a.does_not_apply_when) && a.does_not_apply_when.length,
+    ).length;
+    const withFailureRisk = (core?.axioms || []).filter((a) => a.failure_risk).length;
+    const pct = Math.round(
+      ((withApplies + withDoesNotApply + withFailureRisk) / (axiomCount * 3)) * 100,
+    );
+    governance = { withApplies, withDoesNotApply, withFailureRisk, coverage: pct };
+  }
+
+  // ─── Eval cases ────────────────────────────────────────────────────
+  const evalDir = path.join(dest, 'evals');
+  let evalInfo = null;
+  if (fs.existsSync(evalDir)) {
+    const evalFiles = fs.readdirSync(evalDir).filter((f) => f.endsWith('.json'));
+    let totalCases = 0;
+    for (const f of evalFiles) {
+      const data = readJson(path.join(evalDir, f));
+      if (data?.cases) totalCases += data.cases.length;
+    }
+    evalInfo = { files: evalFiles.length, totalCases };
+  }
+
+  // ─── Known risks ───────────────────────────────────────────────────
+  const risks = [];
+  if (core?.axioms) {
+    for (const a of core.axioms) {
+      if (a.failure_risk) risks.push({ source: a.id, text: a.failure_risk });
+    }
+  }
+
+  // ─── Files ─────────────────────────────────────────────────────────
+  const expected = [
+    'KDNA_Core.json',
+    'KDNA_Patterns.json',
+    'KDNA_Scenarios.json',
+    'KDNA_Cases.json',
+    'KDNA_Reasoning.json',
+    'KDNA_Evolution.json',
+  ];
+  const present = expected.filter((f) => fs.existsSync(path.join(dest, f)));
+
+  // ─── JSON mode: emit structured output only, then exit ─────────────
+  if (jsonMode) {
+    const result = {
+      name: parsed.full,
+      version: manifest?.version || core?.meta?.version || '?',
+      judgment_version: manifest?.judgment_version || null,
+      status: manifest?.status || '?',
+      license: manifest?.license?.type || '?',
+      author: manifest?.author?.name || '?',
+      pubkey: manifest?.author?.pubkey || null,
+      has_pem: !!manifest?.author?.public_key_pem,
+      source_url: source.kdna_url || null,
+      sha256: source.sha256 || null,
+      installed_at: source.installed_at || null,
+      path: dest,
+      axioms: axiomCount,
+      ontology: ontologyCount,
+      stances: stanceCount,
+      misunderstandings: misCount,
+      self_checks: selfCheckCount,
+      governance,
+      evals: evalInfo,
+      risks: risks.slice(0, 10),
+      files: { present: present.length, total: expected.length, list: present },
+    };
+    console.log(JSON.stringify(result));
+    process.exit(EXIT.OK);
+  }
 
   // ─── Header ─────────────────────────────────────────────────────
   console.log('═'.repeat(64));
@@ -706,11 +833,6 @@ function cmdInfo(input) {
   // ─── Judgment surface ──────────────────────────────────────────
   console.log('');
   console.log('  ── Judgment surface ──');
-  const axiomCount = (core?.axioms || []).length;
-  const ontologyCount = (core?.ontology || []).length;
-  const stanceCount = (core?.stances || []).length;
-  const misCount = (pat?.misunderstandings || []).length;
-  const selfCheckCount = (pat?.self_check || []).length;
   console.log(`  Axioms:            ${axiomCount}`);
   console.log(`  Ontology:          ${ontologyCount}`);
   console.log(`  Stances:           ${stanceCount}`);
@@ -718,47 +840,24 @@ function cmdInfo(input) {
   console.log(`  Self-checks:       ${selfCheckCount}`);
 
   // ─── v2.1 governance score ─────────────────────────────────────
-  if (axiomCount > 0) {
-    const withApplies = (core?.axioms || []).filter(
-      (a) => Array.isArray(a.applies_when) && a.applies_when.length,
-    ).length;
-    const withDoesNotApply = (core?.axioms || []).filter(
-      (a) => Array.isArray(a.does_not_apply_when) && a.does_not_apply_when.length,
-    ).length;
-    const withFailureRisk = (core?.axioms || []).filter((a) => a.failure_risk).length;
-    const pct = Math.round(
-      ((withApplies + withDoesNotApply + withFailureRisk) / (axiomCount * 3)) * 100,
-    );
+  if (governance) {
     console.log('');
     console.log('  ── v2.1 governance ──');
-    console.log(`  axioms with applies_when:      ${withApplies}/${axiomCount}`);
-    console.log(`  axioms with does_not_apply:    ${withDoesNotApply}/${axiomCount}`);
-    console.log(`  axioms with failure_risk:      ${withFailureRisk}/${axiomCount}`);
-    console.log(`  governance coverage:           ${pct}%`);
+    console.log(`  axioms with applies_when:      ${governance.withApplies}/${axiomCount}`);
+    console.log(`  axioms with does_not_apply:    ${governance.withDoesNotApply}/${axiomCount}`);
+    console.log(`  axioms with failure_risk:      ${governance.withFailureRisk}/${axiomCount}`);
+    console.log(`  governance coverage:           ${governance.coverage}%`);
   }
 
   // ─── Eval cases ────────────────────────────────────────────────
-  const evalDir = path.join(dest, 'evals');
-  if (fs.existsSync(evalDir)) {
-    const evalFiles = fs.readdirSync(evalDir).filter((f) => f.endsWith('.json'));
-    let totalCases = 0;
-    for (const f of evalFiles) {
-      const data = readJson(path.join(evalDir, f));
-      if (data?.cases) totalCases += data.cases.length;
-    }
+  if (evalInfo) {
     console.log('');
     console.log('  ── Eval cases ──');
-    console.log(`  Files:             ${evalFiles.length}`);
-    console.log(`  Total cases:       ${totalCases}`);
+    console.log(`  Files:             ${evalInfo.files}`);
+    console.log(`  Total cases:       ${evalInfo.totalCases}`);
   }
 
-  // ─── Known risks (from kdna.json or axioms) ────────────────────
-  const risks = [];
-  if (core?.axioms) {
-    for (const a of core.axioms) {
-      if (a.failure_risk) risks.push({ source: a.id, text: a.failure_risk });
-    }
-  }
+  // ─── Known risks ───────────────────────────────────────────────
   if (risks.length) {
     console.log('');
     console.log('  ── Known failure risks ──');
@@ -771,15 +870,6 @@ function cmdInfo(input) {
   }
 
   // ─── Files ─────────────────────────────────────────────────────
-  const expected = [
-    'KDNA_Core.json',
-    'KDNA_Patterns.json',
-    'KDNA_Scenarios.json',
-    'KDNA_Cases.json',
-    'KDNA_Reasoning.json',
-    'KDNA_Evolution.json',
-  ];
-  const present = expected.filter((f) => fs.existsSync(path.join(dest, f)));
   console.log('');
   console.log(`  Files: ${present.length}/${expected.length} (${present.join(', ') || 'none'})`);
 
@@ -806,7 +896,7 @@ function cmdUpdate(input) {
   try {
     ({ entry } = resolver.resolve(parsed.full));
   } catch (e) {
-    error(e.message);
+    error(e.message, EXIT.REGISTRY_ERROR);
   }
 
   if (entry.version === installedVersion) {

@@ -6,6 +6,7 @@
  */
 
 const { RegistryResolver } = require('./registry');
+const { EXIT } = require('./cmds/_common');
 
 function matchScore(d, q) {
   const ql = q.toLowerCase();
@@ -23,17 +24,25 @@ function matchScore(d, q) {
   return score;
 }
 
-function cmdSearch(query) {
+function cmdSearch(query, json) {
   if (!query) {
+    if (json) {
+      console.log(JSON.stringify({ error: 'Usage: kdna search <keyword>' }));
+      process.exit(EXIT.INPUT_ERROR);
+    }
     console.error('Usage: kdna search <keyword>');
     console.error('       kdna search "content strategy"');
-    process.exit(1);
+    process.exit(EXIT.INPUT_ERROR);
   }
 
   const resolver = new RegistryResolver({ allowNetwork: true });
   const domains = resolver.listAllDomains() || [];
 
   if (!domains.length) {
+    if (json) {
+      console.log(JSON.stringify([]));
+      process.exit(EXIT.OK);
+    }
     console.log('No registry entries found. Run: kdna registry refresh');
     return;
   }
@@ -44,11 +53,33 @@ function cmdSearch(query) {
     .sort((a, b) => b.score - a.score);
 
   if (!matches.length) {
+    if (json) {
+      console.log(JSON.stringify([]));
+      process.exit(EXIT.OK);
+    }
     console.log(`No domains match "${query}".`);
     console.log('');
     console.log('Try:');
     console.log('  kdna list --available     # show everything');
     return;
+  }
+
+  if (json) {
+    const result = matches.map(({ d, score }) => ({
+      name: d.name || d.id || null,
+      version: d.version || null,
+      type: d.type || 'domain',
+      description: d.description || null,
+      core_insight: d.core_insight || null,
+      keywords: d.keywords || [],
+      domain_field: d.domain_field || [],
+      judgment_patterns: d.judgment_patterns || [],
+      yanked: d.yanked || false,
+      deprecated: d.deprecated || false,
+      score,
+    }));
+    console.log(JSON.stringify(result));
+    process.exit(EXIT.OK);
   }
 
   console.log(`Found ${matches.length} matching domain(s) for "${query}":`);

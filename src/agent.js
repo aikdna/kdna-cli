@@ -327,6 +327,22 @@ function cmdLoad(input, args = []) {
     format = eq > 0 ? args[formatIdx].slice(eq + 1) : args[formatIdx + 1];
   }
 
+  // --profile=<name> for load profiles (Phase 2)
+  const profileIdx = args.findIndex((a) => a.startsWith('--profile'));
+  let profile = null;
+  let profileInput = null;
+  if (profileIdx >= 0) {
+    const eq = args[profileIdx].indexOf('=');
+    const raw = eq > 0 ? args[profileIdx].slice(eq + 1) : args[profileIdx + 1];
+    profile = raw || 'compact';
+  }
+
+  // --input for scenario profile
+  const inputIdx = args.indexOf('--input');
+  if (inputIdx >= 0) {
+    profileInput = args[inputIdx + 1] || null;
+  }
+
   const parsed = parseName(input);
   if (!parsed) {
     console.error(`Invalid name "${input}". Use @scope/name or bare name.`);
@@ -347,11 +363,13 @@ function cmdLoad(input, args = []) {
   const core = readJson(path.join(dir, 'KDNA_Core.json')) || {};
   const pat = readJson(path.join(dir, 'KDNA_Patterns.json')) || {};
 
+  // JSON format
   if (format === 'json') {
     process.stdout.write(JSON.stringify({ manifest, core, patterns: pat }, null, 2) + '\n');
     return;
   }
 
+  // Raw format
   if (format === 'raw') {
     for (const f of ['KDNA_Core.json', 'KDNA_Patterns.json']) {
       const p = path.join(dir, f);
@@ -363,8 +381,142 @@ function cmdLoad(input, args = []) {
     return;
   }
 
+  // Load profiles
+  if (profile) {
+    emitProfile(parsed, manifest, core, pat, profile, profileInput);
+    return;
+  }
+
   // Default: --as=prompt — compact text optimized for system-prompt injection.
-  // Goal: minimum token cost while preserving all judgment surface.
+  emitCompact(parsed, manifest, core, pat);
+}
+
+// ─── Load profiles ─────────────────────────────────────────────────────
+
+function emitProfile(parsed, manifest, core, pat, profile, input) {
+  const lines = [];
+  lines.push(`# KDNA loaded: ${manifest.name || parsed.full}`);
+  if (manifest.judgment_version) lines.push(`# judgment_version: ${manifest.judgment_version}`);
+  lines.push('');
+
+  const axioms = core.axioms || [];
+
+  switch (profile) {
+    case 'index':
+      // Minimal: name + axioms list + applies_when only
+      if (manifest.core_insight) lines.push(`# insight: ${manifest.core_insight}`);
+      lines.push('');
+      if (axioms.length) {
+        lines.push('## Axiom index');
+        for (const a of axioms) {
+          lines.push(`- ${a.one_sentence}`);
+          if (a.applies_when?.length) lines.push(`  APPLIES: ${a.applies_when.join('; ')}`);
+          if (a.does_not_apply_when?.length) lines.push(`  NOT: ${a.does_not_apply_when.join('; ')}`);
+        }
+        lines.push('');
+      }
+      break;
+
+    case 'scenario':
+      // Scenario-aware: include axioms whose applies_when matches the input
+      lines.push(`# Scenario input: ${(input || '').slice(0, 200)}`);
+      lines.push('');
+      if (axioms.length) {
+        const taskTokens = tokenize(input || '');
+        const relevant = axioms.filter((a) => {
+          if (!a.applies_when?.length) return false;
+          const combinedText = [...a.applies_when, a.one_sentence || '', a.full_statement || ''].join(' ');
+          const score = overlapScore(taskTokens, combinedText);
+          return score.hits >= 1 || score.coverage >= 0.1;
+        });
+        const selected = relevant.length > 0 ? relevant : axioms;
+        lines.push(`## Axioms (${selected.length}/${axioms.length} relevant)`);
+        for (const a of selected) {
+          lines.push(`- ${a.one_sentence}`);
+          if (a.applies_when?.length) {
+            lines.push(`  APPLIES WHEN: ${a.applies_when.join('; ')}`);
+          }
+          if (a.failure_risk) lines.push(`  RISK IF MISAPPLIED: ${a.failure_risk}`);
+        }
+        lines.push('');
+      }
+      break;
+
+    case 'full':
+      // Full: all axiom details including full_statement + why
+      if (axioms.length) {
+        lines.push('## Axioms (full)');
+        for (const a of axioms) {
+          lines.push(`### ${a.one_sentence}`);
+          if (a.full_statement) lines.push(`${a.full_statement}`);
+          if (a.why) lines.push(`Why: ${a.why}`);
+          if (a.applies_when?.length) {
+            lines.push(`Applies when: ${a.applies_when.join('; ')}`);
+          }
+          if (a.does_not_apply_when?.length) {
+            lines.push(`Does not apply when: ${a.does_not_apply_when.join('; ')}`);
+          }
+          if (a.failure_risk) lines.push(`Failure risk: ${a.failure_risk}`);
+          lines.push('');
+        }
+      }
+      break;
+
+    case 'compact':
+    default:
+      emitCompact(parsed, manifest, core, pat);
+      return;
+  }
+
+  // Add stances, misunderstandings, self-checks for all non-index profiles
+  if (profile !== 'index') {
+    if (core.stances?.length) {
+      lines.push('## Stances');
+      for (const s of core.stances) {
+        const text = typeof s === 'string' ? s : s.stance;
+        if (text) lines.push(`- ${text}`);
+      }
+      lines.push('');
+    }
+
+    if (pat.terminology?.banned_terms?.length) {
+      lines.push('## Banned terms');
+      for (const t of pat.terminology.banned_terms) {
+        const term = typeof t === 'string' ? t : t.term;
+        const replace = typeof t === 'object' ? t.replace_with : null;
+        lines.push(`- "${term}"${replace ? ` → use: ${replace}` : ''}`);
+      }
+      lines.push('');
+    }
+
+    if (pat.misunderstandings?.length) {
+      lines.push('## Misunderstandings to avoid');
+      for (const m of pat.misunderstandings) {
+        lines.push(`- WRONG: ${m.wrong}`);
+        lines.push(`  CORRECT: ${m.correct}`);
+        if (m.failure_risk) lines.push(`  RISK: ${m.failure_risk}`);
+      }
+      lines.push('');
+    }
+
+    if (pat.self_check?.length) {
+      lines.push('## Self-checks');
+      for (const q of pat.self_check) {
+        const text = typeof q === 'string' ? q : q.question;
+        if (text) lines.push(`- ${text}`);
+      }
+      lines.push('');
+    }
+  }
+
+  lines.push('---');
+  lines.push('Apply silently. Do not quote KDNA to the user.');
+  lines.push('User intent + evidence always override KDNA axioms.');
+
+  process.stdout.write(lines.join('\n') + '\n');
+}
+
+function emitCompact(parsed, manifest, core, pat) {
   const lines = [];
   lines.push(`# KDNA loaded: ${manifest.name || parsed.full}`);
   if (manifest.judgment_version) lines.push(`# judgment_version: ${manifest.judgment_version}`);
@@ -431,4 +583,260 @@ function cmdLoad(input, args = []) {
   process.stdout.write(lines.join('\n') + '\n');
 }
 
-module.exports = { cmdAvailable, cmdMatch, cmdLoad };
+// ─── kdna select ───────────────────────────────────────────────────────
+
+function cmdSelect(args = []) {
+  const wantJson = args.includes('--json');
+  const inputIdx = args.indexOf('--input');
+  const input = inputIdx >= 0 ? args[inputIdx + 1] : '';
+  const maxIdx = args.indexOf('--max-domains');
+  const maxDomains = maxIdx >= 0 ? parseInt(args[maxIdx + 1], 10) || 3 : 3;
+
+  if (!input) {
+    if (wantJson) {
+      console.log(JSON.stringify({ error: 'Usage: kdna select --input "<task>" [--max-domains=N] [--json]' }));
+      process.exit(2);
+    }
+    console.error('Usage: kdna select --input "<task>" [--max-domains=N] [--json]');
+    process.exit(2);
+  }
+
+  const taskTokens = tokenize(input);
+  const installed = listInstalled();
+  const scores = [];
+
+  for (const e of installed) {
+    const manifest = readJson(path.join(e.dir, 'kdna.json')) || {};
+    if (manifest.yanked === true) continue;
+    const core = readJson(path.join(e.dir, 'KDNA_Core.json')) || {};
+
+    // Check does_not_apply_when hard exclusion
+    let excluded = false;
+    for (const a of core.axioms || []) {
+      for (const d of a.does_not_apply_when || []) {
+        if (overlapScore(taskTokens, d).hits >= 2) {
+          excluded = true;
+          break;
+        }
+      }
+      if (excluded) break;
+    }
+    if (excluded) continue;
+
+    // Score: applies_when matches + domain relevance
+    let score = 0;
+    const reasons = [];
+
+    for (const a of core.axioms || []) {
+      for (const ap of a.applies_when || []) {
+        const s = overlapScore(taskTokens, ap);
+        if (s.hits >= 2) {
+          score += s.hits * 3;
+          reasons.push({ source: `${a.id}.applies_when`, hits: s.hits, text: ap.slice(0, 120) });
+        }
+      }
+    }
+
+    score += domainRelevanceScore(taskTokens, manifest);
+
+    if (score > 0) {
+      scores.push({
+        domain: manifest.name || e.full,
+        version: manifest.version || null,
+        status: manifest.status || 'experimental',
+        score,
+        reasons: reasons.slice(0, 5),
+      });
+    }
+  }
+
+  // Sort descending, take top N
+  scores.sort((a, b) => b.score - a.score);
+  const selected = scores.slice(0, maxDomains);
+
+  if (wantJson) {
+    console.log(JSON.stringify({
+      input: input.slice(0, 200),
+      selected,
+      max_domains: maxDomains,
+      total_candidates: scores.length,
+    }, null, 2));
+    return;
+  }
+
+  if (!selected.length) {
+    console.log(`No domains selected for input: "${input.slice(0, 100)}"`);
+    console.log('Run: kdna match "<task>"  for candidate hints');
+    console.log('Run: kdna list --available  to see all registered domains');
+    return;
+  }
+
+  console.log(`Selected ${selected.length} domain(s) for: "${input.slice(0, 100)}"`);
+  console.log('');
+  for (const s of selected) {
+    console.log(`  ${s.domain.padEnd(36)}  score:${s.score}  v${s.version || '?'}  [${s.status}]`);
+    for (const r of s.reasons) {
+      console.log(`    ↳ ${r.source} (${r.hits} hits): ${r.text}`);
+    }
+  }
+}
+
+// ─── kdna postvalidate ─────────────────────────────────────────────────
+
+function cmdPostvalidate(args = []) {
+  const wantJson = args.includes('--json');
+  const positional = args.filter((a) => !a.startsWith('--'));
+  const input = positional[1];
+  const outputIdx = args.indexOf('--output');
+  const outputFile = outputIdx >= 0 ? args[outputIdx + 1] : null;
+
+  if (!input) {
+    console.error('Usage: kdna postvalidate <domain> --output <response-file> [--json]');
+    process.exit(2);
+  }
+
+  const parsed = parseName(input);
+  if (!parsed) {
+    console.error(`Invalid name "${input}".`);
+    process.exit(2);
+  }
+  const dir = path.join(INSTALL_DIR, parsed.scope, parsed.ident);
+  if (!fs.existsSync(dir)) {
+    console.error(`${parsed.full} is not installed.`);
+    process.exit(2);
+  }
+
+  const core = readJson(path.join(dir, 'KDNA_Core.json')) || {};
+  const pat = readJson(path.join(dir, 'KDNA_Patterns.json')) || {};
+
+  // Read agent output
+  let agentOutput = '';
+  if (outputFile) {
+    try {
+      agentOutput = fs.readFileSync(outputFile, 'utf8');
+    } catch {
+      console.error(`Cannot read output file: ${outputFile}`);
+      process.exit(2);
+    }
+  } else {
+    // Read from stdin
+    try {
+      agentOutput = fs.readFileSync(0, 'utf8'); // fd 0 = stdin
+    } catch {
+      // ignore
+    }
+  }
+
+  const results = {
+    violations: [],
+    warnings: [],
+    passed: [],
+  };
+
+  // Check banned terms
+  const bannedTerms = (pat.terminology?.banned_terms || []).map((t) =>
+    typeof t === 'string' ? t : t.term,
+  );
+  for (const term of bannedTerms) {
+    const regex = new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    if (regex.test(agentOutput)) {
+      results.violations.push(`banned term used: "${term}"`);
+    } else {
+      results.passed.push(`banned term avoided: "${term}"`);
+    }
+  }
+
+  // Check misunderstandings (wrong patterns)
+  const misunderstandings = pat.misunderstandings || [];
+  for (const ms of misunderstandings) {
+    const wrongTokens = tokenize(ms.wrong || '');
+    const agentTokens = tokenize(agentOutput);
+    const overlap = wrongTokens.filter((t) => agentTokens.includes(t));
+    if (overlap.length >= 3) {
+      results.warnings.push(`possible misunderstanding: "${ms.wrong?.slice(0, 80)}"`);
+    } else {
+      results.passed.push(`misunderstanding avoided: "${(ms.wrong || '').slice(0, 60)}"`);
+    }
+  }
+
+  // Check self-checks absence (can't verify answers, but flag missing checks)
+  const selfChecks = pat.self_check || [];
+  if (selfChecks.length > 0) {
+    let foundChecks = 0;
+    for (const sc of selfChecks) {
+      const text = typeof sc === 'string' ? sc : sc.question;
+      if (text) {
+        const keywords = tokenize(text).filter((t) => t.length > 3).slice(0, 3);
+        const found = keywords.some((k) => agentOutput.toLowerCase().includes(k));
+        if (found) foundChecks++;
+      }
+    }
+    if (foundChecks === 0) {
+      results.warnings.push('no self-check traces found in output');
+    } else {
+      results.passed.push(`self-check traces: ${foundChecks}/${selfChecks.length}`);
+    }
+  }
+
+  // Check boundary violations
+  const boundaries = core.axioms || [];
+  let boundaryViolations = 0;
+  for (const ax of boundaries) {
+    for (const notApply of ax.does_not_apply_when || []) {
+      if (overlapScore(tokenize(agentOutput), notApply).hits >= 2) {
+        boundaryViolations++;
+        results.violations.push(`boundary violation: ${ax.id} (should not apply when "${notApply.slice(0, 80)}")`);
+        break;
+      }
+    }
+  }
+  if (boundaryViolations === 0) {
+    results.passed.push('no boundary violations detected');
+  }
+
+  // Risk flags
+  for (const ax of core.axioms || []) {
+    if (ax.failure_risk) {
+      const riskTokens = tokenize(ax.failure_risk);
+      const match = riskTokens.filter((t) => tokenize(agentOutput).includes(t)).length;
+      if (match >= riskTokens.length * 0.5) {
+        results.warnings.push(`failure risk matched: ${ax.id} — "${ax.failure_risk.slice(0, 80)}"`);
+      }
+    }
+  }
+
+  if (wantJson) {
+    console.log(JSON.stringify({
+      domain: parsed.full,
+      violations: results.violations.length,
+      warnings: results.warnings.length,
+      passed: results.passed.length,
+      details: results,
+    }, null, 2));
+    process.exit(results.violations.length ? 1 : 0);
+  }
+
+  console.log(`Post-validation: ${parsed.full}`);
+  console.log('');
+  console.log(`  Violations: ${results.violations.length}  Warnings: ${results.warnings.length}  Passed: ${results.passed.length}`);
+  console.log('');
+
+  if (results.violations.length) {
+    console.log('Violations:');
+    results.violations.forEach((v) => console.log(`  ✗ ${v}`));
+    console.log('');
+  }
+  if (results.warnings.length) {
+    console.log('Warnings:');
+    results.warnings.forEach((w) => console.log(`  ⚠ ${w}`));
+    console.log('');
+  }
+  if (results.passed.length) {
+    console.log('Passed:');
+    results.passed.forEach((p) => console.log(`  ✓ ${p}`));
+  }
+
+  process.exit(results.violations.length ? 1 : 0);
+}
+
+module.exports = { cmdAvailable, cmdMatch, cmdLoad, cmdSelect, cmdPostvalidate };

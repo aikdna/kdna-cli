@@ -11,6 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { EXIT } = require('./cmds/_common');
 
 const IDENTITY_DIR =
   process.env.KDNA_IDENTITY_DIR ||
@@ -19,9 +20,9 @@ const IDENTITY_DIR =
 const PRIVATE_KEY_PATH = path.join(IDENTITY_DIR, 'kdna.key');
 const PUBLIC_KEY_PATH = path.join(IDENTITY_DIR, 'kdna.pub');
 
-function error(msg) {
+function error(msg, code = EXIT.VALIDATION_FAILED) {
   console.error(`Error: ${msg}`);
-  process.exit(1);
+  process.exit(code);
 }
 
 // ─── Key Generation ────────────────────────────────────────────────────
@@ -75,14 +76,29 @@ function cmdIdentityInit() {
 
 // ─── Show ──────────────────────────────────────────────────────────────
 
-function cmdIdentityShow() {
+function cmdIdentityShow(jsonMode = false) {
   if (!fs.existsSync(PUBLIC_KEY_PATH)) {
-    error('No identity found. Run: kdna identity init');
+    if (jsonMode) {
+      console.log(JSON.stringify({ error: 'No identity found. Run: kdna identity init' }));
+      process.exit(EXIT.INPUT_ERROR);
+    }
+    error('No identity found. Run: kdna identity init', EXIT.INPUT_ERROR);
   }
 
   const pub = fs.readFileSync(PUBLIC_KEY_PATH, 'utf8');
   const id = deriveBuyerId(pub);
   const fp = fingerprint(pub);
+
+  if (jsonMode) {
+    console.log(JSON.stringify({
+      pubkey: pub.trim(),
+      buyer_id: id,
+      fingerprint: fp,
+      public_key_path: PUBLIC_KEY_PATH,
+      private_key_exists: fs.existsSync(PRIVATE_KEY_PATH),
+    }));
+    process.exit(EXIT.OK);
+  }
 
   console.log(`Buyer ID:     ${id}`);
   console.log(`Fingerprint:  ${fp}`);
