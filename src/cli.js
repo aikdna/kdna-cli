@@ -80,6 +80,8 @@ Testing & Verification:
   verify <name>                    3-layer: structure + trust + judgment
   verify <name> --judgment --run-tests  Judgment validation with eval cases
   compare <name> --input "..."     With/without KDNA reasoning diff
+  compare <name> --input "..." --report-md     Markdown report format
+  compare <name> --input "..." --report-json   JSON report with scoring
   diff <name>@<v1> <name>@<v2>     Judgment-level diff between versions
   test run <name> --input <file>   Record test result against domain
   test import <run> --as-eval      Convert test result to eval card
