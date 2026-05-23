@@ -467,6 +467,87 @@ function checkI18n(destDir) {
   };
 }
 
+// ─── Governance layer ───────────────────────────────────────────────
+
+function checkGovernance(destDir) {
+  const issues = [];
+  const passed = [];
+  const card = readJson(path.join(destDir, 'KDNA_CARD.json')) || {};
+
+  if (!readJson(path.join(destDir, 'KDNA_CARD.json'))) {
+    issues.push({ severity: 'error', msg: 'governance: KDNA_CARD.json missing — required' });
+    return { layer: 'governance', passed: false, issues, results: issues.map((i) => i.msg) };
+  }
+  passed.push('KDNA_CARD.json present');
+
+  if (!card.risk_level) {
+    issues.push({ severity: 'error', msg: 'governance: risk_level not declared (R0/R1/R2/R3)' });
+  } else if (!['R0', 'R1', 'R2', 'R3'].includes(card.risk_level)) {
+    issues.push({ severity: 'error', msg: `governance: invalid risk_level "${card.risk_level}"` });
+  } else {
+    passed.push(`risk_level: ${card.risk_level}`);
+  }
+
+  if (!card.intended_use?.length) {
+    issues.push({ severity: 'error', msg: 'governance: intended_use empty' });
+  } else {
+    passed.push(`intended_use: ${card.intended_use.length} entries`);
+  }
+
+  if (!card.out_of_scope?.length) {
+    issues.push({ severity: 'error', msg: 'governance: out_of_scope empty' });
+  } else {
+    passed.push(`out_of_scope: ${card.out_of_scope.length} entries`);
+  }
+
+  if (!card.known_limitations?.length) {
+    issues.push({ severity: 'warn', msg: 'governance: known_limitations empty' });
+  } else {
+    passed.push(`known_limitations: ${card.known_limitations.length} entries`);
+  }
+
+  if (['R1', 'R2', 'R3'].includes(card.risk_level) && !card.author_responsibility) {
+    issues.push({
+      severity: 'warn',
+      msg: `governance: risk ${card.risk_level} should declare author_responsibility`,
+    });
+  }
+
+  if (['R2', 'R3'].includes(card.risk_level)) {
+    if (!card.reviewed_by && !card.requires_expert_review) {
+      issues.push({
+        severity: 'error',
+        msg: `governance: risk ${card.risk_level} requires expert_review`,
+      });
+    }
+    if (!card.risk_warnings?.length) {
+      issues.push({
+        severity: 'error',
+        msg: `governance: risk ${card.risk_level} requires risk_warnings`,
+      });
+    }
+  }
+
+  if (!card.human_lock_summary)
+    issues.push({ severity: 'warn', msg: 'governance: human_lock_summary missing' });
+  else passed.push('human_lock_summary present');
+
+  if (!card.provenance) issues.push({ severity: 'warn', msg: 'governance: provenance missing' });
+  else passed.push('provenance present');
+
+  if (!card.quality_badge)
+    issues.push({ severity: 'warn', msg: 'governance: quality_badge missing' });
+  else passed.push(`quality_badge: ${card.quality_badge}`);
+
+  return {
+    layer: 'governance',
+    passed: issues.filter((i) => i.severity === 'error').length === 0,
+    issues,
+    results: passed.concat(issues.map((i) => i.msg)),
+    score: { total: passed.length, max: passed.length + issues.length },
+  };
+}
+
 // ─── Main ──────────────────────────────────────────────────────────────
 
 function cmdVerify(input, args = []) {
@@ -477,8 +558,9 @@ function cmdVerify(input, args = []) {
     trust: args.includes('--trust'),
     judgment: args.includes('--judgment'),
     i18n: args.includes('--i18n'),
+    governance: args.includes('--governance'),
   };
-  const all = !want.structure && !want.trust && !want.judgment && !want.i18n;
+  const all = !want.structure && !want.trust && !want.judgment && !want.i18n && !want.governance;
   if (all) want.structure = want.trust = want.judgment = true;
 
   // Resolve name → installed path + scope/entry
@@ -532,6 +614,7 @@ function cmdVerify(input, args = []) {
   if (want.trust) results.push(checkTrust(destDir, scope, entry));
   if (want.judgment) results.push(checkJudgment(destDir));
   if (want.i18n) results.push(checkI18n(destDir));
+  if (want.governance) results.push(checkGovernance(destDir));
 
   // ── JSON output ──────────────────────────────────────────────────────
   if (jsonMode) {
@@ -548,6 +631,8 @@ function cmdVerify(input, args = []) {
     const structureResult = results.find((r) => r.layer === 'structure');
     const trustResult = results.find((r) => r.layer === 'trust');
     const judgmentResult = results.find((r) => r.layer === 'judgment');
+    const i18nResult = results.find((r) => r.layer === 'i18n');
+    const governanceResult = results.find((r) => r.layer === 'governance');
 
     let exitCode = EXIT.OK;
     if (structureResult && structureResult.issues.some((i) => i.severity === 'error')) {
