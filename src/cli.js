@@ -252,8 +252,10 @@ switch (cmd) {
   }
   case 'inspect': {
     const target = args.filter((a) => !a.startsWith('--'))[1];
-    if (!target) error('Usage: kdna inspect <path>');
-    cmdInspect(target, args.includes('--json'));
+    if (!target) error('Usage: kdna inspect <path> [--json] [--locale zh-CN]');
+    const localeIdx = args.indexOf('--locale');
+    const locale = localeIdx >= 0 ? args[localeIdx + 1] : null;
+    cmdInspect(target, args.includes('--json'), locale);
     break;
   }
   case 'verify': {
