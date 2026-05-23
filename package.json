@@ -1,6 +1,6 @@
 {
   "name": "@aikdna/kdna-cli",
-  "version": "0.16.1",
+  "version": "0.16.2",
   "description": "KDNA CLI — create, validate, install, and manage domain cognition packages for AI agents.",
   "type": "commonjs",
   "bin": {
