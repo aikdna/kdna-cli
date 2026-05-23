@@ -167,7 +167,6 @@ function cmdLicenseBind(args) {
 function cmdLicenseShow(args) {
   const licensePath = args[0];
   if (!licensePath) {
-    // Try to find license in current directory
     const local = path.join(process.cwd(), 'license.json');
     if (fs.existsSync(local)) return cmdLicenseVerify([local, ...args.slice(1)]);
     error('Usage: kdna license show <license.json>', EXIT.INPUT_ERROR);
@@ -175,4 +174,32 @@ function cmdLicenseShow(args) {
   cmdLicenseVerify(args);
 }
 
-module.exports = { cmdLicenseGenerate, cmdLicenseVerify, cmdLicenseBind, cmdLicenseShow };
+function cmdLicenseInstall(args) {
+  const licensePath = args[0];
+  if (!licensePath) error('Usage: kdna license install <license.json>', EXIT.INPUT_ERROR);
+
+  let license;
+  try {
+    license = JSON.parse(fs.readFileSync(licensePath, 'utf8'));
+  } catch {
+    error(`Cannot read license file: ${licensePath}`, EXIT.INPUT_ERROR);
+  }
+
+  if (!license.domain) error('License missing domain field', EXIT.INPUT_ERROR);
+
+  const licenseDir = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna', 'licenses');
+  fs.mkdirSync(licenseDir, { recursive: true });
+
+  const safeName = license.domain.replace(/^@/, '').replace('/', '-');
+  const dest = path.join(licenseDir, `${safeName}.json`);
+
+  fs.writeFileSync(dest, JSON.stringify(license, null, 2) + '\n');
+
+  console.log(`License installed for ${license.domain}`);
+  console.log(`  License ID: ${license.license_id || 'unknown'}`);
+  console.log(`  Saved to: ${dest}`);
+  console.log('');
+  console.log(`Now install the domain: kdna install ${license.domain}`);
+}
+
+module.exports = { cmdLicenseGenerate, cmdLicenseVerify, cmdLicenseBind, cmdLicenseShow, cmdLicenseInstall };
