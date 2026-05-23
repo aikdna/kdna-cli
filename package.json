@@ -14,7 +14,8 @@
     "templates/",
     "skills/",
     "LICENSE",
-    "NOTICE"
+    "NOTICE",
+    "SECURITY.md"
   ],
   "scripts": {
     "lint": "eslint src/ validators/ tests/",
