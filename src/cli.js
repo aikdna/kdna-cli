@@ -7,7 +7,14 @@
  */
 
 const { error, EXIT, setQuiet, setExitCodeOnly } = require('./cmds/_common');
-const { cmdValidate, cmdPack, cmdPackEncrypt, cmdUnpack, cmdUnpackEncrypt, cmdInspect } = require('./cmds/domain');
+const {
+  cmdValidate,
+  cmdPack,
+  cmdPackEncrypt,
+  cmdUnpack,
+  cmdUnpackEncrypt,
+  cmdInspect,
+} = require('./cmds/domain');
 const { cmdList, cmdRegistry } = require('./cmds/registry');
 const {
   cmdCompare,
@@ -24,12 +31,31 @@ const { cmdIdentity } = require('./cmds/identity');
 const { cmdSetup } = require('./cmds/setup');
 const { cmdDoctor } = require('./cmds/doctor');
 const { cmdTrace, cmdHistory } = require('./cmds/trace');
-const { cmdLicenseGenerate, cmdLicenseVerify, cmdLicenseBind, cmdLicenseShow, cmdLicenseInstall } = require('./cmds/license');
+const {
+  cmdLicenseGenerate,
+  cmdLicenseVerify,
+  cmdLicenseBind,
+  cmdLicenseShow,
+  cmdLicenseInstall,
+} = require('./cmds/license');
 const { cmdPreview, cmdProject, cmdEval, cmdExport, cmdDemo } = require('./cmds/legacy');
-const { cmdStudioScaffold, cmdCardsValidate, cmdLockVerify, cmdStudioCompile, cmdStudioReadiness } = require('./cmds/studio');
+const {
+  cmdStudioScaffold,
+  cmdCardsValidate,
+  cmdLockVerify,
+  cmdStudioCompile,
+  cmdStudioReadiness,
+} = require('./cmds/studio');
 const { cmdTestRun, cmdTestImport } = require('./cmds/test');
 const { cmdChangelog } = require('./cmds/changelog');
-const { cmdProposalCreate, cmdProposalValidate, cmdReview, cmdLockCard, cmdEvolution, cmdRegression } = require('./cmds/governance');
+const {
+  cmdProposalCreate,
+  cmdProposalValidate,
+  cmdReview,
+  cmdLockCard,
+  cmdEvolution,
+  cmdRegression,
+} = require('./cmds/governance');
 const { cmdBadgeCompute, cmdRegistryAudit, cmdPackage } = require('./cmds/badge');
 
 // ─── Main ─────────────────────────────────────────────────────────────
@@ -81,6 +107,7 @@ Agent Runtime:
 
 Testing & Verification:
   verify <name>                    3-layer: structure + trust + judgment
+  verify <name> --i18n               I18N verification: locale dirs, overlays, card completeness
   verify <name> --judgment --run-tests  Judgment validation with eval cases
   compare <name> --input "..."     With/without KDNA reasoning diff
   compare <name> --input "..." --report-md     Markdown report format
@@ -332,7 +359,10 @@ switch (cmd) {
     } else if (sub === 'validate') {
       cmdProposalValidate(args);
     } else {
-      error('Usage: kdna proposal create --from-test <run.json> --domain <path>\n       kdna proposal validate <proposal.json>', EXIT.INPUT_ERROR);
+      error(
+        'Usage: kdna proposal create --from-test <run.json> --domain <path>\n       kdna proposal validate <proposal.json>',
+        EXIT.INPUT_ERROR,
+      );
     }
     break;
   }
@@ -405,7 +435,9 @@ switch (cmd) {
     break;
   }
   case 'list': {
-    cmdList(args.includes('--available'), args.includes('--json'));
+    const localeIdx = args.indexOf('--locale');
+    const locale = localeIdx >= 0 ? args[localeIdx + 1] : null;
+    cmdList(args.includes('--available'), args.includes('--json'), locale);
     break;
   }
   case 'setup': {

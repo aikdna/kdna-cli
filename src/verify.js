@@ -240,10 +240,16 @@ function checkJudgment(destDir) {
   } else if (hasScope || hasOutOfScope) {
     score.max += 2;
     score.total += 1;
-    issues.push({ severity: 'warn', msg: 'partial: README boundary declaration incomplete (missing Scope or Out-of-Scope section)' });
+    issues.push({
+      severity: 'warn',
+      msg: 'partial: README boundary declaration incomplete (missing Scope or Out-of-Scope section)',
+    });
   } else {
     score.max += 2;
-    issues.push({ severity: 'error', msg: 'README missing boundary declaration: require ## Scope + ## Out of Scope (or v2.1 Four Questions)' });
+    issues.push({
+      severity: 'error',
+      msg: 'README missing boundary declaration: require ## Scope + ## Out of Scope (or v2.1 Four Questions)',
+    });
   }
 
   // 2. v2.1 axiom governance fields
@@ -321,14 +327,20 @@ function checkJudgment(destDir) {
     } else if (files.length > 0) {
       score.max += 2;
       score.total += 1;
-      issues.push({ severity: 'warn', msg: `evals/ has only ${files.length} files (require ≥4: core/boundary/failure/excluded)` });
+      issues.push({
+        severity: 'warn',
+        msg: `evals/ has only ${files.length} files (require ≥4: core/boundary/failure/excluded)`,
+      });
     } else {
       score.max += 2;
       issues.push({ severity: 'error', msg: 'evals/ directory exists but contains no case files' });
     }
   } else {
     score.max += 2;
-    issues.push({ severity: 'error', msg: 'evals/ directory missing: require ≥4 evaluation cases' });
+    issues.push({
+      severity: 'error',
+      msg: 'evals/ directory missing: require ≥4 evaluation cases',
+    });
   }
 
   // 6. judgment_version manifest field (REQUIRED)
@@ -367,6 +379,94 @@ function renderLayer(result) {
   }
 }
 
+// ─── I18N layer ──────────────────────────────────────────────────────
+
+function checkI18n(destDir) {
+  const issues = [];
+  const passed = [];
+  const manifest = readJson(path.join(destDir, 'kdna.json')) || {};
+  const languages = manifest.languages || [];
+  const i18nLevel = manifest.i18n_level || 'L0';
+
+  if (languages.length === 0) {
+    passed.push('i18n: no languages declared (L0 — monolingual)');
+    return { layer: 'i18n', passed: true, issues, results: passed };
+  }
+
+  passed.push(`languages declared: ${languages.join(', ')}`);
+  passed.push(`i18n level: ${i18nLevel}`);
+
+  const canonical = manifest.default_language || languages[0] || 'en';
+  for (const lang of languages) {
+    if (lang === canonical) continue;
+    const localeDir = path.join(destDir, 'locales', lang);
+
+    // L1: card + readme
+    if (['L1', 'L2', 'L3', 'L4'].includes(i18nLevel)) {
+      if (!fs.existsSync(path.join(localeDir, 'KDNA_CARD.json'))) {
+        issues.push({ severity: 'error', msg: `i18n: ${lang} KDNA_CARD.json missing` });
+      } else {
+        const card = readJson(path.join(localeDir, 'KDNA_CARD.json'));
+        if (card) {
+          passed.push(`locales/${lang}/KDNA_CARD.json OK`);
+          if (!card.display_name)
+            issues.push({ severity: 'warn', msg: `i18n: ${lang} card missing display_name` });
+          if (!card.intended_use?.length)
+            issues.push({ severity: 'warn', msg: `i18n: ${lang} card missing intended_use` });
+        }
+      }
+      if (!fs.existsSync(path.join(localeDir, 'README.md'))) {
+        issues.push({ severity: 'warn', msg: `i18n: ${lang} README.md missing` });
+      } else {
+        passed.push(`locales/${lang}/README.md OK`);
+      }
+    }
+
+    // L2: overlay files
+    if (['L2', 'L3', 'L4'].includes(i18nLevel)) {
+      const coreOverlay = path.join(localeDir, 'KDNA_Core.overlay.json');
+      if (!fs.existsSync(coreOverlay)) {
+        issues.push({ severity: 'error', msg: `i18n: ${lang} KDNA_Core.overlay.json missing` });
+      } else {
+        const overlay = readJson(coreOverlay);
+        if (overlay?.translations) {
+          const core = readJson(path.join(destDir, 'KDNA_Core.json'));
+          if (core?.axioms) {
+            const validIds = new Set(core.axioms.map((a) => a.id));
+            for (const key of Object.keys(overlay.translations)) {
+              const refId = key.split('.')[0];
+              if (!validIds.has(refId)) {
+                issues.push({
+                  severity: 'error',
+                  msg: `i18n: overlay refs unknown axiom: ${refId}`,
+                });
+              }
+            }
+          }
+          passed.push(
+            `locales/${lang}/KDNA_Core.overlay.json OK (${Object.keys(overlay.translations).length} translations)`,
+          );
+        }
+      }
+      if (!fs.existsSync(path.join(localeDir, 'KDNA_Patterns.overlay.json'))) {
+        issues.push({ severity: 'warn', msg: `i18n: ${lang} KDNA_Patterns.overlay.json missing` });
+      }
+    }
+  }
+
+  if (manifest.languages?.length && !manifest.i18n_level) {
+    issues.push({ severity: 'warn', msg: 'i18n: languages declared but i18n_level not set' });
+  }
+
+  return {
+    layer: 'i18n',
+    passed: issues.filter((i) => i.severity === 'error').length === 0,
+    issues,
+    results: passed.concat(issues.map((i) => i.msg)),
+    score: { total: passed.length, max: passed.length + issues.length },
+  };
+}
+
 // ─── Main ──────────────────────────────────────────────────────────────
 
 function cmdVerify(input, args = []) {
@@ -376,15 +476,22 @@ function cmdVerify(input, args = []) {
     structure: args.includes('--structure'),
     trust: args.includes('--trust'),
     judgment: args.includes('--judgment'),
+    i18n: args.includes('--i18n'),
   };
-  const all = !want.structure && !want.trust && !want.judgment;
+  const all = !want.structure && !want.trust && !want.judgment && !want.i18n;
   if (all) want.structure = want.trust = want.judgment = true;
 
   // Resolve name → installed path + scope/entry
   const parsed = parseName(input);
   if (!parsed) {
     if (jsonMode) {
-      console.log(JSON.stringify({ name: input, ok: false, error: `Invalid name "${input}". Use @scope/name or bare name.` }));
+      console.log(
+        JSON.stringify({
+          name: input,
+          ok: false,
+          error: `Invalid name "${input}". Use @scope/name or bare name.`,
+        }),
+      );
     } else {
       console.error(`Invalid name "${input}". Use @scope/name or bare name.`);
     }
@@ -394,7 +501,13 @@ function cmdVerify(input, args = []) {
   const destDir = path.join(INSTALL_DIR, parsed.scope, parsed.ident);
   if (!fs.existsSync(destDir)) {
     if (jsonMode) {
-      console.log(JSON.stringify({ name: parsed.full, ok: false, error: `${parsed.full} is not installed. Run: kdna install ${input}` }));
+      console.log(
+        JSON.stringify({
+          name: parsed.full,
+          ok: false,
+          error: `${parsed.full} is not installed. Run: kdna install ${input}`,
+        }),
+      );
     } else {
       console.error(`${parsed.full} is not installed. Run: kdna install ${input}`);
     }
@@ -418,6 +531,7 @@ function cmdVerify(input, args = []) {
   if (want.structure) results.push(checkStructure(destDir));
   if (want.trust) results.push(checkTrust(destDir, scope, entry));
   if (want.judgment) results.push(checkJudgment(destDir));
+  if (want.i18n) results.push(checkI18n(destDir));
 
   // ── JSON output ──────────────────────────────────────────────────────
   if (jsonMode) {
@@ -444,12 +558,18 @@ function cmdVerify(input, args = []) {
       exitCode = EXIT.JUDGMENT_QUALITY_FAILED;
     }
 
-    console.log(JSON.stringify({
-      name: parsed.full,
-      path: destDir,
-      layers,
-      ok: exitCode === EXIT.OK,
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          name: parsed.full,
+          path: destDir,
+          layers,
+          ok: exitCode === EXIT.OK,
+        },
+        null,
+        2,
+      ),
+    );
     process.exit(exitCode);
   }
 
