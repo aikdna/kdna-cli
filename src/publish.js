@@ -47,6 +47,33 @@ const SLOGAN_PATTERNS = [
   /^[A-Z][a-z]+ matters\.?$/, // "Quality matters."
 ];
 
+// ─── Anti-SOP checks ──────────────────────────────────────────────────
+// Detects when KDNA content degrades into procedural instructions
+// rather than judgment principles. Axioms should express what to
+// PRIORITIZE or AVOID, not steps to follow.
+
+const SOP_PATTERNS = [
+  /^Step\s+\d/i,                     // "Step 1: identify the topic"
+  /^First,?\s|^Next,?\s|^Then,?\s|^Finally,?\s/i, // "First, do X. Then do Y."
+  /^Check\s(for|if|whether)\s/i,    // "Check for spelling errors"
+  /^Always\s+(use|do|make|include)/i, // "Always use active voice"
+  /^Never\s+(use|do|make)/i,        // "Never use passive voice"
+  /^Generate\s/i,                    // "Generate three options"
+  /^Create\s+(a|the)\s/i,           // "Create a list of..."
+  /^Make\s+sure\s/i,                // "Make sure to check..."
+  /^Remember\s+to\s/i,              // "Remember to validate..."
+  /^(You|The agent)\s+should\s+(use|do|make|include)/i, // "You should use X"
+  /^Avoid\s+(using|doing)/i,         // "Avoid using X" (too procedural)
+];
+
+function isSOP(text) {
+  if (!text || typeof text !== 'string') return false;
+  for (const pattern of SOP_PATTERNS) {
+    if (pattern.test(text.trim())) return { pattern: pattern.source, text };
+  }
+  return false;
+}
+
 function isVague(text) {
   if (!text || typeof text !== 'string') return false;
   const lower = text.toLowerCase();
@@ -167,6 +194,14 @@ function cmdPublishCheck(domainPath) {
           `axioms.${label}.one_sentence`,
           ax.one_sentence,
           'Reads like a slogan. Axioms must be specific judgment principles.',
+        );
+      } else if (isSOP(ax.one_sentence)) {
+        const s = isSOP(ax.one_sentence);
+        fail(
+          'KDNA_Core.json',
+          `axioms.${label}.one_sentence`,
+          ax.one_sentence,
+          `Reads like a SOP ("${s.pattern}"). Axioms must be judgment principles, not step-by-step instructions.`,
         );
       } else if (isVague(ax.one_sentence)) {
         const v = isVague(ax.one_sentence);
