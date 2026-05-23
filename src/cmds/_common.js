@@ -99,6 +99,9 @@ Usage:
 
   --- Other ---
   kdna setup                    One-command setup: CLI + skill + data root
+  kdna doctor [--agents] [--domains] [--json]   System health check
+  kdna trace [--json] [--since 7d] [--export <file>]  Agent judgment trace
+  kdna history [--stats] [--domain <name>] [--agent <name>]  Recent usage
   kdna version                  Show kdna CLI version
   kdna help                     Show this help
 

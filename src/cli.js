@@ -23,6 +23,7 @@ const { cmdCluster } = require('./cmds/cluster');
 const { cmdIdentity } = require('./cmds/identity');
 const { cmdSetup } = require('./cmds/setup');
 const { cmdDoctor } = require('./cmds/doctor');
+const { cmdTrace, cmdHistory } = require('./cmds/trace');
 const { cmdPreview, cmdProject, cmdEval, cmdExport, cmdDemo } = require('./cmds/legacy');
 const { cmdStudioScaffold, cmdCardsValidate, cmdLockVerify, cmdStudioCompile, cmdStudioReadiness } = require('./cmds/studio');
 const { cmdTestRun, cmdTestImport } = require('./cmds/test');
@@ -83,7 +84,6 @@ Testing & Verification:
   test run <name> --input <file>   Record test result against domain
   test import <run> --as-eval      Convert test result to eval card
   changelog <name> --from --to     Generate judgment changelog
-  doctor                           Check runtime environment health
 
 Cluster Composition:
   cluster lint <path>              Validate cluster manifest
@@ -125,6 +125,11 @@ Identity & Signing:
 
 Setup:
   setup                            One-command setup: CLI + skill + data root
+
+Trace & Diagnostics:
+  doctor [--agents] [--domains] [--json]   System health check
+  trace [--json] [--since 7d] [--export <file>]  Agent judgment trace
+  history [--stats] [--domain <name>] [--agent <name>]  Recent usage
 
 Flags:
   --json                           Structured JSON output (machine-readable)
@@ -391,6 +396,14 @@ switch (cmd) {
   }
   case 'doctor': {
     cmdDoctor(args);
+    break;
+  }
+  case 'trace': {
+    cmdTrace(args);
+    break;
+  }
+  case 'history': {
+    cmdHistory(args);
     break;
   }
   case 'identity': {
