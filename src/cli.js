@@ -107,7 +107,8 @@ Agent Runtime:
 
 Testing & Verification:
   verify <name>                    3-layer: structure + trust + judgment
-  verify <name> --i18n               I18N verification: locale dirs, overlays, card completeness
+  verify <name> --i18n               I18N verification: locales, overlays, card completeness
+  verify <name> --governance         Governance verification: risk_level, KDNA_CARD, provenance
   verify <name> --judgment --run-tests  Judgment validation with eval cases
   compare <name> --input "..."     With/without KDNA reasoning diff
   compare <name> --input "..." --report-md     Markdown report format
