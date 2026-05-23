@@ -24,7 +24,7 @@ const { cmdIdentity } = require('./cmds/identity');
 const { cmdSetup } = require('./cmds/setup');
 const { cmdDoctor } = require('./cmds/doctor');
 const { cmdTrace, cmdHistory } = require('./cmds/trace');
-const { cmdLicenseGenerate, cmdLicenseVerify, cmdLicenseBind, cmdLicenseShow } = require('./cmds/license');
+const { cmdLicenseGenerate, cmdLicenseVerify, cmdLicenseBind, cmdLicenseShow, cmdLicenseInstall } = require('./cmds/license');
 const { cmdPreview, cmdProject, cmdEval, cmdExport, cmdDemo } = require('./cmds/legacy');
 const { cmdStudioScaffold, cmdCardsValidate, cmdLockVerify, cmdStudioCompile, cmdStudioReadiness } = require('./cmds/studio');
 const { cmdTestRun, cmdTestImport } = require('./cmds/test');
@@ -138,6 +138,7 @@ Trace & Diagnostics:
 
 License & Authorization:
   license generate <domain> --to <email>   Generate signed license
+  license install <license.json>           Register license for auto-decrypt
   license verify <license.json>            Verify license signature
   license bind <license.json>              Bind license to this machine
   license show <license.json>              Display license details
@@ -436,10 +437,13 @@ switch (cmd) {
       cmdLicenseBind(rest);
     } else if (sub === 'show') {
       cmdLicenseShow(rest);
+    } else if (sub === 'install') {
+      cmdLicenseInstall(rest);
     } else {
       error(
         'Usage:\n' +
           '  kdna license generate <domain> --to <email> [--expires <date>]\n' +
+          '  kdna license install <license.json>\n' +
           '  kdna license verify <license.json>\n' +
           '  kdna license bind <license.json>\n' +
           '  kdna license show <license.json>',

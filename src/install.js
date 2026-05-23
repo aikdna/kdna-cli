@@ -20,6 +20,7 @@ const crypto = require('crypto');
 const { execSync, execFileSync } = require('child_process');
 const { RegistryResolver, parseName } = require('./registry');
 const { EXIT, error } = require('./cmds/_common');
+const { decrypt, deriveKey, machineFingerprint, isEncryptedContainer, ENCRYPTED_FILES } = require('./cmds/encrypt');
 
 const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
 const INSTALL_DIR = path.join(USER_KDNA_DIR, 'domains');
@@ -199,9 +200,9 @@ function warnLegacy() {
 // ─── Source parsing ─────────────────────────────────────────────────────
 
 function parseSource(input) {
-  // Local file
+  // Local file (.kdna or .kdnae)
   if (
-    input.endsWith('.kdna') &&
+    (input.endsWith('.kdna') || input.endsWith('.kdnae')) &&
     (input.startsWith('./') || input.startsWith('/') || input.startsWith('~/'))
   ) {
     const resolved = path.resolve(input.replace(/^~/, process.env.HOME || ''));
@@ -281,6 +282,53 @@ print('ok')
   } catch {
     error('Cannot extract .kdna file. Install python3 or unzip.');
   }
+}
+
+function extractAndDecrypt(kdnaPath, destDir, licenseKey) {
+  extractKdna(kdnaPath, destDir);
+  const fp = machineFingerprint();
+  const key = deriveKey(licenseKey, fp);
+
+  for (const f of fs.readdirSync(destDir)) {
+    if (ENCRYPTED_FILES.includes(f)) {
+      try {
+        const fullPath = path.join(destDir, f);
+        const encrypted = fs.readFileSync(fullPath);
+        const decrypted = decrypt(encrypted, key);
+        fs.writeFileSync(fullPath, decrypted);
+      } catch (err) {
+        fs.rmSync(destDir, { recursive: true, force: true });
+        error(`Failed to decrypt ${f}: ${err.message}. Wrong license key?`);
+      }
+    }
+  }
+}
+
+function findLicense(domainName) {
+  const licenseDir = path.join(USER_KDNA_DIR, 'licenses');
+  const licensePath = path.join(licenseDir, `${domainName.replace(/^@/, '').replace('/', '-')}.json`);
+  if (fs.existsSync(licensePath)) {
+    try {
+      return JSON.parse(fs.readFileSync(licensePath, 'utf8'));
+    } catch { /* invalid license */ }
+  }
+  return null;
+}
+
+function findLicenseForDomain(domainFull) {
+  const licenseDir = path.join(USER_KDNA_DIR, 'licenses');
+  if (!fs.existsSync(licenseDir)) return null;
+  // Try exact match: @aikdna/writing → @aikdna-writing.json
+  const candidates = [domainFull.replace(/^@/, '').replace('/', '-')];
+  // Also try just the domain name
+  candidates.push(domainFull.split('/').pop());
+  for (const c of candidates) {
+    const p = path.join(licenseDir, `${c}.json`);
+    if (fs.existsSync(p)) {
+      try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { /* skip */ }
+    }
+  }
+  return null;
 }
 
 // ─── Signature verification ────────────────────────────────────────────
@@ -613,9 +661,53 @@ function installFromLocalFile(filePath, _yes, jsonMode = false) {
   const abs = path.resolve(filePath);
   if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) error(`Not a file: ${abs}`);
 
+  const isEncrypted = isEncryptedContainer(abs);
   const tmpDir = path.join(INSTALL_DIR, '.local-tmp-' + Date.now());
   ensureDir(tmpDir);
-  extractKdna(abs, tmpDir);
+
+  if (isEncrypted) {
+    // Find license for this .kdnae file
+    // First check the license directory, then ask for --license flag from args
+    const licenseFromArgs = process.argv.includes('--license')
+      ? process.argv[process.argv.indexOf('--license') + 1]
+      : null;
+    let licenseKey = null;
+
+    if (licenseFromArgs && fs.existsSync(licenseFromArgs)) {
+      try {
+        const lic = JSON.parse(fs.readFileSync(licenseFromArgs, 'utf8'));
+        licenseKey = lic.license_id;
+      } catch { /* invalid license file */ }
+    }
+
+    if (!licenseKey) {
+      // Try to auto-discover from ~/.kdna/licenses/
+      const manifest = readJson(path.join(tmpDir, 'kdna.json'));
+      // We need to extract just the manifest first to get the domain name
+      extractKdna(abs, tmpDir);
+      const mf = readJson(path.join(tmpDir, 'kdna.json'));
+      if (mf?.name) {
+        const lic = findLicenseForDomain(mf.name);
+        if (lic) licenseKey = lic.license_id;
+      }
+      if (!licenseKey) {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+        error(
+          `Cannot install encrypted .kdnae without a license.\n` +
+            `Save the license to ~/.kdna/licenses/ or use --license <file>.`,
+          EXIT.TRUST_FAILED,
+        );
+      }
+      // Re-extract for decryption
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      ensureDir(tmpDir);
+    }
+
+    console.log('  Decrypting .kdnae container...');
+    extractAndDecrypt(abs, tmpDir, licenseKey);
+  } else {
+    extractKdna(abs, tmpDir);
+  }
 
   const manifest = readJson(path.join(tmpDir, 'kdna.json'));
   const declared = manifest?.name;
@@ -636,6 +728,7 @@ function installFromLocalFile(filePath, _yes, jsonMode = false) {
   destManifest._source = {
     type: 'local-file',
     path: abs,
+    encrypted: isEncrypted,
     installed_at: new Date().toISOString(),
   };
   fs.writeFileSync(path.join(dest, 'kdna.json'), JSON.stringify(destManifest, null, 2) + '\n');
@@ -647,9 +740,10 @@ function installFromLocalFile(filePath, _yes, jsonMode = false) {
       path: dest,
       source: 'local-file',
       source_path: abs,
+      encrypted: isEncrypted,
     }));
   } else {
-    console.log(`✓ Installed ${declared} from local file`);
+    console.log(`✓ Installed ${declared} from ${isEncrypted ? 'encrypted' : 'local'} file`);
     console.log(`  Location: ${dest}`);
   }
 }
