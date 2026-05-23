@@ -217,7 +217,7 @@ function checkJudgment(destDir) {
   const pat = readJson(path.join(destDir, 'KDNA_Patterns.json'));
   const manifest = readJson(path.join(destDir, 'kdna.json'));
 
-  // 1. Boundary declaration in README
+  // 1. Boundary declaration in README (REQUIRED)
   //    Either classic "## Scope" + "## Out of Scope" pair,
   //    OR v2.1 "Four Questions" section (#2 = applies, #4 = does not).
   const readmePath = path.join(destDir, 'README.md');
@@ -238,9 +238,12 @@ function checkJudgment(destDir) {
   if ((hasScope && hasOutOfScope) || hasFourQuestions) {
     bump(2, 2, 'README declares boundary (Scope+Out-of-Scope, or v2.1 Four Questions)');
   } else if (hasScope || hasOutOfScope) {
-    bump(2, 1, 'README declares boundary (Scope+Out-of-Scope, or v2.1 Four Questions)');
+    score.max += 2;
+    score.total += 1;
+    issues.push({ severity: 'warn', msg: 'partial: README boundary declaration incomplete (missing Scope or Out-of-Scope section)' });
   } else {
-    bump(2, 0, 'README declares boundary (Scope+Out-of-Scope, or v2.1 Four Questions)');
+    score.max += 2;
+    issues.push({ severity: 'error', msg: 'README missing boundary declaration: require ## Scope + ## Out of Scope (or v2.1 Four Questions)' });
   }
 
   // 2. v2.1 axiom governance fields
@@ -309,23 +312,31 @@ function checkJudgment(destDir) {
       issues.push({ severity: 'warn', msg: `only ${total} self_check entries (recommend ≥3)` });
   }
 
-  // 5. eval cases present
+  // 5. eval cases present (REQUIRED: ≥4 cases)
   const evalDir = path.join(destDir, 'evals');
   if (fs.existsSync(evalDir)) {
     const files = fs.readdirSync(evalDir).filter((f) => f.endsWith('.json'));
-    if (files.length >= 4) bump(2, 2, `evals/ directory has ${files.length} case files`);
-    else if (files.length > 0)
-      bump(2, 1, `evals/ has ${files.length} files (recommend ≥4: core/boundary/failure/excluded)`);
-    else bump(2, 0, 'evals/ has case files');
+    if (files.length >= 4) {
+      bump(2, 2, `evals/ directory has ${files.length} case files`);
+    } else if (files.length > 0) {
+      score.max += 2;
+      score.total += 1;
+      issues.push({ severity: 'warn', msg: `evals/ has only ${files.length} files (require ≥4: core/boundary/failure/excluded)` });
+    } else {
+      score.max += 2;
+      issues.push({ severity: 'error', msg: 'evals/ directory exists but contains no case files' });
+    }
   } else {
-    bump(2, 0, 'evals/ directory present');
+    score.max += 2;
+    issues.push({ severity: 'error', msg: 'evals/ directory missing: require ≥4 evaluation cases' });
   }
 
-  // 6. judgment_version manifest field
+  // 6. judgment_version manifest field (REQUIRED)
   if (manifest?.judgment_version) {
     bump(1, 1, `judgment_version: ${manifest.judgment_version}`);
   } else {
-    bump(1, 0, 'kdna.json has judgment_version');
+    score.max += 1;
+    issues.push({ severity: 'error', msg: 'kdna.json missing required field: judgment_version' });
   }
 
   return { layer: 'judgment', issues, passed, score };
