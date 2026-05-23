@@ -7,7 +7,7 @@
  */
 
 const { error, EXIT, setQuiet, setExitCodeOnly } = require('./cmds/_common');
-const { cmdValidate, cmdPack, cmdUnpack, cmdInspect } = require('./cmds/domain');
+const { cmdValidate, cmdPack, cmdPackEncrypt, cmdUnpack, cmdUnpackEncrypt, cmdInspect } = require('./cmds/domain');
 const { cmdList, cmdRegistry } = require('./cmds/registry');
 const {
   cmdCompare,
@@ -24,6 +24,7 @@ const { cmdIdentity } = require('./cmds/identity');
 const { cmdSetup } = require('./cmds/setup');
 const { cmdDoctor } = require('./cmds/doctor');
 const { cmdTrace, cmdHistory } = require('./cmds/trace');
+const { cmdLicenseGenerate, cmdLicenseVerify, cmdLicenseBind, cmdLicenseShow } = require('./cmds/license');
 const { cmdPreview, cmdProject, cmdEval, cmdExport, cmdDemo } = require('./cmds/legacy');
 const { cmdStudioScaffold, cmdCardsValidate, cmdLockVerify, cmdStudioCompile, cmdStudioReadiness } = require('./cmds/studio');
 const { cmdTestRun, cmdTestImport } = require('./cmds/test');
@@ -54,7 +55,9 @@ Domain Authoring:
   validate <path>                  Validate domain structure
   validate --schema <path>         Schema-only validation
   pack <path>                      Pack into .kdna container
+  pack <path> --encrypt --license <file>   Pack encrypted .kdnae container
   unpack <file>                    Unpack .kdna container
+  unpack <file> --license <file>   Unpack encrypted .kdnae container
   inspect <path>                   Inspect domain or .kdna file
   publish <path>                   Pack + sign + publish
   publish --check <path>           Quality gate check only
@@ -133,6 +136,12 @@ Trace & Diagnostics:
   trace [--json] [--since 7d] [--export <file>]  Agent judgment trace
   history [--stats] [--domain <name>] [--agent <name>]  Recent usage
 
+License & Authorization:
+  license generate <domain> --to <email>   Generate signed license
+  license verify <license.json>            Verify license signature
+  license bind <license.json>              Bind license to this machine
+  license show <license.json>              Display license details
+
 Flags:
   --json                           Structured JSON output (machine-readable)
   --quiet                          Suppress non-error output
@@ -167,13 +176,21 @@ switch (cmd) {
       }
     }
     if (!target) error('Usage: kdna pack <path>');
-    cmdPack(target, output);
+    if (args.includes('--encrypt')) {
+      cmdPackEncrypt(target, args);
+    } else {
+      cmdPack(target, output);
+    }
     break;
   }
   case 'unpack': {
     const target = args[1];
-    if (!target) error('Usage: kdna unpack <file.kdna>');
-    cmdUnpack(target, args.includes('--force'));
+    if (!target) error('Usage: kdna unpack <file.kdna|file.kdnae>');
+    if (target.endsWith('.kdnae')) {
+      cmdUnpackEncrypt(target, args);
+    } else {
+      cmdUnpack(target, args.includes('--force'));
+    }
     break;
   }
   case 'preview': {
@@ -406,6 +423,29 @@ switch (cmd) {
   }
   case 'history': {
     cmdHistory(args);
+    break;
+  }
+  case 'license': {
+    const sub = args[1];
+    const rest = args.slice(2);
+    if (sub === 'generate') {
+      cmdLicenseGenerate(rest);
+    } else if (sub === 'verify') {
+      cmdLicenseVerify(rest);
+    } else if (sub === 'bind') {
+      cmdLicenseBind(rest);
+    } else if (sub === 'show') {
+      cmdLicenseShow(rest);
+    } else {
+      error(
+        'Usage:\n' +
+          '  kdna license generate <domain> --to <email> [--expires <date>]\n' +
+          '  kdna license verify <license.json>\n' +
+          '  kdna license bind <license.json>\n' +
+          '  kdna license show <license.json>',
+        EXIT.INPUT_ERROR,
+      );
+    }
     break;
   }
   case 'identity': {
