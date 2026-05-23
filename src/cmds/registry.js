@@ -3,7 +3,7 @@ const path = require('path');
 const { CANONICAL_REGISTRY_URL, REGISTRY_CACHE, fetchRegistry } = require('../registry');
 const { error, readJson, loadRegistry, INSTALL_DIR, EXIT } = require('./_common');
 
-function cmdList(showAvailable, jsonMode = false) {
+function cmdList(showAvailable, jsonMode = false, locale = null) {
   if (showAvailable) {
     const domains = loadRegistry({ allowNetwork: true });
     if (!domains || !domains.length) {
