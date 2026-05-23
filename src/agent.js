@@ -34,6 +34,10 @@ const path = require('path');
 const { parseName } = require('./registry');
 const { recordTrace } = require('./cmds/trace');
 
+function detectAgent() {
+  return process.env.KDNA_AGENT || 'cli';
+}
+
 const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
 const INSTALL_DIR = path.join(USER_KDNA_DIR, 'domains');
 
@@ -367,7 +371,7 @@ function cmdLoad(input, args = []) {
   // JSON format
   if (format === 'json') {
     process.stdout.write(JSON.stringify({ manifest, core, patterns: pat }, null, 2) + '\n');
-    recordTrace({ timestamp: new Date().toISOString(), agent: 'cli', domain: parsed.full, format: 'json' });
+    recordTrace({ timestamp: new Date().toISOString(), agent: detectAgent(), domain: parsed.full, format: 'json' });
     return;
   }
 
@@ -380,20 +384,20 @@ function cmdLoad(input, args = []) {
         process.stdout.write(fs.readFileSync(p, 'utf8'));
       }
     }
-    recordTrace({ timestamp: new Date().toISOString(), agent: 'cli', domain: parsed.full, format: 'raw' });
+    recordTrace({ timestamp: new Date().toISOString(), agent: detectAgent(), domain: parsed.full, format: 'raw' });
     return;
   }
 
   // Load profiles
   if (profile) {
     emitProfile(parsed, manifest, core, pat, profile, profileInput);
-    recordTrace({ timestamp: new Date().toISOString(), agent: 'cli', domain: parsed.full, format: `profile:${profile}` });
+    recordTrace({ timestamp: new Date().toISOString(), agent: detectAgent(), domain: parsed.full, format: `profile:${profile}` });
     return;
   }
 
   // Default: --as=prompt — compact text optimized for system-prompt injection.
   emitCompact(parsed, manifest, core, pat);
-  recordTrace({ timestamp: new Date().toISOString(), agent: 'cli', domain: parsed.full, format: 'prompt' });
+  recordTrace({ timestamp: new Date().toISOString(), agent: detectAgent(), domain: parsed.full, format: 'prompt' });
 }
 
 // ─── Load profiles ─────────────────────────────────────────────────────
@@ -821,7 +825,7 @@ function cmdPostvalidate(args = []) {
     console.log(JSON.stringify(result, null, 2));
     recordTrace({
       timestamp: new Date().toISOString(),
-      agent: 'cli',
+      agent: detectAgent(),
       domain: parsed.full,
       type: 'postvalidate',
       postvalidate: { result: results.violations.length ? 'fail' : 'pass', violations: results.violations.length, passed: results.passed.length },
@@ -851,7 +855,7 @@ function cmdPostvalidate(args = []) {
 
   recordTrace({
     timestamp: new Date().toISOString(),
-    agent: 'cli',
+    agent: detectAgent(),
     domain: parsed.full,
     type: 'postvalidate',
     postvalidate: { result: results.violations.length ? 'fail' : 'pass', violations: results.violations.length, passed: results.passed.length },
