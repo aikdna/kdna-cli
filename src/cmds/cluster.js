@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { error, readJson } = require('./_common');
+const { error, readJson, EXIT } = require('./_common');
 const {
   loadCluster,
   classifySignalsAcrossDomains,
@@ -29,6 +29,15 @@ function cmdCluster(args) {
   } else if (sub === 'match') {
     if (!target) error('Usage: kdna cluster match <cluster.json> --input "<task>"');
     cmdClusterMatch(target, args);
+  } else if (sub === 'compose') {
+    if (!target) error('Usage: kdna cluster compose <cluster.json> --input "<task>" [--profile=compact] [--json]');
+    cmdClusterCompose(target, args);
+  } else if (sub === 'conflicts') {
+    if (!target) error('Usage: kdna cluster conflicts <cluster.json> --input "<task>" [--json]');
+    cmdClusterConflicts(target, args);
+  } else if (sub === 'graph') {
+    if (!target) error('Usage: kdna cluster graph <cluster.json> [--format=dot|json]');
+    cmdClusterGraph(target, args);
   } else if (sub === 'apply') {
     error(
       'kdna cluster apply was removed in v0.9.\n' +
@@ -42,12 +51,15 @@ function cmdCluster(args) {
         '       kdna cluster init <name>\n' +
         '       kdna cluster info <cluster.json>\n' +
         '       kdna cluster match <cluster.json> --input "<task>"\n' +
-        '       kdna cluster load <cluster.json> --input "<task>"',
+        '       kdna cluster load <cluster.json> --input "<task>"\n' +
+        '       kdna cluster compose <cluster.json> --input "<task>"\n' +
+        '       kdna cluster conflicts <cluster.json> --input "<task>"\n' +
+        '       kdna cluster graph <cluster.json>',
     );
   }
 }
 
-function cmdClusterInfo(target, format = 'human') {
+function cmdClusterInfo(target, _format = 'human') {
   const abs = path.resolve(target);
   if (!fs.existsSync(abs)) error(`Cluster manifest not found: ${abs}`);
 
@@ -230,6 +242,205 @@ function cmdClusterMatch(target, args = []) {
   classification.excluded.forEach((d) => {
     console.log(`  ✗ ${d.id}: ${d.reason}`);
   });
+}
+
+/**
+ * Compose: classify input signals, then compose context with source attribution.
+ * Unlike load (which includes trace), compose focuses on the composed context.
+ */
+function cmdClusterCompose(target, args = []) {
+  const jsonMode = args.includes('--json');
+  const abs = path.resolve(target);
+  if (!fs.existsSync(abs)) error(`Cluster manifest not found: ${abs}`);
+
+  const profileIdx = args.indexOf('--profile');
+  let profile = 'compact';
+  if (profileIdx >= 0) {
+    const val = args[profileIdx + 1];
+    if (val && !val.startsWith('--')) profile = val;
+  }
+
+  const inputIdx = args.indexOf('--input');
+  const input = inputIdx >= 0 ? args[inputIdx + 1] : '';
+  if (!input) error('Usage: kdna cluster compose <cluster.json> --input "<task>"');
+
+  const manifest = readJson(abs);
+  if (!manifest || !manifest.cluster_id) error('Not a valid cluster manifest');
+
+  const domains = loadClusterDomains(manifest);
+
+  const classification = classifySignalsAcrossDomains(input, domains);
+  const { context } = composeContextWithAttribution(classification.selected);
+
+  if (jsonMode) {
+    console.log(JSON.stringify({
+      cluster: manifest.cluster_id,
+      input: input.slice(0, 200),
+      selected: classification.selected.map((d) => ({
+        id: d.id,
+        role: d.role,
+        reason: d.reason,
+      })),
+      excluded: classification.excluded.map((d) => ({
+        id: d.id,
+        reason: d.reason,
+      })),
+      context,
+    }, null, 2));
+    return;
+  }
+
+  console.log(`Cluster: ${manifest.cluster_id}`);
+  console.log(`Profile: ${profile}`);
+  console.log(`Input:   ${input.slice(0, 100)}${input.length > 100 ? '...' : ''}`);
+  console.log('');
+  console.log(`Selected: ${classification.selected.length} | Excluded: ${classification.excluded.length}`);
+  console.log('');
+  console.log('─'.repeat(64));
+  console.log(context);
+  console.log('─'.repeat(64));
+}
+
+/**
+ * Conflicts: detect conflicts between selected domains for given input.
+ */
+function cmdClusterConflicts(target, args = []) {
+  const jsonMode = args.includes('--json');
+  const abs = path.resolve(target);
+  if (!fs.existsSync(abs)) error(`Cluster manifest not found: ${abs}`);
+
+  const inputIdx = args.indexOf('--input');
+  const input = inputIdx >= 0 ? args[inputIdx + 1] : '';
+  if (!input) error('Usage: kdna cluster conflicts <cluster.json> --input "<task>"');
+
+  const manifest = readJson(abs);
+  if (!manifest || !manifest.cluster_id) error('Not a valid cluster manifest');
+
+  const domains = loadClusterDomains(manifest);
+  const classification = classifySignalsAcrossDomains(input, domains);
+  const conflicts = detectDomainConflicts(classification.selected);
+
+  if (jsonMode) {
+    console.log(JSON.stringify({
+      cluster: manifest.cluster_id,
+      input: input.slice(0, 200),
+      selected: classification.selected.map((d) => ({ id: d.id, role: d.role })),
+      conflicts: conflicts.map((c) => ({
+        type: c.type,
+        domains: c.domains,
+        description: c.description,
+        severity: c.severity || 'warn',
+      })),
+      conflict_count: conflicts.length,
+      safe: conflicts.length === 0,
+    }, null, 2));
+    process.exit(conflicts.length ? EXIT.HUMAN_LOCK_REQUIRED : EXIT.OK);
+  }
+
+  console.log(`Cluster: ${manifest.cluster_id}`);
+  console.log(`Input:   ${input.slice(0, 100)}${input.length > 100 ? '...' : ''}`);
+  console.log(`Selected: ${classification.selected.length} domains | Conflicts: ${conflicts.length}`);
+  console.log('');
+
+  if (!conflicts.length) {
+    console.log('✓ No conflicts detected.');
+    return;
+  }
+
+  for (const c of conflicts) {
+    const severity = c.severity === 'error' ? '✗' : '⚠';
+    console.log(`${severity} [${c.type}] ${c.domains.join(' vs ')}`);
+    console.log(`  ${c.description}`);
+    console.log('');
+  }
+}
+
+/**
+ * Graph: output the domain relationship graph from a cluster manifest.
+ */
+function cmdClusterGraph(target, args = []) {
+  const abs = path.resolve(target);
+  if (!fs.existsSync(abs)) error(`Cluster manifest not found: ${abs}`);
+
+  const manifest = readJson(abs);
+  if (!manifest || !manifest.cluster_id) error('Not a valid cluster manifest');
+
+  const formatIdx = args.indexOf('--format');
+  let format = 'dot';
+  if (formatIdx >= 0) {
+    const val = args[formatIdx + 1];
+    if (val && ['dot', 'json'].includes(val)) format = val;
+  }
+
+  if (format === 'json') {
+    const graph = {
+      cluster: manifest.cluster_id,
+      version: manifest.version || '?',
+      type: manifest.type || 'horizontal',
+      nodes: (manifest.domains || []).map((d) => ({
+        id: d.id || d.role,
+        role: d.role,
+        required: d.required !== false,
+      })),
+      edges: (manifest.relationships || []).map((r) => ({
+        from: r.from,
+        to: r.to,
+        type: r.type,
+      })),
+    };
+    console.log(JSON.stringify(graph, null, 2));
+    return;
+  }
+
+  // DOT format output
+  console.log(`digraph "${manifest.cluster_id}" {`);
+  console.log('  rankdir=LR;');
+  console.log(`  label="${manifest.cluster_id} v${manifest.version || '?'}";`);
+  console.log('  fontsize=14;');
+  console.log('');
+
+  // Nodes
+  for (const d of manifest.domains || []) {
+    const shape = d.role === 'primary' ? 'box' : d.role === 'critic' ? 'diamond' : 'ellipse';
+    const required = d.required !== false ? ',style=filled,fillcolor="#e8f0fe"' : ',style=dashed';
+    console.log(`  "${d.id || d.role}" [label="${d.id || d.role}\\n[${d.role}]",shape=${shape}${required}];`);
+  }
+
+  // Edges
+  if (manifest.relationships) {
+    console.log('');
+    for (const r of manifest.relationships) {
+      const style = r.type === 'conflicts' ? ',style=dashed,color=red' :
+                    r.type === 'extends' ? ',style=bold' : '';
+      console.log(`  "${r.from}" -> "${r.to}" [label="${r.type}"${style}];`);
+    }
+  }
+
+  console.log('}');
+}
+
+/**
+ * Shared domain loader for cluster commands.
+ */
+function loadClusterDomains(manifest) {
+  const INSTALL_DIR = path.join(
+    process.env.HOME || process.env.USERPROFILE || '.',
+    '.kdna',
+    'domains',
+  );
+
+  return (manifest.domains || []).map((d) => {
+    const domainId = d.id;
+    if (!domainId) return null;
+    const [scope, ident] = domainId.startsWith('@')
+      ? [domainId.slice(0, domainId.indexOf('/')), domainId.slice(domainId.indexOf('/') + 1)]
+      : ['@aikdna', domainId];
+    const dir = path.join(INSTALL_DIR, scope, ident);
+    const core = readJson(path.join(dir, 'KDNA_Core.json'));
+    const pat = readJson(path.join(dir, 'KDNA_Patterns.json'));
+    if (!core || !pat) return null;
+    return { id: domainId, role: d.role, required: d.required !== false, core, patterns: pat };
+  }).filter(Boolean);
 }
 
 module.exports = { cmdCluster };

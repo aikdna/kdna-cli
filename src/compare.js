@@ -28,6 +28,7 @@ const INSTALL_DIR = path.join(USER_KDNA_DIR, 'domains');
 const CONFIG_FILE = path.join(USER_KDNA_DIR, 'config.json');
 
 const { parseName } = require('./registry');
+const { EXIT } = require('./cmds/_common');
 
 function readJson(p) {
   try {
@@ -37,9 +38,9 @@ function readJson(p) {
   }
 }
 
-function error(msg) {
+function error(msg, code = EXIT.VALIDATION_FAILED) {
   console.error(`Error: ${msg}`);
-  process.exit(1);
+  process.exit(code);
 }
 
 // ─── Config ─────────────────────────────────────────────────────────────
@@ -71,6 +72,7 @@ function loadLlmConfig() {
         `      "base_url": "https://...   (optional, for OpenAI-compatible endpoints)"\n` +
         `    }\n` +
         `  }`,
+      EXIT.PROVIDER_ERROR,
     );
   }
   return { provider, model, apiKey, envName, baseUrl };
@@ -261,27 +263,30 @@ Diff the reasoning trajectory.`;
 // ─── Main ──────────────────────────────────────────────────────────────
 
 async function cmdCompare(input, args = []) {
+  const jsonMode = args.includes('--json');
   const idxInput = args.indexOf('--input');
   if (idxInput < 0 || !args[idxInput + 1]) {
-    error('Usage: kdna compare <name> --input "<text>"');
+    error('Usage: kdna compare <name> --input "<text>"', EXIT.INPUT_ERROR);
   }
   const userInput = args[idxInput + 1];
 
   const parsed = parseName(input);
-  if (!parsed) error(`Invalid name "${input}".`);
+  if (!parsed) error(`Invalid name "${input}".`, EXIT.INPUT_ERROR);
   const destDir = path.join(INSTALL_DIR, parsed.scope, parsed.ident);
   if (!fs.existsSync(destDir)) {
-    error(`${parsed.full} not installed. Run: kdna install ${input}`);
+    error(`${parsed.full} not installed. Run: kdna install ${input}`, EXIT.INPUT_ERROR);
   }
 
   const llm = loadLlmConfig();
 
-  console.log('═'.repeat(64));
-  console.log(`  kdna compare  ${parsed.full}`);
-  console.log(`  provider:     ${llm.provider} / ${llm.model}`);
-  console.log(`  input length: ${userInput.length} chars`);
-  console.log('═'.repeat(64));
-  console.log('');
+  if (!jsonMode) {
+    console.log('═'.repeat(64));
+    console.log(`  kdna compare  ${parsed.full}`);
+    console.log(`  provider:     ${llm.provider} / ${llm.model}`);
+    console.log(`  input length: ${userInput.length} chars`);
+    console.log('═'.repeat(64));
+    console.log('');
+  }
 
   const BASELINE_SYSTEM =
     'You are a helpful assistant. Respond to the user request concisely and specifically.';
@@ -291,34 +296,43 @@ async function cmdCompare(input, args = []) {
     'You are a helpful assistant. The following domain judgment is loaded and you MUST apply it when relevant.\n\n' +
     kdnaPrompt;
 
-  console.log('[1/3] Running baseline (no KDNA)...');
+  if (!jsonMode) console.log('[1/3] Running baseline (no KDNA)...');
   const responseA = await callLlm(llm, BASELINE_SYSTEM, userInput);
-  console.log(`      ${responseA.length} chars returned`);
+  if (!jsonMode) console.log(`      ${responseA.length} chars returned`);
 
-  console.log('[2/3] Running with KDNA loaded...');
+  if (!jsonMode) console.log('[2/3] Running with KDNA loaded...');
   const responseB = await callLlm(llm, TREATMENT_SYSTEM, userInput);
-  console.log(`      ${responseB.length} chars returned`);
+  if (!jsonMode) console.log(`      ${responseB.length} chars returned`);
 
-  console.log('[3/3] Diffing reasoning trajectories...');
+  if (!jsonMode) console.log('[3/3] Diffing reasoning trajectories...');
   const diffPrompt = makeDiffPrompt(userInput, responseA, responseB);
   const diff = await callLlm(llm, DIFF_SYSTEM, diffPrompt);
 
-  console.log('');
-  console.log('─'.repeat(64));
-  console.log('  WITHOUT KDNA');
-  console.log('─'.repeat(64));
-  console.log(responseA);
-  console.log('');
-  console.log('─'.repeat(64));
-  console.log('  WITH KDNA');
-  console.log('─'.repeat(64));
-  console.log(responseB);
-  console.log('');
-  console.log('─'.repeat(64));
-  console.log('  REASONING TRAJECTORY DIFF');
-  console.log('─'.repeat(64));
-  console.log(diff);
-  console.log('');
+  if (jsonMode) {
+    const result = {
+      baseline_output: responseA,
+      kdna_output: responseB,
+      judgment_delta: diff,
+    };
+    console.log(JSON.stringify(result, null, 2));
+  } else {
+    console.log('');
+    console.log('─'.repeat(64));
+    console.log('  WITHOUT KDNA');
+    console.log('─'.repeat(64));
+    console.log(responseA);
+    console.log('');
+    console.log('─'.repeat(64));
+    console.log('  WITH KDNA');
+    console.log('─'.repeat(64));
+    console.log(responseB);
+    console.log('');
+    console.log('─'.repeat(64));
+    console.log('  REASONING TRAJECTORY DIFF');
+    console.log('─'.repeat(64));
+    console.log(diff);
+    console.log('');
+  }
 }
 
 module.exports = { cmdCompare, buildKdnaPrompt };

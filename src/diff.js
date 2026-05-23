@@ -20,14 +20,15 @@ const fs = require('fs');
 const path = require('path');
 const { execSync, execFileSync } = require('child_process');
 const { RegistryResolver, parseName } = require('./registry');
+const { EXIT } = require('./cmds/_common');
 
 const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
 const INSTALL_DIR = path.join(USER_KDNA_DIR, 'domains');
 const TMP_DIR = '/tmp';
 
-function error(msg) {
+function error(msg, code = EXIT.VALIDATION_FAILED) {
   console.error(`Error: ${msg}`);
-  process.exit(1);
+  process.exit(code);
 }
 
 function readJson(p) {
@@ -79,7 +80,7 @@ function downloadAndExtract(url, destDir) {
       stdio: 'pipe',
     });
   } catch (e) {
-    error(`Failed to download ${url}: ${e.stderr?.toString().trim() || e.message}`);
+    error(`Failed to download ${url}: ${e.stderr?.toString().trim() || e.message}`, EXIT.PROVIDER_ERROR);
   }
 
   fs.mkdirSync(destDir, { recursive: true });
@@ -117,7 +118,7 @@ function loadJudgment(domainDir) {
 
 // ─── Set diff helpers ─────────────────────────────────────────────────
 
-function diffMaps(label, oldMap, newMap, render) {
+function diffMaps(label, oldMap, newMap, render, jsonMode = false) {
   const oldIds = new Set(Object.keys(oldMap));
   const newIds = new Set(Object.keys(newMap));
   const added = [...newIds].filter((id) => !oldIds.has(id));
@@ -125,7 +126,24 @@ function diffMaps(label, oldMap, newMap, render) {
   const both = [...newIds].filter((id) => oldIds.has(id));
   const changed = both.filter((id) => JSON.stringify(oldMap[id]) !== JSON.stringify(newMap[id]));
 
-  const out = { label, added, removed, changed };
+  // Collect boundary-level diffs for JSON output
+  const changedDetails = changed.map((id) => {
+    const a = oldMap[id],
+      b = newMap[id];
+    const boundaryChanges = {};
+    for (const field of ['applies_when', 'does_not_apply_when', 'failure_risk', 'confidence']) {
+      const before = a[field] ?? null;
+      const after = b[field] ?? null;
+      if (JSON.stringify(before) !== JSON.stringify(after)) {
+        boundaryChanges[field] = { before, after };
+      }
+    }
+    return { id, before: a, after: b, boundary_changes: boundaryChanges };
+  });
+
+  const out = { label, added, removed, changed, changedDetails };
+
+  if (jsonMode) return out;
 
   console.log('');
   console.log('─'.repeat(64));
@@ -162,34 +180,39 @@ function diffMaps(label, oldMap, newMap, render) {
   return out;
 }
 
-function diffStanceList(oldList, newList) {
+function diffStanceList(oldList, newList, jsonMode = false) {
   const oldSet = new Set(oldList);
   const newSet = new Set(newList);
   const added = newList.filter((s) => !oldSet.has(s));
   const removed = oldList.filter((s) => !newSet.has(s));
+  const out = { added, removed };
+  if (jsonMode) return out;
   console.log('');
   console.log('─'.repeat(64));
   console.log(`  STANCES   added:${added.length}  removed:${removed.length}`);
   console.log('─'.repeat(64));
   for (const s of added) console.log(`  + "${s}"`);
   for (const s of removed) console.log(`  - "${s}"`);
+  return out;
 }
 
 // ─── Main ──────────────────────────────────────────────────────────────
 
-async function cmdDiff(a, b) {
-  if (!a) error('Usage: kdna diff <name>@<v1> <name>@<v2>  or  kdna diff <name>');
+async function cmdDiff(a, b, args = []) {
+  const jsonMode = args.includes('--json');
+
+  if (!a) error('Usage: kdna diff <name>@<v1> <name>@<v2>  or  kdna diff <name>', EXIT.INPUT_ERROR);
 
   const aParsed = parseNameVersion(a);
   const bParsed = b ? parseNameVersion(b) : null;
-  if (!aParsed) error(`Cannot parse "${a}"`);
+  if (!aParsed) error(`Cannot parse "${a}"`, EXIT.INPUT_ERROR);
 
   const resolver = new RegistryResolver({ allowNetwork: true });
   let entryA;
   try {
     ({ entry: entryA } = resolver.resolve(aParsed.full));
   } catch (e) {
-    error(e.message);
+    error(e.message, EXIT.REGISTRY_ERROR);
   }
 
   // Determine targets
@@ -199,10 +222,10 @@ async function cmdDiff(a, b) {
     try {
       ({ entry: entryB } = resolver.resolve(bParsed.full));
     } catch (e) {
-      error(e.message);
+      error(e.message, EXIT.REGISTRY_ERROR);
     }
     if (aParsed.full !== bParsed.full)
-      error('Comparing across different domains is not supported.');
+      error('Comparing across different domains is not supported.', EXIT.INPUT_ERROR);
     oldVersion = aParsed.version || entryA.version;
     newVersion = bParsed.version || entryB.version;
     oldEntry = entryA;
@@ -212,7 +235,7 @@ async function cmdDiff(a, b) {
     const parsed = parseName(aParsed.full);
     const localDir = path.join(INSTALL_DIR, parsed.scope, parsed.ident);
     if (!fs.existsSync(localDir)) {
-      error(`${aParsed.full} not installed. Run: kdna install ${aParsed.full}`);
+      error(`${aParsed.full} not installed. Run: kdna install ${aParsed.full}`, EXIT.INPUT_ERROR);
     }
     const localManifest = readJson(path.join(localDir, 'kdna.json'));
     oldVersion = localManifest?.version || '?';
@@ -220,6 +243,10 @@ async function cmdDiff(a, b) {
     oldEntry = entryA;
     newEntry = entryA;
     if (oldVersion === newVersion) {
+      if (jsonMode) {
+        console.log(JSON.stringify({ error: `${aParsed.full}@${oldVersion}: only one version found.` }));
+        process.exit(EXIT.OK);
+      }
       console.log(
         `${aParsed.full}@${oldVersion}: only one version found.\n` +
           `To compare across versions, specify two: kdna diff ${aParsed.full}@${oldVersion} ${aParsed.full}@<other>`,
@@ -228,41 +255,46 @@ async function cmdDiff(a, b) {
     }
   }
 
-  console.log('═'.repeat(64));
-  console.log(`  kdna diff  ${aParsed.full}`);
-  console.log(`  ${oldVersion}  →  ${newVersion}`);
-  console.log('═'.repeat(64));
+  if (!jsonMode) {
+    console.log('═'.repeat(64));
+    console.log(`  kdna diff  ${aParsed.full}`);
+    console.log(`  ${oldVersion}  →  ${newVersion}`);
+    console.log('═'.repeat(64));
+  }
 
   // Download both versions to temp dirs
   const tmpOld = path.join(TMP_DIR, `kdna-diff-${Date.now()}-old`);
   const tmpNew = path.join(TMP_DIR, `kdna-diff-${Date.now()}-new`);
 
-  console.log('Downloading old version...');
+  if (!jsonMode) console.log('Downloading old version...');
   downloadVersion(oldEntry, oldVersion, tmpOld);
-  console.log('Downloading new version...');
+  if (!jsonMode) console.log('Downloading new version...');
   downloadVersion(newEntry, newVersion, tmpNew);
 
   const oldJ = loadJudgment(tmpOld);
   const newJ = loadJudgment(tmpNew);
 
-  console.log('');
-  console.log(
-    '  judgment_version: ' +
-      (oldJ.judgment_version || '(not declared)') +
-      '  →  ' +
-      (newJ.judgment_version || '(not declared)'),
-  );
+  if (!jsonMode) {
+    console.log('');
+    console.log(
+      '  judgment_version: ' +
+        (oldJ.judgment_version || '(not declared)') +
+        '  →  ' +
+        (newJ.judgment_version || '(not declared)'),
+    );
+  }
 
-  diffMaps('axioms', oldJ.axioms, newJ.axioms, (a) => a.one_sentence || a.id);
-  diffMaps('ontology', oldJ.ontology, newJ.ontology, (o) => o.one_sentence || o.id);
-  diffMaps(
+  const axiomsDiff = diffMaps('axioms', oldJ.axioms, newJ.axioms, (a) => a.one_sentence || a.id, jsonMode);
+  const ontologyDiff = diffMaps('ontology', oldJ.ontology, newJ.ontology, (o) => o.one_sentence || o.id, jsonMode);
+  const misunderstandingsDiff = diffMaps(
     'misunderstandings',
     oldJ.misunderstandings,
     newJ.misunderstandings,
     (m) => m.wrong || m.id,
+    jsonMode,
   );
-  diffMaps('banned_terms', oldJ.banned_terms, newJ.banned_terms, (t) => t.term || '');
-  diffStanceList(oldJ.stances, newJ.stances);
+  const bannedDiff = diffMaps('banned_terms', oldJ.banned_terms, newJ.banned_terms, (t) => t.term || '', jsonMode);
+  const stancesDiff = diffStanceList(oldJ.stances, newJ.stances, jsonMode);
 
   // Cleanup
   try {
@@ -276,13 +308,79 @@ async function cmdDiff(a, b) {
     /* ignore */
   }
 
-  console.log('');
-  console.log('═'.repeat(64));
-  const drift = Object.keys(newJ.axioms).length - Object.keys(oldJ.axioms).length;
-  const note = drift !== 0 ? ` (axiom count drift: ${drift > 0 ? '+' : ''}${drift})` : '';
-  console.log(`  Judgment surface change: ${oldVersion} → ${newVersion}${note}`);
-  console.log(`  Agent loading the new version may classify, diagnose, or recommend differently.`);
-  console.log('═'.repeat(64));
+  // Derive structured JSON fields
+  const changedAxioms = axiomsDiff.changedDetails.map((d) => ({
+    id: d.id,
+    changes: d.boundary_changes,
+  }));
+
+  const changedBoundaries = axiomsDiff.changedDetails
+    .filter((d) => Object.keys(d.boundary_changes).length > 0)
+    .map((d) => ({
+      axiom_id: d.id,
+      boundary_changes: d.boundary_changes,
+    }));
+
+  const newMisunderstandings = misunderstandingsDiff.added;
+  const deprecatedSelfChecks = []; // self_checks are not part of diffMaps; would need separate tracking
+
+  const riskModelChanges = axiomsDiff.changedDetails
+    .filter((d) => d.boundary_changes.failure_risk)
+    .map((d) => ({
+      axiom_id: d.id,
+      before: d.boundary_changes.failure_risk.before,
+      after: d.boundary_changes.failure_risk.after,
+    }));
+
+  const affectedScenarios = axiomsDiff.changedDetails
+    .filter(
+      (d) =>
+        d.boundary_changes.applies_when ||
+        d.boundary_changes.does_not_apply_when,
+    )
+    .map((d) => ({
+      axiom_id: d.id,
+      applies_when: d.boundary_changes.applies_when || null,
+      does_not_apply_when: d.boundary_changes.does_not_apply_when || null,
+    }));
+
+  // Determine recommended version bump
+  const axiomDrift = Object.keys(newJ.axioms).length - Object.keys(oldJ.axioms).length;
+  const hasRemoved = axiomsDiff.removed.length > 0 || misunderstandingsDiff.removed.length > 0;
+  const hasAdded = axiomsDiff.added.length > 0 || misunderstandingsDiff.added.length > 0;
+  const hasChanged = axiomsDiff.changed.length > 0 || bannedDiff.changed.length > 0;
+  let recommendedVersionBump = 'none';
+  if (hasRemoved) recommendedVersionBump = 'major';
+  else if (hasAdded || hasChanged) recommendedVersionBump = 'minor';
+  else if (stancesDiff.added.length > 0 || stancesDiff.removed.length > 0) recommendedVersionBump = 'patch';
+
+  if (jsonMode) {
+    const result = {
+      domain: aParsed.full,
+      old_version: oldVersion,
+      new_version: newVersion,
+      judgment_version: {
+        before: oldJ.judgment_version || null,
+        after: newJ.judgment_version || null,
+      },
+      changed_axioms: changedAxioms,
+      changed_boundaries: changedBoundaries,
+      new_misunderstandings: newMisunderstandings,
+      deprecated_self_checks: deprecatedSelfChecks,
+      risk_model_changes: riskModelChanges,
+      affected_scenarios: affectedScenarios,
+      recommended_version_bump: recommendedVersionBump,
+    };
+    console.log(JSON.stringify(result, null, 2));
+  } else {
+    console.log('');
+    console.log('═'.repeat(64));
+    const drift = Object.keys(newJ.axioms).length - Object.keys(oldJ.axioms).length;
+    const note = drift !== 0 ? ` (axiom count drift: ${drift > 0 ? '+' : ''}${drift})` : '';
+    console.log(`  Judgment surface change: ${oldVersion} → ${newVersion}${note}`);
+    console.log(`  Agent loading the new version may classify, diagnose, or recommend differently.`);
+    console.log('═'.repeat(64));
+  }
 }
 
 module.exports = { cmdDiff, loadJudgment, parseNameVersion };

@@ -7,10 +7,11 @@
 
 const fs = require('fs');
 const path = require('path');
+const { EXIT } = require('./cmds/_common');
 
-function error(msg) {
+function error(msg, code = EXIT.VALIDATION_FAILED) {
   console.error(`Error: ${msg}`);
-  process.exit(1);
+  process.exit(code);
 }
 
 function readJson(filePath) {
@@ -373,7 +374,7 @@ function cmdPublishCheck(domainPath) {
   }
   console.log('═'.repeat(60));
 
-  if (errors > 0) process.exit(1);
+  if (errors > 0) process.exit(EXIT.POLICY_VIOLATION);
 }
 
 // ═══════════════════════════════════════════════════════════════════════

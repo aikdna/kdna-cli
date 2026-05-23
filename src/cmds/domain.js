@@ -1,14 +1,14 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const { error, readJson, writeJson } = require('./_common');
+const { error, readJson, writeJson, EXIT } = require('./_common');
 
 // ─── Validate ────────────────────────────────────────────────────────
 
-function cmdValidate(dir, schemaOnly) {
+function cmdValidate(dir, schemaOnly, jsonMode = false) {
   const abs = path.resolve(dir);
   if (!fs.existsSync(abs) || !fs.statSync(abs).isDirectory()) {
-    error(`Not a directory: ${abs}`);
+    error(`Not a directory: ${abs}`, EXIT.INPUT_ERROR);
   }
 
   const { lintDomain, validateDomainSchema, validateCrossFile } = require('@aikdna/kdna-core');
@@ -87,6 +87,25 @@ function cmdValidate(dir, schemaOnly) {
   errors.push(...crossResult.errors);
   warnings.push(...crossResult.warnings);
 
+  const validCount = Object.keys(dataMap).filter((k) => dataMap[k]).length;
+  const schemaInfo = schemaOnly
+    ? ` (schema-only mode, ${loadedSchemas.length} schemas loaded)`
+    : '';
+
+  if (jsonMode) {
+    const result = {
+      path: abs,
+      valid: errors.length === 0,
+      files: validCount,
+      schemas_loaded: loadedSchemas.length,
+      schema_only: schemaOnly,
+      errors,
+      warnings,
+    };
+    console.log(JSON.stringify(result, null, 2));
+    process.exit(errors.length ? EXIT.VALIDATION_FAILED : EXIT.OK);
+  }
+
   if (warnings.length) {
     console.log('Warnings:');
     warnings.forEach((w) => console.log(`  - ${w}`));
@@ -94,13 +113,9 @@ function cmdValidate(dir, schemaOnly) {
   if (errors.length) {
     console.error('Errors:');
     errors.forEach((e) => console.error(`  - ${e}`));
-    process.exit(1);
+    process.exit(EXIT.VALIDATION_FAILED);
   }
 
-  const validCount = Object.keys(dataMap).filter((k) => dataMap[k]).length;
-  const schemaInfo = schemaOnly
-    ? ` (schema-only mode, ${loadedSchemas.length} schemas loaded)`
-    : '';
   console.log(`✓ KDNA domain valid: ${abs} (${validCount} files, schema OK${schemaInfo})`);
 }
 
@@ -109,7 +124,7 @@ function cmdValidate(dir, schemaOnly) {
 function cmdPack(dir, outputDir) {
   const abs = path.resolve(dir);
   if (!fs.existsSync(abs) || !fs.statSync(abs).isDirectory()) {
-    error(`Not a directory: ${abs}`);
+    error(`Not a directory: ${abs}`, EXIT.INPUT_ERROR);
   }
 
   const core = readJson(path.join(abs, 'KDNA_Core.json'));
@@ -126,7 +141,7 @@ function cmdPack(dir, outputDir) {
       .readdirSync(abs)
       .filter((f) => f.endsWith('.json') && f !== 'kdna.json').length;
     manifest = {
-      kdna_spec: '0.4',
+      kdna_spec: '1.0-rc',
       name: domainName,
       version: core.meta?.version || '0.1.0',
       status: 'experimental',
@@ -300,17 +315,17 @@ function crc32(buf) {
 function cmdUnpack(filePath, force) {
   const abs = path.resolve(filePath);
   if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) {
-    error(`Not a file: ${abs}`);
+    error(`Not a file: ${abs}`, EXIT.INPUT_ERROR);
   }
   if (!abs.endsWith('.kdna')) {
-    error(`Not a .kdna file: ${abs}`);
+    error(`Not a .kdna file: ${abs}`, EXIT.INPUT_ERROR);
   }
 
   const domainName = path.basename(abs, '.kdna');
   const outDir = path.join(path.dirname(abs), domainName);
 
   if (fs.existsSync(outDir)) {
-    if (!force) error(`Directory already exists: ${outDir}\nUse --force to overwrite.`);
+    if (!force) error(`Directory already exists: ${outDir}\nUse --force to overwrite.`, EXIT.INPUT_ERROR);
     fs.rmSync(outDir, { recursive: true, force: true });
   }
 
@@ -352,7 +367,7 @@ zf.close()
 
 // ─── Inspect .kdna file (ZIP container or legacy merged JSON) ────────────
 
-function inspectKdnaFile(filePath) {
+function inspectKdnaFile(filePath, jsonMode = false) {
   const abs = path.resolve(filePath);
   fs.statSync(abs); // verify file exists
 
@@ -458,6 +473,33 @@ zf.close()
   const c = core;
   const p = patterns || {};
 
+  if (jsonMode) {
+    const result = {
+      name: m.name || c.meta?.domain || path.basename(abs, '.kdna'),
+      format: isZip ? 'kdna-zip' : 'legacy-merged',
+      spec: m.spec_version || m.kdna_spec || null,
+      version: m.version || null,
+      status: m.status || 'experimental',
+      access: m.access || 'open',
+      author: m.author?.name || null,
+      license: m.license?.type || null,
+      created: m.created || c.meta?.created || null,
+      description: m.description || c.meta?.purpose || null,
+      content: {
+        axioms: (c.axioms || []).length,
+        ontology: (c.ontology || []).length,
+        frameworks: (c.frameworks || []).length,
+        stances: (c.stances || []).length,
+        banned_terms: (p.terminology?.banned_terms || []).length,
+        misunderstandings: (p.misunderstandings || []).length,
+        self_checks: (p.self_check || []).length,
+      },
+      files: presentFiles,
+    };
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
   console.log('═'.repeat(50));
   console.log(`  ${m.name || c.meta?.domain || path.basename(abs, '.kdna')} — KDNA Domain`);
   console.log('═'.repeat(50));
@@ -537,29 +579,78 @@ function parseSimpleYaml(raw) {
 
 // ─── Inspect ───────────────────────────────────────────────────────────
 
-function cmdInspect(dir) {
+function cmdInspect(dir, jsonMode = false) {
   const abs = path.resolve(dir);
   const stat = fs.existsSync(abs) ? fs.statSync(abs) : null;
-  if (!stat) error(`Path not found: ${abs}`);
+  if (!stat) error(`Path not found: ${abs}`, EXIT.INPUT_ERROR);
 
   // Single .kdna file
   if (stat.isFile() && abs.endsWith('.kdna')) {
-    inspectKdnaFile(abs);
+    inspectKdnaFile(abs, jsonMode);
     return;
   }
 
   // Directory — existing logic
-  if (!stat.isDirectory()) error(`Not a KDNA domain: ${abs}`);
+  if (!stat.isDirectory()) error(`Not a KDNA domain: ${abs}`, EXIT.INPUT_ERROR);
 
   const core = readJson(path.join(abs, 'KDNA_Core.json'));
   const manifest = readJson(path.join(abs, 'kdna.json'));
 
   if (!core) {
-    error(`Not a KDNA domain (KDNA_Core.json not found in ${abs})`);
+    error(`Not a KDNA domain (KDNA_Core.json not found in ${abs})`, EXIT.INPUT_ERROR);
   }
 
   const m = manifest || {};
   const c = core;
+  const pat = readJson(path.join(abs, 'KDNA_Patterns.json'));
+  const sce = readJson(path.join(abs, 'KDNA_Scenarios.json'));
+  const cas = readJson(path.join(abs, 'KDNA_Cases.json'));
+  const rea = readJson(path.join(abs, 'KDNA_Reasoning.json'));
+  const evo = readJson(path.join(abs, 'KDNA_Evolution.json'));
+
+  const expected = [
+    'KDNA_Core.json',
+    'KDNA_Patterns.json',
+    'KDNA_Scenarios.json',
+    'KDNA_Cases.json',
+    'KDNA_Reasoning.json',
+    'KDNA_Evolution.json',
+  ];
+  const filesPresent = expected.filter((f) => fs.existsSync(path.join(abs, f)));
+
+  if (jsonMode) {
+    const result = {
+      name: m.name || c.meta?.domain || path.basename(abs),
+      version: m.version || c.meta?.version || null,
+      status: m.status || 'experimental',
+      access: m.access || 'open',
+      language: m.language || c.meta?.language || null,
+      author: m.author?.name || null,
+      author_id: m.author?.id || null,
+      license: m.license?.type || null,
+      created: c.meta?.created || null,
+      description: m.description || c.meta?.purpose || null,
+      files: filesPresent,
+      content: {
+        axioms: (c.axioms || []).length,
+        ontology: (c.ontology || []).length,
+        frameworks: (c.frameworks || []).length,
+        core_structures: (c.core_structure || []).length,
+        stances: (c.stances || []).length,
+        preferred_terms: (pat?.terminology?.preferred_terms || pat?.terminology?.standard_terms || []).length,
+        banned_terms: (pat?.terminology?.banned_terms || []).length,
+        misunderstandings: (pat?.misunderstandings || []).length,
+        self_checks: (pat?.self_check || []).length,
+        scenarios: sce ? (sce.scenes || []).length : 0,
+        cases: cas ? (cas.cases || []).length : 0,
+        reasoning_chains: rea ? (rea.reasoning_chains || []).length : 0,
+        evolution_stages: evo ? (evo.stages || []).length : 0,
+      },
+      axioms: (c.axioms || []).map((a) => a.one_sentence || null).filter(Boolean),
+    };
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
 
   console.log('═'.repeat(50));
   console.log(`  ${m.name || c.meta?.domain || path.basename(abs)} — KDNA Domain`);
@@ -576,15 +667,6 @@ function cmdInspect(dir) {
   console.log(`  Description: ${m.description || c.meta?.purpose || '?'}`);
   console.log('');
 
-  const expected = [
-    'KDNA_Core.json',
-    'KDNA_Patterns.json',
-    'KDNA_Scenarios.json',
-    'KDNA_Cases.json',
-    'KDNA_Reasoning.json',
-    'KDNA_Evolution.json',
-  ];
-
   console.log('  ── File Set ──');
   for (const f of expected) {
     const exists = fs.existsSync(path.join(abs, f));
@@ -599,7 +681,6 @@ function cmdInspect(dir) {
   console.log(`  Core structures:    ${(c.core_structure || []).length}`);
   console.log(`  Stances:            ${(c.stances || []).length}`);
 
-  const pat = readJson(path.join(abs, 'KDNA_Patterns.json'));
   if (pat) {
     const preferred = pat.terminology?.preferred_terms || pat.terminology?.standard_terms || [];
     console.log(`  Preferred terms:    ${preferred.length}`);
@@ -608,16 +689,12 @@ function cmdInspect(dir) {
     console.log(`  Self-checks:        ${(pat.self_check || []).length}`);
   }
 
-  const sce = readJson(path.join(abs, 'KDNA_Scenarios.json'));
   if (sce) console.log(`  Scenarios:          ${(sce.scenes || []).length}`);
 
-  const cas = readJson(path.join(abs, 'KDNA_Cases.json'));
   if (cas) console.log(`  Cases:              ${(cas.cases || []).length}`);
 
-  const rea = readJson(path.join(abs, 'KDNA_Reasoning.json'));
   if (rea) console.log(`  Reasoning chains:   ${(rea.reasoning_chains || []).length}`);
 
-  const evo = readJson(path.join(abs, 'KDNA_Evolution.json'));
   if (evo) console.log(`  Evolution stages:   ${(evo.stages || []).length}`);
 
   console.log('');

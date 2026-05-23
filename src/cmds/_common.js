@@ -5,6 +5,48 @@ const { loadRegistry: loadCanonicalRegistry } = require('../registry');
 const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
 const INSTALL_DIR = path.join(USER_KDNA_DIR, 'domains');
 
+// ─── Global flags ──────────────────────────────────────────────────────
+
+let _quiet = false;
+let _exitCodeOnly = false;
+const _originalLog = console.log;
+const _originalError = console.error;
+const _originalWarn = console.warn;
+
+function setQuiet(val) {
+  _quiet = val;
+  if (val) {
+    console.log = () => {};
+  } else {
+    console.log = _originalLog;
+  }
+}
+
+function isQuiet() { return _quiet; }
+
+function setExitCodeOnly(val) {
+  _exitCodeOnly = val;
+  if (val) {
+    console.log = () => {};
+    console.warn = () => {};
+    console.error = () => {};
+  } else {
+    console.log = _originalLog;
+    console.warn = _originalWarn;
+    console.error = _originalError;
+  }
+}
+
+function isExitCodeOnly() { return _exitCodeOnly; }
+
+function log(...args) {
+  if (!_quiet && !_exitCodeOnly) _originalLog(...args);
+}
+
+function warn(...args) {
+  if (!_exitCodeOnly) _originalWarn(...args);
+}
+
 function usage() {
   console.log(`kdna — KDNA domain cognition asset tool
 
@@ -68,9 +110,22 @@ Examples:
   kdna publish ./my_domain --release-tag v0.1.0 --repo yourname/kdna-my_domain`);
 }
 
-function error(msg) {
-  console.error(`Error: ${msg}`);
-  process.exit(1);
+// Exit codes — semantic exit codes for all KDNA CLI commands
+const EXIT = {
+  OK: 0,
+  VALIDATION_FAILED: 1,
+  INPUT_ERROR: 2,
+  TRUST_FAILED: 3,
+  JUDGMENT_QUALITY_FAILED: 4,
+  REGISTRY_ERROR: 5,
+  PROVIDER_ERROR: 6,
+  POLICY_VIOLATION: 7,
+  HUMAN_LOCK_REQUIRED: 8,
+};
+
+function error(msg, code = EXIT.VALIDATION_FAILED) {
+  if (!_exitCodeOnly) _originalError(`Error: ${msg}`);
+  process.exit(code);
 }
 
 function readJson(file) {
@@ -90,10 +145,17 @@ function loadRegistry() {
 }
 
 module.exports = {
+  EXIT,
   USER_KDNA_DIR,
   INSTALL_DIR,
   usage,
   error,
+  log,
+  warn,
+  setQuiet,
+  isQuiet,
+  setExitCodeOnly,
+  isExitCodeOnly,
   readJson,
   writeJson,
   loadRegistry,
