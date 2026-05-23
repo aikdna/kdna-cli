@@ -80,25 +80,7 @@ test('kdna search reports no-match cleanly', () => {
   assert.match(r.stdout, /No domains match/);
 });
 
-// ─── kdna verify ───────────────────────────────────────────────────────
-
-test(
-  'kdna verify runs all three layers on an installed domain',
-  { skip: !ensureWritingInstalled() },
-  () => {
-    const r = run(['verify', '@aikdna/writing']);
-    assert.ok(r.ok, `verify failed: ${r.stderr || r.stdout}`);
-    assert.match(r.stdout, /STRUCTURE/);
-    assert.match(r.stdout, /TRUST/);
-    assert.match(r.stdout, /JUDGMENT/);
-  },
-);
-
-test('kdna verify --judgment exits 0 with score line', { skip: !ensureWritingInstalled() }, () => {
-  const r = run(['verify', '@aikdna/writing', '--judgment']);
-  assert.ok(r.ok, `verify --judgment failed: ${r.stderr || r.stdout}`);
-  assert.match(r.stdout, /score:\d+\/\d+/);
-});
+// ─── kdna verify (structural only, offline) ──────────────────────────
 
 test('kdna verify on uninstalled domain exits 2', () => {
   const r = run(['verify', '@aikdna/nonexistent_test_xxx']);

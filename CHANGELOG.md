@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.16.0 (2026-05-23)
+
+**Stabilization: tests, trace attribution, documentation**
+
+- Added 25 smoke tests for v0.12+ commands (doctor, trace, history, license, compare report)
+- Added trace agent attribution via `KDNA_AGENT` environment variable (replaces hardcoded `agent: 'cli'`)
+- Updated README with full v0.12–v0.16 command coverage and environment variables
+- Fixed `license verify --json` flag parsing (was treating `--json` as license path)
+- Fixed `license bind` to re-sign after machine binding
+- Fixed `license verify` and `license bind` argument parsing for flags
+- Split integration tests from default test suite: `npm test` runs offline-only, `npm run test:integration` for registry-dependent tests
+- Added CHANGELOG.md with release notes from v0.9 through v0.15
+
 ## v0.15.0 (2026-05-23)
 
 **License + Install Integration: auto-decrypt .kdnae on install**
