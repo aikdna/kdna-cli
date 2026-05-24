@@ -102,6 +102,7 @@ Studio Integration (Phase 1):
   studio readiness <project.json>  Generate domain readiness card
 
 Agent Runtime:
+  route "<task>" [--json] [--discover]  5-Gate 7-State routing decision
   available [--json]               List installed domains with v2.1 fields
   match "<task>" [--json]          Signal matching — find relevant domains
   select --input "..." [--json]    Selection policy — decide which domains to load

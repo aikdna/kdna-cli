@@ -923,7 +923,7 @@ function cmdRoute(taskText, args = []) {
     process.exit(2);
   }
 
-  const traceId = `route_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+  const traceId = `route_${require('crypto').randomUUID()}`;
   const taskTokens = tokenize(taskText);
   const installed = listInstalled();
   const result = {
