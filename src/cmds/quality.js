@@ -100,6 +100,17 @@ function cmdPostvalidate(args) {
   cmdPostvalidate(args);
 }
 
+function cmdRoute(args) {
+  const { cmdRoute } = require('../agent');
+  const positional = args.filter((a) => !a.startsWith('--'));
+  const flags = args.filter((a) => a.startsWith('--'));
+  if (!positional[1]) {
+    const { error, EXIT } = require('./_common');
+    error('Usage: kdna route "<task description>" [--json] [--discover]', EXIT.INPUT_ERROR);
+  }
+  cmdRoute(positional.slice(1).join(' ').trim(), flags);
+}
+
 module.exports = {
   cmdCompare,
   cmdDiff,
@@ -109,4 +120,5 @@ module.exports = {
   cmdSelect,
   cmdLoad,
   cmdPostvalidate,
+  cmdRoute,
 };

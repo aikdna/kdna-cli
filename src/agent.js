@@ -910,4 +910,267 @@ function cmdPostvalidate(args = []) {
   process.exit(results.violations.length ? 1 : 0);
 }
 
-module.exports = { cmdAvailable, cmdMatch, cmdLoad, cmdSelect, cmdPostvalidate };
+// ─── kdna route ─────────────────────────────────────────────────────────
+
+function cmdRoute(taskText, args = []) {
+  const wantJson = args.includes('--json');
+  const discover = args.includes('--discover');
+
+  if (!taskText) {
+    const err = { error: 'Usage: kdna route "<task description>" [--json] [--discover]' };
+    if (wantJson) { console.log(JSON.stringify(err)); process.exit(2); }
+    console.error(err.error);
+    process.exit(2);
+  }
+
+  const traceId = `route_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+  const taskTokens = tokenize(taskText);
+  const installed = listInstalled();
+  const result = {
+    status: 'SKIP_NO_JUDGMENT_NEEDED',
+    action: 'skip',
+    needs_kdna: false,
+    selected_domain: null,
+    reason: '',
+    confidence: 0,
+    candidates: [],
+    rejected_domains: [],
+    trust: null,
+    ambiguity: null,
+    registry_suggestions: [],
+    auto_install: false,
+    trace_id: traceId,
+    created_at: new Date().toISOString(),
+  };
+
+  // ═══ Gate 1: Intent — does this task need domain judgment? ═══
+  const judgmentKeywords = [
+    'review', 'diagnose', 'critique', 'evaluate', 'assess', 'judge',
+    'should i', 'is this good', 'is this correct', 'how would you rate',
+    '分析', '诊断', '评估', '判断', '审查', '该怎么', '好不好',
+  ];
+  const mechanicalKeywords = [
+    'format', 'translate', 'convert', 'list', 'find', 'lookup', 'search',
+    'run', 'execute', 'compile', 'build', 'fix syntax', 'fix the bug',
+    '格式化', '翻译', '转换', '列出', '查找', '搜索', '运行', '执行', '编译', '修复语法',
+  ];
+
+  const taskLower = taskText.toLowerCase();
+  const hasJudgmentSignal = judgmentKeywords.some(k => taskLower.includes(k));
+  const hasMechanicalSignal = mechanicalKeywords.some(k => taskLower.includes(k));
+
+  result.needs_kdna = hasJudgmentSignal && !hasMechanicalSignal;
+
+  if (!result.needs_kdna) {
+    result.status = 'SKIP_NO_JUDGMENT_NEEDED';
+    result.action = 'skip';
+    result.reason = hasMechanicalSignal
+      ? 'task is mechanical — no domain judgment required'
+      : 'task does not appear to need domain judgment';
+    if (wantJson) { console.log(JSON.stringify(result, null, 2)); return; }
+    console.log('SKIP (no judgment needed)');
+    return;
+  }
+
+  if (!installed.length) {
+    result.status = 'SKIP_NO_LOCAL_DOMAIN';
+    result.action = 'skip';
+    result.reason = 'task may benefit from judgment, but no KDNA domains are installed';
+    if (wantJson) { console.log(JSON.stringify(result, null, 2)); return; }
+    console.log('SKIP (no domains installed)');
+    return;
+  }
+
+  // ═══ Gate 2: Negative Match First — check does_not_apply_when ═══
+  // ═══ Gate 3: Domain Fit — evaluate applies_when + relevance ═══
+  const candidates = [];
+
+  for (const e of installed) {
+    const manifest = readJson(path.join(e.dir, 'kdna.json')) || {};
+    if (manifest.yanked === true) {
+      result.rejected_domains.push({
+        domain: manifest.name || e.full,
+        triggered_rule: 'yanked',
+        reason: 'domain has been yanked',
+      });
+      continue;
+    }
+
+    const core = readJson(path.join(e.dir, 'KDNA_Core.json')) || {};
+
+    // Negative match: does_not_apply_when
+    let disqualified = null;
+    for (const a of core.axioms || []) {
+      for (const d of a.does_not_apply_when || []) {
+        const score = overlapScore(taskTokens, d);
+        if (score.hits >= 2) {
+          disqualified = { axiom: a.id, text: d, hits: score.hits };
+          break;
+        }
+      }
+      if (disqualified) break;
+    }
+
+    if (disqualified) {
+      result.rejected_domains.push({
+        domain: manifest.name || e.full,
+        triggered_rule: `${disqualified.axiom}.does_not_apply_when`,
+        reason: `"${disqualified.text.slice(0, 100)}"`,
+      });
+      continue;
+    }
+
+    // Positive fit: applies_when + domain relevance
+    let fitScore = 0;
+    const fitReasons = [];
+
+    for (const a of core.axioms || []) {
+      for (const ap of a.applies_when || []) {
+        const score = overlapScore(taskTokens, ap);
+        if (score.hits >= 2) {
+          fitScore += score.hits * 3;
+          fitReasons.push({ source: a.id, hits: score.hits, text: ap.slice(0, 120) });
+        }
+      }
+    }
+    fitScore += domainRelevanceScore(taskTokens, manifest);
+
+    // Confidence based on fitScore normalized
+    const confidence = Math.min(0.95, fitScore > 0 ? 0.5 + fitScore * 0.05 : 0.15);
+
+    candidates.push({
+      domain: manifest.name || e.full,
+      version: manifest.version || '?',
+      status: manifest.status || 'experimental',
+      score: fitScore,
+      confidence,
+      reasons: fitReasons.slice(0, 5),
+      description: manifest.description || '',
+    });
+  }
+
+  // Sort by score
+  candidates.sort((a, b) => b.score - a.score);
+
+  // ═══ Gate 4: Decision ═══
+  const strongCandidates = candidates.filter(c => c.score >= 6);
+  const weakCandidates = candidates.filter(c => c.score > 0 && c.score < 6);
+
+  if (strongCandidates.length === 0 && weakCandidates.length === 0) {
+    // No matches at all
+    result.status = 'SKIP_NO_LOCAL_DOMAIN';
+    result.action = 'skip';
+    result.reason = 'no installed domain matches this task';
+    if (result.rejected_domains.length > 0) {
+      result.reason += ` (${result.rejected_domains.length} domains explicitly excluded by does_not_apply_when)`;
+    }
+    result.candidates = candidates.map(c => ({
+      domain: c.domain,
+      decision: 'rejected',
+      reason: 'insufficient match score',
+      confidence: c.confidence,
+    }));
+  } else if (strongCandidates.length > 1) {
+    // Multiple strong matches — ambiguity
+    result.status = 'ASK_AMBIGUOUS_DOMAIN';
+    result.action = 'ask';
+    result.reason = `${strongCandidates.length} domains strongly match this task with different judgment frames`;
+
+    result.ambiguity = {
+      domains: strongCandidates.slice(0, 3).map(c => ({
+        domain: c.domain,
+        description: c.description,
+        judgment_frame: c.reasons.length > 0 ? c.reasons[0].text : c.description,
+        risk_if_wrong: `may misclassify the task as a ${c.domain.split('/').pop()} problem`,
+      })),
+      recommendation: 'Choose the domain whose judgment frame best matches the task intent. Do not blend domains.',
+    };
+
+    result.candidates = strongCandidates.map(c => ({
+      domain: c.domain, decision: 'ambiguous', reason: `score ${c.score}`, confidence: c.confidence,
+    }));
+  } else if (strongCandidates.length === 1) {
+    // One strong match + possible weak matches
+    const selected = strongCandidates[0];
+    result.candidates = [
+      { domain: selected.domain, decision: 'strong_match', reason: `score ${selected.score}`, confidence: selected.confidence },
+      ...weakCandidates.map(c => ({ domain: c.domain, decision: 'weak_match', reason: `score ${c.score}`, confidence: c.confidence })),
+    ];
+
+    // ═══ Trust Gate ═══
+    const trust = checkTrust(selected.domain);
+    result.trust = trust;
+
+    if (!trust.passed) {
+      result.status = 'BLOCK_TRUST_FAILED';
+      result.action = 'block';
+      result.reason = `domain matched but trust check failed: ${trust.failures.join(', ')}`;
+    } else {
+      result.status = 'LOAD_STRONG_FIT';
+      result.action = 'load';
+      result.selected_domain = selected.domain;
+      result.confidence = selected.confidence;
+      result.reason = `match: "${selected.description.slice(0, 100)}"`;
+    }
+  } else {
+    // Only weak matches — skip
+    result.status = 'SKIP_WEAK_FIT';
+    result.action = 'skip';
+    result.reason = weakCandidates.length > 0
+      ? `${weakCandidates.length} domain(s) have weak match only — skipping to avoid contamination`
+      : 'no installed domain matches this task';
+    result.candidates = weakCandidates.map(c => ({
+      domain: c.domain, decision: 'weak_match', reason: `score ${c.score}`, confidence: c.confidence,
+    }));
+  }
+
+  // Add rejected domains to candidates array for full trace
+  for (const r of result.rejected_domains) {
+    result.candidates.push({
+      domain: r.domain,
+      decision: 'rejected',
+      reason: r.reason,
+      confidence: 0,
+      matched_does_not_apply_when: r.triggered_rule,
+    });
+  }
+
+  if (wantJson) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  // Human output
+  console.log(`Task: ${taskText.slice(0, 100)}${taskText.length > 100 ? '…' : ''}`);
+  console.log(`Route: ${result.status} → ${result.action}`);
+  if (result.reason) console.log(`Reason: ${result.reason}`);
+  if (result.selected_domain) console.log(`Domain: ${result.selected_domain}`);
+  if (result.rejected_domains.length) {
+    console.log(`Rejected: ${result.rejected_domains.map(r => r.domain).join(', ')}`);
+  }
+}
+
+function checkTrust(domainName) {
+  const failures = [];
+  const installed = listInstalled();
+  const entry = installed.find(e => `${e.scope}/${e.ident}` === domainName || e.full === domainName);
+  if (!entry) {
+    failures.push('domain not found in installed directory');
+    return { passed: false, failures };
+  }
+
+  const manifest = readJson(path.join(entry.dir, 'kdna.json')) || {};
+  if (manifest.yanked === true) failures.push('domain is yanked');
+
+  const signature = manifest.signature;
+  if (signature === null || signature === undefined || signature === '' || signature === 'aikdna-ed25519-placeholder-pending-signing') {
+    // Open domains may legitimately have no signature
+    if (manifest.access === 'licensed' || manifest.access === 'runtime') {
+      failures.push('commercial domain has no valid signature');
+    }
+  }
+
+  return { passed: failures.length === 0, failures };
+}
+
+module.exports = { cmdAvailable, cmdMatch, cmdLoad, cmdSelect, cmdPostvalidate, cmdRoute };
