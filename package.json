@@ -41,7 +41,7 @@
   },
   "homepage": "https://aikdna.com",
   "bugs": {
-    "url": "https://github.com/knowledge-dna/kdna-cli/issues"
+    "url": "https://github.com/aikdna/kdna-cli/issues"
   },
   "engines": {
     "node": ">=18"
