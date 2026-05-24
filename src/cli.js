@@ -26,6 +26,7 @@ const {
   cmdSelect,
   cmdLoad,
   cmdPostvalidate,
+  cmdRoute,
 } = require('./cmds/quality');
 const { cmdCluster } = require('./cmds/cluster');
 const { cmdIdentity } = require('./cmds/identity');
@@ -338,6 +339,10 @@ switch (cmd) {
   }
   case 'select': {
     cmdSelect(args);
+    break;
+  }
+  case 'route': {
+    cmdRoute(args);
     break;
   }
   case 'postvalidate': {
