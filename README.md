@@ -4,7 +4,7 @@
 
 KDNA CLI 是 AI Agent 加载、验证、组合、测试和治理领域判断的运行控制平面。
 
-Part of the [KDNA](https://github.com/knowledge-dna/KDNA) ecosystem.
+Part of the [KDNA](https://github.com/aikdna/KDNA) ecosystem.
 
 ## Install
 
@@ -170,7 +170,7 @@ kdna license verify --json <file>
 ## Development
 
 ```bash
-git clone https://github.com/knowledge-dna/kdna-cli.git
+git clone https://github.com/aikdna/kdna-cli.git
 cd kdna-cli
 npm install
 npm test
@@ -178,9 +178,9 @@ npm test
 
 ## Related
 
-- [@aikdna/kdna-core](https://github.com/knowledge-dna/KDNA/tree/main/packages/kdna-core) — Pure logic library
-- [KDNA Registry](https://github.com/knowledge-dna/kdna-registry) — Domain catalog
-- [KDNA SPEC](https://github.com/knowledge-dna/KDNA) — Protocol specification
+- [@aikdna/kdna-core](https://github.com/aikdna/KDNA/tree/main/packages/kdna-core) — Pure logic library
+- [KDNA Registry](https://github.com/aikdna/kdna-registry) — Domain catalog
+- [KDNA SPEC](https://github.com/aikdna/KDNA) — Protocol specification
 - [aikdna.com](https://aikdna.com) — Website
 
 ## License

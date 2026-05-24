@@ -37,7 +37,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/knowledge-dna/kdna-cli.git"
+    "url": "git+https://github.com/aikdna/kdna-cli.git"
   },
   "homepage": "https://aikdna.com",
   "bugs": {
