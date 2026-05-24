@@ -1,8 +1,10 @@
 # @aikdna/kdna-cli
 
-**KDNA CLI is the runtime control plane for loading, validating, composing, testing, and governing domain judgment for AI agents.**
+**KDNA CLI is the official open-source reference implementation for KDNA validation, loading, packaging, comparison, registry access, and agent-facing runtime workflows.**
 
-KDNA CLI 是 AI Agent 加载、验证、组合、测试和治理领域判断的运行控制平面。
+It is the runtime control plane for loading, validating, composing, testing, and governing domain judgment for AI agents.
+
+KDNA CLI 是 KDNA 验证、加载、打包、比较、注册表访问和 Agent 运行时工作流的官方开源参考实现，也是 AI Agent 加载、验证、组合、测试和治理领域判断的运行控制平面。
 
 Part of the [KDNA](https://github.com/aikdna/KDNA) ecosystem.
 
@@ -28,99 +30,157 @@ kdna doctor --agents
 
 ### Domain Authoring
 
-| Command | Description |
-|---------|-------------|
-| `kdna init <name>` | Scaffold a new domain from template |
-| `kdna validate <path>` | Validate domain structure |
-| `kdna validate --schema <path>` | Schema-only validation |
-| `kdna pack <path>` | Pack into .kdna container |
-| `kdna pack <path> --encrypt --license <file>` | Pack encrypted .kdnae container |
-| `kdna unpack <file>` | Unpack .kdna or .kdnae container |
-| `kdna inspect <path>` | Inspect domain or .kdna file |
-| `kdna publish <path>` | Pack + sign + publish to registry |
-| `kdna publish --check <path>` | Quality gate check only |
-| `kdna version bump <level> [path]` | Bump domain version |
+| Command | Status | Description |
+|---------|--------|-------------|
+| `kdna init <name>` | Beta | Scaffold a new domain from template |
+| `kdna validate <path>` | Stable | Validate domain structure |
+| `kdna validate --schema <path>` | Stable | Schema-only validation |
+| `kdna pack <path>` | Beta | Pack into .kdna container |
+| `kdna pack <path> --encrypt --license <file>` | Beta | Pack encrypted .kdnae container |
+| `kdna unpack <file>` | Beta | Unpack .kdna or .kdnae container |
+| `kdna inspect <path>` | Beta | Inspect domain or .kdna file |
+| `kdna publish <path>` | Experimental | Pack + sign + publish to registry |
+| `kdna publish --check <path>` | Experimental | Quality gate check only |
+| `kdna version bump <level> [path]` | Beta | Bump domain version |
 
 ### Agent Runtime
 
-| Command | Description |
-|---------|-------------|
-| `kdna available [--json]` | List installed domains with v2.1 fields |
-| `kdna match "<task>" [--json]` | Signal matching — find relevant domains |
-| `kdna load <name> [--as=prompt\|json\|raw]` | Emit domain in agent-ready format |
-| `kdna postvalidate <name> --output <file>` | Post-generation judgment check |
+| Command | Status | Description |
+|---------|--------|-------------|
+| `kdna available [--json]` | Beta | List installed domains with v2.1 fields |
+| `kdna match "<task>" [--json]` | Beta | Signal matching — find relevant domains |
+| `kdna load <name> [--as=prompt\|json\|raw]` | Beta | Emit domain in agent-ready format |
+| `kdna postvalidate <name> --output <file>` | Beta | Post-generation judgment check |
 
 ### Testing & Verification
 
-| Command | Description |
-|---------|-------------|
-| `kdna verify <name>` | 3-layer: structure + trust + judgment |
-| `kdna compare <name> --input "..."` | With/without KDNA reasoning diff |
-| `kdna compare <name> --input "..." --report-md` | Markdown report with scoring |
-| `kdna compare <name> --input "..." --report-json` | JSON report with scoring |
-| `kdna diff <name>@<v1> <name>@<v2>` | Judgment-level diff between versions |
+| Command | Status | Description |
+|---------|--------|-------------|
+| `kdna verify <name>` | Beta | 3-layer: structure + trust + judgment |
+| `kdna compare <name> --input "..."` | Beta | With/without KDNA reasoning diff |
+| `kdna compare <name> --input "..." --report-md` | Beta | Markdown report with scoring |
+| `kdna compare <name> --input "..." --report-json` | Beta | JSON report with scoring |
+| `kdna diff <name>@<v1> <name>@<v2>` | Beta | Judgment-level diff between versions |
 
 ### Diagnostics & Trace
 
-| Command | Description |
-|---------|-------------|
-| `kdna doctor` | System health check |
-| `kdna doctor --agents` | Agent integration check (Codex/Claude/OpenCode/Cursor/Gemini) |
-| `kdna doctor --json` | Machine-readable health report |
-| `kdna trace` | View recent load/postvalidate traces |
-| `kdna trace --json` | Machine-readable trace output |
-| `kdna trace --export <file>` | Export traces for audit |
-| `kdna trace --since 7d\|30d\|90d` | Filter by time range |
-| `kdna history` | Recent domain usage (last 20) |
-| `kdna history --stats` | Aggregate by domain and agent |
-| `kdna history --domain <name>` | Filter by domain |
+| Command | Status | Description |
+|---------|--------|-------------|
+| `kdna doctor` | Beta | System health check |
+| `kdna doctor --agents` | Beta | Agent integration check (Codex/Claude/OpenCode/Cursor/Gemini) |
+| `kdna doctor --json` | Beta | Machine-readable health report |
+| `kdna trace` | Experimental | View recent load/postvalidate traces |
+| `kdna trace --json` | Experimental | Machine-readable trace output |
+| `kdna trace --export <file>` | Experimental | Export traces for audit |
+| `kdna trace --since 7d\|30d\|90d` | Experimental | Filter by time range |
+| `kdna history` | Experimental | Recent domain usage (last 20) |
+| `kdna history --stats` | Experimental | Aggregate by domain and agent |
+| `kdna history --domain <name>` | Experimental | Filter by domain |
 
 ### License & Authorization
 
-| Command | Description |
-|---------|-------------|
-| `kdna license generate <domain> --to <email>` | Generate signed license |
-| `kdna license install <license.json>` | Register license for auto-decrypt |
-| `kdna license verify <license.json>` | Verify license signature and validity |
-| `kdna license bind <license.json>` | Bind license to this machine |
-| `kdna license show <license.json>` | Display license details |
+| Command | Status | Description |
+|---------|--------|-------------|
+| `kdna license generate <domain> --to <email>` | Experimental | Generate signed license |
+| `kdna license install <license.json>` | Experimental | Register license for auto-decrypt |
+| `kdna license verify <license.json>` | Experimental | Verify license signature and validity |
+| `kdna license bind <license.json>` | Experimental | Bind license to this machine |
+| `kdna license show <license.json>` | Experimental | Display license details |
 
 ### Cluster Composition
 
-| Command | Description |
-|---------|-------------|
-| `kdna cluster lint <path>` | Validate cluster manifest |
+| Command | Status | Description |
+|---------|--------|-------------|
+| `kdna cluster lint <path>` | Planned | Validate cluster manifest |
 
 ### Registry & Distribution
 
-| Command | Description |
-|---------|-------------|
-| `kdna install <name>` | Install domain from registry |
-| `kdna install ./file.kdna` | Install from local .kdna file |
-| `kdna install ./file.kdnae` | Install from encrypted .kdnae (auto-decrypt with license) |
-| `kdna remove <name>` | Uninstall a domain |
-| `kdna update <name>` | Update installed domain |
-| `kdna info <name>` | Show domain metadata and trust status |
-| `kdna list [--available]` | List installed or available domains |
-| `kdna search <keyword>` | Search registry |
-| `kdna registry refresh` | Refresh registry cache |
+| Command | Status | Description |
+|---------|--------|-------------|
+| `kdna install <name>` | Beta | Install domain from registry |
+| `kdna install ./file.kdna` | Beta | Install from local .kdna file |
+| `kdna install ./file.kdnae` | Beta | Install from encrypted .kdnae (auto-decrypt with license) |
+| `kdna remove <name>` | Beta | Uninstall a domain |
+| `kdna update <name>` | Beta | Update installed domain |
+| `kdna info <name>` | Beta | Show domain metadata and trust status |
+| `kdna list [--available]` | Beta | List installed or available domains |
+| `kdna search <keyword>` | Beta | Search registry |
+| `kdna registry refresh` | Beta | Refresh registry cache |
 
 ### Identity & Signing
 
-| Command | Description |
-|---------|-------------|
-| `kdna identity init` | Generate Ed25519 signing key |
-| `kdna identity show` | Display public key and buyer ID |
-| `kdna identity export [--out]` | Backup private key (encrypted) |
-| `kdna identity import <file>` | Restore identity from backup |
+| Command | Status | Description |
+|---------|--------|-------------|
+| `kdna identity init` | Experimental | Generate Ed25519 signing key |
+| `kdna identity show` | Experimental | Display public key and buyer ID |
+| `kdna identity export [--out]` | Experimental | Backup private key (encrypted) |
+| `kdna identity import <file>` | Experimental | Restore identity from backup |
 
 ### Setup
 
-| Command | Description |
-|---------|-------------|
-| `kdna setup` | One-command setup: CLI + skill + data root |
+| Command | Status | Description |
+|---------|--------|-------------|
+| `kdna setup` | Beta | One-command setup: CLI + skill + data root |
 
-### Environment Variables
+---
+
+## SPEC Compatibility
+
+KDNA CLI follows the canonical KDNA domain structure defined in [`aikdna/kdna`](https://github.com/aikdna/KDNA).
+
+A valid KDNA domain is a lowercase `snake_case` folder. A complete domain may include up to six files:
+
+- `KDNA_Core.json`
+- `KDNA_Patterns.json`
+- `KDNA_Scenarios.json`
+- `KDNA_Cases.json`
+- `KDNA_Reasoning.json`
+- `KDNA_Evolution.json`
+
+The minimum valid domain requires:
+
+- `KDNA_Core.json`
+- `KDNA_Patterns.json`
+
+Each file must include `meta.version`, `meta.domain`, `meta.created`, `meta.purpose`, and `meta.load_condition`.
+
+---
+
+## Default Registry
+
+By default, KDNA CLI uses the official KDNA registry. Users may override it with `KDNA_REGISTRY_URL`.
+
+```bash
+# Use the official registry (default)
+kdna install @aikdna/writing
+
+# Use a custom registry
+export KDNA_REGISTRY_URL="https://my-registry.example.com/domains.json"
+kdna install @myorg/internal
+```
+
+---
+
+## Open Source and Commercial Boundary
+
+KDNA keeps the protocol, schemas, validator, core CLI, benchmark tools, and reference examples open source.
+
+Commercial or hosted layers may include:
+
+- Managed registry services
+- Quality badge review workflows
+- Hosted runtime guard
+- Enterprise private registry
+- Team collaboration in KDNA Studio
+- Licensed/private judgment asset distribution
+
+KDNA supports both open judgment assets and licensed/private judgment assets. Open domains remain the default path for community adoption, while encrypted containers and licenses support professional and enterprise distribution.
+
+KDNA 同时支持开放判断资产和授权/私有判断资产。开放 domain 是社区采用的默认路径；加密容器和 license 用于专业资产与企业分发。
+
+---
+
+## Environment Variables
 
 | Variable | Purpose |
 |----------|---------|
