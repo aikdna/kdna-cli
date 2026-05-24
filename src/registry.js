@@ -21,7 +21,7 @@ const CONFIG_FILE = path.join(USER_KDNA_DIR, 'config.json');
 const DEFAULT_OFFICIAL_SCOPE = '@aikdna';
 const CANONICAL_REGISTRY_URL =
   process.env.KDNA_REGISTRY_URL ||
-  'https://raw.githubusercontent.com/knowledge-dna/kdna-registry/main/domains.json';
+  'https://raw.githubusercontent.com/aikdna/kdna-registry/main/domains.json';
 
 const NAME_RE = /^@([a-z][a-z0-9-]*)\/([a-z][a-z0-9_]*)$/;
 const BARE_NAME_RE = /^[a-z][a-z0-9_]*$/;

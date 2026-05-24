@@ -18,7 +18,7 @@ const path = require('path');
 const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
 const DOMAINS_DIR = path.join(USER_KDNA_DIR, 'domains');
 const CLUSTERS_DIR = path.join(USER_KDNA_DIR, 'clusters');
-const SKILLS_REPO = 'https://raw.githubusercontent.com/knowledge-dna/kdna-skills/main';
+const SKILLS_REPO = 'https://raw.githubusercontent.com/aikdna/kdna-skills/main';
 
 const AGENTS = [
   {

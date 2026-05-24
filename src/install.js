@@ -96,7 +96,7 @@ function ensureLoaderSkill() {
   // This must come FIRST so we don't ship stale local copies to users.
   sources.push({
     type: 'remote',
-    url: 'https://raw.githubusercontent.com/knowledge-dna/kdna-skills/main/kdna-loader/SKILL.md',
+    url: 'https://raw.githubusercontent.com/aikdna/kdna-skills/main/kdna-loader/SKILL.md',
   });
 
   // Source 2: offline fallback — KDNA repo local checkout, only used if the
