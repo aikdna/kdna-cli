@@ -519,7 +519,7 @@ switch (cmd) {
       const idx = args.indexOf('--check');
       const target = args[idx + 1] || args.filter((a) => !a.startsWith('--'))[1] || '.';
       if (!target || target.startsWith('--')) error('Usage: kdna publish --check <path>');
-      cmdPublishCheck(target);
+      cmdPublishCheck(target, args);
     } else {
       const { cmdPublish } = require('./publish');
       const target = args.filter((a) => !a.startsWith('--'))[1];
