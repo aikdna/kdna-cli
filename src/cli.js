@@ -296,7 +296,7 @@ switch (cmd) {
     if (!target) error('Usage: kdna card <path> [--json] [--locale zh-CN]');
     const localeIdx = args.indexOf('--locale');
     const locale = localeIdx >= 0 ? args[localeIdx + 1] : null;
-    cmdCard(target, locale);
+    cmdCard(target, args.includes('--json'), locale);
     break;
   }
   case 'verify': {
