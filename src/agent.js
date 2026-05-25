@@ -914,7 +914,6 @@ function cmdPostvalidate(args = []) {
 
 function cmdRoute(taskText, args = []) {
   const wantJson = args.includes('--json');
-  const discover = args.includes('--discover');
 
   if (!taskText) {
     const err = { error: 'Usage: kdna route "<task description>" [--json] [--discover]' };
