@@ -1149,27 +1149,107 @@ function cmdRoute(taskText, args = []) {
   }
 }
 
-function checkTrust(domainName) {
+function checkTrust(domainName, options = {}) {
   const failures = [];
+  const warnings = [];
   const installed = listInstalled();
   const entry = installed.find(e => `${e.scope}/${e.ident}` === domainName || e.full === domainName);
   if (!entry) {
     failures.push('domain not found in installed directory');
-    return { passed: false, failures };
+    return { passed: false, failures, warnings };
   }
 
   const manifest = readJson(path.join(entry.dir, 'kdna.json')) || {};
-  if (manifest.yanked === true) failures.push('domain is yanked');
+  const core = readJson(path.join(entry.dir, 'KDNA_Core.json')) || {};
+  const evolution = readJson(path.join(entry.dir, 'KDNA_Evolution.json')) || {};
 
+  // 1. Yank check
+  if (manifest.yanked === true) {
+    failures.push('domain is yanked');
+  }
+
+  // 2. Deprecation check
+  if (manifest.status === 'deprecated') {
+    warnings.push(`domain is deprecated${manifest.replaced_by ? ', replaced by ' + manifest.replaced_by : ''}`);
+  }
+
+  // 3. Signature check
   const signature = manifest.signature;
-  if (signature === null || signature === undefined || signature === '' || signature === 'aikdna-ed25519-placeholder-pending-signing') {
-    // Open domains may legitimately have no signature
-    if (manifest.access === 'licensed' || manifest.access === 'runtime') {
+  const isPlaceholder = !signature || signature === '' || signature.includes('placeholder');
+  if (manifest.access === 'licensed' || manifest.access === 'runtime') {
+    if (isPlaceholder) {
       failures.push('commercial domain has no valid signature');
+    }
+  } else if (isPlaceholder) {
+    warnings.push('domain is unsigned — trust depends on source');
+  }
+
+  // 4. Risk level check
+  const riskLevel = manifest.risk_level || entry.risk_level || 'R1';
+  const riskMap = { R0: 0, R1: 1, R2: 2, R3: 3, R4: 4 };
+  const riskNum = riskMap[riskLevel] || 1;
+  if (riskNum >= 3) {
+    warnings.push(`domain risk level is ${riskLevel} — high-risk judgment may influence agent behavior`);
+  }
+  if (riskNum >= 2 && (manifest.quality_badge === 'untested' || !manifest.quality_badge)) {
+    warnings.push(`risk level ${riskLevel} with quality_badge '${manifest.quality_badge || 'none'}' — consider requiring review`);
+  }
+
+  // 5. SPEC compatibility check
+  const specVersion = manifest.spec_version || manifest.kdna_spec || 'unknown';
+  const supportedSpecs = ['1.0-rc', '1.0', '0.7'];
+  if (!supportedSpecs.includes(specVersion)) {
+    warnings.push(`SPEC version '${specVersion}' may not be fully compatible with current loader`);
+  }
+
+  // 6. License validity (commercial domains)
+  if (manifest.access === 'licensed' || manifest.access === 'runtime') {
+    const licenseStorePath = path.join(process.env.HOME || '.', '.kdna', 'licenses.json');
+    let licenseOk = false;
+    try {
+      if (require('fs').existsSync(licenseStorePath)) {
+        const store = JSON.parse(require('fs').readFileSync(licenseStorePath, 'utf8'));
+        const keys = store.keys || {};
+        for (const [hash, entry] of Object.entries(keys)) {
+          if (entry.active && entry.domain_id === domainName) {
+            if (!entry.expires_at || new Date(entry.expires_at) > new Date()) {
+              licenseOk = true;
+              break;
+            }
+          }
+        }
+        if (!licenseOk) {
+          warnings.push('commercial domain has no active license — install with: kdna install ' + domainName + ' --license <key>');
+        }
+      } else {
+        warnings.push('no license store found — commercial domain may require a license');
+      }
+    } catch { /* license check unavailable */ }
+  }
+
+  // 7. Human Lock check (judgment-class cards)
+  const judgmentCardTypes = ['axiom', 'boundary', 'risk'];
+  const axioms = core.axioms || [];
+  const hasJudgmentCards = axioms.length > 0;
+  if (hasJudgmentCards) {
+    const humanLocks = evolution.human_locks || [];
+    const lockedAxioms = axioms.filter(a => {
+      // Check if axiom has a human_lock field OR if an evolution lock covers it
+      return a.human_lock || humanLocks.some(hl => hl.lock_type === 'accept');
+    }).length;
+    if (lockedAxioms === 0 && humanLocks.length === 0) {
+      warnings.push('domain has no Human Lock records — judgment-class content may not be human-verified');
     }
   }
 
-  return { passed: failures.length === 0, failures };
+  return {
+    passed: failures.length === 0,
+    failures,
+    warnings,
+    riskLevel,
+    specVersion,
+    signatureValid: !isPlaceholder,
+  };
 }
 
 module.exports = { cmdAvailable, cmdMatch, cmdLoad, cmdSelect, cmdPostvalidate, cmdRoute };
