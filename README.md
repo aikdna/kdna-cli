@@ -225,7 +225,7 @@ kdna license verify --json <file>
 | Authoring | KDNA Studio | Human-led judgment production |
 | Consumption | KDNAChat | Load, use, compare |
 | Governance | KDNA Governance Console | Approve, release, audit |
-| Distribution | Registry | Discover, install, trade |
+| Distribution | Registry | Discover, install, license, distribute |
 
 ## Development
 
