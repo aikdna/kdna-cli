@@ -141,9 +141,71 @@ function isGenericSelfCheck(question) {
   return false;
 }
 
+// ─── Human Lock Gate ──────────────────────────────────────────────────
+
+const JUDGMENT_CARD_TYPES = ['axiom', 'boundary', 'risk', 'aesthetic'];
+
+/**
+ * Check whether the domain satisfies Human Lock requirements.
+ * Returns { passed, issues[] } — publish should be blocked if !passed.
+ */
+function checkHumanLock(domainPath) {
+  const core = readJson(path.join(domainPath, 'KDNA_Core.json'));
+  if (!core) return { passed: false, issues: ['KDNA_Core.json not found'] };
+
+  const issues = [];
+  const cards = [];
+
+  // Collect judgment-class cards from axioms, boundaries, risks
+  if (core.axioms) {
+    for (const a of core.axioms) {
+      cards.push({ type: 'axiom', id: a.id || '?', status: a.status, human_lock: a.human_lock });
+    }
+  }
+  if (core.boundaries) {
+    for (const b of core.boundaries) {
+      cards.push({ type: 'boundary', id: b.id || '?', status: b.status, human_lock: b.human_lock });
+    }
+  }
+  if (core.risks || core.risk_model) {
+    const risks = core.risks || core.risk_model || [];
+    for (const r of risks) {
+      cards.push({ type: 'risk', id: r.id || '?', status: r.status, human_lock: r.human_lock });
+    }
+  }
+
+  if (cards.length === 0) return { passed: true, issues: [] };
+
+  for (const card of cards) {
+    // Rule 1: Must be locked
+    if (!card.status || !['locked', 'tested', 'published'].includes(card.status)) {
+      issues.push(`${card.type} "${card.id}" is not locked. Human Lock required before publish.`);
+      continue;
+    }
+    // Rule 2: Must have human_lock record
+    if (!card.human_lock || !card.human_lock.by || !card.human_lock.statement) {
+      issues.push(`${card.type} "${card.id}" is locked but has no valid Human Lock record.`);
+      continue;
+    }
+    // Rule 3: Lock must confirm judgment fields were reviewed
+    const checked = card.human_lock.checked || {};
+    if (!checked.applies_when) {
+      issues.push(`${card.type} "${card.id}" Human Lock does not confirm applies_when was reviewed.`);
+    }
+    if (!checked.does_not_apply_when) {
+      issues.push(`${card.type} "${card.id}" Human Lock does not confirm does_not_apply_when was reviewed.`);
+    }
+    if (!checked.failure_risk) {
+      issues.push(`${card.type} "${card.id}" Human Lock does not confirm failure_risk was reviewed.`);
+    }
+  }
+
+  return { passed: issues.length === 0, issues };
+}
+
 // ─── Main check function ──────────────────────────────────────────────
 
-function cmdPublishCheck(domainPath) {
+function cmdPublishCheck(domainPath, args = []) {
   const abs = path.resolve(domainPath);
   if (!fs.existsSync(abs)) error(`Domain not found: ${abs}`);
 
@@ -151,6 +213,35 @@ function cmdPublishCheck(domainPath) {
   console.log(`  Publish Check: ${path.basename(abs)}`);
   console.log('═'.repeat(60));
   console.log('');
+
+  // ─── Human Lock Gate (must pass before any other checks) ──────────
+  const hl = checkHumanLock(abs);
+  if (!hl.passed) {
+    if (args.includes('--force')) {
+      console.warn('  ⚠  Human Lock Gate: OVERRIDDEN (--force). Proceeding with checks.');
+      console.warn(`     ${hl.issues.length} unresolved Human Lock issue(s):`);
+      for (const issue of hl.issues) {
+        console.warn(`       ${issue}`);
+      }
+      console.warn('');
+    } else {
+      console.error('  Human Lock Gate: BLOCKED');
+      console.error(`  ${hl.issues.length} issue(s) found:`);
+      for (const issue of hl.issues) {
+        console.error(`    ✗ ${issue}`);
+      }
+      console.error('');
+      console.error('  Judgment-class cards (axiom, boundary, risk, aesthetic)');
+      console.error('  must be locked with a valid Human Lock record before publishing.');
+      console.error('  Use kdna-studio or manually add human_lock to each card.');
+      console.error('  Use --force for emergency override (audited).');
+      console.error('');
+      process.exit(EXIT.HUMAN_LOCK_REQUIRED);
+    }
+  } else {
+    console.log('  ✓ Human Lock Gate: passed');
+    console.log('');
+  }
 
   let errors = 0;
   let warnings = 0;
@@ -551,6 +642,26 @@ function cmdPublish(domainPath, args = []) {
   console.log('═'.repeat(60));
   console.log(`  Publishing ${name}@${manifest.version}`);
   console.log('═'.repeat(60));
+
+  // ─── Human Lock Gate ──────────────────────────────────────────────
+  const hl = checkHumanLock(abs);
+  if (!hl.passed) {
+    console.error('');
+    console.error('  Human Lock Gate: BLOCKED');
+    for (const issue of hl.issues) {
+      console.error(`    ✗ ${issue}`);
+    }
+    console.error('');
+    console.error('  Use kdna publish --check for details, or --force to override.');
+    if (!args.includes('--force')) {
+      process.exit(EXIT.HUMAN_LOCK_REQUIRED);
+    }
+    console.warn('  ⚠  --force override: publishing without Human Lock (emergency only)');
+  } else {
+    console.log(`  ✓ Human Lock Gate: passed`);
+  }
+  console.log('');
+
   console.log(`  Identity fingerprint: ${fingerprint(publicKey)}`);
   console.log(`  Scope trust key:      ${scopeKey.slice(0, 28)}…`);
   console.log('');
@@ -633,4 +744,4 @@ function cmdPublish(domainPath, args = []) {
   );
 }
 
-module.exports = { cmdPublishCheck, cmdPublish, canonicalPayload, publicKeyToScopeFormat };
+module.exports = { cmdPublishCheck, cmdPublish, checkHumanLock, canonicalPayload, publicKeyToScopeFormat };

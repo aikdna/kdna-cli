@@ -140,6 +140,19 @@ function cmdPack(dir, outputDir) {
   if (!core) error('KDNA_Core.json not found or invalid');
   if (!pat) error('KDNA_Patterns.json not found or invalid');
 
+  // Human Lock Gate — check judgment-class cards before packing
+  const { checkHumanLock } = require('../publish');
+  const hl = checkHumanLock(abs);
+  if (!hl.passed) {
+    console.error('Human Lock Gate: BLOCKED');
+    for (const issue of hl.issues) {
+      console.error(`  ✗ ${issue}`);
+    }
+    console.error('Judgment-class cards must be locked with valid Human Lock before packing.');
+    console.error('Use kdna publish --check for details.');
+    process.exit(EXIT.HUMAN_LOCK_REQUIRED);
+  }
+
   const domainName = core.meta?.domain || path.basename(abs);
 
   // Ensure kdna.json manifest exists (generate if missing)
