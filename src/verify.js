@@ -552,6 +552,33 @@ function checkGovernance(destDir) {
 
 function cmdVerify(input, args = []) {
   const jsonMode = args.includes('--json');
+  const trustReport = args.includes('--trust-report');
+
+  // --trust-report: standalone mode — output full trust report and exit
+  if (trustReport) {
+    const parsed = parseName(input);
+    if (!parsed) {
+      console.log(JSON.stringify({ ok: false, error: `Invalid name: ${input}` }));
+      process.exit(EXIT.INPUT_ERROR);
+    }
+    const destDir = path.join(INSTALL_DIR, parsed.scope, parsed.ident);
+    if (!destDir || !require('fs').existsSync(destDir)) {
+      console.log(JSON.stringify({ ok: false, error: `Domain not installed: ${input}` }));
+      process.exit(EXIT.INPUT_ERROR);
+    }
+    const { checkTrust: agentCheckTrust } = require('./agent');
+    const trust = agentCheckTrust(parsed.full);
+    console.log(JSON.stringify({
+      domain: parsed.full,
+      passed: trust.passed,
+      failures: trust.failures,
+      warnings: trust.warnings,
+      risk_level: trust.riskLevel,
+      spec_version: trust.specVersion,
+      signature_valid: trust.signatureValid,
+    }, null, 2));
+    process.exit(trust.passed ? 0 : EXIT.TRUST_FAILED);
+  }
 
   const want = {
     structure: args.includes('--structure'),

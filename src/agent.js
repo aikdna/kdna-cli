@@ -1284,4 +1284,4 @@ function checkTrust(domainName, options = {}) {
   };
 }
 
-module.exports = { cmdAvailable, cmdMatch, cmdLoad, cmdSelect, cmdPostvalidate, cmdRoute };
+module.exports = { cmdAvailable, cmdMatch, cmdLoad, cmdSelect, cmdPostvalidate, cmdRoute, checkTrust };
