@@ -8,20 +8,23 @@
  *  5. Core + Patterns + optional files all parse
  *
  * Usage: node tests/smoke/smoke-test.js
- * Requires: KDNA repo root as working directory, 6 domains in /Users/AI/K/kdna-*
+ * Requires this checkout to live under /Users/AI/K/OPEN_SOURCE.
  */
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert');
+const path = require('node:path');
 const { loadDomain, formatContext } = require('../../src/loader');
 
+const OPEN_SOURCE_ROOT = path.resolve(__dirname, '..', '..', '..');
+
 const DOMAINS = [
-  { id: 'writing', path: '/Users/AI/K/kdna-writing' },
-  { id: 'knowledge_management', path: '/Users/AI/K/kdna-knowledge_management' },
-  { id: 'prompt_diagnosis', path: '/Users/AI/K/kdna-prompt_diagnosis' },
-  { id: 'agent_safety', path: '/Users/AI/K/kdna-agent_safety' },
-  { id: 'open_source_project', path: '/Users/AI/K/kdna-open_source_project' },
-  { id: 'content_strategy', path: '/Users/AI/K/kdna-content_strategy' },
+  { id: 'writing', path: path.join(OPEN_SOURCE_ROOT, 'kdna-writing') },
+  { id: 'knowledge_management', path: path.join(OPEN_SOURCE_ROOT, 'kdna-knowledge_management') },
+  { id: 'prompt_diagnosis', path: path.join(OPEN_SOURCE_ROOT, 'kdna-prompt_diagnosis') },
+  { id: 'agent_safety', path: path.join(OPEN_SOURCE_ROOT, 'kdna-agent_safety') },
+  { id: 'open_source_project', path: path.join(OPEN_SOURCE_ROOT, 'kdna-open_source_project') },
+  { id: 'content_strategy', path: path.join(OPEN_SOURCE_ROOT, 'kdna-content_strategy') },
 ];
 
 // Sample inputs that should trigger each domain
@@ -88,9 +91,10 @@ describe('Smoke — First-Wave Domains', () => {
       it(`${d.id} stances pass anti-truism check`, () => {
         const result = loadDomain(d.path, { mode: 'all' });
         for (const stance of result.core.stances) {
-          const text = stance.toLowerCase();
+          const text = (typeof stance === 'string' ? stance : stance.one_sentence || stance.statement || '')
+            .toLowerCase();
           const isTruism = TRUISMS.some((t) => text.includes(t)) && text.length < 60;
-          assert.ok(!isTruism, `${d.id}: truism stance detected: "${stance}"`);
+          assert.ok(!isTruism, `${d.id}: truism stance detected: "${text}"`);
         }
       });
     }
