@@ -6,7 +6,7 @@ It is the runtime control plane for loading, validating, composing, testing, and
 
 KDNA CLI 是 KDNA 验证、加载、打包、比较、注册表访问和 Agent 运行时工作流的官方开源参考实现，也是 AI Agent 加载、验证、组合、测试和治理领域判断的运行控制平面。
 
-Part of the [KDNA](https://github.com/aikdna/KDNA) ecosystem.
+Part of the [KDNA](https://github.com/aikdna/kdna) ecosystem.
 
 ## Install
 
@@ -126,7 +126,7 @@ kdna doctor --agents
 
 ## SPEC Compatibility
 
-KDNA CLI follows the canonical KDNA domain structure defined in [`aikdna/kdna`](https://github.com/aikdna/KDNA).
+KDNA CLI follows the canonical KDNA domain structure defined in [`aikdna/kdna`](https://github.com/aikdna/kdna).
 
 A valid KDNA domain is a lowercase `snake_case` folder. A complete domain may include up to six files:
 
@@ -238,9 +238,9 @@ npm test
 
 ## Related
 
-- [@aikdna/kdna-core](https://github.com/aikdna/KDNA/tree/main/packages/kdna-core) — Pure logic library
+- [@aikdna/kdna-core](https://github.com/aikdna/kdna/tree/main/packages/kdna-core) — Pure logic library
 - [KDNA Registry](https://github.com/aikdna/kdna-registry) — Domain catalog
-- [KDNA SPEC](https://github.com/aikdna/KDNA) — Protocol specification
+- [KDNA SPEC](https://github.com/aikdna/kdna) — Protocol specification
 - [aikdna.com](https://aikdna.com) — Website
 
 ## License

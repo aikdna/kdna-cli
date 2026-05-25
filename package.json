@@ -31,7 +31,6 @@
     "kdna-cli",
     "ai-agent",
     "domain-cognition",
-    "aikdna",
     "cli"
   ],
   "license": "Apache-2.0",
