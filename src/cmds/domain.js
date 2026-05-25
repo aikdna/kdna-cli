@@ -11,38 +11,31 @@ const {
   ENCRYPTED_FILES,
 } = require('./encrypt');
 
-// ─── Validate ────────────────────────────────────────────────────────
+const KDNA_DOMAIN_FILES = new Set([
+  'KDNA_Core.json',
+  'KDNA_Patterns.json',
+  'KDNA_Scenarios.json',
+  'KDNA_Cases.json',
+  'KDNA_Reasoning.json',
+  'KDNA_Evolution.json',
+]);
 
-function cmdValidate(dir, schemaOnly, jsonMode = false) {
-  const abs = path.resolve(dir);
-  if (!fs.existsSync(abs) || !fs.statSync(abs).isDirectory()) {
-    error(`Not a directory: ${abs}`, EXIT.INPUT_ERROR);
-  }
-
-  const { lintDomain, validateDomainSchema, validateCrossFile } = require('@aikdna/kdna-core');
-
-  // Resolve schemas from @aikdna/kdna-core package
-  const SCHEMA_DIR = path.join(
-    path.dirname(require.resolve('@aikdna/kdna-core/package.json')),
-    'schema',
-  );
-
-  // Read all KDNA JSON files
-  const files = fs.readdirSync(abs).filter((f) => f.endsWith('.json') && f !== 'kdna.json');
+function readKDNAContentFiles(abs) {
   const dataMap = {};
-  const schemaMap = {};
-
-  for (const f of files) {
+  const parseErrors = [];
+  for (const f of fs.readdirSync(abs).filter((name) => KDNA_DOMAIN_FILES.has(name))) {
     try {
       dataMap[f] = JSON.parse(fs.readFileSync(path.join(abs, f), 'utf8'));
     } catch (e) {
       dataMap[f] = null;
-      console.error(`  JSON parse error in ${f}: ${e.message}`);
+      parseErrors.push(`${f}: ${e.message}`);
     }
   }
+  return { dataMap, parseErrors };
+}
 
-  // Schema validation — always load all available schemas
-  const FILE_TO_SCHEMA = {
+function loadSchemaMap(schemaDir) {
+  const fileToSchema = {
     'KDNA_Core.json': 'KDNA_Core.schema.json',
     'KDNA_Patterns.json': 'KDNA_Patterns.schema.json',
     'KDNA_Scenarios.json': 'KDNA_Scenarios.schema.json',
@@ -51,10 +44,11 @@ function cmdValidate(dir, schemaOnly, jsonMode = false) {
     'KDNA_Evolution.json': 'KDNA_Evolution.schema.json',
   };
 
+  const schemaMap = {};
   const loadedSchemas = [];
   const missingSchemas = [];
-  for (const [, schemaFile] of Object.entries(FILE_TO_SCHEMA)) {
-    const schemaPath = path.join(SCHEMA_DIR, schemaFile);
+  for (const schemaFile of Object.values(fileToSchema)) {
+    const schemaPath = path.join(schemaDir, schemaFile);
     if (fs.existsSync(schemaPath)) {
       try {
         schemaMap[schemaFile] = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
@@ -67,6 +61,103 @@ function cmdValidate(dir, schemaOnly, jsonMode = false) {
     }
   }
 
+  return { schemaMap, loadedSchemas, missingSchemas };
+}
+
+function validateDomainDirectory(abs, schemaMap, schemaOnly) {
+  const { lintDomain, validateDomainSchema, validateCrossFile } = require('@aikdna/kdna-core');
+  const { dataMap, parseErrors } = readKDNAContentFiles(abs);
+  const errors = parseErrors.map((msg) => `JSON parse error in ${msg}`);
+  const warnings = [];
+
+  if (!schemaOnly) {
+    const lintResult = lintDomain(dataMap);
+    errors.push(...lintResult.errors);
+    warnings.push(...lintResult.warnings);
+  }
+
+  const schemaResult = validateDomainSchema(dataMap, schemaMap);
+  errors.push(...schemaResult.errors);
+  warnings.push(...schemaResult.warnings);
+
+  const crossResult = validateCrossFile(dataMap);
+  errors.push(...crossResult.errors);
+  warnings.push(...crossResult.warnings);
+
+  return {
+    path: abs,
+    valid: errors.length === 0,
+    files: Object.keys(dataMap).filter((k) => dataMap[k]).length,
+    errors,
+    warnings,
+  };
+}
+
+function isClusterDirectory(abs) {
+  const manifest = readJson(path.join(abs, 'kdna.json'));
+  return !!(
+    manifest?.cluster ||
+    fs.existsSync(path.join(abs, 'KDNA_Cluster.json')) ||
+    fs.existsSync(path.join(abs, 'cluster_manifest.json'))
+  );
+}
+
+function validateClusterDirectory(abs, schemaMap, schemaOnly) {
+  const manifest = readJson(path.join(abs, 'kdna.json')) || {};
+  const clusterManifest = readJson(path.join(abs, 'KDNA_Cluster.json')) || {};
+  const fallbackManifest = readJson(path.join(abs, 'cluster_manifest.json')) || {};
+  const subDomains = manifest.sub_domains || fallbackManifest.domains || [];
+  const errors = [];
+  const warnings = [];
+
+  if (!Array.isArray(subDomains) || subDomains.length === 0) {
+    errors.push('Cluster has no sub_domains/domains list to validate');
+  }
+
+  const domains = [];
+  for (const name of subDomains) {
+    const domainPath = path.join(abs, name);
+    if (!fs.existsSync(domainPath) || !fs.statSync(domainPath).isDirectory()) {
+      errors.push(`Cluster sub-domain not found: ${name}`);
+      continue;
+    }
+    const result = validateDomainDirectory(domainPath, schemaMap, schemaOnly);
+    domains.push({ name, ...result });
+    warnings.push(...result.warnings.map((w) => `${name}: ${w}`));
+    errors.push(...result.errors.map((e) => `${name}: ${e}`));
+  }
+
+  if (!manifest.cluster && !clusterManifest.name && !fallbackManifest.name) {
+    warnings.push('Cluster metadata is minimal: no cluster marker or cluster name found');
+  }
+
+  return {
+    path: abs,
+    valid: errors.length === 0,
+    cluster: true,
+    domains,
+    files: domains.reduce((sum, d) => sum + d.files, 0),
+    errors,
+    warnings,
+  };
+}
+
+// ─── Validate ────────────────────────────────────────────────────────
+
+function cmdValidate(dir, schemaOnly, jsonMode = false) {
+  const abs = path.resolve(dir);
+  if (!fs.existsSync(abs) || !fs.statSync(abs).isDirectory()) {
+    error(`Not a directory: ${abs}`, EXIT.INPUT_ERROR);
+  }
+
+  // Resolve schemas from @aikdna/kdna-core package
+  const SCHEMA_DIR = path.join(
+    path.dirname(require.resolve('@aikdna/kdna-core/package.json')),
+    'schema',
+  );
+
+  const { schemaMap, loadedSchemas, missingSchemas } = loadSchemaMap(SCHEMA_DIR);
+
   if (missingSchemas.length) {
     console.log(
       `  Note: ${missingSchemas.length} schema file(s) not found (optional file schemas): ${missingSchemas.join(', ')}`,
@@ -74,43 +165,28 @@ function cmdValidate(dir, schemaOnly, jsonMode = false) {
     console.log(`  Schema dir: ${SCHEMA_DIR}`);
   }
 
-  // Validation layers
-  const errors = [];
-  const warnings = [];
-
-  // Layer 1: Lint (structural + content checks)
-  if (!schemaOnly) {
-    const lintResult = lintDomain(dataMap);
-    errors.push(...lintResult.errors);
-    warnings.push(...lintResult.warnings);
-  }
-
-  // Layer 2: JSON Schema validation against loaded schemas
-  const schemaResult = validateDomainSchema(dataMap, schemaMap);
-  errors.push(...schemaResult.errors);
-  warnings.push(...schemaResult.warnings);
-
-  // Layer 3: Cross-file consistency
-  const crossResult = validateCrossFile(dataMap);
-  errors.push(...crossResult.errors);
-  warnings.push(...crossResult.warnings);
-
-  const validCount = Object.keys(dataMap).filter((k) => dataMap[k]).length;
+  const result = isClusterDirectory(abs)
+    ? validateClusterDirectory(abs, schemaMap, schemaOnly)
+    : validateDomainDirectory(abs, schemaMap, schemaOnly);
+  const { errors, warnings } = result;
+  const validCount = result.files;
   const schemaInfo = schemaOnly
     ? ` (schema-only mode, ${loadedSchemas.length} schemas loaded)`
     : '';
 
   if (jsonMode) {
-    const result = {
+    const payload = {
       path: abs,
       valid: errors.length === 0,
       files: validCount,
+      cluster: !!result.cluster,
+      domains: result.domains,
       schemas_loaded: loadedSchemas.length,
       schema_only: schemaOnly,
       errors,
       warnings,
     };
-    console.log(JSON.stringify(result, null, 2));
+    console.log(JSON.stringify(payload, null, 2));
     process.exit(errors.length ? EXIT.VALIDATION_FAILED : EXIT.OK);
   }
 
@@ -124,7 +200,13 @@ function cmdValidate(dir, schemaOnly, jsonMode = false) {
     process.exit(EXIT.VALIDATION_FAILED);
   }
 
-  console.log(`✓ KDNA domain valid: ${abs} (${validCount} files, schema OK${schemaInfo})`);
+  if (result.cluster) {
+    console.log(
+      `✓ KDNA cluster valid: ${abs} (${result.domains.length} domains, ${validCount} KDNA files, schema OK${schemaInfo})`,
+    );
+  } else {
+    console.log(`✓ KDNA domain valid: ${abs} (${validCount} files, schema OK${schemaInfo})`);
+  }
 }
 
 // ─── Pack / Unpack (.kdna ZIP container) ──────────────────────────────────
@@ -1038,7 +1120,7 @@ zf.close()
 
 // ─── KDNA Card (locale-aware) ────────────────────────────────────
 
-function cmdCard(dir, locale = null) {
+function cmdCard(dir, jsonMode = false, locale = null) {
   const abs = path.resolve(dir);
   let card = readJson(path.join(abs, 'KDNA_CARD.json'));
 
@@ -1055,8 +1137,6 @@ function cmdCard(dir, locale = null) {
       EXIT.INPUT_ERROR,
     );
   }
-
-  const jsonMode = process.argv.includes('--json');
 
   if (jsonMode) {
     console.log(JSON.stringify(card, null, 2));
