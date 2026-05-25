@@ -365,12 +365,44 @@ function cmdLoad(input, args = []) {
     if (manifest.replaced_by) console.error(`Try: ${manifest.replaced_by}`);
     process.exit(2);
   }
+
+  // ═══ Trust check before loading ═══
+  const loadWarnings = [];
+  const signature = manifest.signature;
+  const isPlaceholder = !signature || signature === '' || signature.includes('placeholder');
+  if (isPlaceholder) {
+    loadWarnings.push('⚠  Domain is unsigned — no cryptographic proof of authorship. Trust depends on source.');
+  }
+  if (manifest.status === 'deprecated') {
+    loadWarnings.push(`⚠  Domain is deprecated${manifest.replaced_by ? ', replaced by ' + manifest.replaced_by : ''}.`);
+  }
+  const riskLevel = manifest.risk_level || 'R1';
+  if (riskLevel === 'R3' || riskLevel === 'R4') {
+    loadWarnings.push(`⚠  High risk domain (${riskLevel}) — may influence agent behavior in safety-critical ways.`);
+    if (manifest.quality_badge === 'untested' || !manifest.quality_badge) {
+      loadWarnings.push('⚠  High risk + untested — load only if you trust the source and understand the risks.');
+    }
+  }
+  if (loadWarnings.length > 0) {
+    console.error(loadWarnings.join('\n'));
+  }
   const core = readJson(path.join(dir, 'KDNA_Core.json')) || {};
   const pat = readJson(path.join(dir, 'KDNA_Patterns.json')) || {};
 
   // JSON format
   if (format === 'json') {
-    process.stdout.write(JSON.stringify({ manifest, core, patterns: pat }, null, 2) + '\n');
+    process.stdout.write(JSON.stringify({
+      manifest,
+      core,
+      patterns: pat,
+      trust: {
+        signature: isPlaceholder ? 'unsigned' : 'present',
+        risk_level: riskLevel,
+        deprecated: manifest.status === 'deprecated',
+        yanked: false,
+        warnings: loadWarnings,
+      },
+    }, null, 2) + '\n');
     recordTrace({
       timestamp: new Date().toISOString(),
       agent: detectAgent(),
