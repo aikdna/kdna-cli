@@ -42,7 +42,8 @@ const FILE_MAP = {
   'KDNA_Evolution.json': 'KDNA_Evolution.schema.json',
 };
 
-// Read all KDNA JSON files
+// Read only canonical domain content files. Governance metadata such as
+// KDNA_CARD.json is valid package metadata, but not part of the 6-file domain set.
 const dataMap = {};
 for (const [file] of Object.entries(FILE_MAP)) {
   const filePath = path.join(domainDir, file);
@@ -57,7 +58,7 @@ for (const [file] of Object.entries(FILE_MAP)) {
 
 // Read schemas
 const schemaMap = {};
-for (const [file, schemaFile] of Object.entries(FILE_MAP)) {
+for (const schemaFile of Object.values(FILE_MAP)) {
   const schemaPath = path.join(SCHEMA_DIR, schemaFile);
   if (fs.existsSync(schemaPath)) {
     try {
