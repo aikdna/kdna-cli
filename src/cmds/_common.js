@@ -1,9 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { loadRegistry: loadCanonicalRegistry } = require('../registry');
-
-const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
-const INSTALL_DIR = path.join(USER_KDNA_DIR, 'domains');
+const { USER_KDNA_DIR, INSTALL_DIR } = require('../paths');
 
 // ─── Global flags ──────────────────────────────────────────────────────
 

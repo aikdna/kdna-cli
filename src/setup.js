@@ -15,9 +15,11 @@
 const fs = require('fs');
 const path = require('path');
 
-const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
-const DOMAINS_DIR = path.join(USER_KDNA_DIR, 'domains');
-const CLUSTERS_DIR = path.join(USER_KDNA_DIR, 'clusters');
+const PATHS = require('./paths');
+
+const USER_KDNA_DIR = PATHS.root;
+const DOMAINS_DIR = PATHS.domains.root;
+const CLUSTERS_DIR = PATHS.clusters;
 const SKILLS_REPO = 'https://raw.githubusercontent.com/aikdna/kdna-skills/main';
 
 const AGENTS = [
@@ -119,9 +121,20 @@ async function cmdSetup() {
   const pkg = require(path.join(__dirname, '..', 'package.json'));
   log(`KDNA CLI v${pkg.version}`);
 
-  // 2. KDNA data root
-  ensureDir(DOMAINS_DIR);
+  // 2. KDNA data root — full spec-compliant directory tree
+  ensureDir(PATHS.root);
+  ensureDir(PATHS.domains.root);
+  ensureDir(PATHS.domains.official);
+  ensureDir(PATHS.domains.local);
+  ensureDir(PATHS.domains.private);
   ensureDir(CLUSTERS_DIR);
+  ensureDir(PATHS.registry);
+  ensureDir(PATHS.traces);
+  ensureDir(PATHS.feedback);
+  ensureDir(PATHS.evals);
+  ensureDir(PATHS.cache);
+  ensureDir(PATHS.identity);
+  ensureDir(PATHS.licenses);
   log(`Data root: ${USER_KDNA_DIR}/`);
 
   // 2b. Clean legacy (un-scoped) domain directories from pre-v0.7

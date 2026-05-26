@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { EXIT, error } = require('./_common');
 const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
-const INSTALL_DIR = path.join(USER_KDNA_DIR, 'domains');
+const { domains: DOMAINS, INSTALL_DIR } = require('../paths');
 
 const AGENTS = [
   { name: 'OpenCode', dir: path.join(process.env.HOME || '', '.agents'), skillsDir: 'skills' },

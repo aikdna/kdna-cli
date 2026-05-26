@@ -24,7 +24,7 @@ const path = require('path');
 const https = require('https');
 
 const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
-const INSTALL_DIR = path.join(USER_KDNA_DIR, 'domains');
+const { domains: DOMAINS, INSTALL_DIR } = require('./paths');
 const CONFIG_FILE = path.join(USER_KDNA_DIR, 'config.json');
 
 const { parseName } = require('./registry');

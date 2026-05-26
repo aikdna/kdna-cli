@@ -27,9 +27,10 @@ const {
   isEncryptedContainer,
   ENCRYPTED_FILES,
 } = require('./cmds/encrypt');
+const PATHS = require('./paths');
 
-const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
-const INSTALL_DIR = path.join(USER_KDNA_DIR, 'domains');
+const USER_KDNA_DIR = PATHS.root;
+const INSTALL_DIR = PATHS.domains.official;
 
 // Agent skill directories (search order)
 const AGENT_SKILL_DIRS = [
@@ -188,19 +189,59 @@ function detectLegacyInstalls() {
 }
 
 function warnLegacy() {
+  tryMigrateLegacyDomains(); // v0.17+: migrate flat layout to domains/official/
   const legacy = detectLegacyInstalls();
   if (!legacy.length) return;
   console.error('');
-  console.error('═'.repeat(64));
-  console.error('  v0.7 breaking change: legacy (un-scoped) domains detected');
-  console.error('═'.repeat(64));
+  console.error('⚠ Legacy domains detected in DOMAINS_DIR root.');
+  console.error('  These should be moved to scoped directories:');
+  legacy.forEach((d) => console.error(`    @scope/${d}`));
   console.error('');
-  console.error('  These directories use the old un-scoped path layout:');
-  legacy.forEach((d) => console.error(`    ~/.kdna/domains/${d}/`));
-  console.error('');
-  console.error('  Run:  kdna remove <name>   then   kdna install <name>');
-  console.error('  (CLI will not read or update legacy directories.)');
-  console.error('');
+}
+
+// ─── v0.17+ migration: move flat scoped domains → domains/official/ ─────
+
+function tryMigrateLegacyDomains() {
+  const oldDir = PATHS.domains.legacy;
+  const newDir = PATHS.domains.official;
+  const flagFile = path.join(PATHS.root, '.migrated-to-official');
+
+  if (fs.existsSync(flagFile)) return;
+  if (!fs.existsSync(oldDir)) return;
+
+  const entries = fs.readdirSync(oldDir).filter((e) => {
+    if (!e.startsWith('@')) return false;
+    try {
+      return fs.statSync(path.join(oldDir, e)).isDirectory();
+    } catch {
+      return false;
+    }
+  });
+
+  if (entries.length === 0) {
+    fs.writeFileSync(flagFile, 'v1', 'utf8');
+    return;
+  }
+
+  ensureDir(newDir);
+  let migrated = 0;
+  for (const scope of entries) {
+    const src = path.join(oldDir, scope);
+    const dst = path.join(newDir, scope);
+    if (!fs.existsSync(dst)) {
+      try {
+        fs.renameSync(src, dst);
+        migrated++;
+      } catch (e) {
+        // ignore — may be a symlink or permission issue
+      }
+    }
+  }
+
+  if (migrated > 0) {
+    console.log(`Migrated ${migrated} scope director${migrated > 1 ? 'ies' : 'y'} to domains/official/`);
+  }
+  fs.writeFileSync(flagFile, 'v1', 'utf8');
 }
 
 // ─── Source parsing ─────────────────────────────────────────────────────
