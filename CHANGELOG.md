@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.18.0 (2026-05-27)
+
+**Asset-first install/runtime + licensed `.kdna` lifecycle**
+
+- `.kdna` is now the canonical installed, verified, and loaded asset.
+- Installs store immutable assets under `~/.kdna/packages/` with `index.json` and `receipt.json`; runtime commands no longer persist extracted domain directories.
+- Added direct `.kdna` runtime reads through `@aikdna/kdna-core@0.5.0`.
+- Added licensed `.kdna` encrypted-entry loading through `kdna-licensed-entry-v1`.
+- Added `kdna license activate` and `kdna license sync` for entitlement lifecycle, revocation, and offline grace checks.
+- Removed the old user-facing encrypted-extension install path. Licensed assets use the `.kdna` extension and activation metadata under `~/.kdna/licenses/`.
+
 ## v0.17.0 (2026-05-26)
 
 **kdna-core 0.4.0 upgrade + manifest conformance**
@@ -23,25 +34,25 @@
 
 ## v0.15.0 (2026-05-23)
 
-**License + Install Integration: auto-decrypt .kdnae on install**
+**Superseded encrypted-extension experiment**
 
-- `kdna install ./file.kdnae`: automatic decryption via license lookup in `~/.kdna/licenses/`
+- Earlier experimental encrypted-extension install support has been superseded by v0.18.0 licensed `.kdna` encrypted entries.
 - `kdna license install <file>`: register a license for automatic domain decryption
 - Fixed `license verify --json` flag parsing
 - Fixed `license bind` to re-sign after machine binding
 - Fixed `license generate` to output JSON to stdout (info to stderr)
 - Added `--save <path>` flag to `license generate`
-- Modified `parseSource` to recognize `.kdnae` extension for local install
+- Modified `parseSource` during the experiment to recognize the encrypted extension for local install
 - Added `extractAndDecrypt` function (extract ZIP + AES-256-GCM decrypt KDNA files)
 - Added `findLicenseForDomain` for automatic license discovery
 
 ## v0.14.0 (2026-05-23)
 
-**Encrypted Container (.kdnae) + License Management**
+**Superseded encrypted-extension prototype + License Management**
 
-- `.kdnae` container format: AES-256-GCM encryption of KDNA JSON files (kdna.json stays plaintext)
-- `kdna pack --encrypt --license <file>`: create encrypted containers
-- `kdna unpack <file.kdnae> --license <file>`: decrypt and extract
+- Prototype encrypted container format: AES-256-GCM encryption of KDNA JSON files (kdna.json stays plaintext)
+- Prototype dev pack encryption flag for encrypted containers
+- Prototype unpack support for encrypted files with a license file
 - `kdna license generate <domain> --to <email>`: generate Ed25519-signed licenses
 - `kdna license verify <license.json>`: verify signature, expiry, machine binding
 - `kdna license bind <license.json>`: bind license to machine fingerprint + re-sign
@@ -88,6 +99,6 @@
 
 - `kdna install`, `kdna remove`, `kdna update`: registry-based domain management
 - `.kdna` ZIP container format
-- `kdna pack`, `kdna unpack`
+- `kdna dev pack`, `kdna dev unpack`
 - `kdna publish`, `kdna identity`
 - Breaking: removed legacy `project`, `eval`, `export`, `demo`, `preview` commands

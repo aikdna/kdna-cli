@@ -1,5 +1,5 @@
 /**
- * RegistryResolver — KDNA v0.7 registry client.
+ * RegistryResolver — KDNA asset-first registry client.
  *
  * Responsibilities:
  *   1. Resolve names: bare → @aikdna/bare, validate @scope/name format
@@ -7,7 +7,7 @@
  *   3. Cache registry metadata locally
  *   4. Surface scope trust info to install/publish
  *
- * Schema v2.0 — see kdna-registry/SCHEMA.md
+ * Schema v3.0 — see kdna-registry/SCHEMA.md
  */
 
 const fs = require('fs');
@@ -22,6 +22,7 @@ const DEFAULT_OFFICIAL_SCOPE = '@aikdna';
 const CANONICAL_REGISTRY_URL =
   process.env.KDNA_REGISTRY_URL ||
   'https://raw.githubusercontent.com/aikdna/kdna-registry/main/domains.json';
+const REQUIRED_SCHEMA_VERSION = '3.0';
 
 const NAME_RE = /^@([a-z][a-z0-9-]*)\/([a-z][a-z0-9_]*)$/;
 const BARE_NAME_RE = /^[a-z][a-z0-9_]*$/;
@@ -37,6 +38,60 @@ function readJson(file) {
 function writeJson(file, data) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n');
+}
+
+function parseDate(value) {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? date : null;
+}
+
+function registryTrustIssues(registry, { now = new Date() } = {}) {
+  const issues = [];
+  const trust = registry?.trust || {};
+
+  if (!registry || registry.schema_version !== REQUIRED_SCHEMA_VERSION) {
+    issues.push(
+      `Registry schema_version must be ${REQUIRED_SCHEMA_VERSION}, got ${JSON.stringify(registry?.schema_version)}`,
+    );
+  }
+
+  if (!trust.model) issues.push('registry.trust.model is required');
+  if (!trust.snapshot) issues.push('registry.trust.snapshot is required');
+  if (!trust.timestamp) issues.push('registry.trust.timestamp is required');
+
+  const snapshotVersion = trust.snapshot?.registry_version;
+  if (snapshotVersion && snapshotVersion !== registry.registry_version) {
+    issues.push(
+      `registry.trust.snapshot.registry_version ${snapshotVersion} does not match registry_version ${registry.registry_version}`,
+    );
+  }
+
+  const snapshotExpires = parseDate(trust.snapshot?.expires_at);
+  const timestampExpires = parseDate(trust.timestamp?.expires_at);
+  if (!snapshotExpires) issues.push('registry.trust.snapshot.expires_at must be an ISO timestamp');
+  if (!timestampExpires) issues.push('registry.trust.timestamp.expires_at must be an ISO timestamp');
+  if (snapshotExpires && snapshotExpires <= now) {
+    issues.push(`registry snapshot expired at ${trust.snapshot.expires_at}`);
+  }
+  if (timestampExpires && timestampExpires <= now) {
+    issues.push(`registry timestamp expired at ${trust.timestamp.expires_at}`);
+  }
+
+  return issues;
+}
+
+function registryRevocations(registry) {
+  return registry?.trust?.revocations || [];
+}
+
+function isEntryRevoked(registry, entry) {
+  const revocations = registryRevocations(registry);
+  return revocations.find((rev) => {
+    if (rev.name && rev.name !== entry.name) return false;
+    if (rev.version && rev.version !== entry.version) return false;
+    if (rev.asset_digest && rev.asset_digest !== entry.asset_digest) return false;
+    return rev.name || rev.asset_digest;
+  }) || null;
 }
 
 // ─── Name parsing ───────────────────────────────────────────────────────
@@ -151,7 +206,15 @@ class RegistryResolver {
   _loadRegistryForScope(scopeName) {
     if (this._registries.has(scopeName)) return this._registries.get(scopeName);
     const source = this._sourceForScope(scopeName);
-    const data = source.load({ allowNetwork: this.allowNetwork, refresh: this.refresh });
+    let data = source.load({ allowNetwork: this.allowNetwork, refresh: this.refresh });
+    let trustIssues = data ? registryTrustIssues(data) : [];
+    if (trustIssues.length && this.allowNetwork && !this.refresh) {
+      data = source.load({ allowNetwork: true, refresh: true });
+      trustIssues = data ? registryTrustIssues(data) : [];
+    }
+    if (trustIssues.length) {
+      throw new Error(`Registry trust check failed:\n${trustIssues.map((i) => `- ${i}`).join('\n')}`);
+    }
     this._registries.set(scopeName, data);
     return data;
   }
@@ -186,12 +249,6 @@ class RegistryResolver {
       );
     }
 
-    if (registry.schema_version && registry.schema_version !== '2.0') {
-      throw new Error(
-        `Registry schema_version ${registry.schema_version} not supported. This CLI requires 2.0.`,
-      );
-    }
-
     const scope = registry.scopes?.[parsed.scope];
     if (!scope) {
       throw new Error(`Scope ${parsed.scope} not registered in registry.`);
@@ -213,6 +270,13 @@ class RegistryResolver {
       const when = entry.yanked_at ? ` (yanked ${entry.yanked_at.slice(0, 10)})` : '';
       const replace = entry.replaced_by ? `\nTry: kdna install ${entry.replaced_by}` : '';
       throw new Error(`${entry.name}@${entry.version} has been yanked${when}.${reason}${replace}`);
+    }
+
+    const revocation = isEntryRevoked(registry, entry);
+    if (revocation) {
+      const reason = revocation.reason ? `\nReason: ${revocation.reason}` : '';
+      const when = revocation.revoked_at ? ` (revoked ${revocation.revoked_at.slice(0, 10)})` : '';
+      throw new Error(`${entry.name}@${entry.version} has been revoked${when}.${reason}`);
     }
 
     return { parsed, scope, entry, registry };
@@ -250,6 +314,9 @@ function fetchRegistry() {
 module.exports = {
   RegistryResolver,
   parseName,
+  REQUIRED_SCHEMA_VERSION,
+  registryTrustIssues,
+  isEntryRevoked,
   loadRegistry,
   fetchRegistry,
   CANONICAL_REGISTRY_URL,

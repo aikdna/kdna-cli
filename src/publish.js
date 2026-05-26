@@ -143,8 +143,6 @@ function isGenericSelfCheck(question) {
 
 // ─── Human Lock Gate ──────────────────────────────────────────────────
 
-const JUDGMENT_CARD_TYPES = ['axiom', 'boundary', 'risk', 'aesthetic'];
-
 /**
  * Check whether the domain satisfies Human Lock requirements.
  * Returns { passed, issues[] } — publish should be blocked if !passed.
@@ -384,21 +382,22 @@ function cmdPublishCheck(domainPath, args = []) {
     }
     for (let i = 0; i < core.stances.length; i++) {
       const s = core.stances[i];
-      if (typeof s !== 'string') {
+      const stanceText = typeof s === 'string' ? s : s && typeof s === 'object' ? s.stance : null;
+      if (!stanceText || typeof stanceText !== 'string') {
         fail(
           'KDNA_Core.json',
           `stances[${i}]`,
           JSON.stringify(s),
-          'Must be a string, not an object.',
+          'Must be a string or an object with a stance string.',
         );
-      } else if (isSlogan(s)) {
+      } else if (isSlogan(stanceText)) {
         fail(
           'KDNA_Core.json',
           `stances[${i}]`,
-          s,
+          stanceText,
           'Reads like a slogan. Stances must be prescriptive positions that bias agent behavior.',
         );
-      } else if (isVague(s)) {
+      } else if (isVague(stanceText)) {
         warn('KDNA_Core.json', `stances[${i}]`, 'Contains vague language.');
       } else {
         pass('KDNA_Core.json', `stances[${i}]`);
@@ -532,9 +531,9 @@ function identityPaths() {
  * inside the .kdna ZIP, joined as `name:hex\n`. This is what the signature covers.
  *
  * Excludes the `signature` field from kdna.json itself (computed by removing it
- * before hashing). All other files included as-is.
+ * before hashing). Digest self-reference fields are also excluded. All other files included as-is.
  */
-function canonicalPayload(srcDir) {
+function canonicalPayload(srcDir, opts = {}) {
   const files = fs
     .readdirSync(srcDir)
     .filter((f) => f.endsWith('.json'))
@@ -546,6 +545,10 @@ function canonicalPayload(srcDir) {
     if (f === 'kdna.json') {
       const obj = JSON.parse(fs.readFileSync(full, 'utf8'));
       delete obj.signature;
+      delete obj.asset_digest;
+      delete obj.container_sha256;
+      if (!opts.includeContentDigest) delete obj.content_digest;
+      delete obj._source;
       buf = Buffer.from(JSON.stringify(obj));
     } else {
       buf = fs.readFileSync(full);
@@ -554,6 +557,46 @@ function canonicalPayload(srcDir) {
     parts.push(`${f}:${hash}`);
   }
   return parts.join('\n');
+}
+
+function stableStringify(value) {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function manifestForContentDigest(manifest) {
+  const copy = { ...(manifest || {}) };
+  delete copy.signature;
+  delete copy.asset_digest;
+  delete copy.container_sha256;
+  delete copy.content_digest;
+  delete copy._source;
+  return copy;
+}
+
+function sourceContentDigest(srcDir) {
+  const files = fs
+    .readdirSync(srcDir)
+    .filter((f) => f.endsWith('.json') || f === 'README.md' || f === 'LICENSE')
+    .sort();
+  const parts = [];
+  for (const f of files) {
+    let buf;
+    if (f === 'kdna.json') {
+      const obj = JSON.parse(fs.readFileSync(path.join(srcDir, f), 'utf8'));
+      buf = Buffer.from(stableStringify(manifestForContentDigest(obj)));
+    } else {
+      buf = fs.readFileSync(path.join(srcDir, f));
+    }
+    parts.push(`${f}:${crypto.createHash('sha256').update(buf).digest('hex')}`);
+  }
+  return `sha256:${crypto.createHash('sha256').update(Buffer.from(parts.join('\n'))).digest('hex')}`;
 }
 
 function signPayload(payload, privateKeyPem) {
@@ -583,7 +626,7 @@ function packToFile(domainDir, outPath) {
   const files = fs
     .readdirSync(domainDir)
     .filter((f) => f.endsWith('.json') || f === 'README.md' || f === 'LICENSE');
-  if (!files.includes('kdna.json')) error('kdna.json required in domain folder for publish.');
+  if (!files.includes('kdna.json')) error('kdna.json required in dev source directory for publish.');
 
   const script = `import zipfile, os
 src = ${JSON.stringify(domainDir)}
@@ -680,9 +723,14 @@ function cmdPublish(domainPath, args = []) {
 
   // 2. Write signature
   delete manifest.signature;
+  delete manifest.asset_digest;
+  delete manifest.container_sha256;
+  delete manifest.content_digest;
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
-  const payload = canonicalPayload(abs);
-  const sig = signPayload(payload, privateKey);
+  manifest.content_digest = sourceContentDigest(abs);
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  const signedPayload = canonicalPayload(abs, { includeContentDigest: true });
+  const sig = signPayload(signedPayload, privateKey);
   manifest.signature = 'ed25519:' + sig;
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
   console.log(
@@ -698,9 +746,10 @@ function cmdPublish(domainPath, args = []) {
   const outPath = path.join(outDir, fileName);
   packToFile(abs, outPath);
   const sha256 = sha256File(outPath);
+  const assetDigest = `sha256:${sha256}`;
   const size = fs.statSync(outPath).size;
   console.log(`  ✓ Packed: ${outPath} (${size} bytes)`);
-  console.log(`  ✓ sha256: ${sha256}`);
+  console.log(`  ✓ asset_digest: ${assetDigest}`);
 
   // 4. Optional upload via gh CLI
   const tagIdx = args.indexOf('--release-tag');
@@ -727,8 +776,9 @@ function cmdPublish(domainPath, args = []) {
     name,
     type: manifest.cluster ? 'cluster' : 'domain',
     version: manifest.version,
-    kdna_url: kdnaUrl,
-    sha256,
+    asset_url: kdnaUrl,
+    asset_digest: assetDigest,
+    content_digest: manifest.content_digest || null,
     signature: manifest.signature,
     release_status: kdnaUrl ? 'published_signed' : 'published_signed_local',
     author: { ...manifest.author },

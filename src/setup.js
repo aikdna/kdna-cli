@@ -121,12 +121,9 @@ async function cmdSetup() {
   const pkg = require(path.join(__dirname, '..', 'package.json'));
   log(`KDNA CLI v${pkg.version}`);
 
-  // 2. KDNA data root — full spec-compliant directory tree
+  // 2. KDNA data root — .kdna asset store
   ensureDir(PATHS.root);
-  ensureDir(PATHS.domains.root);
-  ensureDir(PATHS.domains.official);
-  ensureDir(PATHS.domains.local);
-  ensureDir(PATHS.domains.private);
+  ensureDir(PATHS.packages);
   ensureDir(CLUSTERS_DIR);
   ensureDir(PATHS.registry);
   ensureDir(PATHS.traces);
@@ -137,10 +134,10 @@ async function cmdSetup() {
   ensureDir(PATHS.licenses);
   log(`Data root: ${USER_KDNA_DIR}/`);
 
-  // 2b. Clean legacy (un-scoped) domain directories from pre-v0.7
+  // 2b. Directory installs are not part of the runtime model.
   if (fs.existsSync(DOMAINS_DIR)) {
     const legacy = fs.readdirSync(DOMAINS_DIR).filter((e) => {
-      if (e.startsWith('@') || e.startsWith('.')) return false;
+      if (e.startsWith('.')) return false;
       try {
         return fs.statSync(path.join(DOMAINS_DIR, e)).isDirectory();
       } catch {
@@ -149,19 +146,8 @@ async function cmdSetup() {
     });
     if (legacy.length) {
       console.log('');
-      warn(
-        `Removing ${legacy.length} legacy (un-scoped) domain director${legacy.length > 1 ? 'ies' : 'y'}:`,
-      );
-      for (const d of legacy) {
-        const dPath = path.join(DOMAINS_DIR, d);
-        try {
-          fs.rmSync(dPath, { recursive: true, force: true });
-          log(`  removed ~/.kdna/domains/${d}/`);
-        } catch (e) {
-          warn(`  could not remove ~/.kdna/domains/${d}/ — ${e.message}`);
-          console.log(`    To remove manually:  rm -rf ~/.kdna/domains/${d}/`);
-        }
-      }
+      warn(`Ignoring ${legacy.length} legacy domain director${legacy.length > 1 ? 'ies' : 'y'}.`);
+      console.log('  Runtime assets now live under ~/.kdna/packages/ as .kdna files.');
       console.log('  Re-install with: kdna install @aikdna/<name>');
       console.log('');
     }

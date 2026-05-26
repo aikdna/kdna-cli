@@ -1,7 +1,7 @@
 /**
  * kdna diff <name>@<ver1> <name>@<ver2> — Judgment-level diff between versions.
  *
- * Downloads two .kdna packages from the registry, extracts to temp dirs,
+ * Downloads two .kdna dev packages from the registry, extracts to temp dirs,
  * compares axioms / misunderstandings / banned_terms / stances / boundary,
  * and surfaces what would change for an agent loading the new version.
  *
@@ -19,11 +19,10 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync, execFileSync } = require('child_process');
-const { RegistryResolver, parseName } = require('./registry');
+const { RegistryResolver } = require('./registry');
 const { EXIT } = require('./cmds/_common');
+const { getInstalled, readContainer } = require('./package-store');
 
-const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
-const { domains: DOMAINS, INSTALL_DIR } = require('./paths');
 const TMP_DIR = '/tmp';
 
 function error(msg, code = EXIT.VALIDATION_FAILED) {
@@ -58,14 +57,15 @@ function parseNameVersion(input) {
 // ─── Download specific version ────────────────────────────────────────
 
 function downloadVersion(entry, version, destDir) {
-  // entry.kdna_url is for the registry-current version. For older versions
+  const assetUrl = entry.asset_url;
+  // assetUrl is for the registry-current version. For older versions
   // we infer the URL pattern from the registry-current URL.
   if (entry.version === version) {
-    return downloadAndExtract(entry.kdna_url, destDir);
+    return downloadAndExtract(assetUrl, destDir);
   }
 
   // Infer pattern: replace v<current> in the URL with v<requested>
-  const inferredUrl = entry.kdna_url
+  const inferredUrl = assetUrl
     .replace(`/v${entry.version}/`, `/v${version}/`)
     .replace(`-${entry.version}.kdna`, `-${version}.kdna`);
 
@@ -232,12 +232,11 @@ async function cmdDiff(a, b, args = []) {
     newEntry = entryB;
   } else {
     // single-arg form: installed vs registry-current
-    const parsed = parseName(aParsed.full);
-    const localDir = path.join(INSTALL_DIR, parsed.scope, parsed.ident);
-    if (!fs.existsSync(localDir)) {
+    const installed = getInstalled(aParsed.full);
+    if (!installed) {
       error(`${aParsed.full} not installed. Run: kdna install ${aParsed.full}`, EXIT.INPUT_ERROR);
     }
-    const localManifest = readJson(path.join(localDir, 'kdna.json'));
+    const localManifest = readContainer(installed.asset_path).manifest || {};
     oldVersion = localManifest?.version || '?';
     newVersion = entryA.version;
     oldEntry = entryA;
@@ -285,7 +284,7 @@ async function cmdDiff(a, b, args = []) {
   }
 
   const axiomsDiff = diffMaps('axioms', oldJ.axioms, newJ.axioms, (a) => a.one_sentence || a.id, jsonMode);
-  const ontologyDiff = diffMaps('ontology', oldJ.ontology, newJ.ontology, (o) => o.one_sentence || o.id, jsonMode);
+  diffMaps('ontology', oldJ.ontology, newJ.ontology, (o) => o.one_sentence || o.id, jsonMode);
   const misunderstandingsDiff = diffMaps(
     'misunderstandings',
     oldJ.misunderstandings,
@@ -345,7 +344,6 @@ async function cmdDiff(a, b, args = []) {
     }));
 
   // Determine recommended version bump
-  const axiomDrift = Object.keys(newJ.axioms).length - Object.keys(oldJ.axioms).length;
   const hasRemoved = axiomsDiff.removed.length > 0 || misunderstandingsDiff.removed.length > 0;
   const hasAdded = axiomsDiff.added.length > 0 || misunderstandingsDiff.added.length > 0;
   const hasChanged = axiomsDiff.changed.length > 0 || bannedDiff.changed.length > 0;

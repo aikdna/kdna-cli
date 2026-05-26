@@ -7,7 +7,7 @@ function cmdCompare(args) {
   if (!target || !args.includes('--input')) {
     error(
       'Usage:\n' +
-        '  kdna compare <name> --input "<text>" [--json]\n' +
+        '  kdna compare <name|file.kdna> --input "<text>" [--json]\n' +
         '\n' +
         'Runs your input through the LLM twice (with/without KDNA loaded),\n' +
         'then diffs the reasoning trajectory. Requires ANTHROPIC_API_KEY or\n' +
@@ -91,7 +91,7 @@ function cmdSelect(args) {
 function cmdLoad(args) {
   const { cmdLoad } = require('../agent');
   const target = args.filter((a) => !a.startsWith('--'))[1];
-  if (!target) error('Usage: kdna load <name> [--as=prompt|json|raw] [--profile=index|compact|scenario|full]');
+  if (!target) error('Usage: kdna load <name|file.kdna> [--as=prompt|json|raw] [--profile=index|compact|scenario|full]');
   cmdLoad(target, args);
 }
 

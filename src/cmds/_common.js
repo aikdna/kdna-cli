@@ -1,5 +1,4 @@
 const fs = require('fs');
-const path = require('path');
 const { loadRegistry: loadCanonicalRegistry } = require('../registry');
 const { USER_KDNA_DIR, INSTALL_DIR } = require('../paths');
 
@@ -52,14 +51,13 @@ Usage:
 
   --- Domain authors ---
   kdna init <name>              Scaffold a new KDNA domain from template
-  kdna validate <path>          Validate a domain directory
-  kdna validate --schema <path>   ...with JSON Schema
-  kdna pack <path>              Pack a domain folder into a .kdna container
-  kdna pack <path> --encrypt --license <file>   Pack encrypted .kdnae container
-  kdna pack --output <dir> <path>   Output .kdna to specific directory
-  kdna unpack <path>            Unpack a .kdna or .kdnae container to a folder
-  kdna inspect <path>           Inspect a domain directory or .kdna file
-  kdna publish <path>           Pack + sign + output registry patch
+  kdna dev validate <path>      Validate a dev source directory
+  kdna dev pack <path>          Build a dev source directory into .kdna
+  kdna dev unpack <path>        Unpack .kdna into a dev source directory
+  kdna dev inspect <path>       Inspect a dev source directory
+  kdna dev card <path>          Display KDNA Card from a dev source directory
+  kdna inspect <file.kdna>      Inspect a .kdna asset
+  kdna publish <path>           Pack + sign a dev source directory
   kdna publish <path> --release-tag <tag> --repo <o/r>   ...also upload to GitHub
   kdna publish --check <path>   Run quality gate only (no pack/upload)
   kdna version bump <patch|minor|major> [path]   Bump domain version
@@ -70,7 +68,6 @@ Usage:
   kdna install @scope/name      Install any scoped domain
   kdna install @aikdna/animation    Install a cluster (installs all sub-domains)
   kdna install ./file.kdna      Install from a local .kdna file
-  kdna install ./folder         Install from a local directory (dev)
   kdna remove <name>            Uninstall a domain
   kdna update <name>            Update an installed domain
   kdna update --all             Update all installed domains
@@ -81,14 +78,14 @@ Usage:
   kdna registry refresh         Refresh the canonical registry cache
 
   --- Quality + judgment ---
-  kdna verify <name>            Quality check: structure + trust + judgment
-  kdna compare <name> --input "<text>"   With/without KDNA reasoning diff
+  kdna verify <name|file.kdna>  Quality check: structure + trust + judgment
+  kdna compare <name|file.kdna> --input "<text>"   With/without KDNA reasoning diff
   kdna diff <name>@<v1> <name>@<v2>      Judgment-level diff between versions
 
   --- Agent-facing (called by the kdna-loader skill) ---
   kdna available [--json]                List installed domains + v2.1 fields
   kdna match "<task>" [--json]           Hint signals (dropped + weak overlap)
-  kdna load <name> [--as=prompt|json|raw]   Emit domain in agent-ready format
+  kdna load <name|file.kdna> [--as=prompt|json|raw]   Emit asset in agent-ready format
 
   --- Identity ---
   kdna identity init            Generate Ed25519 identity key pair

@@ -5,32 +5,33 @@
  *   kdna install <bare>                     → @aikdna/<bare>, from registry
  *   kdna install @scope/name                → from registry (any scope)
  *   kdna install @scope/name@1.2.3          → version pinned (TODO post-v0.7.0)
- *   kdna install ./folder                   → local directory (dev)
  *   kdna install ./file.kdna                → local .kdna file
  *
  * Removed in v0.7 (breaking): github:user/repo, --from-git, cluster:github:...,
  * tarball/SSH fallbacks. Install is now strictly .kdna-driven from the registry.
  *
- * Schema v2.0 — see kdna-registry/SCHEMA.md
+ * Schema v3.0 — see kdna-registry/SCHEMA.md
  */
 
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 const { execSync, execFileSync } = require('child_process');
 const { RegistryResolver, parseName } = require('./registry');
 const { EXIT, error } = require('./cmds/_common');
-const {
-  decrypt,
-  deriveKey,
-  machineFingerprint,
-  isEncryptedContainer,
-  ENCRYPTED_FILES,
-} = require('./cmds/encrypt');
 const PATHS = require('./paths');
+const {
+  installAsset,
+  getInstalled,
+  listInstalled,
+  removeInstalled,
+  sha256File,
+  readContainer,
+  readContainerJson,
+  verifyAsset,
+} = require('./package-store');
 
 const USER_KDNA_DIR = PATHS.root;
-const INSTALL_DIR = PATHS.domains.official;
+const INSTALL_DIR = PATHS.packages;
 
 // Agent skill directories (search order)
 const AGENT_SKILL_DIRS = [
@@ -152,127 +153,39 @@ function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
-function readJson(p) {
-  try {
-    return JSON.parse(fs.readFileSync(p, 'utf8'));
-  } catch {
-    return null;
-  }
-}
-
-function sha256File(filePath) {
-  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
-}
-
-function scopeDir(scope) {
-  return path.join(INSTALL_DIR, scope);
-}
-
-function domainDir(scope, ident) {
-  return path.join(INSTALL_DIR, scope, ident);
-}
-
-// ─── Legacy detection ───────────────────────────────────────────────────
-
-function detectLegacyInstalls() {
-  if (!fs.existsSync(INSTALL_DIR)) return [];
-  const entries = fs.readdirSync(INSTALL_DIR);
-  // Legacy: any direct child of INSTALL_DIR that is a directory AND does NOT start with @
-  return entries.filter((e) => {
-    if (e.startsWith('@') || e.startsWith('.')) return false;
-    try {
-      return fs.statSync(path.join(INSTALL_DIR, e)).isDirectory();
-    } catch {
-      return false;
-    }
-  });
-}
-
-function warnLegacy() {
-  tryMigrateLegacyDomains(); // v0.17+: migrate flat layout to domains/official/
-  const legacy = detectLegacyInstalls();
-  if (!legacy.length) return;
-  console.error('');
-  console.error('⚠ Legacy domains detected in DOMAINS_DIR root.');
-  console.error('  These should be moved to scoped directories:');
-  legacy.forEach((d) => console.error(`    @scope/${d}`));
-  console.error('');
-}
-
-// ─── v0.17+ migration: move flat scoped domains → domains/official/ ─────
-
-function tryMigrateLegacyDomains() {
-  const oldDir = PATHS.domains.legacy;
-  const newDir = PATHS.domains.official;
-  const flagFile = path.join(PATHS.root, '.migrated-to-official');
-
-  if (fs.existsSync(flagFile)) return;
-  if (!fs.existsSync(oldDir)) return;
-
-  const entries = fs.readdirSync(oldDir).filter((e) => {
-    if (!e.startsWith('@')) return false;
-    try {
-      return fs.statSync(path.join(oldDir, e)).isDirectory();
-    } catch {
-      return false;
-    }
-  });
-
-  if (entries.length === 0) {
-    fs.writeFileSync(flagFile, 'v1', 'utf8');
-    return;
-  }
-
-  ensureDir(newDir);
-  let migrated = 0;
-  for (const scope of entries) {
-    const src = path.join(oldDir, scope);
-    const dst = path.join(newDir, scope);
-    if (!fs.existsSync(dst)) {
-      try {
-        fs.renameSync(src, dst);
-        migrated++;
-      } catch (e) {
-        // ignore — may be a symlink or permission issue
-      }
-    }
-  }
-
-  if (migrated > 0) {
-    console.log(`Migrated ${migrated} scope director${migrated > 1 ? 'ies' : 'y'} to domains/official/`);
-  }
-  fs.writeFileSync(flagFile, 'v1', 'utf8');
-}
-
 // ─── Source parsing ─────────────────────────────────────────────────────
 
 function parseSource(input) {
-  // Local file (.kdna or .kdnae)
+  // Local file (.kdna)
   if (
-    (input.endsWith('.kdna') || input.endsWith('.kdnae')) &&
-    (input.startsWith('./') || input.startsWith('/') || input.startsWith('~/'))
+    input.endsWith('.kdna') &&
+    (input.startsWith('./') || input.startsWith('/') || input.startsWith('~/') || fs.existsSync(input))
   ) {
     const resolved = path.resolve(input.replace(/^~/, process.env.HOME || ''));
     if (!fs.existsSync(resolved)) error(`Local file not found: ${resolved}`);
     return { type: 'local-file', path: resolved };
   }
 
-  // Local directory
   if (input.startsWith('./') || input.startsWith('/') || input.startsWith('~/')) {
     const resolved = path.resolve(input.replace(/^~/, process.env.HOME || ''));
     if (!fs.existsSync(resolved)) error(`Local path not found: ${resolved}`);
-    if (!fs.statSync(resolved).isDirectory()) error(`Not a directory: ${resolved}`);
-    return { type: 'local-dir', path: resolved };
+    if (fs.statSync(resolved).isDirectory()) {
+      error(
+        `Directory install is not supported. KDNA installs .kdna assets only.\n` +
+          `Use: kdna dev pack ${resolved} --output <dir>, then kdna install <file.kdna>`,
+        EXIT.INPUT_ERROR,
+      );
+    }
+    error(`Not a .kdna file: ${resolved}`, EXIT.INPUT_ERROR);
   }
 
   // Registry name (bare or @scope/name)
   const parsed = parseName(input);
   if (!parsed) {
     error(
-      `Cannot parse "${input}". Use:\n` +
+        `Cannot parse "${input}". Use:\n` +
         `  kdna install <name>             # @aikdna/<name>\n` +
         `  kdna install @scope/name        # any scope\n` +
-        `  kdna install ./folder           # local directory\n` +
         `  kdna install ./file.kdna        # local .kdna file`,
     );
   }
@@ -307,90 +220,10 @@ function downloadFile(url, dest) {
   throw new Error(`download failed after 3 attempts: ${stderr}`);
 }
 
-// ─── Extraction ────────────────────────────────────────────────────────
-
-function extractKdna(kdnaPath, destDir) {
-  ensureDir(destDir);
-  const script = `import zipfile
-zf = zipfile.ZipFile(${JSON.stringify(kdnaPath)}, 'r')
-zf.extractall(${JSON.stringify(destDir)})
-zf.close()
-print('ok')
-`;
-  try {
-    execSync(`python3 -c ${JSON.stringify(script)}`, { stdio: 'pipe' });
-    return;
-  } catch {
-    /* try unzip */
-  }
-  try {
-    execSync(`unzip -q -o "${kdnaPath}" -d "${destDir}"`, { stdio: 'pipe' });
-    return;
-  } catch {
-    error('Cannot extract .kdna file. Install python3 or unzip.');
-  }
-}
-
-function extractAndDecrypt(kdnaPath, destDir, licenseKey) {
-  extractKdna(kdnaPath, destDir);
-  const fp = machineFingerprint();
-  const key = deriveKey(licenseKey, fp);
-
-  for (const f of fs.readdirSync(destDir)) {
-    if (ENCRYPTED_FILES.includes(f)) {
-      try {
-        const fullPath = path.join(destDir, f);
-        const encrypted = fs.readFileSync(fullPath);
-        const decrypted = decrypt(encrypted, key);
-        fs.writeFileSync(fullPath, decrypted);
-      } catch (err) {
-        fs.rmSync(destDir, { recursive: true, force: true });
-        error(`Failed to decrypt ${f}: ${err.message}. Wrong license key?`);
-      }
-    }
-  }
-}
-
-function findLicense(domainName) {
-  const licenseDir = path.join(USER_KDNA_DIR, 'licenses');
-  const licensePath = path.join(
-    licenseDir,
-    `${domainName.replace(/^@/, '').replace('/', '-')}.json`,
-  );
-  if (fs.existsSync(licensePath)) {
-    try {
-      return JSON.parse(fs.readFileSync(licensePath, 'utf8'));
-    } catch {
-      /* invalid license */
-    }
-  }
-  return null;
-}
-
-function findLicenseForDomain(domainFull) {
-  const licenseDir = path.join(USER_KDNA_DIR, 'licenses');
-  if (!fs.existsSync(licenseDir)) return null;
-  // Try exact match: @aikdna/writing → @aikdna-writing.json
-  const candidates = [domainFull.replace(/^@/, '').replace('/', '-')];
-  // Also try just the domain name
-  candidates.push(domainFull.split('/').pop());
-  for (const c of candidates) {
-    const p = path.join(licenseDir, `${c}.json`);
-    if (fs.existsSync(p)) {
-      try {
-        return JSON.parse(fs.readFileSync(p, 'utf8'));
-      } catch {
-        /* skip */
-      }
-    }
-  }
-  return null;
-}
-
 // ─── Signature verification ────────────────────────────────────────────
 
-function verifySignature({ destDir, scope, entry, lenient = true }) {
-  const manifest = readJson(path.join(destDir, 'kdna.json'));
+function verifySignature({ assetPath, scope, entry, lenient = true }) {
+  const manifest = readContainerJson(assetPath, 'kdna.json');
   if (!manifest) {
     if (lenient) {
       console.warn('  ⚠ No kdna.json — cannot verify signature.');
@@ -400,20 +233,8 @@ function verifySignature({ destDir, scope, entry, lenient = true }) {
   }
 
   const trustKey = scope.trust_pubkey;
-  const isPlaceholder = !trustKey || trustKey.includes('PLACEHOLDER');
-
-  // v0.7 bootstrap: signatures may be absent. Warn but allow.
   if (!entry.signature || !manifest.signature) {
-    if (isPlaceholder) {
-      console.warn(
-        `  ⚠ Bootstrap mode: scope ${entry.name.split('/')[0]} has placeholder trust key. Signature not verified.`,
-      );
-    } else {
-      console.warn(
-        `  ⚠ ${entry.name}: no signature on package. (Will be required post-bootstrap.)`,
-      );
-    }
-    return;
+    error(`${entry.name}: registry and .kdna manifest signatures are required.`, EXIT.TRUST_FAILED);
   }
 
   // Author pubkey fingerprint must match scope trust_pubkey
@@ -425,64 +246,23 @@ function verifySignature({ destDir, scope, entry, lenient = true }) {
   }
 
   // Full Ed25519 verify (requires public_key_pem embedded in the package)
-  const pem = manifest.author?.public_key_pem;
-  if (!pem) {
-    // Legacy package (signed but no embedded PEM). Trust the fingerprint match.
-    console.log('  ✓ Signature OK (legacy fingerprint-only mode — no PEM)');
-    return;
+  if (!manifest.author?.public_key_pem) {
+    error(`${entry.name}: manifest author.public_key_pem is required for Ed25519 verification.`, EXIT.TRUST_FAILED);
   }
 
-  // 1. Confirm the embedded PEM hashes to the claimed pubkey fingerprint
-  const computedFingerprint = 'ed25519:' + crypto.createHash('sha256').update(pem).digest('hex');
-  if (computedFingerprint !== manifest.author.pubkey) {
+  const result = verifyAsset(assetPath, { requireSignature: true });
+  for (const e of result.errors || []) {
+    if (e.includes('signature') || e.includes('public_key') || e.includes('fingerprint')) {
+      error(`${entry.name}: ${e}. Refusing to install.`, EXIT.TRUST_FAILED);
+    }
+  }
+  if (!result.signature_valid) {
     error(
-      `${entry.name}: embedded public_key_pem does not match author.pubkey fingerprint. Refusing.`,
+      `${entry.name}: Ed25519 signature INVALID. Package may be tampered. Refusing.`,
       EXIT.TRUST_FAILED,
     );
   }
-
-  // 2. Verify the Ed25519 signature over the canonical payload
-  // Canonical payload reconstruction must match publish.js exactly:
-  //   - sorted .json filenames
-  //   - for kdna.json: strip "signature" field before hashing
-  //   - others: raw bytes
-  //   - hash each, format "name:hex", join with "\n"
-  const sigHex = manifest.signature.replace(/^ed25519:/, '');
-  try {
-    const files = fs
-      .readdirSync(destDir)
-      .filter((f) => f.endsWith('.json'))
-      .sort();
-    const parts = [];
-    for (const f of files) {
-      const full = path.join(destDir, f);
-      let buf;
-      if (f === 'kdna.json') {
-        const obj = JSON.parse(fs.readFileSync(full, 'utf8'));
-        delete obj.signature;
-        delete obj._source; // install-time metadata, not part of signed payload
-        buf = Buffer.from(JSON.stringify(obj));
-      } else {
-        buf = fs.readFileSync(full);
-      }
-      const hash = crypto.createHash('sha256').update(buf).digest('hex');
-      parts.push(`${f}:${hash}`);
-    }
-    const payload = parts.join('\n');
-
-    const publicKey = crypto.createPublicKey(pem);
-    const ok = crypto.verify(null, Buffer.from(payload), publicKey, Buffer.from(sigHex, 'hex'));
-    if (!ok) {
-      error(
-        `${entry.name}: Ed25519 signature INVALID. Package may be tampered. Refusing.`,
-        EXIT.TRUST_FAILED,
-      );
-    }
-    console.log('  ✓ Signature OK (Ed25519 verified)');
-  } catch (e) {
-    if (e.message?.includes('INVALID')) throw e;
-    error(`${entry.name}: signature verification failed: ${e.message}`, EXIT.TRUST_FAILED);
-  }
+  console.log('  ✓ Signature OK (Ed25519 verified)');
 }
 
 // ─── Status confirmation (interactive) ─────────────────────────────────
@@ -506,31 +286,12 @@ function confirmStatus(entry, yes) {
 // ─── Cleanup stale temps ───────────────────────────────────────────────
 
 function cleanStaleTemps() {
-  if (!fs.existsSync(INSTALL_DIR)) return;
-  try {
-    for (const scopeName of fs.readdirSync(INSTALL_DIR)) {
-      if (!scopeName.startsWith('@')) continue;
-      const sd = path.join(INSTALL_DIR, scopeName);
-      if (!fs.statSync(sd).isDirectory()) continue;
-      for (const child of fs.readdirSync(sd)) {
-        if (child.endsWith('.tmp') || child.endsWith('.kdna.tmp')) {
-          try {
-            fs.rmSync(path.join(sd, child), { recursive: true, force: true });
-          } catch {
-            /* ignore */
-          }
-        }
-      }
-    }
-  } catch {
-    /* ignore */
-  }
+  ensureDir(INSTALL_DIR);
 }
 
 // ─── Main install ──────────────────────────────────────────────────────
 
 function cmdInstallExtended(input, args = []) {
-  warnLegacy();
   ensureDir(INSTALL_DIR);
   cleanStaleTemps();
 
@@ -546,8 +307,6 @@ function cmdInstallExtended(input, args = []) {
       return installFromRegistry(source.parsed, yes, jsonMode);
     case 'local-file':
       return installFromLocalFile(source.path, yes, jsonMode);
-    case 'local-dir':
-      return installFromLocalDir(source.path, yes, jsonMode);
   }
 }
 
@@ -594,13 +353,16 @@ function installFromRegistry(parsed, yes, jsonMode = false) {
     return installCluster(entry, resolver, yes, jsonMode);
   }
 
-  if (!entry.kdna_url) {
+  if (!entry.asset_url) {
     error(
-      `${entry.name}@${entry.version} has no kdna_url in registry.\n` +
+      `${entry.name}@${entry.version} has no asset_url in registry.\n` +
         `release_status: ${entry.release_status || 'unknown'}\n` +
-        `(This domain has not been published as a .kdna file yet. It will be available after v0.7 republish.)`,
+        `(Registry v3 publishes canonical .kdna assets through asset_url only.)`,
       EXIT.REGISTRY_ERROR,
     );
+  }
+  if (!entry.asset_digest) {
+    error(`${entry.name}@${entry.version} has no asset_digest in registry.`, EXIT.REGISTRY_ERROR);
   }
 
   if (!confirmStatus(entry, yes)) {
@@ -612,56 +374,52 @@ function installFromRegistry(parsed, yes, jsonMode = false) {
 }
 
 function installSingleFromUrl({ entry, scope }, jsonMode = false) {
-  const [scopeName, ident] = entry.name.split('/');
-  const dest = domainDir(scopeName, ident);
-  const tmpFile = path.join(scopeDir(scopeName), `.${ident}-${Date.now()}.kdna.tmp`);
+  const ident = entry.name.split('/')[1];
+  const tmpDir = path.join(USER_KDNA_DIR, 'cache', 'downloads');
+  const tmpFile = path.join(tmpDir, `.${ident}-${Date.now()}.kdna.tmp`);
+  const assetUrl = entry.asset_url;
 
   if (!jsonMode) console.log(`  Downloading ${entry.name}@${entry.version}...`);
-  ensureDir(scopeDir(scopeName));
+  ensureDir(tmpDir);
   try {
-    downloadFile(entry.kdna_url, tmpFile);
+    downloadFile(assetUrl, tmpFile);
   } catch {
-    error(`Failed to download ${entry.kdna_url}`, EXIT.REGISTRY_ERROR);
+    error(`Failed to download ${assetUrl}`, EXIT.REGISTRY_ERROR);
   }
 
-  // sha256 check
+  // asset digest check
   const actual = sha256File(tmpFile);
-  if (entry.sha256 && actual !== entry.sha256) {
+  const expectedDigest = entry.asset_digest;
+  const actualDigest = `sha256:${actual}`;
+  if (expectedDigest && actualDigest !== expectedDigest) {
     try {
       fs.unlinkSync(tmpFile);
     } catch {
       /* ignore */
     }
-    error(`sha256 mismatch for ${entry.name}: expected ${entry.sha256}, got ${actual}`);
+    error(`asset digest mismatch for ${entry.name}: expected ${expectedDigest}, got ${actualDigest}`);
   }
-  if (!jsonMode) console.log(`  ✓ sha256 verified`);
+  if (!jsonMode) console.log(`  ✓ asset digest verified`);
 
-  // Replace existing install atomically-ish
-  if (fs.existsSync(dest)) {
-    fs.rmSync(dest, { recursive: true, force: true });
-  }
-  ensureDir(dest);
+  verifySignature({ assetPath: tmpFile, scope, entry, lenient: true });
 
-  extractKdna(tmpFile, dest);
+  const installed = installAsset({
+    sourcePath: tmpFile,
+    name: entry.name,
+    version: entry.version,
+    source: {
+      type: 'registry',
+      name: entry.name,
+      version: entry.version,
+      asset_url: assetUrl,
+      asset_digest: expectedDigest,
+    },
+  });
   try {
     fs.unlinkSync(tmpFile);
   } catch {
     /* ignore */
   }
-
-  verifySignature({ destDir: dest, scope, entry, lenient: true });
-
-  // Stamp install metadata
-  const manifest = readJson(path.join(dest, 'kdna.json')) || {};
-  manifest._source = {
-    type: 'registry',
-    name: entry.name,
-    version: entry.version,
-    kdna_url: entry.kdna_url,
-    sha256: entry.sha256,
-    installed_at: new Date().toISOString(),
-  };
-  fs.writeFileSync(path.join(dest, 'kdna.json'), JSON.stringify(manifest, null, 2) + '\n');
 
   if (jsonMode) {
     console.log(
@@ -669,13 +427,13 @@ function installSingleFromUrl({ entry, scope }, jsonMode = false) {
         name: entry.name,
         version: entry.version,
         installed: true,
-        path: dest,
+        path: installed.asset_path,
         type: entry.type || 'domain',
       }),
     );
   } else {
     console.log(`✓ Installed ${entry.name}@${entry.version}`);
-    console.log(`  Location: ${dest}`);
+    console.log(`  Asset: ${installed.asset_path}`);
   }
 }
 
@@ -690,8 +448,8 @@ function installCluster(clusterEntry, resolver, _yes, jsonMode = false) {
   for (const sub of subdomains) {
     try {
       const resolved = resolver.resolve(sub);
-      if (!resolved.entry.kdna_url) {
-        if (!jsonMode) console.warn(`  ⚠ ${sub}: no kdna_url (skipping)`);
+      if (!resolved.entry.asset_url) {
+        if (!jsonMode) console.warn(`  ⚠ ${sub}: no asset_url (skipping)`);
         continue;
       }
       if (!jsonMode) console.log('');
@@ -701,26 +459,6 @@ function installCluster(clusterEntry, resolver, _yes, jsonMode = false) {
     }
   }
 
-  // Record the cluster itself
-  const [scopeName, ident] = clusterEntry.name.split('/');
-  const clusterDest = domainDir(scopeName, ident);
-  ensureDir(clusterDest);
-  fs.writeFileSync(
-    path.join(clusterDest, 'cluster.json'),
-    JSON.stringify(
-      {
-        name: clusterEntry.name,
-        version: clusterEntry.version,
-        type: 'cluster',
-        domains: subdomains,
-        composition_rules: clusterEntry.cluster.composition_rules || [],
-        installed_at: new Date().toISOString(),
-      },
-      null,
-      2,
-    ) + '\n',
-  );
-
   if (jsonMode) {
     console.log(
       JSON.stringify({
@@ -728,7 +466,6 @@ function installCluster(clusterEntry, resolver, _yes, jsonMode = false) {
         version: clusterEntry.version,
         type: 'cluster',
         installed: true,
-        path: clusterDest,
         subdomains: subdomains.length,
       }),
     );
@@ -741,160 +478,64 @@ function installCluster(clusterEntry, resolver, _yes, jsonMode = false) {
 function installFromLocalFile(filePath, _yes, jsonMode = false) {
   const abs = path.resolve(filePath);
   if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) error(`Not a file: ${abs}`);
+  if (!abs.endsWith('.kdna')) error(`Not a .kdna asset: ${abs}`, EXIT.INPUT_ERROR);
 
-  const isEncrypted = isEncryptedContainer(abs);
-  const tmpDir = path.join(INSTALL_DIR, '.local-tmp-' + Date.now());
-  ensureDir(tmpDir);
-
-  if (isEncrypted) {
-    // Find license for this .kdnae file
-    // First check the license directory, then ask for --license flag from args
-    const licenseFromArgs = process.argv.includes('--license')
-      ? process.argv[process.argv.indexOf('--license') + 1]
-      : null;
-    let licenseKey = null;
-
-    if (licenseFromArgs && fs.existsSync(licenseFromArgs)) {
-      try {
-        const lic = JSON.parse(fs.readFileSync(licenseFromArgs, 'utf8'));
-        licenseKey = lic.license_id;
-      } catch {
-        /* invalid license file */
-      }
-    }
-
-    if (!licenseKey) {
-      // Try to auto-discover from ~/.kdna/licenses/
-      const manifest = readJson(path.join(tmpDir, 'kdna.json'));
-      // We need to extract just the manifest first to get the domain name
-      extractKdna(abs, tmpDir);
-      const mf = readJson(path.join(tmpDir, 'kdna.json'));
-      if (mf?.name) {
-        const lic = findLicenseForDomain(mf.name);
-        if (lic) licenseKey = lic.license_id;
-      }
-      if (!licenseKey) {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
-        error(
-          `Cannot install encrypted .kdnae without a license.\n` +
-            `Save the license to ~/.kdna/licenses/ or use --license <file>.`,
-          EXIT.TRUST_FAILED,
-        );
-      }
-      // Re-extract for decryption
-      fs.rmSync(tmpDir, { recursive: true, force: true });
-      ensureDir(tmpDir);
-    }
-
-    console.log('  Decrypting .kdnae container...');
-    extractAndDecrypt(abs, tmpDir, licenseKey);
-  } else {
-    extractKdna(abs, tmpDir);
-  }
-
-  const manifest = readJson(path.join(tmpDir, 'kdna.json'));
+  const manifest = readContainerJson(abs, 'kdna.json');
   const declared = manifest?.name;
   if (!declared || !/^@[a-z][a-z0-9-]*\/[a-z][a-z0-9_]*$/.test(declared)) {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
     error(scopedNameError('package kdna.json.name', declared), EXIT.INPUT_ERROR);
   }
-  const [scopeName, ident] = declared.split('/');
-  const dest = domainDir(scopeName, ident);
-  if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true });
-  ensureDir(path.dirname(dest));
-  fs.renameSync(tmpDir, dest);
-
-  const destManifest = readJson(path.join(dest, 'kdna.json')) || {};
-  destManifest._source = {
-    type: 'local-file',
-    path: abs,
-    encrypted: isEncrypted,
-    installed_at: new Date().toISOString(),
-  };
-  fs.writeFileSync(path.join(dest, 'kdna.json'), JSON.stringify(destManifest, null, 2) + '\n');
+  const installed = installAsset({
+    sourcePath: abs,
+    name: declared,
+    version: manifest.version,
+    source: { type: 'local-file', path: abs },
+  });
 
   if (jsonMode) {
     console.log(
       JSON.stringify({
         name: declared,
         installed: true,
-        path: dest,
+        path: installed.asset_path,
+        receipt_path: installed.receipt_path,
+        asset_digest: installed.asset_digest,
+        content_digest: installed.content_digest,
         source: 'local-file',
         source_path: abs,
-        encrypted: isEncrypted,
       }),
     );
   } else {
-    console.log(`✓ Installed ${declared} from ${isEncrypted ? 'encrypted' : 'local'} file`);
-    console.log(`  Location: ${dest}`);
-  }
-}
-
-function installFromLocalDir(dirPath, _yes, jsonMode = false) {
-  const abs = path.resolve(dirPath);
-  const manifest = readJson(path.join(abs, 'kdna.json'));
-  const declared = manifest?.name;
-  if (!declared || !/^@[a-z][a-z0-9-]*\/[a-z][a-z0-9_]*$/.test(declared)) {
-    error(scopedNameError('source kdna.json.name', declared), EXIT.INPUT_ERROR);
-  }
-  const [scopeName, ident] = declared.split('/');
-  const dest = domainDir(scopeName, ident);
-  if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true });
-  ensureDir(path.dirname(dest));
-  fs.cpSync(abs, dest, { recursive: true });
-
-  const destManifest = readJson(path.join(dest, 'kdna.json')) || {};
-  destManifest._source = {
-    type: 'local-dir',
-    path: abs,
-    installed_at: new Date().toISOString(),
-  };
-  fs.writeFileSync(path.join(dest, 'kdna.json'), JSON.stringify(destManifest, null, 2) + '\n');
-
-  if (jsonMode) {
-    console.log(
-      JSON.stringify({
-        name: declared,
-        installed: true,
-        path: dest,
-        source: 'local-dir',
-        source_path: abs,
-      }),
-    );
-  } else {
-    console.log(`✓ Installed ${declared} from local directory (dev mode)`);
-    console.log(`  Location: ${dest}`);
+    console.log(`✓ Installed ${declared} from local .kdna asset`);
+    console.log(`  Asset: ${installed.asset_path}`);
   }
 }
 
 // ─── Remove ─────────────────────────────────────────────────────────────
 
 function cmdRemove(input) {
-  warnLegacy();
   const parsed = parseName(input);
   if (!parsed) error(`Invalid name "${input}". Use @scope/name or bare name.`);
-  const dest = domainDir(parsed.scope, parsed.ident);
-  if (!fs.existsSync(dest)) {
+  if (!removeInstalled(parsed.full)) {
     console.log(`${parsed.full} is not installed.`);
     return;
   }
-  fs.rmSync(dest, { recursive: true, force: true });
   console.log(`✓ Removed ${parsed.full}`);
 }
 
 // ─── Info ───────────────────────────────────────────────────────────────
 
 function cmdInfo(input, jsonMode = false) {
-  warnLegacy();
   const parsed = parseName(input);
   if (!parsed) error(`Invalid name "${input}".`, EXIT.INPUT_ERROR);
-  const dest = domainDir(parsed.scope, parsed.ident);
-  if (!fs.existsSync(dest)) error(`${parsed.full} is not installed.`, EXIT.INPUT_ERROR);
+  const installed = getInstalled(parsed.full);
+  if (!installed) error(`${parsed.full} is not installed.`, EXIT.INPUT_ERROR);
 
-  const manifest = readJson(path.join(dest, 'kdna.json'));
-  const core = readJson(path.join(dest, 'KDNA_Core.json'));
-  const pat = readJson(path.join(dest, 'KDNA_Patterns.json'));
-  const source = manifest?._source || {};
+  const container = readContainer(installed.asset_path);
+  const manifest = container.manifest || {};
+  const core = container.core || {};
+  const pat = container.patterns || {};
+  const source = installed.source || {};
 
   // ─── Judgment surface (computed for both modes) ────────────────────
   const axiomCount = (core?.axioms || []).length;
@@ -920,17 +561,7 @@ function cmdInfo(input, jsonMode = false) {
   }
 
   // ─── Eval cases ────────────────────────────────────────────────────
-  const evalDir = path.join(dest, 'evals');
-  let evalInfo = null;
-  if (fs.existsSync(evalDir)) {
-    const evalFiles = fs.readdirSync(evalDir).filter((f) => f.endsWith('.json'));
-    let totalCases = 0;
-    for (const f of evalFiles) {
-      const data = readJson(path.join(evalDir, f));
-      if (data?.cases) totalCases += data.cases.length;
-    }
-    evalInfo = { files: evalFiles.length, totalCases };
-  }
+  const evalInfo = null;
 
   // ─── Known risks ───────────────────────────────────────────────────
   const risks = [];
@@ -949,7 +580,7 @@ function cmdInfo(input, jsonMode = false) {
     'KDNA_Reasoning.json',
     'KDNA_Evolution.json',
   ];
-  const present = expected.filter((f) => fs.existsSync(path.join(dest, f)));
+  const present = expected.filter((f) => container.files.includes(f));
 
   // ─── JSON mode: emit structured output only, then exit ─────────────
   if (jsonMode) {
@@ -962,10 +593,12 @@ function cmdInfo(input, jsonMode = false) {
       author: manifest?.author?.name || '?',
       pubkey: manifest?.author?.pubkey || null,
       has_pem: !!manifest?.author?.public_key_pem,
-      source_url: source.kdna_url || null,
-      sha256: source.sha256 || null,
-      installed_at: source.installed_at || null,
-      path: dest,
+      source_url: source.asset_url || null,
+      asset_digest: installed.asset_digest || source.asset_digest || null,
+      content_digest: installed.content_digest || null,
+      receipt_path: installed.receipt_path || null,
+      installed_at: installed.installed_at || null,
+      path: installed.asset_path,
       axioms: axiomCount,
       ontology: ontologyCount,
       stances: stanceCount,
@@ -1003,10 +636,14 @@ function cmdInfo(input, jsonMode = false) {
   } else {
     console.log(`  Embedded PEM:      no (legacy pre-v0.7.1 package)`);
   }
-  if (source.kdna_url) console.log(`  Source URL:        ${source.kdna_url}`);
-  if (source.sha256) console.log(`  Source sha256:     ${source.sha256.slice(0, 32)}…`);
-  console.log(`  Installed:         ${source.installed_at || '?'}`);
-  console.log(`  Path:              ${dest}`);
+  if (source.asset_url) {
+    console.log(`  Source URL:        ${source.asset_url}`);
+  }
+  if (installed.asset_digest) console.log(`  Asset digest:      ${installed.asset_digest.slice(0, 39)}…`);
+  if (installed.content_digest) console.log(`  Content digest:    ${installed.content_digest.slice(0, 39)}…`);
+  if (installed.receipt_path) console.log(`  Receipt:           ${installed.receipt_path}`);
+  console.log(`  Installed:         ${installed.installed_at || '?'}`);
+  console.log(`  Asset:             ${installed.asset_path}`);
 
   // ─── Judgment surface ──────────────────────────────────────────
   console.log('');
@@ -1058,16 +695,14 @@ function cmdInfo(input, jsonMode = false) {
 // ─── Update ─────────────────────────────────────────────────────────────
 
 function cmdUpdate(input) {
-  warnLegacy();
   const parsed = parseName(input);
   if (!parsed) error(`Invalid name "${input}".`);
-  const dest = domainDir(parsed.scope, parsed.ident);
-  if (!fs.existsSync(dest)) {
+  const installed = getInstalled(parsed.full);
+  if (!installed) {
     console.log(`${parsed.full} not installed. Run: kdna install ${input}`);
     return;
   }
-  const manifest = readJson(path.join(dest, 'kdna.json')) || {};
-  const installedVersion = manifest.version || manifest._source?.version || '?';
+  const installedVersion = installed.version || '?';
 
   const resolver = new RegistryResolver({ allowNetwork: true, refresh: true });
   let entry;
@@ -1086,24 +721,17 @@ function cmdUpdate(input) {
 }
 
 function cmdUpdateAll() {
-  warnLegacy();
-  if (!fs.existsSync(INSTALL_DIR)) {
+  const installed = listInstalled();
+  if (!installed.length) {
     console.log('No installs.');
     return;
   }
-  const scopes = fs.readdirSync(INSTALL_DIR).filter((d) => d.startsWith('@'));
-  for (const scope of scopes) {
-    const sd = path.join(INSTALL_DIR, scope);
-    if (!fs.statSync(sd).isDirectory()) continue;
-    for (const ident of fs.readdirSync(sd)) {
-      if (ident.startsWith('.')) continue;
-      try {
-        cmdUpdate(`${scope}/${ident}`);
-      } catch (e) {
-        console.warn(`  ⚠ ${scope}/${ident}: ${e.message.split('\n')[0]}`);
-      }
+  for (const entry of installed) {
+    try {
+      cmdUpdate(entry.full);
+    } catch (e) {
+      console.warn(`  ⚠ ${entry.full}: ${e.message.split('\n')[0]}`);
     }
-    console.log('');
   }
 }
 

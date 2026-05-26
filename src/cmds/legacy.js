@@ -2,10 +2,10 @@ const { error } = require('./_common');
 
 function cmdPreview() {
   // Removed in v0.9 — no real user scenario for browser preview.
-  // To inspect a .kdna file, use: kdna inspect <path>
+  // To inspect a .kdna file, use: kdna inspect <file.kdna>
   error(
     'kdna preview was removed in v0.9.\n' +
-      'Use: kdna inspect <path>  to view a .kdna file or domain directory.',
+      'Use: kdna inspect <file.kdna> to view a .kdna asset.',
   );
 }
 
@@ -18,8 +18,8 @@ function cmdProject() {
     'kdna project was removed in v0.9. The .kdna/config.json file is no\n' +
       'longer read by the kdna-loader skill — it would have forced KDNA\n' +
       'loading on tasks where the user did not ask for it.\n\n' +
-      'The agent now discovers KDNA on demand by reading ~/.kdna/domains/\n' +
-      'and matching the task against v2.1 applies_when fields.\n\n' +
+      'The agent now discovers KDNA on demand through kdna available/load,\n' +
+      'which read installed .kdna assets from the package index.\n\n' +
       'If you have stale .kdna/config.json files in your projects, you\n' +
       'can delete them — nothing reads them anymore.',
   );
@@ -32,7 +32,7 @@ function cmdEval() {
   error(
     'kdna eval was removed in v0.9.\n' +
       'To compare with/without KDNA reasoning, use:\n' +
-      '  kdna compare <name> --input "<task>"\n' +
+      '  kdna compare <name|file.kdna> --input "<task>"\n' +
       'To inspect a domain, use:\n' +
       '  kdna info <name>',
   );
@@ -53,17 +53,17 @@ function cmdSelect() {
 }
 
 function cmdExport() {
-  // Removed in v0.9 — was an alias for `kdna pack`.
+  // Removed in v0.9 — was an alias for the old top-level pack command.
   error(
     'kdna export was removed in v0.9 (it was an alias for pack).\n' +
-      'Use: kdna pack <path> [--output <dir>]',
+      'Use: kdna dev pack <source-dir> [--output <dir>]',
   );
 }
 
 function cmdDemo() {
   // Removed in v0.9 — internal demo, not a user feature. To see
   // before/after on a real input, use:
-  //   kdna compare <name> --input "<task>"   (requires LLM API key)
+  //   kdna compare <name|file.kdna> --input "<task>"   (requires LLM API key)
   error(
     'kdna demo was removed in v0.9.\n' +
       'To see KDNA before/after on a real input, use:\n' +

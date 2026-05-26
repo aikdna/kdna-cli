@@ -1,8 +1,8 @@
 /**
- * kdna verify <name> — Quality signal across three layers.
+ * kdna verify <name|file.kdna> — Quality signal across three layers.
  *
  *   --structure   files exist, schema OK
- *   --trust       sha256 + Ed25519 signature against scope trust key
+ *   --trust       asset digest + Ed25519 signature against scope trust key
  *   --judgment    v2.1 governance fields (boundary, applies_when, eval cases)
  *
  * No flag = run all three.
@@ -17,9 +17,9 @@
 
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
-const { RegistryResolver, parseName } = require('./registry');
+const { RegistryResolver, parseName, registryTrustIssues, isEntryRevoked } = require('./registry');
 const { EXIT, isYesNoSelfCheck } = require('./cmds/_common');
+const { licenseDecryptOptionsForManifest } = require('./cmds/license');
 
 let validateManifestFn;
 try {
@@ -28,8 +28,14 @@ try {
   // kdna-core not available — manifest validation skipped
 }
 
-const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
-const { domains: DOMAINS, INSTALL_DIR } = require('./paths');
+const {
+  getInstalled,
+  listContainerEntries,
+  readContainerEntry,
+  readContainerJson,
+  resolveAsset,
+  verifyAsset,
+} = require('./package-store');
 
 function readJson(p) {
   try {
@@ -39,11 +45,84 @@ function readJson(p) {
   }
 }
 
+function directoryView(root) {
+  return {
+    kind: 'directory',
+    exists(name) {
+      return fs.existsSync(path.join(root, name));
+    },
+    readJson(name) {
+      return readJson(path.join(root, name));
+    },
+    readText(name) {
+      try {
+        return fs.readFileSync(path.join(root, name), 'utf8');
+      } catch {
+        return '';
+      }
+    },
+    listDirFiles(dirName) {
+      const dir = path.join(root, dirName);
+      if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return [];
+      return fs.readdirSync(dir);
+    },
+  };
+}
+
+function assetView(kdnaPath, options = {}) {
+  const entries = new Set(listContainerEntries(kdnaPath));
+  return {
+    kind: 'asset',
+    path: kdnaPath,
+    exists(name) {
+      return entries.has(name);
+    },
+    readJson(name) {
+      return readContainerJson(kdnaPath, name, options);
+    },
+    readText(name) {
+      if (!entries.has(name)) return '';
+      return readContainerEntry(kdnaPath, name).toString('utf8');
+    },
+    listDirFiles(dirName) {
+      const prefix = `${dirName.replace(/\/+$/, '')}/`;
+      const files = [];
+      for (const entryName of entries) {
+        if (!entryName.startsWith(prefix)) continue;
+        const rest = entryName.slice(prefix.length);
+        if (rest && !rest.includes('/')) files.push(rest);
+      }
+      return files;
+    },
+  };
+}
+
+function asView(input, options = {}) {
+  if (input && typeof input.exists === 'function') return input;
+  return directoryView(input, options);
+}
+
+function readJsonFromView(view, entryName, issues = null) {
+  try {
+    return view.readJson(entryName);
+  } catch (e) {
+    if (issues) issues.push({ severity: 'error', msg: `${entryName}: ${e.message}` });
+    return null;
+  }
+}
+
 // ─── Structure layer ───────────────────────────────────────────────────
 
-function checkStructure(destDir) {
+function checkStructure(input, options = {}) {
+  const view = asView(input);
   const issues = [];
   const passed = [];
+  if (options.licenseError) {
+    issues.push({
+      severity: 'error',
+      msg: `license required to verify encrypted entries: ${options.licenseError}`,
+    });
+  }
 
   const required = ['KDNA_Core.json', 'KDNA_Patterns.json', 'kdna.json'];
   const optional = [
@@ -54,7 +133,7 @@ function checkStructure(destDir) {
   ];
 
   for (const f of required) {
-    if (!fs.existsSync(path.join(destDir, f))) {
+    if (!view.exists(f)) {
       issues.push({ severity: 'error', msg: `required file missing: ${f}` });
     } else {
       passed.push(`has ${f}`);
@@ -63,7 +142,7 @@ function checkStructure(destDir) {
 
   // Validate kdna.json against canonical manifest schema
   if (validateManifestFn) {
-    const manifest = readJson(path.join(destDir, 'kdna.json'));
+    const manifest = readJsonFromView(view, 'kdna.json', issues);
     if (manifest) {
       const mResult = validateManifestFn(manifest);
       for (const e of mResult.errors) issues.push({ severity: 'error', msg: e });
@@ -73,12 +152,12 @@ function checkStructure(destDir) {
   }
 
   for (const f of optional) {
-    if (fs.existsSync(path.join(destDir, f))) passed.push(`has ${f}`);
+    if (view.exists(f)) passed.push(`has ${f}`);
   }
 
   // Schema check using kdna-core if available
   try {
-    const core = readJson(path.join(destDir, 'KDNA_Core.json'));
+    const core = options.licenseError ? null : readJsonFromView(view, 'KDNA_Core.json', issues);
     if (core) {
       if (!core.axioms || !Array.isArray(core.axioms) || core.axioms.length === 0) {
         issues.push({ severity: 'error', msg: 'KDNA_Core.axioms missing or empty' });
@@ -90,7 +169,7 @@ function checkStructure(destDir) {
         issues.push({ severity: 'warn', msg: 'KDNA_Core.stances missing or empty' });
       }
     }
-    const pat = readJson(path.join(destDir, 'KDNA_Patterns.json'));
+    const pat = options.licenseError ? null : readJsonFromView(view, 'KDNA_Patterns.json', issues);
     if (pat) {
       if (!pat.misunderstandings || pat.misunderstandings.length === 0) {
         issues.push({ severity: 'warn', msg: 'KDNA_Patterns.misunderstandings missing or empty' });
@@ -111,11 +190,12 @@ function checkStructure(destDir) {
 
 // ─── Trust layer ───────────────────────────────────────────────────────
 
-function checkTrust(destDir, scope, entry) {
+function checkTrust(input, scope, entry, options = {}) {
+  const view = asView(input);
   const issues = [];
   const passed = [];
 
-  const manifest = readJson(path.join(destDir, 'kdna.json'));
+  const manifest = readJsonFromView(view, 'kdna.json', issues);
   if (!manifest) {
     issues.push({ severity: 'error', msg: 'kdna.json missing — cannot verify trust' });
     return { layer: 'trust', issues, passed };
@@ -151,58 +231,56 @@ function checkTrust(destDir, scope, entry) {
     });
   } else {
     passed.push('embedded public_key_pem present');
+  }
 
-    // Recompute fingerprint
-    const fp =
-      'ed25519:' + crypto.createHash('sha256').update(manifest.author.public_key_pem).digest('hex');
-    if (fp !== manifest.author.pubkey) {
+  if (options.assetPath) {
+    const verification = verifyAsset(options.assetPath, { requireSignature: true });
+    for (const warning of verification.warnings || []) {
+      if (!/signature missing/.test(warning)) issues.push({ severity: 'warn', msg: warning });
+    }
+    for (const err of verification.errors || []) {
+      if (/signature|author\.|public_key|pubkey|fingerprint|Ed25519/i.test(err)) {
+        issues.push({ severity: 'error', msg: err });
+      }
+    }
+    if (verification.signature_valid === true) {
+      passed.push('Ed25519 signature VALID over canonical payload');
+    } else if (manifest.signature) {
       issues.push({
         severity: 'error',
-        msg: 'embedded PEM does not match author.pubkey fingerprint',
+        msg: 'Ed25519 signature INVALID or unavailable',
       });
-    } else {
-      passed.push('PEM fingerprint matches author.pubkey');
-
-      // Full Ed25519 verify
-      try {
-        const files = fs
-          .readdirSync(destDir)
-          .filter((f) => f.endsWith('.json'))
-          .sort();
-        const parts = [];
-        for (const f of files) {
-          const full = path.join(destDir, f);
-          let buf;
-          if (f === 'kdna.json') {
-            const obj = JSON.parse(fs.readFileSync(full, 'utf8'));
-            delete obj.signature;
-            delete obj._source;
-            buf = Buffer.from(JSON.stringify(obj));
-          } else {
-            buf = fs.readFileSync(full);
-          }
-          const hash = crypto.createHash('sha256').update(buf).digest('hex');
-          parts.push(`${f}:${hash}`);
-        }
-        const payload = parts.join('\n');
-        const sigHex = manifest.signature.replace(/^ed25519:/, '');
-        const publicKey = crypto.createPublicKey(manifest.author.public_key_pem);
-        const ok = crypto.verify(null, Buffer.from(payload), publicKey, Buffer.from(sigHex, 'hex'));
-        if (ok) passed.push('Ed25519 signature VALID over canonical payload');
-        else
-          issues.push({
-            severity: 'error',
-            msg: 'Ed25519 signature INVALID — package may be tampered',
-          });
-      } catch (e) {
-        issues.push({ severity: 'error', msg: `signature verify failed: ${e.message}` });
-      }
     }
   }
 
-  // 4. sha256 vs registry (if entry provided)
-  if (entry?.sha256) {
-    passed.push(`registry sha256 declared: ${entry.sha256.slice(0, 16)}…`);
+  // 4. asset digest vs registry (if entry provided)
+  const registry = options.registry || null;
+  const registryIssues = registry ? registryTrustIssues(registry) : [];
+  for (const issue of registryIssues) {
+    issues.push({ severity: 'error', msg: issue });
+  }
+
+  const revocation = registry && entry ? isEntryRevoked(registry, entry) : null;
+  if (revocation) {
+    issues.push({
+      severity: 'error',
+      msg: `registry revokes this asset${revocation.reason ? `: ${revocation.reason}` : ''}`,
+    });
+  }
+
+  const registryDigest = entry?.asset_digest || null;
+  if (registryDigest) {
+    passed.push(`registry asset_digest declared: ${registryDigest.slice(0, 23)}…`);
+    if (options.assetDigest && options.assetDigest !== registryDigest) {
+      issues.push({
+        severity: 'error',
+        msg: `asset digest mismatch: registry ${registryDigest}, local ${options.assetDigest}`,
+      });
+    } else if (options.assetDigest) {
+      passed.push('local asset_digest matches registry');
+    }
+  } else if (entry) {
+    issues.push({ severity: 'error', msg: 'registry asset_digest missing' });
   }
 
   // 5. scope governance
@@ -218,7 +296,8 @@ function checkTrust(destDir, scope, entry) {
 
 // ─── Judgment layer ────────────────────────────────────────────────────
 
-function checkJudgment(destDir) {
+function checkJudgment(input, options = {}) {
+  const view = asView(input);
   const issues = [];
   const passed = [];
   const score = { total: 0, max: 0 };
@@ -231,17 +310,23 @@ function checkJudgment(destDir) {
     else issues.push({ severity: 'warn', msg: `missing: ${label}` });
   }
 
-  const core = readJson(path.join(destDir, 'KDNA_Core.json'));
-  const pat = readJson(path.join(destDir, 'KDNA_Patterns.json'));
-  const manifest = readJson(path.join(destDir, 'kdna.json'));
+  if (options.licenseError) {
+    issues.push({
+      severity: 'error',
+      msg: `license required to verify encrypted judgment: ${options.licenseError}`,
+    });
+  }
+
+  const core = options.licenseError ? null : readJsonFromView(view, 'KDNA_Core.json', issues);
+  const pat = options.licenseError ? null : readJsonFromView(view, 'KDNA_Patterns.json', issues);
+  const manifest = readJsonFromView(view, 'kdna.json', issues);
 
   // 1. Boundary declaration in README (REQUIRED)
   //    Either classic "## Scope" + "## Out of Scope" pair,
   //    OR v2.1 "Four Questions" section (#2 = applies, #4 = does not).
-  const readmePath = path.join(destDir, 'README.md');
   let readme = '';
   try {
-    readme = fs.readFileSync(readmePath, 'utf8');
+    readme = view.readText('README.md');
   } catch {
     /* ok */
   }
@@ -337,9 +422,9 @@ function checkJudgment(destDir) {
   }
 
   // 5. eval cases present (REQUIRED: ≥4 cases)
-  const evalDir = path.join(destDir, 'evals');
-  if (fs.existsSync(evalDir)) {
-    const files = fs.readdirSync(evalDir).filter((f) => f.endsWith('.json'));
+  const evalFiles = view.listDirFiles('evals').filter((f) => f.endsWith('.json'));
+  if (evalFiles.length) {
+    const files = evalFiles;
     if (files.length >= 4) {
       bump(2, 2, `evals/ directory has ${files.length} case files`);
     } else if (files.length > 0) {
@@ -399,10 +484,11 @@ function renderLayer(result) {
 
 // ─── I18N layer ──────────────────────────────────────────────────────
 
-function checkI18n(destDir) {
+function checkI18n(input) {
+  const view = asView(input);
   const issues = [];
   const passed = [];
-  const manifest = readJson(path.join(destDir, 'kdna.json')) || {};
+  const manifest = readJsonFromView(view, 'kdna.json', issues) || {};
   const languages = manifest.languages || [];
   const i18nLevel = manifest.i18n_level || 'L0';
 
@@ -417,14 +503,13 @@ function checkI18n(destDir) {
   const canonical = manifest.default_language || languages[0] || 'en';
   for (const lang of languages) {
     if (lang === canonical) continue;
-    const localeDir = path.join(destDir, 'locales', lang);
 
     // L1: card + readme
     if (['L1', 'L2', 'L3', 'L4'].includes(i18nLevel)) {
-      if (!fs.existsSync(path.join(localeDir, 'KDNA_CARD.json'))) {
+      if (!view.exists(`locales/${lang}/KDNA_CARD.json`)) {
         issues.push({ severity: 'error', msg: `i18n: ${lang} KDNA_CARD.json missing` });
       } else {
-        const card = readJson(path.join(localeDir, 'KDNA_CARD.json'));
+        const card = readJsonFromView(view, `locales/${lang}/KDNA_CARD.json`, issues);
         if (card) {
           passed.push(`locales/${lang}/KDNA_CARD.json OK`);
           if (!card.display_name)
@@ -433,7 +518,7 @@ function checkI18n(destDir) {
             issues.push({ severity: 'warn', msg: `i18n: ${lang} card missing intended_use` });
         }
       }
-      if (!fs.existsSync(path.join(localeDir, 'README.md'))) {
+      if (!view.exists(`locales/${lang}/README.md`)) {
         issues.push({ severity: 'warn', msg: `i18n: ${lang} README.md missing` });
       } else {
         passed.push(`locales/${lang}/README.md OK`);
@@ -442,13 +527,13 @@ function checkI18n(destDir) {
 
     // L2: overlay files
     if (['L2', 'L3', 'L4'].includes(i18nLevel)) {
-      const coreOverlay = path.join(localeDir, 'KDNA_Core.overlay.json');
-      if (!fs.existsSync(coreOverlay)) {
+      const coreOverlay = `locales/${lang}/KDNA_Core.overlay.json`;
+      if (!view.exists(coreOverlay)) {
         issues.push({ severity: 'error', msg: `i18n: ${lang} KDNA_Core.overlay.json missing` });
       } else {
-        const overlay = readJson(coreOverlay);
+        const overlay = readJsonFromView(view, coreOverlay, issues);
         if (overlay?.translations) {
-          const core = readJson(path.join(destDir, 'KDNA_Core.json'));
+          const core = readJsonFromView(view, 'KDNA_Core.json', issues);
           if (core?.axioms) {
             const validIds = new Set(core.axioms.map((a) => a.id));
             for (const key of Object.keys(overlay.translations)) {
@@ -466,7 +551,7 @@ function checkI18n(destDir) {
           );
         }
       }
-      if (!fs.existsSync(path.join(localeDir, 'KDNA_Patterns.overlay.json'))) {
+      if (!view.exists(`locales/${lang}/KDNA_Patterns.overlay.json`)) {
         issues.push({ severity: 'warn', msg: `i18n: ${lang} KDNA_Patterns.overlay.json missing` });
       }
     }
@@ -487,12 +572,13 @@ function checkI18n(destDir) {
 
 // ─── Governance layer ───────────────────────────────────────────────
 
-function checkGovernance(destDir) {
+function checkGovernance(input) {
+  const view = asView(input);
   const issues = [];
   const passed = [];
-  const card = readJson(path.join(destDir, 'KDNA_CARD.json')) || {};
+  const card = readJsonFromView(view, 'KDNA_CARD.json', issues) || {};
 
-  if (!readJson(path.join(destDir, 'KDNA_CARD.json'))) {
+  if (!card || !view.exists('KDNA_CARD.json')) {
     issues.push({ severity: 'error', msg: 'governance: KDNA_CARD.json missing — required' });
     return { layer: 'governance', passed: false, issues, results: issues.map((i) => i.msg) };
   }
@@ -579,8 +665,8 @@ function cmdVerify(input, args = []) {
       console.log(JSON.stringify({ ok: false, error: `Invalid name: ${input}` }));
       process.exit(EXIT.INPUT_ERROR);
     }
-    const destDir = path.join(INSTALL_DIR, parsed.scope, parsed.ident);
-    if (!destDir || !require('fs').existsSync(destDir)) {
+    const installed = getInstalled(parsed.full);
+    if (!installed) {
       console.log(JSON.stringify({ ok: false, error: `Domain not installed: ${input}` }));
       process.exit(EXIT.INPUT_ERROR);
     }
@@ -608,58 +694,80 @@ function cmdVerify(input, args = []) {
   const all = !want.structure && !want.trust && !want.judgment && !want.i18n && !want.governance;
   if (all) want.structure = want.trust = want.judgment = true;
 
-  // Resolve name → installed path + scope/entry
-  const parsed = parseName(input);
-  if (!parsed) {
+  // Resolve installed name or direct local .kdna asset path.
+  const asset = resolveAsset(input);
+  const parsed = asset?.parsed || parseName(asset?.name || '');
+  const displayName = parsed?.full || asset?.name || input;
+  if (!asset) {
     if (jsonMode) {
       console.log(
         JSON.stringify({
           name: input,
           ok: false,
-          error: `Invalid name "${input}". Use @scope/name or bare name.`,
+          error: `KDNA asset not found: ${input}. Use an installed name or a .kdna file.`,
         }),
       );
     } else {
-      console.error(`Invalid name "${input}". Use @scope/name or bare name.`);
-    }
-    process.exit(EXIT.INPUT_ERROR);
-  }
-
-  const destDir = path.join(INSTALL_DIR, parsed.scope, parsed.ident);
-  if (!fs.existsSync(destDir)) {
-    if (jsonMode) {
-      console.log(
-        JSON.stringify({
-          name: parsed.full,
-          ok: false,
-          error: `${parsed.full} is not installed. Run: kdna install ${input}`,
-        }),
-      );
-    } else {
-      console.error(`${parsed.full} is not installed. Run: kdna install ${input}`);
+      console.error(`KDNA asset not found: ${input}. Use an installed name or a .kdna file.`);
     }
     process.exit(EXIT.INPUT_ERROR);
   }
 
   let scope = null,
-    entry = null;
+    entry = null,
+    registry = null;
   if (want.trust) {
     try {
       const resolver = new RegistryResolver({ allowNetwork: false });
-      const r = resolver.resolve(parsed.full);
-      scope = r.scope;
-      entry = r.entry;
+      if (parsed) {
+        const r = resolver.resolve(parsed.full);
+        scope = r.scope;
+        entry = r.entry;
+        registry = r.registry;
+      }
     } catch (e) {
       if (!jsonMode) console.warn(`  ⚠ registry lookup failed: ${e.message.split('\n')[0]}`);
     }
   }
 
+  let decryptOptions = {};
+  let licenseError = null;
+  let manifest = null;
+  try {
+    manifest = readContainerJson(asset.asset_path, 'kdna.json') || {};
+  } catch (e) {
+    licenseError = e.message;
+  }
+
+  const encryptedEntries = Array.isArray(manifest?.encryption?.encrypted_entries)
+    ? manifest.encryption.encrypted_entries
+    : [];
+  const requiresProtectedRead =
+    encryptedEntries.length > 0 && (want.structure || want.judgment || want.i18n || want.governance);
+  if (requiresProtectedRead) {
+    const licensed = licenseDecryptOptionsForManifest(manifest);
+    if (licensed.ok) {
+      decryptOptions = { decryptEntry: licensed.decryptEntry };
+    } else {
+      licenseError = licensed.error;
+    }
+  }
+
+  const view = assetView(asset.asset_path, decryptOptions);
   const results = [];
-  if (want.structure) results.push(checkStructure(destDir));
-  if (want.trust) results.push(checkTrust(destDir, scope, entry));
-  if (want.judgment) results.push(checkJudgment(destDir));
-  if (want.i18n) results.push(checkI18n(destDir));
-  if (want.governance) results.push(checkGovernance(destDir));
+  if (want.structure) results.push(checkStructure(view, { licenseError }));
+  if (want.trust) {
+    results.push(
+      checkTrust(view, scope, entry, {
+        registry,
+        assetDigest: asset.asset_digest || null,
+        assetPath: asset.asset_path,
+      }),
+    );
+  }
+  if (want.judgment) results.push(checkJudgment(view, { licenseError }));
+  if (want.i18n) results.push(checkI18n(view, { licenseError }));
+  if (want.governance) results.push(checkGovernance(view, { licenseError }));
 
   // ── JSON output ──────────────────────────────────────────────────────
   if (jsonMode) {
@@ -676,9 +784,6 @@ function cmdVerify(input, args = []) {
     const structureResult = results.find((r) => r.layer === 'structure');
     const trustResult = results.find((r) => r.layer === 'trust');
     const judgmentResult = results.find((r) => r.layer === 'judgment');
-    const i18nResult = results.find((r) => r.layer === 'i18n');
-    const governanceResult = results.find((r) => r.layer === 'governance');
-
     let exitCode = EXIT.OK;
     if (structureResult && structureResult.issues.some((i) => i.severity === 'error')) {
       exitCode = EXIT.VALIDATION_FAILED;
@@ -691,8 +796,10 @@ function cmdVerify(input, args = []) {
     console.log(
       JSON.stringify(
         {
-          name: parsed.full,
-          path: destDir,
+          name: displayName,
+          path: asset.asset_path,
+          asset_digest: asset.asset_digest || null,
+          content_digest: asset.content_digest || null,
           layers,
           ok: exitCode === EXIT.OK,
         },
@@ -705,8 +812,10 @@ function cmdVerify(input, args = []) {
 
   // ── Text output (default) ────────────────────────────────────────────
   console.log('═'.repeat(64));
-  console.log(`  Verify ${parsed.full}`);
-  console.log(`  Path:  ${destDir}`);
+  console.log(`  Verify ${displayName}`);
+  console.log(`  Asset: ${asset.asset_path}`);
+  if (asset.asset_digest) console.log(`  Asset digest: ${asset.asset_digest}`);
+  if (asset.content_digest) console.log(`  Content digest: ${asset.content_digest}`);
   console.log('═'.repeat(64));
 
   for (const r of results) renderLayer(r);

@@ -25,6 +25,8 @@ const PATHS = {
     ],
   },
   clusters: path.join(KDNA_HOME, 'clusters'),
+  packages: path.join(KDNA_HOME, 'packages'),
+  packageIndex: path.join(KDNA_HOME, 'index.json'),
   registry: path.join(KDNA_HOME, 'registry'),
   registryCache: path.join(KDNA_HOME, 'registry', 'cache.json'),
   traces: path.join(KDNA_HOME, 'traces'),
@@ -34,9 +36,9 @@ const PATHS = {
   licenses: path.join(KDNA_HOME, 'licenses'),
 };
 
-// Backward-compatible aliases for existing code
+// Runtime asset store aliases
 PATHS.USER_KDNA_DIR = KDNA_HOME;
-PATHS.INSTALL_DIR = PATHS.domains.official;
+PATHS.INSTALL_DIR = PATHS.packages;
 
 module.exports = PATHS;
 module.exports.KDNA_HOME = KDNA_HOME;

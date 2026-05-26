@@ -12,9 +12,9 @@ const fs = require('fs');
 const path = require('path');
 const { error, readJson, writeJson, EXIT } = require('./_common');
 const { parseName } = require('../registry');
+const { getInstalled } = require('../package-store');
 
 const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
-const { domains: DOMAINS, INSTALL_DIR } = require('../paths');
 const RUNS_DIR = path.join(USER_KDNA_DIR, 'runs');
 
 function cmdTestRun(args = []) {
@@ -38,8 +38,8 @@ function cmdTestRun(args = []) {
 
   const parsed = parseName(domain);
   if (!parsed) error(`Invalid name "${domain}".`, EXIT.INPUT_ERROR);
-  const destDir = path.join(INSTALL_DIR, parsed.scope, parsed.ident);
-  if (!fs.existsSync(destDir)) {
+  const installed = getInstalled(parsed.full);
+  if (!installed) {
     error(`${parsed.full} not installed. Run: kdna install ${domain}`, EXIT.INPUT_ERROR);
   }
 
@@ -64,7 +64,7 @@ function cmdTestRun(args = []) {
   const result = {
     test_id: testCase.id || `test_${Date.now()}`,
     domain: parsed.full,
-    domain_path: destDir,
+    domain_asset: installed.asset_path,
     input: typeof testCase.input === 'string' ? testCase.input : JSON.stringify(testCase.input),
     run_at: new Date().toISOString(),
     expected: {
