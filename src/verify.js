@@ -21,6 +21,13 @@ const crypto = require('crypto');
 const { RegistryResolver, parseName } = require('./registry');
 const { EXIT } = require('./cmds/_common');
 
+let validateManifestFn;
+try {
+  validateManifestFn = require('@aikdna/kdna-core').validateManifest;
+} catch {
+  // kdna-core not available — manifest validation skipped
+}
+
 const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
 const INSTALL_DIR = path.join(USER_KDNA_DIR, 'domains');
 
@@ -51,6 +58,17 @@ function checkStructure(destDir) {
       issues.push({ severity: 'error', msg: `required file missing: ${f}` });
     } else {
       passed.push(`has ${f}`);
+    }
+  }
+
+  // Validate kdna.json against canonical manifest schema
+  if (validateManifestFn) {
+    const manifest = readJson(path.join(destDir, 'kdna.json'));
+    if (manifest) {
+      const mResult = validateManifestFn(manifest);
+      for (const e of mResult.errors) issues.push({ severity: 'error', msg: e });
+      for (const w of mResult.warnings) issues.push({ severity: 'warn', msg: w });
+      if (mResult.errors.length === 0) passed.push('kdna.json conforms to manifest schema v1.0-rc');
     }
   }
 
