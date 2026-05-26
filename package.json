@@ -46,7 +46,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@aikdna/kdna-core": "^0.3.0"
+    "@aikdna/kdna-core": "^0.4.0"
   },
   "optionalDependencies": {
     "ajv": "^8.17.1",
