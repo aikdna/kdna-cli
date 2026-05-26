@@ -142,6 +142,25 @@ function writeJson(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n');
 }
 
+function selfCheckText(item) {
+  if (typeof item === 'string') return item;
+  if (item && typeof item === 'object' && typeof item.question === 'string') return item.question;
+  return '';
+}
+
+function isYesNoSelfCheck(item) {
+  const raw = selfCheckText(item).trim();
+  if (!raw) return false;
+  const lower = raw.toLowerCase();
+  return (
+    lower.endsWith('?') ||
+    raw.endsWith('？') ||
+    raw.endsWith('吗') ||
+    raw.includes('是否') ||
+    /^(have|has|can|does|do|is|are|did|was|were|should|will|would|could|might|can not|cannot|能不能|会不会|有没有|要不要|是不是)/.test(lower)
+  );
+}
+
 function loadRegistry() {
   return loadCanonicalRegistry({ allowNetwork: true });
 }
@@ -160,5 +179,7 @@ module.exports = {
   isExitCodeOnly,
   readJson,
   writeJson,
+  selfCheckText,
+  isYesNoSelfCheck,
   loadRegistry,
 };

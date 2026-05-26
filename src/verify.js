@@ -19,7 +19,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { RegistryResolver, parseName } = require('./registry');
-const { EXIT } = require('./cmds/_common');
+const { EXIT, isYesNoSelfCheck } = require('./cmds/_common');
 
 let validateManifestFn;
 try {
@@ -330,8 +330,8 @@ function checkJudgment(destDir) {
   // 4. self_check format: yes/no questions
   if (pat?.self_check) {
     const total = pat.self_check.length;
-    const yn = pat.self_check.filter((q) => typeof q === 'string' && q.trim().endsWith('?')).length;
-    bump(total, yn, `self_check questions ending in "?" (${yn}/${total})`);
+    const yn = pat.self_check.filter((q) => isYesNoSelfCheck(q)).length;
+    bump(total, yn, `self_check yes/no questions (${yn}/${total})`);
     if (total < 3)
       issues.push({ severity: 'warn', msg: `only ${total} self_check entries (recommend ≥3)` });
   }

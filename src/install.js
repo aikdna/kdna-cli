@@ -551,6 +551,18 @@ function cmdInstallExtended(input, args = []) {
   }
 }
 
+function scopedNameError(sourceLabel, declared) {
+  return (
+    `Invalid domain name in ${sourceLabel}: "${declared || '?'}"\n\n` +
+    `KDNA v0.7+ requires scoped domain names.\n` +
+    `Expected format: @scope/name\n` +
+    `Example: @aikdna/my_domain\n\n` +
+    `Fix:\n` +
+    `- update kdna.json name to "@aikdna/my_domain"\n` +
+    `- or initialize a new scoped domain, then copy your content into it`
+  );
+}
+
 function installFromRegistry(parsed, yes, jsonMode = false) {
   const resolver = new RegistryResolver({ allowNetwork: true });
   let scope, entry;
@@ -784,10 +796,7 @@ function installFromLocalFile(filePath, _yes, jsonMode = false) {
   const declared = manifest?.name;
   if (!declared || !/^@[a-z][a-z0-9-]*\/[a-z][a-z0-9_]*$/.test(declared)) {
     fs.rmSync(tmpDir, { recursive: true, force: true });
-    error(
-      `Package kdna.json.name "${declared || '?'}" must be @scope/name format.\n` +
-        `(v0.7 requires scoped names.)`,
-    );
+    error(scopedNameError('package kdna.json.name', declared), EXIT.INPUT_ERROR);
   }
   const [scopeName, ident] = declared.split('/');
   const dest = domainDir(scopeName, ident);
@@ -826,7 +835,7 @@ function installFromLocalDir(dirPath, _yes, jsonMode = false) {
   const manifest = readJson(path.join(abs, 'kdna.json'));
   const declared = manifest?.name;
   if (!declared || !/^@[a-z][a-z0-9-]*\/[a-z][a-z0-9_]*$/.test(declared)) {
-    error(`Source kdna.json.name "${declared || '?'}" must be @scope/name format.`);
+    error(scopedNameError('source kdna.json.name', declared), EXIT.INPUT_ERROR);
   }
   const [scopeName, ident] = declared.split('/');
   const dest = domainDir(scopeName, ident);

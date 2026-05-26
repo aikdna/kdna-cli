@@ -7,7 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { EXIT } = require('./cmds/_common');
+const { EXIT, selfCheckText, isYesNoSelfCheck } = require('./cmds/_common');
 
 function error(msg, code = EXIT.VALIDATION_FAILED) {
   console.error(`Error: ${msg}`);
@@ -442,22 +442,23 @@ function cmdPublishCheck(domainPath, args = []) {
   if (patterns.self_check && Array.isArray(patterns.self_check)) {
     for (let i = 0; i < patterns.self_check.length; i++) {
       const sc = patterns.self_check[i];
-      if (typeof sc !== 'string') {
+      const text = selfCheckText(sc);
+      if (!text) {
         fail(
           'KDNA_Patterns.json',
           `self_check[${i}]`,
           JSON.stringify(sc),
-          'Must be a string, not an object.',
+          'Must be a string or an object with a question string.',
         );
-      } else if (isGenericSelfCheck(sc)) {
+      } else if (isGenericSelfCheck(text)) {
         fail(
           'KDNA_Patterns.json',
           `self_check[${i}]`,
-          sc,
+          text,
           'Generic question. Self-checks must be domain-specific, not "is this helpful?".',
         );
-      } else if (!sc.endsWith('?')) {
-        warn('KDNA_Patterns.json', `self_check[${i}]`, 'Should end with a question mark.');
+      } else if (!isYesNoSelfCheck(sc)) {
+        warn('KDNA_Patterns.json', `self_check[${i}]`, 'Should be answerable with yes/no.');
         passes++;
       } else {
         pass('KDNA_Patterns.json', `self_check[${i}]`);

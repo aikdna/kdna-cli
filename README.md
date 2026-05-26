@@ -10,9 +10,9 @@ It is the runtime control plane for loading, validating, composing, testing, and
 
 KDNA CLI 是 KDNA 验证、加载、打包、比较、注册表访问和 Agent 运行时工作流的官方开源参考实现，也是 AI Agent 加载、验证、组合、测试和治理领域判断的运行控制平面。
 
-The CLI is how a KDNA cognitive kernel becomes usable by agents. It installs KDNA domains, verifies their structure and trust metadata, loads them into agent-readable form, compares judgment paths with and without KDNA, and records traces for audit.
+The CLI is how a KDNA domain judgment package becomes usable by agents. It installs KDNA domains, verifies their structure and trust metadata, loads them into agent-readable form, compares judgment paths with and without KDNA, and records traces for audit.
 
-KDNA CLI 让一个认知内核真正被 Agent 使用。它负责安装 KDNA、验证结构与信任信息、把 KDNA 转换成 Agent 可加载的形式、对比加载前后的判断路径，并记录可审计的使用痕迹。
+KDNA CLI 让一个领域判断资产真正被 Agent 使用。它负责安装 KDNA、验证结构与信任信息、把 KDNA 转换成 Agent 可加载的形式、对比加载前后的判断路径，并记录可审计的使用痕迹。
 
 Part of the [KDNA](https://github.com/aikdna/kdna) ecosystem.
 
