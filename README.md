@@ -1,5 +1,9 @@
 # @aikdna/kdna-cli
 
+> **KDNA Ecosystem:** [`kdna`](https://github.com/aikdna/kdna) — the protocol. [KDNAChat](https://github.com/AhaSparkCoach/kdnachat) — the consumption client. [KDNaStudio](https://github.com/AhaSparkCoach/kdnastudio) — the authoring tool. [KDNAWork](https://github.com/AhaSparkCoach/kdnawork) — the workbench. **You are here → kdna-cli** — the toolchain. [Registry](https://github.com/aikdna/kdna-registry) — the catalog.
+
+**Role**: kdna-cli is the **runtime control plane** — the official reference implementation for domain validation, loading, packaging, comparison, and agent-facing runtime workflows. It bridges Studio output to Chat/Work consumption.
+
 **KDNA CLI is the official open-source reference implementation for KDNA validation, loading, packaging, comparison, registry access, and agent-facing runtime workflows.**
 
 It is the runtime control plane for loading, validating, composing, testing, and governing domain judgment for AI agents.
