@@ -34,7 +34,18 @@ kdna compare @aikdna/writing --input "help me improve this post"
 kdna doctor --agents
 ```
 
-## Commands by Role
+## The 6 Commands You Actually Need
+
+| Command | What it does |
+|---------|-------------|
+| `kdna setup` | Initialize ~/.kdna, install the agent skill loader |
+| `kdna install <domain>` | Install a domain from the registry |
+| `kdna list` | Show installed domains with quality info |
+| `kdna verify <domain>` | 3-layer check: structure + trust + judgment |
+| `kdna compare <domain> --input "..."` | Compare with/without KDNA judgment |
+| `kdna doctor --agents` | Check agent integration health |
+
+## All Commands by Role
 
 ### Domain Authoring
 
