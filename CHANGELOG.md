@@ -43,7 +43,7 @@
 - Fixed `license generate` to output JSON to stdout (info to stderr)
 - Added `--save <path>` flag to `license generate`
 - Modified `parseSource` during the experiment to recognize the encrypted extension for local install
-- Added `extractAndDecrypt` function (extract ZIP + AES-256-GCM decrypt KDNA files)
+- Added legacy extract-and-decrypt helper during the prototype; this disk-extraction path was superseded by v0.18.0 in-memory encrypted-entry loading
 - Added `findLicenseForDomain` for automatic license discovery
 
 ## v0.14.0 (2026-05-23)
