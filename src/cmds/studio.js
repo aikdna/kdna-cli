@@ -10,7 +10,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { error, readJson, writeJson, EXIT } = require('./_common');
+const { error, readJson, writeJson, EXIT, isYesNoSelfCheck } = require('./_common');
 
 // ─── Scaffold ─────────────────────────────────────────────────────────
 
@@ -240,8 +240,8 @@ function cmdCardsValidate(projectPath, args = []) {
           const label = sc.id || '?';
           if (!sc.question || sc.question.includes('[TODO]')) {
             warn(`self_check ${label}: question is placeholder`);
-          } else if (!sc.question.trim().endsWith('?')) {
-            fail(`self_check ${label}: question should end with "?"`);
+          } else if (!isYesNoSelfCheck(sc.question)) {
+            fail(`self_check ${label}: question should be answerable with yes/no`);
           } else {
             ok(`self_check ${label}: question OK`);
           }

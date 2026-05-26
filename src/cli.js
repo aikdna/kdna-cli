@@ -59,6 +59,7 @@ const {
   cmdRegression,
 } = require('./cmds/governance');
 const { cmdBadgeCompute, cmdRegistryAudit, cmdPackage } = require('./cmds/badge');
+const { cmdExplain } = require('./cmds/explain');
 
 // ─── Main ─────────────────────────────────────────────────────────────
 
@@ -89,6 +90,7 @@ Domain Authoring:
   inspect <path>                   Inspect domain or .kdna file
   inspect <path> --locale zh-CN     Inspect with localized governance data
   card <path> [--locale zh-CN]      Display KDNA Card (governance metadata)
+  explain <name>                   Natural language summary: axioms, terms, scenarios
   publish <path>                   Pack + sign + publish
   publish --check <path>           Quality gate check only
   version bump <level> [path]      Bump domain version
@@ -450,6 +452,10 @@ switch (cmd) {
   }
   case 'demo': {
     cmdDemo();
+    break;
+  }
+  case 'explain': {
+    cmdExplain(args);
     break;
   }
   case 'list': {

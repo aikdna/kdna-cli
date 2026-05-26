@@ -461,6 +461,7 @@ function emitProfile(parsed, manifest, core, pat, profile, input) {
   lines.push('');
 
   const axioms = core.axioms || [];
+  emitRequiredOutput(lines, manifest, core, pat);
 
   switch (profile) {
     case 'index':
@@ -546,11 +547,11 @@ function emitProfile(parsed, manifest, core, pat, profile, input) {
     }
 
     if (pat.terminology?.banned_terms?.length) {
-      lines.push('## Banned terms');
+      lines.push('## MUST NOT SAY');
       for (const t of pat.terminology.banned_terms) {
         const term = typeof t === 'string' ? t : t.term;
         const replace = typeof t === 'object' ? t.replace_with : null;
-        lines.push(`- "${term}"${replace ? ` → use: ${replace}` : ''}`);
+        lines.push(`- "${term}"${replace ? ` -> use: ${replace}` : ''}`);
       }
       lines.push('');
     }
@@ -589,8 +590,11 @@ function emitCompact(parsed, manifest, core, pat) {
   if (manifest.core_insight) lines.push(`# core insight: ${manifest.core_insight}`);
   lines.push('');
 
+  emitRequiredOutput(lines, manifest, core, pat);
+
   if (core.axioms?.length) {
-    lines.push('## Axioms (reason from these)');
+    lines.push('## JUDGMENT GUIDANCE');
+    lines.push('### Axioms (reason from these)');
     for (const a of core.axioms) {
       lines.push(`- ${a.one_sentence}`);
       if (a.applies_when?.length) {
@@ -605,7 +609,7 @@ function emitCompact(parsed, manifest, core, pat) {
   }
 
   if (core.stances?.length) {
-    lines.push('## Stances');
+    lines.push('### Stances');
     for (const s of core.stances) {
       const text = typeof s === 'string' ? s : s.stance;
       if (text) lines.push(`- ${text}`);
@@ -614,17 +618,18 @@ function emitCompact(parsed, manifest, core, pat) {
   }
 
   if (pat.terminology?.banned_terms?.length) {
-    lines.push('## Banned terms (do not use even if user uses them)');
+    lines.push('## MUST NOT SAY');
     for (const t of pat.terminology.banned_terms) {
       const term = typeof t === 'string' ? t : t.term;
       const replace = typeof t === 'object' ? t.replace_with : null;
-      lines.push(`- "${term}"${replace ? ` → use: ${replace}` : ''}`);
+      lines.push(`- "${term}"${replace ? ` -> use: ${replace}` : ''}`);
     }
     lines.push('');
   }
 
   if (pat.misunderstandings?.length) {
-    lines.push('## Misunderstandings to detect and avoid');
+    if (!core.axioms?.length) lines.push('## JUDGMENT GUIDANCE');
+    lines.push('### Misunderstandings to detect and avoid');
     for (const m of pat.misunderstandings) {
       lines.push(`- WRONG: ${m.wrong}`);
       lines.push(`  CORRECT: ${m.correct}`);
@@ -634,7 +639,8 @@ function emitCompact(parsed, manifest, core, pat) {
   }
 
   if (pat.self_check?.length) {
-    lines.push('## Self-checks (answer before final output)');
+    lines.push('## SELF-CHECK');
+    lines.push('Answer before final output.');
     for (const q of pat.self_check) {
       const text = typeof q === 'string' ? q : q.question;
       if (text) lines.push(`- ${text}`);
@@ -647,6 +653,37 @@ function emitCompact(parsed, manifest, core, pat) {
   lines.push('User intent + evidence always override KDNA axioms.');
 
   process.stdout.write(lines.join('\n') + '\n');
+}
+
+function emitRequiredOutput(lines, manifest, core, pat) {
+  const required = uniqueStrings([
+    ...asStringArray(manifest.required_output),
+    ...asStringArray(manifest.must_include),
+    ...asStringArray(core.required_output),
+    ...asStringArray(core.must_include),
+    ...asStringArray(pat.required_output),
+    ...asStringArray(pat.must_include),
+    ...asStringArray(pat.output_constraints?.required_output),
+    ...asStringArray(pat.output_constraints?.must_include),
+  ]);
+
+  if (!required.length) return;
+
+  lines.push('## REQUIRED OUTPUT');
+  lines.push('Include these statements when they are relevant to the user request.');
+  for (const item of required) lines.push(`- ${item}`);
+  lines.push('');
+}
+
+function asStringArray(value) {
+  if (!value) return [];
+  if (typeof value === 'string') return [value];
+  if (!Array.isArray(value)) return [];
+  return value.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim());
+}
+
+function uniqueStrings(items) {
+  return Array.from(new Set(items.map((item) => item.trim()).filter(Boolean)));
 }
 
 // ─── kdna select ───────────────────────────────────────────────────────
