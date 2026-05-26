@@ -23,7 +23,7 @@ const { RegistryResolver, parseName } = require('./registry');
 const { EXIT } = require('./cmds/_common');
 
 const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
-const INSTALL_DIR = path.join(USER_KDNA_DIR, 'domains');
+const { domains: DOMAINS, INSTALL_DIR } = require('./paths');
 const TMP_DIR = '/tmp';
 
 function error(msg, code = EXIT.VALIDATION_FAILED) {
