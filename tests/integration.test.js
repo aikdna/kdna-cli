@@ -118,7 +118,7 @@ describe('.kdnae end-to-end', () => {
 
   // Cleanup
   process.on('exit', () => {
-    try { fs.rmSync(TMPDIR, { recursive: true, force: true }); } catch {}
+    fs.rmSync(TMPDIR, { recursive: true, force: true });
   });
 });
 

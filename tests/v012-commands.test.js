@@ -262,5 +262,5 @@ test('cleanup trace data', () => {
 
 // Clean temp files
 process.on('exit', () => {
-  try { fs.rmSync(TMPDIR, { recursive: true, force: true }); } catch {}
+  fs.rmSync(TMPDIR, { recursive: true, force: true });
 });
