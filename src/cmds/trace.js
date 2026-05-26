@@ -1,10 +1,9 @@
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
-const { EXIT, error, readJson } = require('./_common');
+const { EXIT } = require('./_common');
+const PATHS = require('../paths');
 
-const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
-const TRACES_DIR = path.join(USER_KDNA_DIR, 'traces');
+const TRACES_DIR = PATHS.traces;
 
 function ensureTracesDir() {
   fs.mkdirSync(TRACES_DIR, { recursive: true });
@@ -60,9 +59,14 @@ function readAllTraces(opts = {}) {
 }
 
 function recordTrace(entry) {
-  ensureTracesDir();
-  const line = JSON.stringify(entry) + '\n';
-  fs.appendFileSync(todayFile(), line);
+  try {
+    ensureTracesDir();
+    const line = JSON.stringify(entry) + '\n';
+    fs.appendFileSync(todayFile(), line);
+  } catch {
+    // Traces are observability data. Loading and comparing KDNA assets must not
+    // fail just because the local trace directory is unavailable or read-only.
+  }
 }
 
 function parseSinceFlag(args) {

@@ -1,16 +1,6 @@
-const fs = require('fs');
-const path = require('path');
 const { error, EXIT } = require('./_common');
 const { parseName } = require('../registry');
-const { domains: DOMAINS, INSTALL_DIR } = require('../paths');
-
-function readJson(p) {
-  try {
-    return JSON.parse(fs.readFileSync(p, 'utf8'));
-  } catch {
-    return null;
-  }
-}
+const { getInstalled, readContainer } = require('../package-store');
 
 function cmdExplain(args) {
   const target = args.filter((a) => !a.startsWith('--'))[1];
@@ -28,20 +18,18 @@ function cmdExplain(args) {
     error(`Invalid domain name: ${target}`, EXIT.INPUT_ERROR);
   }
 
-  const destDir = path.join(INSTALL_DIR, parsed.scope, parsed.ident);
-  if (!fs.existsSync(destDir)) {
+  const installed = getInstalled(parsed.full);
+  if (!installed) {
     error(
       `${parsed.full} is not installed.\nRun: kdna install ${target}`,
       EXIT.INPUT_ERROR,
     );
   }
 
-  const core = readJson(path.join(destDir, 'KDNA_Core.json'));
-  const patterns = readJson(path.join(destDir, 'KDNA_Patterns.json'));
-  const scenarios = readJson(path.join(destDir, 'KDNA_Scenarios.json'));
+  const { core, patterns, scenarios } = readContainer(installed.asset_path);
 
   if (!core) {
-    error(`Failed to load KDNA_Core.json from ${destDir}`, EXIT.VALIDATION_FAILED);
+    error(`Failed to load KDNA_Core.json from ${installed.asset_path}`, EXIT.VALIDATION_FAILED);
   }
 
   const m = core.meta || {};

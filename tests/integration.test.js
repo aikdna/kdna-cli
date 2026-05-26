@@ -36,8 +36,15 @@ function run(args, opts = {}) {
 }
 
 function ensureWritingInstalled() {
-  const dir = path.join(os.homedir(), '.kdna', 'domains', '@aikdna', 'writing');
-  return fs.existsSync(dir);
+  const indexPath = path.join(os.homedir(), '.kdna', 'index.json');
+  if (!fs.existsSync(indexPath)) return false;
+  try {
+    const index = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
+    const asset = index.packages?.['@aikdna/writing']?.asset_path;
+    return !!asset && fs.existsSync(asset);
+  } catch {
+    return false;
+  }
 }
 
 // ─── kdna verify (needs installed domain + registry lookup) ──────────
@@ -71,55 +78,6 @@ test('kdna info shows metadata', { skip: !ensureWritingInstalled() }, () => {
   const r = run(['info', '@aikdna/writing']);
   assert.ok(r.ok, `info failed: ${r.stderr}`);
   assert.match(r.stdout, /Identity & trust|Judgment surface|governance/);
-});
-
-// ─── .kdnae end-to-end: generate → pack → install → load ────────────
-
-describe('.kdnae end-to-end', () => {
-  const TMPDIR = fs.mkdtempSync(path.join(os.tmpdir(), 'kdnae-e2e-'));
-  const licensePath = path.join(TMPDIR, 'license.json');
-  const domainDir = path.join(os.homedir(), '.kdna', 'domains', '@aikdna', 'writing');
-  const kdnaePath = path.join(TMPDIR, 'writing.kdnae');
-
-  test('license generate + bind + install', { skip: !ensureWritingInstalled() }, () => {
-    const gen = run(['license', 'generate', '@aikdna/writing', '--to', 'test@e2e.com', '--save', licensePath]);
-    assert.ok(gen.ok, `license generate failed: ${gen.stderr}`);
-    const lic = JSON.parse(fs.readFileSync(licensePath, 'utf8'));
-    assert.ok(lic.license_id);
-    assert.ok(lic.signature?.startsWith('ed25519:'));
-
-    const bind = run(['license', 'bind', licensePath]);
-    assert.ok(bind.ok, `license bind failed: ${bind.stderr}`);
-  });
-
-  test('pack --encrypt creates .kdnae', { skip: !ensureWritingInstalled() }, () => {
-    const pack = run(['pack', domainDir, '--encrypt', '--license', licensePath, '--output', TMPDIR]);
-    assert.ok(pack.ok, `encrypt pack failed: ${pack.stderr}`);
-    assert.ok(fs.existsSync(kdnaePath), '.kdnae file should exist');
-    assert.match(pack.stdout, /Encrypted pack/);
-  });
-
-  test('license install + install .kdnae auto-decrypts', { skip: !ensureWritingInstalled() }, () => {
-    const inst = run(['license', 'install', licensePath]);
-    assert.ok(inst.ok, `license install failed: ${inst.stderr}`);
-
-    const install = run(['install', kdnaePath, '--yes']);
-    assert.ok(install.ok, `install .kdnae failed: ${install.stderr}`);
-    assert.match(install.stdout, /Installed/);
-  });
-
-  test('load decrypted domain works', { skip: !ensureWritingInstalled() }, () => {
-    const load = run(['load', '@aikdna/writing', '--as=json']);
-    assert.ok(load.ok, `load failed: ${load.stderr}`);
-    const parsed = JSON.parse(load.stdout);
-    assert.ok('core' in parsed, 'should have core');
-    assert.ok(parsed.core.axioms?.length > 0, 'should have axioms');
-  });
-
-  // Cleanup
-  process.on('exit', () => {
-    fs.rmSync(TMPDIR, { recursive: true, force: true });
-  });
 });
 
 // ─── kdna available / match / load (need installed domain) ──────────

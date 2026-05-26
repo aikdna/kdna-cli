@@ -10,22 +10,339 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const http = require('http');
+const https = require('https');
 const { EXIT, error } = require('./_common');
-const {
-  createLicense,
-  signLicense,
-  verifyLicense,
-  verifyLicenseSignature,
-  machineFingerprint,
-} = require('./encrypt');
-
-const IDENTITY_DIR = path.join(
-  process.env.HOME || process.env.USERPROFILE || '.',
-  '.kdna',
-  'identity',
-);
+const { recordTrace } = require('./trace');
+const PATHS = require('../paths');
+const IDENTITY_DIR = PATHS.identity;
 const PRIVATE_KEY_PATH = path.join(IDENTITY_DIR, 'kdna.key');
 const PUBLIC_KEY_PATH = path.join(IDENTITY_DIR, 'kdna.pub');
+
+function machineFingerprint() {
+  const os = require('os');
+  const parts = [os.hostname(), os.userInfo().uid.toString(), os.platform(), os.arch()];
+  try {
+    const { execSync } = require('child_process');
+    if (os.platform() === 'darwin') {
+      const uuid = execSync('ioreg -d2 -c IOPlatformExpertDevice | grep IOPlatformUUID', {
+        encoding: 'utf8',
+        timeout: 3000,
+      })
+        .match(/"[A-F0-9-]{36}"/)?.[0]
+        ?.replace(/"/g, '');
+      if (uuid) parts.push(uuid);
+    }
+    if (os.platform() === 'linux') {
+      try {
+        const mid = fs.readFileSync('/etc/machine-id', 'utf8').trim();
+        if (mid) parts.push(mid);
+      } catch {
+        /* ignore */
+      }
+    }
+  } catch {
+    /* non-critical */
+  }
+  return crypto.createHash('sha256').update(parts.join('|')).digest('hex');
+}
+
+function createLicense(domain, options = {}) {
+  return {
+    version: '1.0',
+    license_id: `lic_${crypto.randomBytes(8).toString('hex')}`,
+    license_key: options.licenseKey || `KDNA-LIC-${crypto.randomBytes(18).toString('base64url')}`,
+    domain,
+    issued_to: options.issuedTo || 'licensee@example.com',
+    issued_at: new Date().toISOString(),
+    expires_at: options.expiresAt || null,
+    max_agents: options.maxAgents || 1,
+    require_machine_binding: options.requireMachineBinding !== false,
+    require_online_check: !!options.requireOnlineCheck,
+    offline_grace_days: options.offlineGraceDays || 7,
+    allowed_agents: options.allowedAgents || ['claude_code', 'codex', 'opencode'],
+  };
+}
+
+function signLicense(license, privateKeyPem) {
+  const payload = { ...license };
+  delete payload.signature;
+  const data = JSON.stringify(payload, Object.keys(payload).sort());
+  const sig = crypto.sign(null, Buffer.from(data), privateKeyPem);
+  return { ...license, signature: `ed25519:${sig.toString('hex')}` };
+}
+
+function verifyLicenseSignature(license, publicKeyPem) {
+  const signature = license.signature?.replace('ed25519:', '') || '';
+  if (!signature) return false;
+  const payload = { ...license };
+  delete payload.signature;
+  const data = JSON.stringify(payload, Object.keys(payload).sort());
+  try {
+    return crypto.verify(null, Buffer.from(data), publicKeyPem, Buffer.from(signature, 'hex'));
+  } catch {
+    return false;
+  }
+}
+
+function verifyLicense(license, _scopePubkey, fingerprint) {
+  const issues = [];
+  const now = new Date();
+  if (license.expires_at && new Date(license.expires_at) < new Date()) {
+    issues.push('License has expired');
+  }
+  if (license.revoked === true || license.status === 'revoked') {
+    issues.push('License has been revoked');
+  }
+  if (license.require_online_check) {
+    const offlineUntil = license.offline_valid_until
+      ? new Date(license.offline_valid_until)
+      : null;
+    if (!offlineUntil || Number.isNaN(offlineUntil.getTime()) || offlineUntil < now) {
+      issues.push('License offline grace has expired');
+    }
+  }
+  if (license.require_machine_binding) {
+    if (!license.machine_fingerprint) {
+      issues.push('License is not bound to this machine');
+    } else if (license.machine_fingerprint !== fingerprint) {
+      issues.push('Machine fingerprint mismatch');
+    }
+  }
+  return {
+    valid: issues.length === 0,
+    issues,
+    domain: license.domain,
+    license_id: license.license_id,
+    issued_to: license.issued_to,
+  };
+}
+
+function licenseServerType(server) {
+  if (!server) return null;
+  if (server.startsWith('file://')) return 'file';
+  if (server.startsWith('/')) return 'local-file';
+  try {
+    return new URL(server).protocol.replace(':', '');
+  } catch {
+    return 'unknown';
+  }
+}
+
+function recordLicenseTrace(action, license, extra = {}) {
+  const fingerprint = machineFingerprint();
+  const result = verifyLicense(license || {}, null, fingerprint);
+  recordTrace({
+    timestamp: new Date().toISOString(),
+    event: 'license',
+    action,
+    agent: 'kdna-cli',
+    domain: license?.domain || extra.domain || null,
+    license_id: license?.license_id || extra.license_id || null,
+    valid: result.valid,
+    issues: result.issues,
+    revoked: license?.revoked === true || license?.status === 'revoked',
+    require_online_check: !!license?.require_online_check,
+    offline_valid_until: license?.offline_valid_until || null,
+    server_type: licenseServerType(extra.server || license?.activation_server || license?.license_server_url),
+    synced: extra.synced,
+    sync_error: extra.sync_error,
+  });
+}
+
+function safeLicenseName(domain) {
+  return domain.replace(/^@/, '').replace('/', '-');
+}
+
+function licensePathForDomain(domain) {
+  return path.join(PATHS.licenses, `${safeLicenseName(domain)}.json`);
+}
+
+function readLicenseForDomain(domain) {
+  const file = licensePathForDomain(domain);
+  if (!fs.existsSync(file)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function listInstalledLicenses() {
+  if (!fs.existsSync(PATHS.licenses)) return [];
+  return fs
+    .readdirSync(PATHS.licenses)
+    .filter((name) => name.endsWith('.json'))
+    .map((name) => {
+      const file = path.join(PATHS.licenses, name);
+      try {
+        return { file, license: JSON.parse(fs.readFileSync(file, 'utf8')) };
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+}
+
+function licenseKey(license) {
+  return license?.license_key || license?.activation_key || license?.key || null;
+}
+
+function licenseDecryptOptionsForManifest(manifest) {
+  const domain = manifest?.name || manifest?.asset_id;
+  if (!domain) {
+    return { ok: false, error: 'licensed asset missing manifest name' };
+  }
+  const license = readLicenseForDomain(domain);
+  if (!license) {
+    return { ok: false, error: `no installed license for ${domain}` };
+  }
+  if (license.domain !== domain) {
+    return { ok: false, error: `installed license domain mismatch: ${license.domain}` };
+  }
+  const fingerprint = machineFingerprint();
+  const result = verifyLicense(license, null, fingerprint);
+  if (!result.valid) {
+    return { ok: false, error: result.issues.join('; ') };
+  }
+  const key = licenseKey(license);
+  if (!key) {
+    return { ok: false, error: `installed license for ${domain} has no license_key` };
+  }
+  const { createLicensedDecryptEntry } = require('@aikdna/kdna-core');
+  return {
+    ok: true,
+    license,
+    decryptEntry: createLicensedDecryptEntry({
+      licenseKey: key,
+      machineFingerprint: license.machine_fingerprint || fingerprint,
+    }),
+  };
+}
+
+function argValue(args, flag) {
+  const idx = args.indexOf(flag);
+  return idx >= 0 ? args[idx + 1] : null;
+}
+
+function addOfflineLease(activation) {
+  const days = activation.offline_grace_days || 7;
+  const until = new Date();
+  until.setDate(until.getDate() + days);
+  return {
+    ...activation,
+    last_checked_at: new Date().toISOString(),
+    offline_valid_until: activation.require_online_check
+      ? until.toISOString()
+      : activation.offline_valid_until || null,
+  };
+}
+
+function normalizeActivation(domain, key, payload, server = null) {
+  const source = payload.activation || payload.license || payload;
+  if (source.ok === false || payload.ok === false) {
+    throw new Error(source.error || payload.error || 'activation denied');
+  }
+  if (Array.isArray(payload.activations)) {
+    const found = payload.activations.find(
+      (entry) => entry.domain === domain && licenseKey(entry) === key,
+    );
+    if (!found) throw new Error('activation not found for domain/key');
+    return normalizeActivation(domain, key, found, server);
+  }
+  if (source.domain && source.domain !== domain) {
+    throw new Error(`activation domain mismatch: ${source.domain}`);
+  }
+  if (licenseKey(source) && licenseKey(source) !== key) {
+    throw new Error('activation key mismatch');
+  }
+  const fingerprint = machineFingerprint();
+  return addOfflineLease({
+    version: source.version || '1.0',
+    license_id: source.license_id || `lic_${crypto.randomBytes(8).toString('hex')}`,
+    license_key: key,
+    domain,
+    issued_to: source.issued_to || source.email || null,
+    issued_at: source.issued_at || new Date().toISOString(),
+    expires_at: source.expires_at || null,
+    status: source.status || 'active',
+    revoked: source.revoked === true,
+    require_machine_binding: source.require_machine_binding !== false,
+    machine_fingerprint: source.machine_fingerprint || fingerprint,
+    require_online_check: source.require_online_check !== false,
+    offline_grace_days: source.offline_grace_days || 7,
+    allowed_agents: source.allowed_agents || ['claude_code', 'codex', 'opencode', 'cursor', 'gemini'],
+    activation_server: server || source.activation_server || source.license_server_url || null,
+  });
+}
+
+function readActivationFromFile(url, domain, key) {
+  const filePath = url.startsWith('file://') ? new URL(url).pathname : url;
+  const payload = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  return normalizeActivation(domain, key, payload, url);
+}
+
+function postJson(url, body) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const client = u.protocol === 'http:' ? http : https;
+    const data = JSON.stringify(body);
+    const req = client.request(
+      {
+        method: 'POST',
+        hostname: u.hostname,
+        port: u.port || (u.protocol === 'http:' ? 80 : 443),
+        path: `${u.pathname}${u.search}`,
+        headers: {
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(data),
+        },
+        timeout: 15000,
+      },
+      (res) => {
+        const chunks = [];
+        res.on('data', (chunk) => chunks.push(chunk));
+        res.on('end', () => {
+          const text = Buffer.concat(chunks).toString('utf8');
+          if (res.statusCode >= 400) {
+            reject(new Error(`activation server HTTP ${res.statusCode}: ${text.slice(0, 300)}`));
+            return;
+          }
+          try {
+            resolve(JSON.parse(text));
+          } catch {
+            reject(new Error(`activation server returned invalid JSON`));
+          }
+        });
+      },
+    );
+    req.on('error', reject);
+    req.on('timeout', () => req.destroy(new Error('activation server timeout')));
+    req.write(data);
+    req.end();
+  });
+}
+
+async function requestActivation(domain, key, server) {
+  if (!server) throw new Error('--server <url> is required for activation');
+  if (server.startsWith('file://') || server.startsWith('/')) {
+    return readActivationFromFile(server, domain, key);
+  }
+  const payload = await postJson(server, {
+    domain,
+    license_key: key,
+    machine_fingerprint: machineFingerprint(),
+    client: 'kdna-cli',
+  });
+  return normalizeActivation(domain, key, payload, server);
+}
+
+function writeInstalledLicense(license) {
+  fs.mkdirSync(PATHS.licenses, { recursive: true });
+  const dest = licensePathForDomain(license.domain);
+  fs.writeFileSync(dest, JSON.stringify(license, null, 2) + '\n');
+  return dest;
+}
 
 function readIdentity() {
   if (!fs.existsSync(PRIVATE_KEY_PATH) || !fs.existsSync(PUBLIC_KEY_PATH)) {
@@ -90,7 +407,7 @@ function cmdLicenseGenerate(args) {
   if (expiresAt) console.error(`  Expires: ${expiresAt}`);
   console.error(`  Machine binding: ${requireBinding ? 'required' : 'disabled'}`);
   console.error('');
-  console.error('Save this JSON as license.json inside the .kdnae container.');
+  console.error('Save this license activation outside the .kdna asset under ~/.kdna/licenses/.');
   console.error('Share the license key with the licensee.');
 }
 
@@ -171,7 +488,7 @@ function cmdLicenseBind(args) {
     process.exit(EXIT.OK);
   }
 
-  const { privateKey, publicKey } = readIdentity();
+  const { privateKey } = readIdentity();
   const fp = machineFingerprint();
 
   // Remove old signature before re-signing
@@ -209,17 +526,8 @@ function cmdLicenseInstall(args) {
 
   if (!license.domain) error('License missing domain field', EXIT.INPUT_ERROR);
 
-  const licenseDir = path.join(
-    process.env.HOME || process.env.USERPROFILE || '.',
-    '.kdna',
-    'licenses',
-  );
-  fs.mkdirSync(licenseDir, { recursive: true });
-
-  const safeName = license.domain.replace(/^@/, '').replace('/', '-');
-  const dest = path.join(licenseDir, `${safeName}.json`);
-
-  fs.writeFileSync(dest, JSON.stringify(license, null, 2) + '\n');
+  const dest = writeInstalledLicense(license);
+  recordLicenseTrace('install', license);
 
   console.log(`License installed for ${license.domain}`);
   console.log(`  License ID: ${license.license_id || 'unknown'}`);
@@ -228,10 +536,159 @@ function cmdLicenseInstall(args) {
   console.log(`Now install the domain: kdna install ${license.domain}`);
 }
 
+async function cmdLicenseActivate(args = []) {
+  const domain = args.find((arg) => !arg.startsWith('--'));
+  const key = argValue(args, '--key') || argValue(args, '--license-key');
+  const server = argValue(args, '--server');
+  const jsonMode = args.includes('--json');
+  if (!domain || !key) {
+    error('Usage: kdna license activate <domain> --key <license-key> --server <url>', EXIT.INPUT_ERROR);
+  }
+
+  let activation;
+  try {
+    activation = await requestActivation(domain, key, server);
+  } catch (e) {
+    error(`License activation failed: ${e.message}`, EXIT.TRUST_FAILED);
+  }
+  const dest = writeInstalledLicense(activation);
+  recordLicenseTrace('activate', activation, { server });
+  const record = licenseStatusRecord(activation, dest);
+  if (jsonMode) {
+    console.log(JSON.stringify(record, null, 2));
+    return;
+  }
+  console.log(`License activated for ${domain}`);
+  console.log(`  License ID: ${activation.license_id}`);
+  console.log(`  Status: ${record.valid ? 'valid' : 'invalid'}`);
+  if (activation.offline_valid_until) {
+    console.log(`  Offline valid until: ${activation.offline_valid_until}`);
+  }
+  console.log(`  Saved to: ${dest}`);
+}
+
+async function syncOneLicense(entry, serverOverride = null) {
+  const license = entry.license;
+  const key = licenseKey(license);
+  const server = serverOverride || license.activation_server || license.license_server_url || null;
+  if (!license.domain || !key || !server) {
+    return {
+      ...licenseStatusRecord(license, entry.file),
+      synced: false,
+      sync_error: 'missing domain, license key, or activation server',
+    };
+  }
+  try {
+    const activation = await requestActivation(license.domain, key, server);
+    const merged = {
+      ...license,
+      ...activation,
+      license_key: key,
+      activation_server: server,
+    };
+    fs.writeFileSync(entry.file, JSON.stringify(merged, null, 2) + '\n');
+    recordLicenseTrace('sync', merged, { server, synced: true });
+    return { ...licenseStatusRecord(merged, entry.file), synced: true };
+  } catch (e) {
+    recordLicenseTrace('sync', license, { server, synced: false, sync_error: e.message });
+    return {
+      ...licenseStatusRecord(license, entry.file),
+      synced: false,
+      sync_error: e.message,
+    };
+  }
+}
+
+async function cmdLicenseSync(args = []) {
+  const jsonMode = args.includes('--json');
+  const server = argValue(args, '--server');
+  const filtered = args.filter((arg) => !arg.startsWith('--') && arg !== server);
+  const domain = filtered[0] || null;
+  const entries = domain
+    ? [{ file: licensePathForDomain(domain), license: readLicenseForDomain(domain) }].filter(
+        (entry) => entry.license,
+      )
+    : listInstalledLicenses();
+  const records = [];
+  for (const entry of entries) records.push(await syncOneLicense(entry, server));
+  if (jsonMode) {
+    console.log(JSON.stringify(domain ? records[0] || null : records, null, 2));
+    return;
+  }
+  if (!records.length) {
+    console.log(domain ? `No installed license for ${domain}.` : 'No installed KDNA licenses.');
+    return;
+  }
+  for (const record of records) {
+    console.log(`${record.domain || '(unknown)'}  ${record.license_id || '(no license_id)'}`);
+    console.log(`  Sync: ${record.synced ? 'ok' : 'failed'}`);
+    console.log(`  Status: ${record.valid ? 'valid' : 'invalid'}`);
+    if (record.sync_error) console.log(`  Error: ${record.sync_error}`);
+  }
+}
+
+function licenseStatusRecord(license, file) {
+  const fingerprint = machineFingerprint();
+  const result = verifyLicense(license, null, fingerprint);
+  return {
+    domain: license.domain || null,
+    license_id: license.license_id || null,
+    issued_to: license.issued_to || null,
+    valid: result.valid,
+    issues: result.issues,
+    require_machine_binding: !!license.require_machine_binding,
+    machine_bound: !license.require_machine_binding
+      || license.machine_fingerprint === fingerprint,
+    expires_at: license.expires_at || null,
+    revoked: license.revoked === true || license.status === 'revoked',
+    file,
+  };
+}
+
+function cmdLicenseStatus(args = []) {
+  const jsonMode = args.includes('--json');
+  const filtered = args.filter((a) => !a.startsWith('--'));
+  const domain = filtered[0] || null;
+  const entries = domain
+    ? [{ file: licensePathForDomain(domain), license: readLicenseForDomain(domain) }].filter(
+        (entry) => entry.license,
+      )
+    : listInstalledLicenses();
+  const records = entries.map((entry) => licenseStatusRecord(entry.license, entry.file));
+
+  if (jsonMode) {
+    console.log(JSON.stringify(domain ? records[0] || null : records, null, 2));
+    return;
+  }
+
+  if (!records.length) {
+    console.log(domain ? `No installed license for ${domain}.` : 'No installed KDNA licenses.');
+    return;
+  }
+  for (const record of records) {
+    console.log(`${record.domain || '(unknown)'}  ${record.license_id || '(no license_id)'}`);
+    console.log(`  Status: ${record.valid ? 'valid' : 'invalid'}`);
+    if (record.issued_to) console.log(`  Issued to: ${record.issued_to}`);
+    if (record.expires_at) console.log(`  Expires: ${record.expires_at}`);
+    console.log(`  Machine bound: ${record.machine_bound ? 'yes' : 'no'}`);
+    if (record.issues.length) {
+      console.log(`  Issues: ${record.issues.join('; ')}`);
+    }
+    console.log(`  File: ${record.file}`);
+  }
+}
+
 module.exports = {
   cmdLicenseGenerate,
   cmdLicenseVerify,
   cmdLicenseBind,
   cmdLicenseShow,
   cmdLicenseInstall,
+  cmdLicenseStatus,
+  cmdLicenseActivate,
+  cmdLicenseSync,
+  licenseDecryptOptionsForManifest,
+  licensePathForDomain,
+  machineFingerprint,
+  verifyLicense,
 };

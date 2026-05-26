@@ -15,8 +15,8 @@ const FILE_MAP = core.FILE_MAP;
  * Read and parse a KDNA JSON file.
  * Returns null if the file does not exist.
  */
-function readFile(domainDir, filename) {
-  const filePath = path.join(domainDir, filename);
+function readFile(sourceDir, filename) {
+  const filePath = path.join(sourceDir, filename);
   if (!fs.existsSync(filePath)) return null;
   try {
     return JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -29,32 +29,32 @@ function readFile(domainDir, filename) {
  * Load the minimum required KDNA files (Core + Patterns).
  * Always load these. They form the cognition baseline.
  */
-function loadCorePatterns(domainDir) {
-  const coreData = readFile(domainDir, FILE_MAP.core);
-  const patternsData = readFile(domainDir, FILE_MAP.patterns);
+function loadCorePatterns(sourceDir) {
+  const coreData = readFile(sourceDir, FILE_MAP.core);
+  const patternsData = readFile(sourceDir, FILE_MAP.patterns);
   return core.loadCorePatternsFromData(coreData, patternsData);
 }
 
 /**
  * Load a complete KDNA domain.
  *
- * @param {string} domainDir — path to the domain folder
+ * @param {string} sourceDir — path to a dev source directory
  * @param {object} [options]
  * @param {string} [options.input] — user input text for conditional loading
  * @param {'all'|'minimum'|'auto'} [options.mode='auto'] — loading mode
  * @returns {object|null} loaded KDNA files keyed by type, or null if minimum files are missing
  */
-function loadDomain(domainDir, options = {}) {
+function loadDomain(sourceDir, options = {}) {
   const dataMap = { core: null, patterns: null };
 
-  dataMap.core = readFile(domainDir, FILE_MAP.core);
-  dataMap.patterns = readFile(domainDir, FILE_MAP.patterns);
+  dataMap.core = readFile(sourceDir, FILE_MAP.core);
+  dataMap.patterns = readFile(sourceDir, FILE_MAP.patterns);
 
   if (!dataMap.core || !dataMap.patterns) return null;
 
   // Also read optional files that might be present
   for (const key of ['scenarios', 'cases', 'reasoning', 'evolution']) {
-    const data = readFile(domainDir, FILE_MAP[key]);
+    const data = readFile(sourceDir, FILE_MAP[key]);
     if (data) dataMap[key] = data;
   }
 

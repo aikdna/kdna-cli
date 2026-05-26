@@ -398,7 +398,6 @@ function cmdStudioCompile(projectPath, args = []) {
   // Compile axioms → KDNA_Core.json
   const axioms = loadCards(project, path.dirname(abs), 'axioms');
   const ontology = loadCards(project, path.dirname(abs), 'ontology');
-  const _boundaries = loadCards(project, path.dirname(abs), 'boundaries');
 
   const core = {
     meta: {
@@ -495,7 +494,7 @@ function cmdStudioCompile(projectPath, args = []) {
 
   console.log('');
   console.log('Next:');
-  console.log(`  kdna validate ${outDir}`);
+  console.log(`  kdna dev validate ${outDir}`);
 }
 
 function loadCards(project, projectDir, cardType) {

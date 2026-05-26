@@ -1,8 +1,9 @@
 const fs = require('fs');
 const path = require('path');
-const { EXIT, error } = require('./_common');
+const { EXIT } = require('./_common');
 const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
-const { domains: DOMAINS, INSTALL_DIR } = require('../paths');
+const PATHS = require('../paths');
+const { listInstalled } = require('../package-store');
 
 const AGENTS = [
   { name: 'OpenCode', dir: path.join(process.env.HOME || '', '.agents'), skillsDir: 'skills' },
@@ -17,11 +18,6 @@ const AGENTS = [
 ];
 
 const V2_1_MARKER = 'kdna available';
-
-function detectAgents() {
-  return AGENTS.filter((a) => fs.existsSync(a.dir));
-}
-
 function checkAgentSkill(agent) {
   const skillPath = path.join(agent.dir, agent.skillsDir, 'kdna-loader', 'SKILL.md');
   if (!fs.existsSync(skillPath)) return { installed: false, version: null, path: skillPath };
@@ -74,38 +70,25 @@ function cmdDoctor(args) {
       checks.push({ name: 'KDNA data directory', status: 'warn', detail: '~/.kdna/ not found' });
     }
 
-    // 4. ~/.kdna/domains/ exists and has domains
-    if (fs.existsSync(INSTALL_DIR)) {
-      const domains = fs
-        .readdirSync(INSTALL_DIR, { withFileTypes: true })
-        .filter((d) => d.isDirectory())
-        .reduce((acc, scopeDir) => {
-          if (scopeDir.name.startsWith('@')) {
-            try {
-              return acc + fs.readdirSync(path.join(INSTALL_DIR, scopeDir.name)).length;
-            } catch {
-              return acc;
-            }
-          }
-          return acc + 1;
-        }, 0);
+    // 4. ~/.kdna/packages/ exists and has .kdna assets
+    if (fs.existsSync(PATHS.packages)) {
+      const domains = listInstalled().length;
       checks.push({
-        name: 'Installed domains',
+        name: 'Installed assets',
         status: domains > 0 ? 'ok' : 'warn',
-        detail: `${domains} domain${domains !== 1 ? 's' : ''} installed`,
+        detail: `${domains} .kdna asset${domains !== 1 ? 's' : ''} installed`,
       });
     } else {
       checks.push({
-        name: 'Domains directory',
+        name: 'Package asset store',
         status: 'warn',
-        detail: '~/.kdna/domains/ not found',
+        detail: '~/.kdna/packages/ not found',
       });
     }
   }
 
   if (!domainsOnly) {
     // 5. Agent integration check
-    const detected = detectAgents();
     for (const agent of AGENTS) {
       const agentDirExists = fs.existsSync(agent.dir);
       const skill = agentDirExists

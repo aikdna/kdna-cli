@@ -18,7 +18,7 @@ function downloadVersion(entry, version, destDir) {
   const { execSync, execFileSync } = require('child_process');
   const tmpFile = `${destDir}.kdna.tmp`;
   try {
-    execFileSync('curl', ['-fsSL', '--retry', '2', '-o', tmpFile, entry.kdna_url], {
+    execFileSync('curl', ['-fsSL', '--retry', '2', '-o', tmpFile, entry.asset_url], {
       timeout: 60000,
       stdio: 'pipe',
     });

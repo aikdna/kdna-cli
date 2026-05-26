@@ -10,6 +10,7 @@ const { execFileSync } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
+const { machineFingerprint } = require('../src/cmds/license');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 
@@ -37,8 +38,15 @@ function run(args, opts = {}) {
 }
 
 function ensureWritingInstalled() {
-  const dir = path.join(os.homedir(), '.kdna', 'domains', '@aikdna', 'writing');
-  return fs.existsSync(dir);
+  const indexPath = path.join(os.homedir(), '.kdna', 'index.json');
+  if (!fs.existsSync(indexPath)) return false;
+  try {
+    const index = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
+    const asset = index.packages?.['@aikdna/writing']?.asset_path;
+    return !!asset && fs.existsSync(asset);
+  } catch {
+    return false;
+  }
 }
 
 const TMPDIR = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-test-'));
@@ -95,6 +103,27 @@ test('kdna doctor --json reports healthy', () => {
   assert.ok('healthy' in parsed);
   assert.ok('ok' in parsed);
   assert.ok('failures' in parsed);
+});
+
+test('kdna doctor --domains reports installed .kdna assets', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-doctor-home-'));
+  const kdnaHome = path.join(home, '.kdna');
+  const assetPath = path.join(kdnaHome, 'packages', '@aikdna', 'writing', '0.1.0', 'writing-0.1.0.kdna');
+  fs.mkdirSync(path.dirname(assetPath), { recursive: true });
+  fs.writeFileSync(assetPath, 'placeholder');
+  fs.writeFileSync(
+    path.join(kdnaHome, 'index.json'),
+    JSON.stringify({ version: 1, packages: { '@aikdna/writing': { asset_path: assetPath } } }),
+  );
+
+  const r = run(['doctor', '--domains', '--json'], {
+    env: { HOME: home, KDNA_HOME: kdnaHome },
+  });
+  assert.ok(r.ok, `doctor --domains failed: ${r.stderr || r.stdout}`);
+
+  const parsed = JSON.parse(r.stdout);
+  const installed = parsed.checks.find((check) => check.name === 'Installed assets');
+  assert.equal(installed.detail, '1 .kdna asset installed');
 });
 
 // ─── kdna trace ────────────────────────────────────────────────────────
@@ -217,18 +246,149 @@ test('kdna license verify --json returns parseable', () => {
 });
 
 test('kdna license install registers to ~/.kdna/licenses/', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-license-home-'));
+  const kdnaHome = path.join(home, '.kdna');
+  const env = { HOME: home, KDNA_HOME: kdnaHome };
   const outPath = path.join(TMPDIR, 'test-lic-install.json');
   run(['license', 'generate', '@aikdna/test', '--to', 't@t.com', '--save', outPath]);
   run(['license', 'bind', outPath]);
-  const r = run(['license', 'install', outPath]);
+  const r = run(['license', 'install', outPath], { env });
   assert.ok(r.ok, `license install failed: ${r.stderr}`);
   assert.match(r.stdout, /License installed/);
   // Verify file exists
-  const licDir = path.join(os.homedir(), '.kdna', 'licenses');
+  const licDir = path.join(kdnaHome, 'licenses');
   const installed = path.join(licDir, 'aikdna-test.json');
   assert.ok(fs.existsSync(installed), 'license file should exist');
+  const status = run(['license', 'status', '@aikdna/test', '--json'], { env });
+  assert.ok(status.ok, `license status failed: ${status.stderr}`);
+  const parsed = JSON.parse(status.stdout);
+  assert.equal(parsed.domain, '@aikdna/test');
+  assert.equal(parsed.valid, true);
+  assert.equal(parsed.machine_bound, true);
+  assert.ok(!JSON.stringify(parsed).includes('license_key'));
   fs.unlinkSync(installed);
   fs.unlinkSync(outPath);
+});
+
+test('kdna license activate and sync enforce entitlement revocation', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-license-activate-home-'));
+  const kdnaHome = path.join(home, '.kdna');
+  const env = { HOME: home, KDNA_HOME: kdnaHome };
+  const key = 'KDNA-LIC-ACTIVATE-TEST';
+  const serverPath = path.join(TMPDIR, 'activation-source.json');
+  fs.writeFileSync(
+    serverPath,
+    JSON.stringify(
+      {
+        activations: [
+          {
+            domain: '@aikdna/pro',
+            license_key: key,
+            license_id: 'lic_activate_test',
+            issued_to: 'buyer@example.com',
+            require_machine_binding: true,
+            require_online_check: true,
+            offline_grace_days: 3,
+            status: 'active',
+          },
+        ],
+      },
+      null,
+      2,
+    ),
+  );
+
+  const activate = run(
+    ['license', 'activate', '@aikdna/pro', '--key', key, '--server', `file://${serverPath}`, '--json'],
+    { env },
+  );
+  assert.ok(activate.ok, `license activate failed: ${activate.stderr}`);
+  const activated = JSON.parse(activate.stdout);
+  assert.equal(activated.domain, '@aikdna/pro');
+  assert.equal(activated.valid, true);
+  assert.ok(!activate.stdout.includes(key));
+
+  const status = run(['license', 'status', '@aikdna/pro', '--json'], { env });
+  assert.ok(status.ok, `license status failed: ${status.stderr}`);
+  const statusJson = JSON.parse(status.stdout);
+  assert.equal(statusJson.license_id, 'lic_activate_test');
+  assert.equal(statusJson.valid, true);
+
+  fs.writeFileSync(
+    serverPath,
+    JSON.stringify(
+      {
+        activations: [
+          {
+            domain: '@aikdna/pro',
+            license_key: key,
+            license_id: 'lic_activate_test',
+            issued_to: 'buyer@example.com',
+            require_machine_binding: true,
+            require_online_check: true,
+            offline_grace_days: 3,
+            status: 'revoked',
+            revoked: true,
+          },
+        ],
+      },
+      null,
+      2,
+    ),
+  );
+  const sync = run(
+    ['license', 'sync', '@aikdna/pro', '--server', `file://${serverPath}`, '--json'],
+    { env },
+  );
+  assert.ok(sync.ok, `license sync failed: ${sync.stderr}`);
+  const synced = JSON.parse(sync.stdout);
+  assert.equal(synced.synced, true);
+  assert.equal(synced.valid, false);
+  assert.ok(synced.issues.includes('License has been revoked'));
+  assert.ok(!sync.stdout.includes(key));
+
+  const trace = run(['trace', '--json'], { env });
+  assert.ok(trace.ok, `trace failed: ${trace.stderr}`);
+  const traceJson = JSON.parse(trace.stdout);
+  const licenseEvents = traceJson.entries.filter((entry) => entry.event === 'license');
+  assert.ok(
+    licenseEvents.some(
+      (entry) => entry.action === 'activate' && entry.license_id === 'lic_activate_test',
+    ),
+    `expected activation trace, got ${trace.stdout}`,
+  );
+  assert.ok(
+    licenseEvents.some(
+      (entry) => entry.action === 'sync' && entry.revoked === true && entry.valid === false,
+    ),
+    `expected revoked sync trace, got ${trace.stdout}`,
+  );
+  assert.ok(!trace.stdout.includes(key));
+
+  const expiredPath = path.join(kdnaHome, 'licenses', 'aikdna-expired.json');
+  fs.writeFileSync(
+    expiredPath,
+    JSON.stringify(
+      {
+        version: '1.0',
+        domain: '@aikdna/expired',
+        license_id: 'lic_expired_grace',
+        license_key: 'KDNA-LIC-EXPIRED',
+        status: 'active',
+        require_machine_binding: true,
+        machine_fingerprint: machineFingerprint(),
+        require_online_check: true,
+        offline_valid_until: '2000-01-01T00:00:00.000Z',
+      },
+      null,
+      2,
+    ),
+  );
+  const expired = run(['license', 'status', '@aikdna/expired', '--json'], { env });
+  assert.ok(expired.ok, `expired license status failed: ${expired.stderr}`);
+  const expiredJson = JSON.parse(expired.stdout);
+  assert.equal(expiredJson.valid, false);
+  assert.ok(expiredJson.issues.includes('License offline grace has expired'));
 });
 
 test('kdna license without subcommand shows usage', () => {

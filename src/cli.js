@@ -10,9 +10,7 @@ const { error, EXIT, setQuiet, setExitCodeOnly } = require('./cmds/_common');
 const {
   cmdValidate,
   cmdPack,
-  cmdPackEncrypt,
   cmdUnpack,
-  cmdUnpackEncrypt,
   cmdInspect,
   cmdCard,
 } = require('./cmds/domain');
@@ -39,6 +37,9 @@ const {
   cmdLicenseBind,
   cmdLicenseShow,
   cmdLicenseInstall,
+  cmdLicenseStatus,
+  cmdLicenseActivate,
+  cmdLicenseSync,
 } = require('./cmds/license');
 const { cmdPreview, cmdProject, cmdEval, cmdExport, cmdDemo } = require('./cmds/legacy');
 const {
@@ -58,7 +59,7 @@ const {
   cmdEvolution,
   cmdRegression,
 } = require('./cmds/governance');
-const { cmdBadgeCompute, cmdRegistryAudit, cmdPackage } = require('./cmds/badge');
+const { cmdBadgeCompute, cmdRegistryAudit } = require('./cmds/badge');
 const { cmdExplain } = require('./cmds/explain');
 
 // ─── Main ─────────────────────────────────────────────────────────────
@@ -81,15 +82,13 @@ Usage: kdna <command> [options]
 
 Domain Authoring:
   init <name>                      Scaffold a new domain from template
-  validate <path>                  Validate domain structure
-  validate --schema <path>         Schema-only validation
-  pack <path>                      Pack into .kdna container
-  pack <path> --encrypt --license <file>   Pack encrypted .kdnae container
-  unpack <file>                    Unpack .kdna container
-  unpack <file> --license <file>   Unpack encrypted .kdnae container
-  inspect <path>                   Inspect domain or .kdna file
-  inspect <path> --locale zh-CN     Inspect with localized governance data
-  card <path> [--locale zh-CN]      Display KDNA Card (governance metadata)
+  dev validate <path>              Validate a dev source directory
+  dev pack <path>                  Build a dev source directory into .kdna
+  dev unpack <file>                Unpack .kdna into a dev source directory
+  dev inspect <path>               Inspect a dev source directory
+  dev card <path>                  Display KDNA Card from a dev source directory
+  inspect <file.kdna>              Inspect a .kdna asset
+  card <file.kdna> [--locale zh-CN] Display KDNA Card from a .kdna asset
   explain <name>                   Natural language summary: axioms, terms, scenarios
   publish <path>                   Pack + sign + publish
   publish --check <path>           Quality gate check only
@@ -108,18 +107,18 @@ Agent Runtime:
   available [--json]               List installed domains with v2.1 fields
   match "<task>" [--json]          Signal matching — find relevant domains
   select --input "..." [--json]    Selection policy — decide which domains to load
-  load <name> [--as=prompt|json|raw]  Emit domain in agent-ready format
-  load <name> --profile=index|compact|scenario|full  Load profiles (Phase 2)
+  load <name|file.kdna> [--as=prompt|json|raw]  Emit asset in agent-ready format
+  load <name|file.kdna> --profile=index|compact|scenario|full  Load profiles (Phase 2)
   postvalidate <name> --output <file>  Post-generation judgment check
 
 Testing & Verification:
-  verify <name>                    3-layer: structure + trust + judgment
-  verify <name> --i18n               I18N verification: locales, overlays, card completeness
-  verify <name> --governance         Governance verification: risk_level, KDNA_CARD, provenance
-  verify <name> --judgment --run-tests  Judgment validation with eval cases
-  compare <name> --input "..."     With/without KDNA reasoning diff
-  compare <name> --input "..." --report-md     Markdown report format
-  compare <name> --input "..." --report-json   JSON report with scoring
+  verify <name|file.kdna>          3-layer: structure + trust + judgment
+  verify <name|file.kdna> --i18n     I18N verification: locales, overlays, card completeness
+  verify <name|file.kdna> --governance  Governance verification: risk_level, KDNA_CARD, provenance
+  verify <name|file.kdna> --judgment --run-tests  Judgment validation with eval cases
+  compare <name|file.kdna> --input "..."     With/without KDNA reasoning diff
+  compare <name|file.kdna> --input "..." --report-md     Markdown report format
+  compare <name|file.kdna> --input "..." --report-json   JSON report with scoring
   diff <name>@<v1> <name>@<v2>     Judgment-level diff between versions
   test run <name> --input <file>   Record test result against domain
   test import <run> --as-eval      Convert test result to eval card
@@ -150,6 +149,7 @@ Quality & Distribution (Phase 7):
 
 Registry & Distribution:
   install <name>                   Install domain from registry
+  install <file.kdna>              Install a local .kdna asset
   remove <name>                    Uninstall a domain
   update <name>                    Update installed domain
   info <name>                      Show domain metadata and trust status
@@ -174,9 +174,12 @@ Trace & Diagnostics:
 License & Authorization:
   license generate <domain> --to <email>   Generate signed license
   license install <license.json>           Register license for auto-decrypt
+  license activate <domain> --key --server Activate license from entitlement source
+  license sync [domain] [--server]         Refresh entitlement / revocation status
   license verify <license.json>            Verify license signature
   license bind <license.json>              Bind license to this machine
   license show <license.json>              Display license details
+  license status [domain] [--json]         Show installed license activation status
 
 Flags:
   --json                           Structured JSON output (machine-readable)
@@ -192,41 +195,69 @@ Exit Codes:
 const cmd = args[0];
 
 switch (cmd) {
+  case 'dev': {
+    const sub = args[1];
+    if (sub === 'validate') {
+      const schemaFlag = args.includes('--schema');
+      const jsonFlag = args.includes('--json');
+      const target = args.filter((a, i) => i > 1 && a !== '--schema' && a !== '--json')[0];
+      if (!target) error('Usage: kdna dev validate <source-dir>');
+      cmdValidate(target, schemaFlag, jsonFlag);
+      break;
+    }
+    if (sub === 'pack') {
+      let output = null;
+      let target = null;
+      for (let i = 2; i < args.length; i++) {
+        if (args[i] === '--output' || args[i] === '-o') {
+          output = args[i + 1];
+          i++;
+        } else if (args[i].startsWith('-')) {
+          error(`Unknown option for kdna dev pack: ${args[i]}`, EXIT.INPUT_ERROR);
+        } else if (!target) {
+          target = args[i];
+        }
+      }
+      if (!target) error('Usage: kdna dev pack <source-dir>');
+      cmdPack(target, output);
+      break;
+    }
+    if (sub === 'unpack') {
+      const target = args[2];
+      if (!target) error('Usage: kdna dev unpack <file.kdna>');
+      if (!target.endsWith('.kdna')) error('Not a .kdna asset.', EXIT.INPUT_ERROR);
+      cmdUnpack(target, args.includes('--force'));
+      break;
+    }
+    if (sub === 'inspect') {
+      const target = args.filter((a, i) => i > 1 && !a.startsWith('--'))[0];
+      if (!target) error('Usage: kdna dev inspect <source-dir> [--json] [--locale zh-CN]');
+      const localeIdx = args.indexOf('--locale');
+      const locale = localeIdx >= 0 ? args[localeIdx + 1] : null;
+      cmdInspect(target, args.includes('--json'), locale, { allowDirectory: true });
+      break;
+    }
+    if (sub === 'card') {
+      const target = args.filter((a, i) => i > 1 && !a.startsWith('--'))[0];
+      if (!target) error('Usage: kdna dev card <source-dir> [--json] [--locale zh-CN]');
+      const localeIdx = args.indexOf('--locale');
+      const locale = localeIdx >= 0 ? args[localeIdx + 1] : null;
+      cmdCard(target, args.includes('--json'), locale, { allowDirectory: true });
+      break;
+    }
+    error('Usage: kdna dev <validate|pack|unpack|inspect|card> ...', EXIT.INPUT_ERROR);
+    break;
+  }
   case 'validate': {
-    const schemaFlag = args.includes('--schema');
-    const jsonFlag = args.includes('--json');
-    const target = args.filter((a, i) => i > 0 && a !== '--schema' && a !== '--json')[0];
-    if (!target) error('Usage: kdna validate <path>');
-    cmdValidate(target, schemaFlag, jsonFlag);
+    error('Directory validation is a dev-only operation. Use: kdna dev validate <source-dir>', EXIT.INPUT_ERROR);
     break;
   }
   case 'pack': {
-    let output = null;
-    let target = null;
-    for (let i = 1; i < args.length; i++) {
-      if (args[i] === '--output' || args[i] === '-o') {
-        output = args[i + 1];
-        i++;
-      } else if (!target) {
-        target = args[i];
-      }
-    }
-    if (!target) error('Usage: kdna pack <path>');
-    if (args.includes('--encrypt')) {
-      cmdPackEncrypt(target, args);
-    } else {
-      cmdPack(target, output);
-    }
+    error('Directory packaging is a dev-only operation. Use: kdna dev pack <source-dir>', EXIT.INPUT_ERROR);
     break;
   }
   case 'unpack': {
-    const target = args[1];
-    if (!target) error('Usage: kdna unpack <file.kdna|file.kdnae>');
-    if (target.endsWith('.kdnae')) {
-      cmdUnpackEncrypt(target, args);
-    } else {
-      cmdUnpack(target, args.includes('--force'));
-    }
+    error('Unpacking exposes internal files and is dev-only. Use: kdna dev unpack <file.kdna>', EXIT.INPUT_ERROR);
     break;
   }
   case 'preview': {
@@ -244,7 +275,7 @@ switch (cmd) {
         domainId = args[i];
       }
     }
-    if (!domainId) error('Usage: kdna install <domain-id|github:user/repo|./folder>');
+    if (!domainId) error('Usage: kdna install <domain-id|file.kdna>');
 
     const { cmdInstallExtended } = require('./install');
     if (fromGit) {
@@ -287,7 +318,7 @@ switch (cmd) {
   }
   case 'inspect': {
     const target = args.filter((a) => !a.startsWith('--'))[1];
-    if (!target) error('Usage: kdna inspect <path> [--json] [--locale zh-CN]');
+    if (!target) error('Usage: kdna inspect <file.kdna> [--json] [--locale zh-CN]');
     const localeIdx = args.indexOf('--locale');
     const locale = localeIdx >= 0 ? args[localeIdx + 1] : null;
     cmdInspect(target, args.includes('--json'), locale);
@@ -295,7 +326,7 @@ switch (cmd) {
   }
   case 'card': {
     const target = args.filter((a) => !a.startsWith('--'))[1];
-    if (!target) error('Usage: kdna card <path> [--json] [--locale zh-CN]');
+    if (!target) error('Usage: kdna card <file.kdna> [--json] [--locale zh-CN]');
     const localeIdx = args.indexOf('--locale');
     const locale = localeIdx >= 0 ? args[localeIdx + 1] : null;
     cmdCard(target, args.includes('--json'), locale);
@@ -307,10 +338,10 @@ switch (cmd) {
     if (!target) {
       error(
         'Usage:\n' +
-          '  kdna verify <name>             Run all three layers (structure / trust / judgment)\n' +
-          '  kdna verify <name> --structure  Files + schema only\n' +
-          '  kdna verify <name> --trust      Signature + scope + Ed25519 only\n' +
-          '  kdna verify <name> --judgment   v2.1 governance fields + eval cases only',
+          '  kdna verify <name|file.kdna>             Run all three layers (structure / trust / judgment)\n' +
+          '  kdna verify <name|file.kdna> --structure  Files + schema only\n' +
+          '  kdna verify <name|file.kdna> --trust      Signature + scope + Ed25519 only\n' +
+          '  kdna verify <name|file.kdna> --judgment   v2.1 governance fields + eval cases only',
       );
     }
     cmdVerify(target, args);
@@ -432,9 +463,7 @@ switch (cmd) {
     break;
   }
   case 'package': {
-    const target = args.filter((a) => !a.startsWith('--'))[1];
-    if (!target) error('Usage: kdna package <domain> --format=kdna');
-    cmdPackage(target, args);
+    error('Directory packaging is a dev-only operation. Use: kdna dev pack <source-dir>', EXIT.INPUT_ERROR);
     break;
   }
   // Legacy (removed) commands
@@ -497,14 +526,23 @@ switch (cmd) {
       cmdLicenseShow(rest);
     } else if (sub === 'install') {
       cmdLicenseInstall(rest);
+    } else if (sub === 'status') {
+      cmdLicenseStatus(rest);
+    } else if (sub === 'activate') {
+      cmdLicenseActivate(rest).catch((e) => error(e.message, EXIT.TRUST_FAILED));
+    } else if (sub === 'sync') {
+      cmdLicenseSync(rest).catch((e) => error(e.message, EXIT.TRUST_FAILED));
     } else {
       error(
         'Usage:\n' +
           '  kdna license generate <domain> --to <email> [--expires <date>]\n' +
           '  kdna license install <license.json>\n' +
+          '  kdna license activate <domain> --key <license-key> --server <url>\n' +
+          '  kdna license sync [domain] [--server <url>]\n' +
           '  kdna license verify <license.json>\n' +
           '  kdna license bind <license.json>\n' +
-          '  kdna license show <license.json>',
+          '  kdna license show <license.json>\n' +
+          '  kdna license status [domain] [--json]',
         EXIT.INPUT_ERROR,
       );
     }

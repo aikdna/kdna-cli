@@ -8,6 +8,16 @@ const {
   detectDomainConflicts,
   generateClusterTrace,
 } = require('@aikdna/kdna-core');
+const { getInstalled, readContainer } = require('../package-store');
+
+function loadInstalledDomain(domainId) {
+  const full = domainId.startsWith('@') ? domainId : `@aikdna/${domainId}`;
+  const installed = getInstalled(full);
+  if (!installed) return null;
+  const { core, patterns } = readContainer(installed.asset_path);
+  if (!core || !patterns) return null;
+  return { core, patterns };
+}
 
 function cmdCluster(args) {
   const { cmdClusterLint } = require('../cluster');
@@ -101,7 +111,7 @@ function cmdClusterInfo(target, _format = 'human') {
 }
 
 /**
- * Load a cluster: resolve domains from installed ~/.kdna/domains/,
+ * Load a cluster: resolve domains from installed .kdna assets,
  * classify input signals, compose context with attribution, detect
  * conflicts, and emit the composed context.
  */
@@ -116,23 +126,7 @@ function cmdClusterLoad(target, args = []) {
   const manifest = readJson(abs);
   if (!manifest || !manifest.cluster_id) error('Not a valid cluster manifest');
 
-  const INSTALL_DIR = path.join(
-    process.env.HOME || process.env.USERPROFILE || '.',
-    '.kdna',
-    'domains',
-  );
-
-  // Domain loader: resolve from installed ~/.kdna/domains/
-  const domainLoader = (domainId) => {
-    const [scope, ident] = domainId.startsWith('@')
-      ? [domainId.slice(0, domainId.indexOf('/')), domainId.slice(domainId.indexOf('/') + 1)]
-      : ['@aikdna', domainId];
-    const dir = path.join(INSTALL_DIR, scope, ident);
-    const core = readJson(path.join(dir, 'KDNA_Core.json'));
-    const pat = readJson(path.join(dir, 'KDNA_Patterns.json'));
-    if (!core || !pat) return null;
-    return { core, patterns: pat };
-  };
+  const domainLoader = loadInstalledDomain;
 
   const result = loadCluster(abs, domainLoader);
   if (result.errors.length) {
@@ -208,22 +202,7 @@ function cmdClusterMatch(target, args = []) {
   const manifest = readJson(abs);
   if (!manifest || !manifest.cluster_id) error('Not a valid cluster manifest');
 
-  const INSTALL_DIR = path.join(
-    process.env.HOME || process.env.USERPROFILE || '.',
-    '.kdna',
-    'domains',
-  );
-
-  const domainLoader = (domainId) => {
-    const [scope, ident] = domainId.startsWith('@')
-      ? [domainId.slice(0, domainId.indexOf('/')), domainId.slice(domainId.indexOf('/') + 1)]
-      : ['@aikdna', domainId];
-    const dir = path.join(INSTALL_DIR, scope, ident);
-    const core = readJson(path.join(dir, 'KDNA_Core.json'));
-    const pat = readJson(path.join(dir, 'KDNA_Patterns.json'));
-    if (!core || !pat) return null;
-    return { core, patterns: pat };
-  };
+  const domainLoader = loadInstalledDomain;
 
   const result = loadCluster(abs, domainLoader);
   const classification = classifySignalsAcrossDomains(input, result.domains);
@@ -423,23 +402,12 @@ function cmdClusterGraph(target, args = []) {
  * Shared domain loader for cluster commands.
  */
 function loadClusterDomains(manifest) {
-  const INSTALL_DIR = path.join(
-    process.env.HOME || process.env.USERPROFILE || '.',
-    '.kdna',
-    'domains',
-  );
-
   return (manifest.domains || []).map((d) => {
     const domainId = d.id;
     if (!domainId) return null;
-    const [scope, ident] = domainId.startsWith('@')
-      ? [domainId.slice(0, domainId.indexOf('/')), domainId.slice(domainId.indexOf('/') + 1)]
-      : ['@aikdna', domainId];
-    const dir = path.join(INSTALL_DIR, scope, ident);
-    const core = readJson(path.join(dir, 'KDNA_Core.json'));
-    const pat = readJson(path.join(dir, 'KDNA_Patterns.json'));
-    if (!core || !pat) return null;
-    return { id: domainId, role: d.role, required: d.required !== false, core, patterns: pat };
+    const loaded = loadInstalledDomain(domainId);
+    if (!loaded) return null;
+    return { id: domainId, role: d.role, required: d.required !== false, ...loaded };
   }).filter(Boolean);
 }
 

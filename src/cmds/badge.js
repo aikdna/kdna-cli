@@ -3,7 +3,7 @@
  *
  *   kdna badge compute <domain> [--json]
  *   kdna registry audit --scope <scope> [--json]
- *   kdna package <domain> --format=kdna
+ *   kdna dev pack <domain>
  */
 
 const fs = require('fs');
@@ -142,9 +142,9 @@ function cmdRegistryAudit(args = []) {
       status: d.status || 'experimental',
       yanked: d.yanked || false,
       deprecated: d.deprecated || false,
-      has_kdna_url: !!d.kdna_url,
+      has_asset_url: !!d.asset_url,
       has_signature: !!d.signature,
-      has_sha256: !!d.sha256,
+      has_asset_digest: !!d.asset_digest,
     })),
     issues: [],
   };
@@ -152,12 +152,12 @@ function cmdRegistryAudit(args = []) {
   // Detect issues
   const yanked = scopeDomains.filter((d) => d.yanked);
   const deprecated = scopeDomains.filter((d) => d.deprecated);
-  const noPackage = scopeDomains.filter((d) => !d.kdna_url);
+  const noPackage = scopeDomains.filter((d) => !d.asset_url);
   const noSignature = scopeDomains.filter((d) => !d.signature);
 
   if (yanked.length) audit.issues.push(`${yanked.length} yanked domain(s)`);
   if (deprecated.length) audit.issues.push(`${deprecated.length} deprecated domain(s)`);
-  if (noPackage.length) audit.issues.push(`${noPackage.length} domain(s) without .kdna package`);
+  if (noPackage.length) audit.issues.push(`${noPackage.length} domain(s) without .kdna dev package`);
   if (noSignature.length) audit.issues.push(`${noSignature.length} domain(s) without signature`);
 
   audit.healthy = audit.issues.length === 0;
@@ -183,7 +183,7 @@ function cmdRegistryAudit(args = []) {
     const flags = [];
     if (d.yanked) flags.push('yanked');
     if (d.deprecated) flags.push('deprecated');
-    if (!d.has_kdna_url) flags.push('no-package');
+    if (!d.has_asset_url) flags.push('no-package');
     console.log(`    ${d.name.padEnd(36)} v${d.version || '?'}  ${flags.length ? `[${flags.join(', ')}]` : '✓'}`);
   }
 }
@@ -205,7 +205,7 @@ function cmdPackage(domainPath, args = []) {
   }
 
   const manifest = readJson(path.join(abs, 'kdna.json'));
-  if (!manifest) error(`No kdna.json found in ${abs}. Run: kdna pack`, EXIT.INPUT_ERROR);
+  if (!manifest) error(`No kdna.json found in ${abs}. Run: kdna dev pack`, EXIT.INPUT_ERROR);
 
   const domainName = manifest.name?.split('/')?.[1] || path.basename(abs);
   const outFile = path.join(abs, 'dist', `${domainName}-${manifest.version || '0.1.0'}.kdna`);

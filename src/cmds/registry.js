@@ -1,9 +1,8 @@
-const fs = require('fs');
-const path = require('path');
 const { CANONICAL_REGISTRY_URL, REGISTRY_CACHE, fetchRegistry } = require('../registry');
-const { error, readJson, loadRegistry, INSTALL_DIR, EXIT } = require('./_common');
+const { error, loadRegistry, EXIT } = require('./_common');
+const { listInstalled, readContainer } = require('../package-store');
 
-function cmdList(showAvailable, jsonMode = false, locale = null) {
+function cmdList(showAvailable, jsonMode = false, _locale = null) {
   if (showAvailable) {
     const domains = loadRegistry({ allowNetwork: true });
     if (!domains || !domains.length) {
@@ -33,9 +32,7 @@ function cmdList(showAvailable, jsonMode = false, locale = null) {
     console.log('');
     for (const d of domains) {
       const name = d.name || d.id || '?';
-      const [scope, ident] = name.includes('/') ? name.split('/') : [null, name];
-      const installedPath = scope ? path.join(INSTALL_DIR, scope, ident) : null;
-      const installed = installedPath && fs.existsSync(installedPath) ? '[installed]' : '';
+      const installed = listInstalled().some((entry) => entry.full === name) ? '[installed]' : '';
       const yanked = d.yanked ? '[yanked] ' : '';
       const dep = d.deprecated ? '[deprecated] ' : '';
       console.log(
@@ -47,78 +44,29 @@ function cmdList(showAvailable, jsonMode = false, locale = null) {
     return;
   }
 
-  if (!fs.existsSync(INSTALL_DIR)) {
-    if (jsonMode) {
-      console.log(JSON.stringify([]));
-      process.exit(EXIT.OK);
-    }
-    console.log('No domains installed.');
-    console.log(`Installation directory: ${INSTALL_DIR}`);
-    return;
-  }
-
-  // v0.7 layout: ~/.kdna/domains/@scope/name/
-  const scopes = fs.readdirSync(INSTALL_DIR).filter((d) => {
-    if (!d.startsWith('@')) return false;
-    try {
-      return fs.statSync(path.join(INSTALL_DIR, d)).isDirectory();
-    } catch {
-      return false;
-    }
-  });
-
-  const installed = [];
-  for (const scope of scopes) {
-    const sd = path.join(INSTALL_DIR, scope);
-    for (const ident of fs.readdirSync(sd)) {
-      if (ident.startsWith('.')) continue;
-      const full = path.join(sd, ident);
-      try {
-        if (!fs.statSync(full).isDirectory()) continue;
-      } catch {
-        continue;
-      }
-      installed.push({ scope, ident, full });
-    }
-  }
-
-  // Detect and warn about legacy (un-scoped) installs
-  if (!jsonMode) {
-    const legacy = fs.readdirSync(INSTALL_DIR).filter((d) => {
-      if (d.startsWith('@') || d.startsWith('.')) return false;
-      try {
-        return fs.statSync(path.join(INSTALL_DIR, d)).isDirectory();
-      } catch {
-        return false;
-      }
-    });
-    if (legacy.length) {
-      console.log('⚠ Legacy (un-scoped) directories detected — please remove + re-install:');
-      legacy.forEach((d) => console.log(`    ~/.kdna/domains/${d}/`));
-      console.log('');
-    }
-  }
+  const installed = listInstalled();
 
   if (!installed.length) {
     if (jsonMode) {
       console.log(JSON.stringify([]));
       process.exit(EXIT.OK);
     }
-    console.log('No v0.7 domains installed.');
+    console.log('No KDNA assets installed.');
     console.log(`Run: kdna install <name>      # e.g. kdna install writing`);
     return;
   }
 
   // Build structured data for installed domains
-  const domains = installed.map(({ scope, ident, full }) => {
-    const core = readJson(path.join(full, 'KDNA_Core.json'));
-    const manifest = readJson(path.join(full, 'kdna.json'));
-    const cluster = readJson(path.join(full, 'cluster.json'));
+  const domains = installed.map((entry) => {
+    const { core = {}, manifest = {} } = readContainer(entry.asset_path);
     return {
-      name: `${scope}/${ident}`,
-      version: manifest?.version || manifest?._source?.version || core?.meta?.version || '?',
-      type: cluster ? 'cluster' : 'domain',
+      name: entry.full,
+      version: manifest?.version || entry.version || core?.meta?.version || '?',
+      type: 'domain',
       description: manifest?.description || core?.meta?.purpose || '',
+      asset: entry.asset_path,
+      asset_digest: entry.asset_digest || null,
+      content_digest: entry.content_digest || null,
     };
   });
 
@@ -135,7 +83,7 @@ function cmdList(showAvailable, jsonMode = false, locale = null) {
     if (d.description) console.log(`    ${d.description}`);
   }
   console.log('');
-  console.log(`Location: ${INSTALL_DIR}`);
+  console.log('Assets are stored under ~/.kdna/packages/.');
 }
 
 function cmdRegistry(subcommand) {

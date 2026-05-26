@@ -1,5 +1,5 @@
 /**
- * kdna compare <name> --input "<text>" — Reasoning trajectory diff.
+ * kdna compare <name|file.kdna> --input "<text>" — Reasoning trajectory diff.
  *
  * Runs the same prompt twice on a real LLM:
  *   1. Without KDNA loaded (baseline)
@@ -24,7 +24,7 @@ const path = require('path');
 const https = require('https');
 
 const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
-const { domains: DOMAINS, INSTALL_DIR } = require('./paths');
+const { readContainer, resolveAsset } = require('./package-store');
 const CONFIG_FILE = path.join(USER_KDNA_DIR, 'config.json');
 
 const { parseName } = require('./registry');
@@ -179,10 +179,10 @@ async function callLlm(cfg, systemPrompt, userMessage) {
 
 // ─── KDNA → system prompt ─────────────────────────────────────────────
 
-function buildKdnaPrompt(destDir) {
-  const core = readJson(path.join(destDir, 'KDNA_Core.json'));
-  const pat = readJson(path.join(destDir, 'KDNA_Patterns.json'));
-  const manifest = readJson(path.join(destDir, 'kdna.json'));
+function buildKdnaPrompt(container) {
+  const core = container.core;
+  const pat = container.patterns;
+  const manifest = container.manifest;
 
   if (!core || !pat) return '';
 
@@ -302,7 +302,6 @@ function emitMarkdownReport(parsed, manifest, core, pat, responseA, responseB, d
   const bannedTerms = (pat.terminology?.banned_terms || []).map((t) =>
     typeof t === 'string' ? t : t.term,
   );
-  const misunderstandings = pat.misunderstandings || [];
 
   const lines = [];
   lines.push('# KDNA Judgment Comparison Report');
@@ -487,27 +486,26 @@ async function cmdCompare(input, args = []) {
   const idxInput = args.indexOf('--input');
   if (idxInput < 0 || !args[idxInput + 1]) {
     error(
-      'Usage: kdna compare <name> --input "<text>" [--report-md|--report-json] [--output <file>]',
+      'Usage: kdna compare <name|file.kdna> --input "<text>" [--report-md|--report-json] [--output <file>]',
       EXIT.INPUT_ERROR,
     );
   }
   const userInput = args[idxInput + 1];
 
-  const parsed = parseName(input);
-  if (!parsed) error(`Invalid name "${input}".`, EXIT.INPUT_ERROR);
-  const destDir = path.join(INSTALL_DIR, parsed.scope, parsed.ident);
-  if (!fs.existsSync(destDir)) {
-    error(`${parsed.full} not installed. Run: kdna install ${input}`, EXIT.INPUT_ERROR);
-  }
+  const asset = resolveAsset(input);
+  if (!asset) error(`KDNA asset not found: ${input}. Use an installed name or a .kdna file.`, EXIT.INPUT_ERROR);
+  const parsed = asset.parsed || parseName(asset.name || '');
+  const label = parsed?.full || asset.name || input;
 
   const llm = loadLlmConfig();
-  const manifest = readJson(path.join(destDir, 'kdna.json')) || {};
-  const core = readJson(path.join(destDir, 'KDNA_Core.json')) || {};
-  const pat = readJson(path.join(destDir, 'KDNA_Patterns.json')) || {};
+  const container = readContainer(asset.asset_path);
+  const manifest = container.manifest || {};
+  const core = container.core || {};
+  const pat = container.patterns || {};
 
   if (!jsonMode && !reportMd && !reportJson) {
     console.log('═'.repeat(64));
-    console.log(`  kdna compare  ${parsed.full}`);
+    console.log(`  kdna compare  ${label}`);
     console.log(`  provider:     ${llm.provider} / ${llm.model}`);
     console.log(`  input length: ${userInput.length} chars`);
     console.log('═'.repeat(64));
@@ -516,7 +514,7 @@ async function cmdCompare(input, args = []) {
 
   const BASELINE_SYSTEM =
     'You are a helpful assistant. Respond to the user request concisely and specifically.';
-  const kdnaPrompt = buildKdnaPrompt(destDir);
+  const kdnaPrompt = buildKdnaPrompt(container);
   if (!kdnaPrompt) error('Could not build KDNA prompt — missing KDNA_Core or KDNA_Patterns.');
   const TREATMENT_SYSTEM =
     'You are a helpful assistant. The following domain judgment is loaded and you MUST apply it when relevant.\n\n' +
@@ -540,13 +538,21 @@ async function cmdCompare(input, args = []) {
   recordTrace({
     timestamp: new Date().toISOString(),
     agent: 'cli',
-    domain: parsed.full,
+    domain: label,
     type: 'compare',
+    asset: {
+      asset_path: asset.asset_path,
+      asset_digest: asset.asset_digest || null,
+      content_digest: asset.content_digest || null,
+      version: manifest.version || asset.version || null,
+      judgment_version: manifest.judgment_version || asset.judgment_version || null,
+      access: manifest.access || asset.access || null,
+    },
     compare: { model: llm.model, input_length: userInput.length },
   });
 
   if (reportMd) {
-    const report = emitMarkdownReport(parsed, manifest, core, pat, responseA, responseB, diff, llm);
+    const report = emitMarkdownReport(parsed || { full: label }, manifest, core, pat, responseA, responseB, diff, llm);
     if (outputFile) {
       fs.writeFileSync(outputFile, report);
       console.log(`Report saved to ${outputFile}`);
@@ -558,7 +564,7 @@ async function cmdCompare(input, args = []) {
 
   if (reportJson) {
     const report = emitJsonReport(
-      parsed,
+      parsed || { full: label },
       manifest,
       core,
       pat,

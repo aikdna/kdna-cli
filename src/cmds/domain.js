@@ -2,15 +2,6 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 const { error, readJson, writeJson, EXIT } = require('./_common');
-const {
-  encrypt,
-  decrypt,
-  deriveKey,
-  machineFingerprint,
-  isEncryptable,
-  ENCRYPTED_FILES,
-} = require('./encrypt');
-
 const KDNA_DOMAIN_FILES = new Set([
   'KDNA_Core.json',
   'KDNA_Patterns.json',
@@ -469,7 +460,7 @@ zf.close()
   files.forEach((f) => console.log(`    ${f}`));
 }
 
-// ─── Inspect .kdna file (ZIP container or legacy merged JSON) ────────────
+// ─── Inspect .kdna file (ZIP container) ──────────────────────────────────
 
 function inspectKdnaFile(filePath, jsonMode = false) {
   const abs = path.resolve(filePath);
@@ -481,106 +472,47 @@ function inspectKdnaFile(filePath, jsonMode = false) {
   fs.readSync(fd, head, 0, 4, 0);
   fs.closeSync(fd);
   const isZip = head[0] === 0x50 && head[1] === 0x4b;
+  if (!isZip) error('Invalid .kdna asset: expected ZIP container');
 
-  let core, patterns, manifest;
-  const presentFiles = [];
-
-  if (isZip) {
-    // ZIP container — extract to temp, read files
-    const os = require('os');
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-inspect-'));
-    try {
-      const tmpInspectPy = path.join(
-        fs.existsSync('/tmp') ? '/tmp' : require('os').tmpdir(),
-        `kdna-inspect-${Date.now()}.py`,
-      );
-      try {
-        const script = `import zipfile, os
-zf = zipfile.ZipFile(${JSON.stringify(abs)}, 'r')
-zf.extractall(${JSON.stringify(tmpDir)})
-zf.close()
-`;
-        fs.writeFileSync(tmpInspectPy, script);
-        execSync(`python3 ${tmpInspectPy}`, { stdio: 'pipe' });
-      } finally {
-        try {
-          fs.unlinkSync(tmpInspectPy);
-        } catch {
-          /* cleanup */
-        }
-      }
-    } catch {
-      try {
-        execSync(`unzip -q -o "${abs}" -d "${tmpDir}"`, { stdio: 'pipe' });
-      } catch {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
-        error('Cannot read .kdna container. Install python3 or unzip.');
-      }
-    }
-
-    core = readJson(path.join(tmpDir, 'KDNA_Core.json'));
-    patterns = readJson(path.join(tmpDir, 'KDNA_Patterns.json'));
-    manifest = readJson(path.join(tmpDir, 'kdna.json'));
-
-    for (const f of fs.readdirSync(tmpDir)) {
-      if (f.startsWith('KDNA_') && f.endsWith('.json')) {
-        presentFiles.push(f);
-      }
-      if (f === 'README.md' || f === 'LICENSE') presentFiles.push(f);
-    }
-
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  } else {
-    // Legacy merged JSON/YAML format (deprecated)
-    const raw = fs.readFileSync(abs, 'utf8');
-    let data;
-    try {
-      data = JSON.parse(raw);
-    } catch {
-      data = parseSimpleYaml(raw);
-    }
-
-    if (!data || !data.meta) error(`Invalid .kdna file: missing meta section`);
-
-    const m = data.meta || {};
-    manifest = {
-      name: m.name || m.domain,
-      version: m.version || '?',
-      status: data.status || '?',
-      access: data.access || '?',
-      language: data.language || '?',
-      author: data.author || { name: '?' },
-      license: data.license || { type: '?' },
-      description: data.description || m.purpose || '?',
-      spec_version: m.spec_version || data.kdna_spec || '?',
-    };
-    core = data.core || {};
-    patterns = data.patterns || {};
-    presentFiles.push('.kdna (legacy merged format)');
-    if (data.scenarios) {
-      presentFiles.push('scenarios (inline)');
-    }
-    if (data.cases) {
-      presentFiles.push('cases (inline)');
-    }
-    if (data.reasoning) {
-      presentFiles.push('reasoning (inline)');
-    }
-    if (data.evolution) {
-      presentFiles.push('evolution (inline)');
-    }
+  const { listContainerEntries, readContainerJson } = require('../package-store');
+  const { licenseDecryptOptionsForManifest } = require('./license');
+  const presentFiles = listContainerEntries(abs).filter(
+    (f) => (f.startsWith('KDNA_') && f.endsWith('.json')) || f === 'README.md' || f === 'LICENSE',
+  );
+  const manifest = readContainerJson(abs, 'kdna.json') || {};
+  const encryptedEntries = Array.isArray(manifest.encryption?.encrypted_entries)
+    ? manifest.encryption.encrypted_entries
+    : [];
+  let decryptOptions = {};
+  let decryptError = null;
+  if (encryptedEntries.length) {
+    const licensed = licenseDecryptOptionsForManifest(manifest);
+    if (licensed.ok) decryptOptions = { decryptEntry: licensed.decryptEntry };
+    else decryptError = licensed.error;
   }
 
-  if (!core) error('KDNA_Core.json not found in container');
+  let core = null;
+  let patterns = null;
+  try {
+    core = decryptError ? null : readContainerJson(abs, 'KDNA_Core.json', decryptOptions);
+    patterns = decryptError ? null : readContainerJson(abs, 'KDNA_Patterns.json', decryptOptions);
+  } catch (e) {
+    if (!encryptedEntries.length) error(`Cannot inspect .kdna asset: ${e.message}`);
+    decryptError = e.message;
+  }
+
+  if (!core && !encryptedEntries.includes('KDNA_Core.json')) {
+    error('KDNA_Core.json not found in container');
+  }
 
   const m = manifest || {};
-  const c = core;
+  const c = core || {};
   const p = patterns || {};
 
   if (jsonMode) {
     const result = {
       name: m.name || c.meta?.domain || path.basename(abs, '.kdna'),
-      format: isZip ? 'kdna-zip' : 'legacy-merged',
+      format: 'kdna-zip',
       spec: m.spec_version || m.kdna_spec || null,
       version: m.version || null,
       status: m.status || 'experimental',
@@ -589,6 +521,9 @@ zf.close()
       license: m.license?.type || null,
       created: m.created || c.meta?.created || null,
       description: m.description || c.meta?.purpose || null,
+      protected: encryptedEntries.length > 0,
+      encrypted_entries: encryptedEntries,
+      license_required: !!decryptError,
       content: {
         axioms: (c.axioms || []).length,
         ontology: (c.ontology || []).length,
@@ -608,7 +543,7 @@ zf.close()
   console.log(`  ${m.name || c.meta?.domain || path.basename(abs, '.kdna')} — KDNA Domain`);
   console.log('═'.repeat(50));
   console.log('');
-  console.log(`  Format:      .kdna ${isZip ? '(ZIP container)' : '(legacy merged)'}`);
+  console.log(`  Format:      .kdna (ZIP container)`);
   console.log(`  Spec:        ${m.spec_version || m.kdna_spec || '0.4'}`);
   console.log(`  Version:     ${m.version || '?'}`);
   console.log(`  Status:      ${m.status || 'experimental'}`);
@@ -617,6 +552,10 @@ zf.close()
   console.log(`  License:     ${m.license?.type || '?'}`);
   console.log(`  Created:     ${m.created || c.meta?.created || '?'}`);
   console.log(`  Description: ${m.description || c.meta?.purpose || '?'}`);
+  if (encryptedEntries.length) {
+    console.log(`  Protected:   ${encryptedEntries.join(', ')}`);
+    if (decryptError) console.log(`  Activation:  required (${decryptError})`);
+  }
   console.log('');
   console.log('  ── Content ──');
   console.log(`  Axioms:             ${(c.axioms || []).length}`);
@@ -633,57 +572,9 @@ zf.close()
   console.log('═'.repeat(50));
 }
 
-function parseSimpleYaml(raw) {
-  // Parse a simple subset of YAML (no nesting beyond 1 level for sections)
-  const result = {};
-  let currentSection = null;
-
-  const lines = raw.split('\n');
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-
-    // Section header: "core:" or "  core:" etc
-    if (/^[a-z_]+:$/.test(trimmed)) {
-      currentSection = trimmed.slice(0, -1);
-      if (!result[currentSection]) result[currentSection] = {};
-      continue;
-    }
-
-    // Key: value
-    const kv = trimmed.match(/^([a-z_]+):\s*(.*)/i);
-    if (kv && !kv[1].startsWith('-')) {
-      const key = kv[1];
-      const val = kv[2].trim().replace(/^["']|["']$/g, '');
-      if (currentSection) {
-        if (key === 'version' && typeof result[currentSection] === 'object') {
-          result[currentSection][key] = val;
-        } else if (!result[currentSection][key]) {
-          result[currentSection][key] = val;
-        }
-      } else {
-        result[key] = val;
-      }
-      continue;
-    }
-
-    // Array item: "- value"
-    if (trimmed.startsWith('- ') && currentSection) {
-      // For counts only, we don't parse full arrays
-      if (currentSection === 'axioms' || currentSection === 'stances') {
-        if (!result.core) result.core = {};
-        if (!result.core[currentSection]) result.core[currentSection] = [];
-        result.core[currentSection].push({ _parsed: true });
-      }
-    }
-  }
-
-  return result;
-}
-
 // ─── Inspect ───────────────────────────────────────────────────────────
 
-function cmdInspect(dir, jsonMode = false, locale = null) {
+function cmdInspect(dir, jsonMode = false, locale = null, options = {}) {
   const abs = path.resolve(dir);
   const stat = fs.existsSync(abs) ? fs.statSync(abs) : null;
   if (!stat) error(`Path not found: ${abs}`, EXIT.INPUT_ERROR);
@@ -694,7 +585,14 @@ function cmdInspect(dir, jsonMode = false, locale = null) {
     return;
   }
 
-  // Directory — existing logic
+  if (stat.isDirectory() && !options.allowDirectory) {
+    error(
+      'Directory inspection is a dev-only operation. Use: kdna dev inspect <source-dir>',
+      EXIT.INPUT_ERROR,
+    );
+  }
+
+  // Dev source directory
   if (!stat.isDirectory()) error(`Not a KDNA domain: ${abs}`, EXIT.INPUT_ERROR);
 
   const core = readJson(path.join(abs, 'KDNA_Core.json'));
@@ -870,258 +768,10 @@ function cmdInspect(dir, jsonMode = false, locale = null) {
   console.log('═'.repeat(50));
 }
 
-// ─── Encrypted Container (.kdnae) ─────────────────────────────────────
-
-function cmdPackEncrypt(dir, args = []) {
-  const abs = path.resolve(dir);
-  if (!fs.existsSync(abs) || !fs.statSync(abs).isDirectory()) {
-    error(`Not a directory: ${abs}`, EXIT.INPUT_ERROR);
-  }
-
-  const core = readJson(path.join(abs, 'KDNA_Core.json'));
-  const pat = readJson(path.join(abs, 'KDNA_Patterns.json'));
-  if (!core) error('KDNA_Core.json not found or invalid');
-  if (!pat) error('KDNA_Patterns.json not found or invalid');
-
-  const domainName = core.meta?.domain || path.basename(abs);
-
-  let manifest = readJson(path.join(abs, 'kdna.json'));
-  if (!manifest) {
-    const jsonCount = fs
-      .readdirSync(abs)
-      .filter((f) => f.endsWith('.json') && f !== 'kdna.json').length;
-    manifest = {
-      kdna_spec: '1.0-rc',
-      name: domainName,
-      version: core.meta?.version || '0.1.0',
-      status: 'experimental',
-      access: 'licensed',
-      language: 'en',
-      author: { name: '', id: '' },
-      license: { type: 'KCL-1.0' },
-      description: core.meta?.purpose || `${domainName} domain cognition`,
-      file_count: jsonCount,
-      created: new Date().toISOString().slice(0, 10),
-      updated: new Date().toISOString().slice(0, 10),
-    };
-    writeJson(path.join(abs, 'kdna.json'), manifest);
-  }
-
-  // Get encryption key
-  const licenseIdx = args.indexOf('--license');
-  const keyIdx = args.indexOf('--key');
-  let encKey;
-
-  if (licenseIdx >= 0) {
-    const licensePath = args[licenseIdx + 1];
-    if (!licensePath || !fs.existsSync(licensePath))
-      error('License file not found', EXIT.INPUT_ERROR);
-    const license = JSON.parse(fs.readFileSync(licensePath, 'utf8'));
-    const licenseKey = license.license_id;
-    const fp = machineFingerprint();
-    encKey = deriveKey(licenseKey, fp);
-  } else if (keyIdx >= 0) {
-    const rawKey = args[keyIdx + 1];
-    if (!rawKey) error('--key requires a value', EXIT.INPUT_ERROR);
-    encKey = deriveKey(rawKey, machineFingerprint());
-  } else {
-    error(
-      'Use --license <license.json> or --key <secret> to provide encryption key',
-      EXIT.INPUT_ERROR,
-    );
-  }
-
-  const outputDir = args.includes('--output') ? args[args.indexOf('--output') + 1] : null;
-  const outName = `${domainName}.kdnae`;
-  const outPath = outputDir ? path.join(outputDir, outName) : path.join(process.cwd(), outName);
-  if (outputDir && !fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
-
-  // Build encrypted ZIP
-  const zlib = require('zlib');
-  const files = fs.readdirSync(abs).filter((f) => {
-    if (f.startsWith('.')) return false;
-    const ext = path.extname(f);
-    return ext === '.json' || f === 'README.md' || f === 'LICENSE' || f === 'kdna.json';
-  });
-
-  const centralDir = [];
-  const fileData = [];
-  let offset = 0;
-
-  for (const f of files.sort()) {
-    let raw = fs.readFileSync(path.join(abs, f));
-    let storedName = f;
-
-    if (isEncryptable(f)) {
-      try {
-        const encrypted = encrypt(raw.toString('utf8'), encKey);
-        raw = encrypted;
-        storedName = f; // Keep original name, content is encrypted
-      } catch (err) {
-        error(`Failed to encrypt ${f}: ${err.message}`);
-      }
-    }
-
-    const crc = crc32(raw);
-    const compressed = zlib.deflateRawSync(raw);
-    const useStore = compressed.length >= raw.length;
-    const stored = useStore ? raw : compressed;
-
-    const nameBytes = Buffer.from(storedName, 'utf8');
-    const localHeader = Buffer.alloc(30);
-    localHeader.writeUInt32LE(0x04034b50, 0);
-    localHeader.writeUInt16LE(20, 4);
-    localHeader.writeUInt16LE(0x0800, 6);
-    localHeader.writeUInt16LE(useStore ? 0 : 8, 8);
-    localHeader.writeUInt32LE(crc, 14);
-    localHeader.writeUInt32LE(useStore ? raw.length : compressed.length, 18);
-    localHeader.writeUInt32LE(raw.length, 22);
-    localHeader.writeUInt16LE(nameBytes.length, 26);
-
-    fileData.push(Buffer.concat([localHeader, nameBytes, stored]));
-    offset += localHeader.length + nameBytes.length + stored.length;
-
-    const cdEntry = Buffer.alloc(46);
-    cdEntry.writeUInt32LE(0x02014b50, 0);
-    cdEntry.writeUInt16LE(20, 4);
-    cdEntry.writeUInt16LE(20, 6);
-    cdEntry.writeUInt16LE(0x0800, 8);
-    cdEntry.writeUInt16LE(useStore ? 0 : 8, 10);
-    cdEntry.writeUInt32LE(crc, 16);
-    cdEntry.writeUInt32LE(useStore ? raw.length : compressed.length, 20);
-    cdEntry.writeUInt32LE(raw.length, 24);
-    cdEntry.writeUInt16LE(nameBytes.length, 28);
-    cdEntry.writeUInt32LE(offset - stored.length - nameBytes.length - localHeader.length, 42);
-    centralDir.push(Buffer.concat([cdEntry, nameBytes]));
-  }
-
-  const cdOffset = offset;
-  const cdSize = centralDir.reduce((s, e) => s + e.length, 0);
-  const eocd = Buffer.alloc(22);
-  eocd.writeUInt32LE(0x06054b50, 0);
-  eocd.writeUInt16LE(0, 4);
-  eocd.writeUInt16LE(0, 6);
-  eocd.writeUInt16LE(files.length, 8);
-  eocd.writeUInt16LE(files.length, 10);
-  eocd.writeUInt32LE(cdSize, 12);
-  eocd.writeUInt32LE(cdOffset, 16);
-  eocd.writeUInt16LE(0, 20);
-
-  const all = Buffer.concat([...fileData, ...centralDir, eocd]);
-  fs.writeFileSync(outPath, all);
-
-  console.log(`✓ Encrypted pack: ${outPath}`);
-  console.log(`  Domain: ${domainName} v${manifest.version}`);
-  console.log(
-    `  Files: ${files.length} (${files.filter(isEncryptable).length} encrypted, ${files.filter((f) => !isEncryptable(f)).length} plaintext)`,
-  );
-  console.log(`  Container: AES-256-GCM .kdnae`);
-}
-
-function cmdUnpackEncrypt(filePath, args = []) {
-  const abs = path.resolve(filePath);
-  if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) {
-    error(`Not a file: ${abs}`, EXIT.INPUT_ERROR);
-  }
-  if (!abs.endsWith('.kdnae')) {
-    error(`Not a .kdnae file: ${abs}`, EXIT.INPUT_ERROR);
-  }
-
-  const licenseIdx = args.indexOf('--license');
-  const keyIdx = args.indexOf('--key');
-  let encKey;
-
-  if (licenseIdx >= 0) {
-    const licensePath = args[licenseIdx + 1];
-    if (!licensePath || !fs.existsSync(licensePath))
-      error('License file not found', EXIT.INPUT_ERROR);
-    const license = JSON.parse(fs.readFileSync(licensePath, 'utf8'));
-    const licenseKey = license.license_id;
-    const fp = machineFingerprint();
-    encKey = deriveKey(licenseKey, fp);
-  } else if (keyIdx >= 0) {
-    const rawKey = args[keyIdx + 1];
-    if (!rawKey) error('--key requires a value', EXIT.INPUT_ERROR);
-    encKey = deriveKey(rawKey, machineFingerprint());
-  } else {
-    error('Use --license <license.json> or --key <secret> to decrypt', EXIT.INPUT_ERROR);
-  }
-
-  const domainName = path.basename(abs, '.kdnae');
-  const outDir = path.join(path.dirname(abs), domainName);
-  const force = args.includes('--force');
-
-  if (fs.existsSync(outDir)) {
-    if (!force)
-      error(`Directory already exists: ${outDir}\nUse --force to overwrite.`, EXIT.INPUT_ERROR);
-    fs.rmSync(outDir, { recursive: true, force: true });
-  }
-  fs.mkdirSync(outDir, { recursive: true });
-
-  // Extract ZIP first, then decrypt KDNA JSON files
-  const os = require('os');
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kdnae-unpack-'));
-
-  try {
-    const tmpPy = path.join(os.tmpdir(), `kdnae-unpack-${Date.now()}.py`);
-    try {
-      const script = `import zipfile, os
-zf = zipfile.ZipFile(${JSON.stringify(abs)}, 'r')
-zf.extractall(${JSON.stringify(tmpDir)})
-zf.close()
-`;
-      fs.writeFileSync(tmpPy, script);
-      execSync(`python3 ${tmpPy}`, { stdio: 'pipe' });
-    } catch {
-      try {
-        execSync(`unzip -q -o "${abs}" -d "${tmpDir}"`, { stdio: 'pipe' });
-      } catch {
-        error('Cannot unpack .kdnae container');
-      }
-    } finally {
-      try {
-        fs.unlinkSync(tmpPy);
-      } catch {
-        /* cleanup */
-      }
-    }
-
-    // Copy plaintext files, decrypt KDNA files
-    const extracted = fs.readdirSync(tmpDir);
-    for (const f of extracted) {
-      const src = path.join(tmpDir, f);
-      const dest = path.join(outDir, f);
-
-      if (ENCRYPTED_FILES.includes(f)) {
-        try {
-          const encrypted = fs.readFileSync(src);
-          const decrypted = decrypt(encrypted, encKey);
-          fs.writeFileSync(dest, decrypted);
-        } catch (err) {
-          error(`Failed to decrypt ${f}: ${err.message}. Wrong license key?`);
-        }
-      } else {
-        fs.copyFileSync(src, dest);
-      }
-    }
-  } finally {
-    try {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
-    } catch {
-      /* cleanup */
-    }
-  }
-
-  console.log(`✓ Decrypted: ${outDir}`);
-  const files = fs.readdirSync(outDir);
-  console.log(`  Files: ${files.length}`);
-  files.forEach((f) => console.log(`    ${f}`));
-}
-
 // ─── KDNA Card (locale-aware) ────────────────────────────────────
 
-function cmdCard(dir, jsonMode = false, locale = null) {
-  const abs = path.resolve(dir);
+function readCardFromDirectory(abs, locale = null) {
+  if (!fs.existsSync(abs) || !fs.statSync(abs).isDirectory()) return null;
   let card = readJson(path.join(abs, 'KDNA_CARD.json'));
 
   if (locale) {
@@ -1129,6 +779,35 @@ function cmdCard(dir, jsonMode = false, locale = null) {
     if (localeCard) {
       card = { ...card, ...localeCard };
     }
+  }
+
+  return card;
+}
+
+function cmdCard(dir, jsonMode = false, locale = null, options = {}) {
+  const abs = path.resolve(dir);
+  const stat = fs.existsSync(abs) ? fs.statSync(abs) : null;
+  if (!stat) error(`Path not found: ${abs}`, EXIT.INPUT_ERROR);
+
+  if (stat.isDirectory() && !options.allowDirectory) {
+    error(
+      'Directory card inspection is a dev-only operation. Use: kdna dev card <source-dir>',
+      EXIT.INPUT_ERROR,
+    );
+  }
+
+  let card = null;
+  if (stat.isFile() && abs.endsWith('.kdna')) {
+    const { readContainerJson } = require('../package-store');
+    card = readContainerJson(abs, 'KDNA_CARD.json') || null;
+    if (locale) {
+      const localeCard = readContainerJson(abs, `locales/${locale}/KDNA_CARD.json`) || null;
+      if (localeCard) card = { ...card, ...localeCard };
+    }
+  } else if (stat.isDirectory()) {
+    card = readCardFromDirectory(abs, locale);
+  } else {
+    error(`Not a .kdna asset: ${abs}`, EXIT.INPUT_ERROR);
   }
 
   if (!card) {
@@ -1195,9 +874,7 @@ function cmdCard(dir, jsonMode = false, locale = null) {
 module.exports = {
   cmdValidate,
   cmdPack,
-  cmdPackEncrypt,
   cmdUnpack,
-  cmdUnpackEncrypt,
   cmdInspect,
   cmdCard,
 };

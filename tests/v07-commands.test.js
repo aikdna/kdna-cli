@@ -42,10 +42,85 @@ function run(args, opts = {}) {
 }
 
 function ensureWritingInstalled() {
-  // These tests assume @aikdna/writing is installed locally. Detect, skip
-  // gracefully if not (e.g. on CI without registry network).
-  const dir = path.join(os.homedir(), '.kdna', 'domains', '@aikdna', 'writing');
-  return fs.existsSync(dir);
+  const indexPath = path.join(os.homedir(), '.kdna', 'index.json');
+  if (!fs.existsSync(indexPath)) return false;
+  try {
+    const index = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
+    const asset = index.packages?.['@aikdna/writing']?.asset_path;
+    return !!asset && fs.existsSync(asset);
+  } catch {
+    return false;
+  }
+}
+
+function writeRegistryHome() {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-registry-home-'));
+  const registryDir = path.join(home, '.kdna', 'registry');
+  fs.mkdirSync(registryDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(registryDir, 'domains.json'),
+    JSON.stringify(
+      {
+        schema_version: '3.0',
+        registry_version: '3.0.0-test',
+        updated: '2026-05-27T00:00:00Z',
+        trust: {
+          model: 'kdna-registry-v1',
+          snapshot: {
+            registry_version: '3.0.0-test',
+            generated_at: '2026-05-27T00:00:00Z',
+            expires_at: '2099-01-01T00:00:00Z',
+          },
+          timestamp: {
+            generated_at: '2026-05-27T00:00:00Z',
+            expires_at: '2099-01-01T00:00:00Z',
+          },
+          revocations: [],
+        },
+        scopes: {
+          '@aikdna': {
+            type: 'official',
+            trust_pubkey: 'ed25519:test',
+            registry_url: null,
+            verified: true,
+          },
+        },
+        domains: [
+          {
+            name: '@aikdna/writing',
+            type: 'domain',
+            version: '0.1.0',
+            status: 'experimental',
+            access: 'open',
+            description: 'Writing judgment test asset.',
+            core_insight: 'Most writing problems are structural.',
+            keywords: ['writing', 'editing'],
+            domain_field: ['content-creation'],
+            judgment_patterns: ['quality-assessment'],
+            asset_url: 'https://example.com/writing.kdna',
+            asset_digest: 'sha256:1111111111111111111111111111111111111111111111111111111111111111',
+            signature: 'ed25519:test',
+            release_status: 'published_signed',
+            author: { name: 'Test', id: 'test', pubkey: 'ed25519:test' },
+          },
+        ],
+      },
+      null,
+      2,
+    ) + '\n',
+  );
+  return { HOME: home };
+}
+
+function writeOldRegistryHome() {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-old-registry-home-'));
+  const registryDir = path.join(home, '.kdna', 'registry');
+  fs.mkdirSync(registryDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(registryDir, 'domains.json'),
+    JSON.stringify({ schema_version: '2.0', scopes: {}, domains: [] }, null, 2) + '\n',
+  );
+  return { HOME: home, KDNA_REGISTRY_URL: 'file:///dev/null' };
 }
 
 // ─── kdna help ─────────────────────────────────────────────────────────
@@ -68,16 +143,22 @@ test('kdna project reports it was removed (v0.9)', () => {
 // ─── kdna search ───────────────────────────────────────────────────────
 
 test('kdna search returns matches for a known keyword', () => {
-  const r = run(['search', 'writing']);
+  const r = run(['search', 'writing'], { env: writeRegistryHome() });
   assert.ok(r.ok, `search failed: ${r.stderr}`);
   assert.match(r.stdout, /@aikdna\/writing/);
   assert.match(r.stdout, /score:/);
 });
 
 test('kdna search reports no-match cleanly', () => {
-  const r = run(['search', 'zzzznosuchkeyword']);
+  const r = run(['search', 'zzzznosuchkeyword'], { env: writeRegistryHome() });
   assert.ok(r.ok, `search no-match should still exit 0: ${r.stderr}`);
   assert.match(r.stdout, /No domains match/);
+});
+
+test('kdna search rejects pre-v3 registry metadata', () => {
+  const r = run(['search', 'writing'], { env: writeOldRegistryHome() });
+  assert.ok(!r.ok, 'old registry schema must fail closed');
+  assert.match(r.stderr, /Registry trust check failed/);
 });
 
 // ─── kdna verify (structural only, offline) ──────────────────────────

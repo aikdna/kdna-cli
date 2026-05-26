@@ -91,7 +91,7 @@ function cmdInit(name) {
     `  2. Edit ${targetDir}/KDNA_Patterns.json — replace terminology and misunderstandings`,
   );
   console.log(`  3. Edit ${targetDir}/kdna.json — set author, description, repo`);
-  console.log(`  4. Run: kdna validate ${name}               (structural check)`);
+  console.log(`  4. Run: kdna dev validate ${name}           (structural check)`);
   console.log(`  5. Run: kdna publish --check ${name}         (content quality gate)`);
   console.log(`  6. Run: kdna verify ${name}                  (full judgment scoring)`);
 }
@@ -162,7 +162,7 @@ function cmdClusterInit(name) {
   console.log(
     `  3. Add more sub-domains: cp -r ${targetDir}/domain_one ${targetDir}/your_new_domain`,
   );
-  console.log(`  4. Run: kdna validate ${name}              (check all sub-domains)`);
+  console.log(`  4. Run: kdna dev validate ${name}          (check all sub-domains)`);
 }
 
 module.exports = { cmdInit, cmdClusterInit };

@@ -16,7 +16,7 @@
  *         not treat as a fit decision; many false positives expected)
  *     The agent makes the final call using its own language understanding.
  *
- *   kdna load <name> [--as=prompt|json|raw]
+ *   kdna load <name|file.kdna> [--as=prompt|json|raw]
  *     Read the domain's Core + Patterns and emit:
  *       --as=prompt (default): compact text suitable for system-prompt
  *                              injection (axioms one-liners + stances +
@@ -30,44 +30,44 @@
  */
 
 const fs = require('fs');
-const path = require('path');
 const { parseName } = require('./registry');
 const { recordTrace } = require('./cmds/trace');
+const {
+  getInstalled,
+  listInstalled: listInstalledAssets,
+  readContainer,
+  readContainerEntry,
+  readContainerJson,
+  resolveAsset,
+} = require('./package-store');
+const { licenseDecryptOptionsForManifest } = require('./cmds/license');
 
 function detectAgent() {
   return process.env.KDNA_AGENT || 'cli';
 }
 
-const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
-const { domains: DOMAINS, INSTALL_DIR } = require('./paths');
-
-function readJson(p) {
-  try {
-    return JSON.parse(fs.readFileSync(p, 'utf8'));
-  } catch {
-    return null;
-  }
+function listInstalled() {
+  return listInstalledAssets().map((entry) => {
+    const parsed = parseName(entry.full);
+    return { ...entry, scope: parsed.scope, ident: parsed.ident };
+  });
 }
 
-function listInstalled() {
-  if (!fs.existsSync(INSTALL_DIR)) return [];
-  const out = [];
-  for (const scopeName of fs.readdirSync(INSTALL_DIR)) {
-    if (!scopeName.startsWith('@')) continue;
-    const scopeDir = path.join(INSTALL_DIR, scopeName);
-    try {
-      if (!fs.statSync(scopeDir).isDirectory()) continue;
-      for (const ident of fs.readdirSync(scopeDir)) {
-        if (ident.startsWith('.')) continue;
-        const dir = path.join(scopeDir, ident);
-        if (!fs.statSync(dir).isDirectory()) continue;
-        out.push({ scope: scopeName, ident, dir, full: `${scopeName}/${ident}` });
-      }
-    } catch {
-      /* skip */
-    }
-  }
-  return out;
+function assetLabel(asset, fallback) {
+  return asset.name || asset.parsed?.full || fallback;
+}
+
+function traceAssetFields(asset, manifest = {}, license = null) {
+  const fields = {
+    asset_path: asset.asset_path,
+    asset_digest: asset.asset_digest || null,
+    content_digest: asset.content_digest || null,
+    version: manifest.version || asset.version || null,
+    judgment_version: manifest.judgment_version || asset.judgment_version || null,
+    access: manifest.access || asset.access || null,
+  };
+  if (license?.license_id) fields.license_id = license.license_id;
+  return fields;
 }
 
 // ─── kdna available ────────────────────────────────────────────────────
@@ -78,10 +78,8 @@ function cmdAvailable(args = []) {
 
   const out = [];
   for (const e of installed) {
-    const manifest = readJson(path.join(e.dir, 'kdna.json')) || {};
+    const { manifest = {}, core = {} } = readContainer(e.asset_path);
     if (manifest.yanked === true) continue;
-
-    const core = readJson(path.join(e.dir, 'KDNA_Core.json')) || {};
 
     // Pull applies_when across all axioms (this is what the agent needs
     // for fit-check). Collapsing per-axiom into one set makes the agent's
@@ -110,14 +108,7 @@ function cmdAvailable(args = []) {
   }
 
   if (wantJson) {
-    const result = out.length
-      ? out
-      : {
-          count: 0,
-          domains: [],
-          note: 'No domains installed. Run: kdna install <name>   See: kdna list --available',
-        };
-    process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(out, null, 2) + '\n');
     return;
   }
 
@@ -195,12 +186,11 @@ function cmdMatch(taskText, args = []) {
   const hints = [];
 
   for (const e of installed) {
-    const manifest = readJson(path.join(e.dir, 'kdna.json')) || {};
+    const { manifest = {}, core = {} } = readContainer(e.asset_path);
     if (manifest.yanked === true) {
       dropped.push({ name: manifest.name || e.full, reason: 'yanked' });
       continue;
     }
-    const core = readJson(path.join(e.dir, 'KDNA_Core.json')) || {};
 
     // does_not_apply_when disqualification (HARD signal)
     let disqualified = null;
@@ -318,7 +308,7 @@ function cmdMatch(taskText, args = []) {
       }
     }
     console.log('');
-    console.log('To consider any of these, read its full data: kdna load <name> --as=json');
+    console.log('To consider any of these, read its full data: kdna load <name|file.kdna> --as=json');
   }
 }
 
@@ -348,20 +338,38 @@ function cmdLoad(input, args = []) {
     profileInput = args[inputIdx + 1] || null;
   }
 
-  const parsed = parseName(input);
-  if (!parsed) {
-    console.error(`Invalid name "${input}". Use @scope/name or bare name.`);
-    process.exit(2);
-  }
-  const dir = path.join(INSTALL_DIR, parsed.scope, parsed.ident);
-  if (!fs.existsSync(dir)) {
-    console.error(`${parsed.full} is not installed. Run: kdna install ${input}`);
+  const asset = resolveAsset(input);
+  if (!asset) {
+    console.error(`KDNA asset not found: ${input}. Use an installed name or a .kdna file.`);
     process.exit(2);
   }
 
-  const manifest = readJson(path.join(dir, 'kdna.json')) || {};
+  const manifest = readContainerJson(asset.asset_path, 'kdna.json') || {};
+  const encryptedEntries = manifest.encryption?.encrypted_entries || [];
+  let decryptOptions = {};
+  let licenseActivation = null;
+  if (manifest.access === 'licensed' || encryptedEntries.length > 0) {
+    const activation = licenseDecryptOptionsForManifest(manifest);
+    if (!activation.ok) {
+      console.error(`KDNA license required for ${manifest.name || input}: ${activation.error}`);
+      console.error(`Install a license with: kdna license install <license.json>`);
+      process.exit(3);
+    }
+    decryptOptions = { decryptEntry: activation.decryptEntry };
+    licenseActivation = activation.license;
+  }
+
+  let container;
+  try {
+    container = readContainer(asset.asset_path, decryptOptions);
+  } catch (e) {
+    console.error(`Failed to load KDNA asset: ${e.message}`);
+    process.exit(3);
+  }
+  const parsed = asset.parsed || parseName(manifest.name || '');
+  const label = assetLabel(asset, input);
   if (manifest.yanked === true) {
-    console.error(`${parsed.full}@${manifest.version} has been yanked.`);
+    console.error(`${label}@${manifest.version} has been yanked.`);
     if (manifest.replaced_by) console.error(`Try: ${manifest.replaced_by}`);
     process.exit(2);
   }
@@ -386,8 +394,8 @@ function cmdLoad(input, args = []) {
   if (loadWarnings.length > 0) {
     console.error(loadWarnings.join('\n'));
   }
-  const core = readJson(path.join(dir, 'KDNA_Core.json')) || {};
-  const pat = readJson(path.join(dir, 'KDNA_Patterns.json')) || {};
+  const core = container.core || {};
+  const pat = container.patterns || {};
 
   // JSON format
   if (format === 'json') {
@@ -401,13 +409,17 @@ function cmdLoad(input, args = []) {
         deprecated: manifest.status === 'deprecated',
         yanked: false,
         warnings: loadWarnings,
+        asset_digest: asset.asset_digest || null,
+        content_digest: asset.content_digest || null,
+        license_id: licenseActivation?.license_id || null,
       },
     }, null, 2) + '\n');
     recordTrace({
       timestamp: new Date().toISOString(),
       agent: detectAgent(),
-      domain: parsed.full,
+      domain: label,
       format: 'json',
+      asset: traceAssetFields(asset, manifest, licenseActivation),
     });
     return;
   }
@@ -415,40 +427,46 @@ function cmdLoad(input, args = []) {
   // Raw format
   if (format === 'raw') {
     for (const f of ['KDNA_Core.json', 'KDNA_Patterns.json']) {
-      const p = path.join(dir, f);
-      if (fs.existsSync(p)) {
+      const encrypted = encryptedEntries.includes(f);
+      const buf = encrypted
+        ? Buffer.from(JSON.stringify(container[f === 'KDNA_Core.json' ? 'core' : 'patterns'], null, 2))
+        : readContainerEntry(asset.asset_path, f);
+      if (buf) {
         process.stdout.write(`\n=== ${f} ===\n`);
-        process.stdout.write(fs.readFileSync(p, 'utf8'));
+        process.stdout.write(buf.toString('utf8'));
       }
     }
     recordTrace({
       timestamp: new Date().toISOString(),
       agent: detectAgent(),
-      domain: parsed.full,
+      domain: label,
       format: 'raw',
+      asset: traceAssetFields(asset, manifest, licenseActivation),
     });
     return;
   }
 
   // Load profiles
   if (profile) {
-    emitProfile(parsed, manifest, core, pat, profile, profileInput);
+    emitProfile(parsed || { full: label }, manifest, core, pat, profile, profileInput);
     recordTrace({
       timestamp: new Date().toISOString(),
       agent: detectAgent(),
-      domain: parsed.full,
+      domain: label,
       format: `profile:${profile}`,
+      asset: traceAssetFields(asset, manifest, licenseActivation),
     });
     return;
   }
 
   // Default: --as=prompt — compact text optimized for system-prompt injection.
-  emitCompact(parsed, manifest, core, pat);
+  emitCompact(parsed || { full: label }, manifest, core, pat);
   recordTrace({
     timestamp: new Date().toISOString(),
     agent: detectAgent(),
-    domain: parsed.full,
+    domain: label,
     format: 'prompt',
+    asset: traceAssetFields(asset, manifest, licenseActivation),
   });
 }
 
@@ -711,9 +729,8 @@ function cmdSelect(args = []) {
   const scores = [];
 
   for (const e of installed) {
-    const manifest = readJson(path.join(e.dir, 'kdna.json')) || {};
+    const { manifest = {}, core = {} } = readContainer(e.asset_path);
     if (manifest.yanked === true) continue;
-    const core = readJson(path.join(e.dir, 'KDNA_Core.json')) || {};
 
     // Check does_not_apply_when hard exclusion
     let excluded = false;
@@ -811,14 +828,15 @@ function cmdPostvalidate(args = []) {
     console.error(`Invalid name "${input}".`);
     process.exit(2);
   }
-  const dir = path.join(INSTALL_DIR, parsed.scope, parsed.ident);
-  if (!fs.existsSync(dir)) {
+  const installed = getInstalled(parsed.full);
+  if (!installed) {
     console.error(`${parsed.full} is not installed.`);
     process.exit(2);
   }
 
-  const core = readJson(path.join(dir, 'KDNA_Core.json')) || {};
-  const pat = readJson(path.join(dir, 'KDNA_Patterns.json')) || {};
+  const container = readContainer(installed.asset_path);
+  const core = container.core || {};
+  const pat = container.patterns || {};
 
   // Read agent output
   let agentOutput = '';
@@ -1054,7 +1072,7 @@ function cmdRoute(taskText, args = []) {
   const candidates = [];
 
   for (const e of installed) {
-    const manifest = readJson(path.join(e.dir, 'kdna.json')) || {};
+    const { manifest = {}, core = {} } = readContainer(e.asset_path);
     if (manifest.yanked === true) {
       result.rejected_domains.push({
         domain: manifest.name || e.full,
@@ -1063,8 +1081,6 @@ function cmdRoute(taskText, args = []) {
       });
       continue;
     }
-
-    const core = readJson(path.join(e.dir, 'KDNA_Core.json')) || {};
 
     // Negative match: does_not_apply_when
     let disqualified = null;
@@ -1218,19 +1234,16 @@ function cmdRoute(taskText, args = []) {
   }
 }
 
-function checkTrust(domainName, options = {}) {
+function checkTrust(domainName) {
   const failures = [];
   const warnings = [];
-  const installed = listInstalled();
-  const entry = installed.find(e => `${e.scope}/${e.ident}` === domainName || e.full === domainName);
+  const entry = getInstalled(domainName);
   if (!entry) {
-    failures.push('domain not found in installed directory');
+    failures.push('domain asset not found in package index');
     return { passed: false, failures, warnings };
   }
 
-  const manifest = readJson(path.join(entry.dir, 'kdna.json')) || {};
-  const core = readJson(path.join(entry.dir, 'KDNA_Core.json')) || {};
-  const evolution = readJson(path.join(entry.dir, 'KDNA_Evolution.json')) || {};
+  const { manifest = {}, core = {}, evolution = {} } = readContainer(entry.asset_path);
 
   // 1. Yank check
   if (manifest.yanked === true) {
@@ -1273,31 +1286,17 @@ function checkTrust(domainName, options = {}) {
 
   // 6. License validity (commercial domains)
   if (manifest.access === 'licensed' || manifest.access === 'runtime') {
-    const licenseStorePath = path.join(process.env.HOME || '.', '.kdna', 'licenses.json');
-    let licenseOk = false;
-    try {
-      if (require('fs').existsSync(licenseStorePath)) {
-        const store = JSON.parse(require('fs').readFileSync(licenseStorePath, 'utf8'));
-        const keys = store.keys || {};
-        for (const [hash, entry] of Object.entries(keys)) {
-          if (entry.active && entry.domain_id === domainName) {
-            if (!entry.expires_at || new Date(entry.expires_at) > new Date()) {
-              licenseOk = true;
-              break;
-            }
-          }
-        }
-        if (!licenseOk) {
-          warnings.push('commercial domain has no active license — install with: kdna install ' + domainName + ' --license <key>');
-        }
-      } else {
-        warnings.push('no license store found — commercial domain may require a license');
-      }
-    } catch { /* license check unavailable */ }
+    const licenseCheck = licenseDecryptOptionsForManifest({ ...manifest, name: domainName });
+    if (!licenseCheck.ok) {
+      warnings.push(
+        'commercial domain has no active entitlement — run: kdna license activate ' +
+        domainName +
+        ' --key <license-key> --server <url>'
+      );
+    }
   }
 
   // 7. Human Lock check (judgment-class cards)
-  const judgmentCardTypes = ['axiom', 'boundary', 'risk'];
   const axioms = core.axioms || [];
   const hasJudgmentCards = axioms.length > 0;
   if (hasJudgmentCards) {
