@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.17.0 (2026-05-26)
+
+**kdna-core 0.4.0 upgrade + manifest conformance**
+
+- Upgraded `@aikdna/kdna-core` dependency from `^0.3.0` → `^0.4.0` (publish kdna-core 0.4.0 first)
+- Manifest validation: canonical manifest schema v1.0-rc conformance
+- All 43 tests pass, 0 lint errors
+
 ## v0.16.0 (2026-05-23)
 
 **Stabilization: tests, trace attribution, documentation**
