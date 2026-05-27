@@ -493,7 +493,11 @@ async function cmdCompare(input, args = []) {
   const userInput = args[idxInput + 1];
 
   const asset = resolveAsset(input);
-  if (!asset) error(`KDNA asset not found: ${input}. Use an installed name or a .kdna file.`, EXIT.INPUT_ERROR);
+  if (!asset)
+    error(
+      `KDNA asset not found: ${input}. Use an installed name or a .kdna file.`,
+      EXIT.INPUT_ERROR,
+    );
   const parsed = asset.parsed || parseName(asset.name || '');
   const label = parsed?.full || asset.name || input;
 
@@ -552,7 +556,16 @@ async function cmdCompare(input, args = []) {
   });
 
   if (reportMd) {
-    const report = emitMarkdownReport(parsed || { full: label }, manifest, core, pat, responseA, responseB, diff, llm);
+    const report = emitMarkdownReport(
+      parsed || { full: label },
+      manifest,
+      core,
+      pat,
+      responseA,
+      responseB,
+      diff,
+      llm,
+    );
     if (outputFile) {
       fs.writeFileSync(outputFile, report);
       console.log(`Report saved to ${outputFile}`);

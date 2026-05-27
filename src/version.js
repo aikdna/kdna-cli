@@ -147,12 +147,18 @@ function cmdVersionSuggest(domainPath = '.', args = []) {
   const changes = detectChanges(abs);
 
   if (jsonMode) {
-    console.log(JSON.stringify({
-      current_version: currentVersion,
-      suggested_bump: changes.suggestion,
-      reasons: changes.reasons,
-      change_summary: changes.summary,
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          current_version: currentVersion,
+          suggested_bump: changes.suggestion,
+          reasons: changes.reasons,
+          change_summary: changes.summary,
+        },
+        null,
+        2,
+      ),
+    );
     return;
   }
 
@@ -194,7 +200,9 @@ function detectChanges(domainPath) {
   // Count axioms with applies_when (v2.1 governance) vs without
   if (core?.axioms) {
     const total = core.axioms.length;
-    const governed = core.axioms.filter((a) => a.applies_when?.length && a.does_not_apply_when?.length).length;
+    const governed = core.axioms.filter(
+      (a) => a.applies_when?.length && a.does_not_apply_when?.length,
+    ).length;
     if (governed < total) {
       axiomChanges = total - governed;
       reasons.push(`${axiomChanges} axioms missing v2.1 governance fields`);

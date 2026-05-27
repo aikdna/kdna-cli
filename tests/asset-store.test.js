@@ -84,7 +84,10 @@ function createAsset(tmpRoot) {
     ],
     self_check: ['Did I identify the real argument?'],
   });
-  fs.writeFileSync(path.join(source, 'README.md'), '## Scope\nWriting review.\n\n## Out of Scope\nGrammar only.\n');
+  fs.writeFileSync(
+    path.join(source, 'README.md'),
+    '## Scope\nWriting review.\n\n## Out of Scope\nGrammar only.\n',
+  );
 
   const asset = path.join(tmpRoot, 'writing.kdna');
   const script = `import zipfile, os
@@ -207,7 +210,9 @@ test('local .kdna install stores immutable asset and runtime loads from package 
   const indexPath = path.join(kdnaHome, 'index.json');
   const index = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
   const entry = index.packages['@aikdna/writing'];
-  assert.ok(entry.asset_path.endsWith(path.join('@aikdna', 'writing', '0.1.0', 'writing-0.1.0.kdna')));
+  assert.ok(
+    entry.asset_path.endsWith(path.join('@aikdna', 'writing', '0.1.0', 'writing-0.1.0.kdna')),
+  );
   assert.ok(fs.existsSync(entry.asset_path));
   assert.ok(fs.existsSync(entry.receipt_path));
   assert.match(entry.asset_digest, /^sha256:/);
@@ -336,7 +341,10 @@ test('licensed .kdna load requires installed activation and decrypts in memory',
   );
 
   const inspectDenied = run(['inspect', asset, '--json'], { env });
-  assert.ok(inspectDenied.ok, `licensed inspect should show protected manifest: ${inspectDenied.stderr}`);
+  assert.ok(
+    inspectDenied.ok,
+    `licensed inspect should show protected manifest: ${inspectDenied.stderr}`,
+  );
   const inspectDeniedJson = JSON.parse(inspectDenied.stdout);
   assert.equal(inspectDeniedJson.protected, true);
   assert.equal(inspectDeniedJson.license_required, true);
@@ -361,7 +369,10 @@ test('licensed .kdna load requires installed activation and decrypts in memory',
   assert.equal(verifiedJson.layers.structure.errors.length, 0);
 
   const inspectAllowed = run(['inspect', asset, '--json'], { env });
-  assert.ok(inspectAllowed.ok, `licensed inspect failed after activation: ${inspectAllowed.stderr}`);
+  assert.ok(
+    inspectAllowed.ok,
+    `licensed inspect failed after activation: ${inspectAllowed.stderr}`,
+  );
   const inspectAllowedJson = JSON.parse(inspectAllowed.stdout);
   assert.equal(inspectAllowedJson.license_required, false);
   assert.equal(inspectAllowedJson.content.axioms, 1);

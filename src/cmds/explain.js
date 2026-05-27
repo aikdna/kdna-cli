@@ -20,10 +20,7 @@ function cmdExplain(args) {
 
   const installed = getInstalled(parsed.full);
   if (!installed) {
-    error(
-      `${parsed.full} is not installed.\nRun: kdna install ${target}`,
-      EXIT.INPUT_ERROR,
-    );
+    error(`${parsed.full} is not installed.\nRun: kdna install ${target}`, EXIT.INPUT_ERROR);
   }
 
   const { core, patterns, scenarios } = readContainer(installed.asset_path);

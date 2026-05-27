@@ -3,8 +3,8 @@
 
 const path = require('path');
 
-const KDNA_HOME = process.env.KDNA_HOME
-  || path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
+const KDNA_HOME =
+  process.env.KDNA_HOME || path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
 
 const PATHS = {
   root: KDNA_HOME,

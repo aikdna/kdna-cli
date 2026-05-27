@@ -7,13 +7,7 @@
  */
 
 const { error, EXIT, setQuiet, setExitCodeOnly } = require('./cmds/_common');
-const {
-  cmdValidate,
-  cmdPack,
-  cmdUnpack,
-  cmdInspect,
-  cmdCard,
-} = require('./cmds/domain');
+const { cmdValidate, cmdPack, cmdUnpack, cmdInspect, cmdCard } = require('./cmds/domain');
 const { cmdList, cmdRegistry } = require('./cmds/registry');
 const {
   cmdCompare,
@@ -249,15 +243,24 @@ switch (cmd) {
     break;
   }
   case 'validate': {
-    error('Directory validation is a dev-only operation. Use: kdna dev validate <source-dir>', EXIT.INPUT_ERROR);
+    error(
+      'Directory validation is a dev-only operation. Use: kdna dev validate <source-dir>',
+      EXIT.INPUT_ERROR,
+    );
     break;
   }
   case 'pack': {
-    error('Directory packaging is a dev-only operation. Use: kdna dev pack <source-dir>', EXIT.INPUT_ERROR);
+    error(
+      'Directory packaging is a dev-only operation. Use: kdna dev pack <source-dir>',
+      EXIT.INPUT_ERROR,
+    );
     break;
   }
   case 'unpack': {
-    error('Unpacking exposes internal files and is dev-only. Use: kdna dev unpack <file.kdna>', EXIT.INPUT_ERROR);
+    error(
+      'Unpacking exposes internal files and is dev-only. Use: kdna dev unpack <file.kdna>',
+      EXIT.INPUT_ERROR,
+    );
     break;
   }
   case 'preview': {
@@ -463,7 +466,10 @@ switch (cmd) {
     break;
   }
   case 'package': {
-    error('Directory packaging is a dev-only operation. Use: kdna dev pack <source-dir>', EXIT.INPUT_ERROR);
+    error(
+      'Directory packaging is a dev-only operation. Use: kdna dev pack <source-dir>',
+      EXIT.INPUT_ERROR,
+    );
     break;
   }
   // Legacy (removed) commands

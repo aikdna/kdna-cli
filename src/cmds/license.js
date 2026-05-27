@@ -95,9 +95,7 @@ function verifyLicense(license, _scopePubkey, fingerprint) {
     issues.push('License has been revoked');
   }
   if (license.require_online_check) {
-    const offlineUntil = license.offline_valid_until
-      ? new Date(license.offline_valid_until)
-      : null;
+    const offlineUntil = license.offline_valid_until ? new Date(license.offline_valid_until) : null;
     if (!offlineUntil || Number.isNaN(offlineUntil.getTime()) || offlineUntil < now) {
       issues.push('License offline grace has expired');
     }
@@ -144,7 +142,9 @@ function recordLicenseTrace(action, license, extra = {}) {
     revoked: license?.revoked === true || license?.status === 'revoked',
     require_online_check: !!license?.require_online_check,
     offline_valid_until: license?.offline_valid_until || null,
-    server_type: licenseServerType(extra.server || license?.activation_server || license?.license_server_url),
+    server_type: licenseServerType(
+      extra.server || license?.activation_server || license?.license_server_url,
+    ),
     synced: extra.synced,
     sync_error: extra.sync_error,
   });
@@ -271,7 +271,13 @@ function normalizeActivation(domain, key, payload, server = null) {
     machine_fingerprint: source.machine_fingerprint || fingerprint,
     require_online_check: source.require_online_check !== false,
     offline_grace_days: source.offline_grace_days || 7,
-    allowed_agents: source.allowed_agents || ['claude_code', 'codex', 'opencode', 'cursor', 'gemini'],
+    allowed_agents: source.allowed_agents || [
+      'claude_code',
+      'codex',
+      'opencode',
+      'cursor',
+      'gemini',
+    ],
     activation_server: server || source.activation_server || source.license_server_url || null,
   });
 }
@@ -542,7 +548,10 @@ async function cmdLicenseActivate(args = []) {
   const server = argValue(args, '--server');
   const jsonMode = args.includes('--json');
   if (!domain || !key) {
-    error('Usage: kdna license activate <domain> --key <license-key> --server <url>', EXIT.INPUT_ERROR);
+    error(
+      'Usage: kdna license activate <domain> --key <license-key> --server <url>',
+      EXIT.INPUT_ERROR,
+    );
   }
 
   let activation;
@@ -637,8 +646,7 @@ function licenseStatusRecord(license, file) {
     valid: result.valid,
     issues: result.issues,
     require_machine_binding: !!license.require_machine_binding,
-    machine_bound: !license.require_machine_binding
-      || license.machine_fingerprint === fingerprint,
+    machine_bound: !license.require_machine_binding || license.machine_fingerprint === fingerprint,
     expires_at: license.expires_at || null,
     revoked: license.revoked === true || license.status === 'revoked',
     file,

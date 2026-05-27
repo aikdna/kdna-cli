@@ -672,15 +672,21 @@ function cmdVerify(input, args = []) {
     }
     const { checkTrust: agentCheckTrust } = require('./agent');
     const trust = agentCheckTrust(parsed.full);
-    console.log(JSON.stringify({
-      domain: parsed.full,
-      passed: trust.passed,
-      failures: trust.failures,
-      warnings: trust.warnings,
-      risk_level: trust.riskLevel,
-      spec_version: trust.specVersion,
-      signature_valid: trust.signatureValid,
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          domain: parsed.full,
+          passed: trust.passed,
+          failures: trust.failures,
+          warnings: trust.warnings,
+          risk_level: trust.riskLevel,
+          spec_version: trust.specVersion,
+          signature_valid: trust.signatureValid,
+        },
+        null,
+        2,
+      ),
+    );
     process.exit(trust.passed ? 0 : EXIT.TRUST_FAILED);
   }
 
@@ -743,7 +749,8 @@ function cmdVerify(input, args = []) {
     ? manifest.encryption.encrypted_entries
     : [];
   const requiresProtectedRead =
-    encryptedEntries.length > 0 && (want.structure || want.judgment || want.i18n || want.governance);
+    encryptedEntries.length > 0 &&
+    (want.structure || want.judgment || want.i18n || want.governance);
   if (requiresProtectedRead) {
     const licensed = licenseDecryptOptionsForManifest(manifest);
     if (licensed.ok) {

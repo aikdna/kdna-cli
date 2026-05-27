@@ -54,20 +54,20 @@ If any of the above is true, the agent should decline to load this domain.
 
 ## Known Failure Risks
 
-| Risk | When it shows up |
-|------|---|
-| [risk 1 from axiom_one.failure_risk] | [trigger] |
-| [risk 2 from axiom_two.failure_risk] | [trigger] |
-| [risk 3 from misread_one.failure_risk] | [trigger] |
+| Risk                                   | When it shows up |
+| -------------------------------------- | ---------------- |
+| [risk 1 from axiom_one.failure_risk]   | [trigger]        |
+| [risk 2 from axiom_two.failure_risk]   | [trigger]        |
+| [risk 3 from misread_one.failure_risk] | [trigger]        |
 
 ## Files
 
-| File | Purpose |
-|------|---------|
-| `KDNA_Core.json` | Axioms (with v2.1 boundaries), ontology, frameworks, causal structure, stances |
+| File                 | Purpose                                                                          |
+| -------------------- | -------------------------------------------------------------------------------- |
+| `KDNA_Core.json`     | Axioms (with v2.1 boundaries), ontology, frameworks, causal structure, stances   |
 | `KDNA_Patterns.json` | Terminology, banned terms, misunderstandings (with v2.1 boundaries), self-checks |
-| `evals/` | Test cases for `kdna compare` and quality scoring |
-| `kdna.json` | Domain manifest (name, version, judgment_version, signature) |
+| `evals/`             | Test cases for `kdna compare` and quality scoring                                |
+| `kdna.json`          | Domain manifest (name, version, judgment_version, signature)                     |
 
 ## License
 

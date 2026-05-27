@@ -90,25 +90,43 @@ function cmdChangelog(args = []) {
   // Diff maps
   const axioms = diffSummary(oldJ.axioms || {}, newJ.axioms || {}, 'one_sentence');
   const ontology = diffSummary(oldJ.ontology || {}, newJ.ontology || {}, 'concept');
-  const misunderstandings = diffSummary(oldJ.misunderstandings || {}, newJ.misunderstandings || {}, 'wrong');
-  const bannedTerms = diffList(Object.keys(oldJ.banned_terms || {}), Object.keys(newJ.banned_terms || {}));
+  const misunderstandings = diffSummary(
+    oldJ.misunderstandings || {},
+    newJ.misunderstandings || {},
+    'wrong',
+  );
+  const bannedTerms = diffList(
+    Object.keys(oldJ.banned_terms || {}),
+    Object.keys(newJ.banned_terms || {}),
+  );
   const stances = diffList(oldJ.stances || [], newJ.stances || []);
 
   // Version bump suggestion
-  const hasRemoved = Object.values(axioms).some((a) => a.status === 'removed') ||
-                     Object.values(misunderstandings).some((m) => m.status === 'removed');
-  const hasAdded = Object.values(axioms).some((a) => a.status === 'added') ||
-                   Object.values(misunderstandings).some((m) => m.status === 'added');
-  const hasChanged = Object.values(axioms).some((a) => a.status === 'changed') ||
-                     Object.values(misunderstandings).some((m) => m.status === 'changed');
+  const hasRemoved =
+    Object.values(axioms).some((a) => a.status === 'removed') ||
+    Object.values(misunderstandings).some((m) => m.status === 'removed');
+  const hasAdded =
+    Object.values(axioms).some((a) => a.status === 'added') ||
+    Object.values(misunderstandings).some((m) => m.status === 'added');
+  const hasChanged =
+    Object.values(axioms).some((a) => a.status === 'changed') ||
+    Object.values(misunderstandings).some((m) => m.status === 'changed');
   let recommendedBump = 'none';
   if (hasRemoved) recommendedBump = 'major';
   else if (hasAdded || hasChanged) recommendedBump = 'minor';
   else if (stances.added.length || stances.removed.length) recommendedBump = 'patch';
 
   // Cleanup
-  try { fs.rmSync(tmpOld, { recursive: true, force: true }); } catch { /* cleanup */ }
-  try { fs.rmSync(tmpNew, { recursive: true, force: true }); } catch { /* cleanup */ }
+  try {
+    fs.rmSync(tmpOld, { recursive: true, force: true });
+  } catch {
+    /* cleanup */
+  }
+  try {
+    fs.rmSync(tmpNew, { recursive: true, force: true });
+  } catch {
+    /* cleanup */
+  }
 
   // Output
   const changelog = {
@@ -139,7 +157,9 @@ function cmdChangelog(args = []) {
   console.log(`## ${fromVersion} → ${toVersion}`);
   console.log('');
   if (oldJ.judgment_version || newJ.judgment_version) {
-    console.log(`Judgment version: ${oldJ.judgment_version || '(none)'} → ${newJ.judgment_version || '(none)'}`);
+    console.log(
+      `Judgment version: ${oldJ.judgment_version || '(none)'} → ${newJ.judgment_version || '(none)'}`,
+    );
     console.log('');
   }
 

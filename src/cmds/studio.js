@@ -79,9 +79,16 @@ const CARD_TEMPLATES = {
 };
 
 function cmdStudioScaffold(name, args = []) {
-  if (!name) error('Usage: kdna studio scaffold <name> [--type=domain|cluster] [--minimal]', EXIT.INPUT_ERROR);
+  if (!name)
+    error(
+      'Usage: kdna studio scaffold <name> [--type=domain|cluster] [--minimal]',
+      EXIT.INPUT_ERROR,
+    );
   if (!/^[a-z][a-z0-9_-]*$/.test(name)) {
-    error(`Invalid name "${name}". Use lowercase letters, numbers, hyphens, underscores. Start with letter.`, EXIT.INPUT_ERROR);
+    error(
+      `Invalid name "${name}". Use lowercase letters, numbers, hyphens, underscores. Start with letter.`,
+      EXIT.INPUT_ERROR,
+    );
   }
 
   const type = args.includes('--type=cluster') ? 'cluster' : 'domain';
@@ -154,15 +161,22 @@ function cmdCardsValidate(projectPath, args = []) {
 
   if (!fs.existsSync(abs)) error(`Project file not found: ${abs}`, EXIT.INPUT_ERROR);
   const project = readJson(abs);
-  if (!project || !project.kdna_studio) error(`Not a KDNA Studio project: ${abs}`, EXIT.INPUT_ERROR);
+  if (!project || !project.kdna_studio)
+    error(`Not a KDNA Studio project: ${abs}`, EXIT.INPUT_ERROR);
 
   const errors = [];
   const warnings = [];
   const passed = [];
 
-  function fail(msg) { errors.push(msg); }
-  function warn(msg) { warnings.push(msg); }
-  function ok(msg) { passed.push(msg); }
+  function fail(msg) {
+    errors.push(msg);
+  }
+  function warn(msg) {
+    warnings.push(msg);
+  }
+  function ok(msg) {
+    passed.push(msg);
+  }
 
   // Validate each card set
   for (const [cardType, cardFile] of Object.entries(project.cards || {})) {
@@ -192,7 +206,11 @@ function cmdCardsValidate(projectPath, args = []) {
           } else {
             ok(`axiom ${label}: applies_when has ${ax.applies_when.length} entries`);
           }
-          if (!ax.does_not_apply_when || !Array.isArray(ax.does_not_apply_when) || ax.does_not_apply_when.length === 0) {
+          if (
+            !ax.does_not_apply_when ||
+            !Array.isArray(ax.does_not_apply_when) ||
+            ax.does_not_apply_when.length === 0
+          ) {
             fail(`axiom ${label}: missing does_not_apply_when`);
           } else {
             ok(`axiom ${label}: does_not_apply_when has ${ax.does_not_apply_when.length} entries`);
@@ -208,9 +226,11 @@ function cmdCardsValidate(projectPath, args = []) {
       case 'misunderstandings':
         for (const ms of cards) {
           const label = ms.id || '?';
-          if (!ms.wrong || ms.wrong.includes('[TODO]')) warn(`misunderstanding ${label}: wrong is placeholder`);
+          if (!ms.wrong || ms.wrong.includes('[TODO]'))
+            warn(`misunderstanding ${label}: wrong is placeholder`);
           else ok(`misunderstanding ${label}: wrong OK`);
-          if (!ms.correct || ms.correct.includes('[TODO]')) warn(`misunderstanding ${label}: correct is placeholder`);
+          if (!ms.correct || ms.correct.includes('[TODO]'))
+            warn(`misunderstanding ${label}: correct is placeholder`);
           else ok(`misunderstanding ${label}: correct OK`);
           if (!ms.key_distinction || ms.key_distinction.length < 15) {
             fail(`misunderstanding ${label}: key_distinction missing or too short`);
@@ -223,14 +243,18 @@ function cmdCardsValidate(projectPath, args = []) {
       case 'boundaries':
         for (const bd of cards) {
           const label = bd.id || '?';
-          if (!bd.scope || bd.scope.includes('[TODO]')) warn(`boundary ${label}: scope is placeholder`);
+          if (!bd.scope || bd.scope.includes('[TODO]'))
+            warn(`boundary ${label}: scope is placeholder`);
           else ok(`boundary ${label}: scope OK`);
-          if (!bd.out_of_scope || bd.out_of_scope.includes('[TODO]')) warn(`boundary ${label}: out_of_scope is placeholder`);
+          if (!bd.out_of_scope || bd.out_of_scope.includes('[TODO]'))
+            warn(`boundary ${label}: out_of_scope is placeholder`);
           else ok(`boundary ${label}: out_of_scope OK`);
           if (!bd.acceptable_exceptions || !Array.isArray(bd.acceptable_exceptions)) {
             warn(`boundary ${label}: acceptable_exceptions not declared`);
           } else {
-            ok(`boundary ${label}: acceptable_exceptions has ${bd.acceptable_exceptions.length} entries`);
+            ok(
+              `boundary ${label}: acceptable_exceptions has ${bd.acceptable_exceptions.length} entries`,
+            );
           }
         }
         break;
@@ -251,11 +275,14 @@ function cmdCardsValidate(projectPath, args = []) {
       case 'ontology':
         for (const ont of cards) {
           const label = ont.id || '?';
-          if (!ont.essence || ont.essence.includes('[TODO]')) warn(`ontology ${label}: essence is placeholder`);
+          if (!ont.essence || ont.essence.includes('[TODO]'))
+            warn(`ontology ${label}: essence is placeholder`);
           else ok(`ontology ${label}: essence OK`);
-          if (!ont.boundary || ont.boundary.includes('[TODO]')) warn(`ontology ${label}: boundary is placeholder`);
+          if (!ont.boundary || ont.boundary.includes('[TODO]'))
+            warn(`ontology ${label}: boundary is placeholder`);
           else ok(`ontology ${label}: boundary OK`);
-          if (!ont.trigger_signal || ont.trigger_signal.includes('[TODO]')) warn(`ontology ${label}: trigger_signal is placeholder`);
+          if (!ont.trigger_signal || ont.trigger_signal.includes('[TODO]'))
+            warn(`ontology ${label}: trigger_signal is placeholder`);
           else ok(`ontology ${label}: trigger_signal OK`);
         }
         break;
@@ -263,14 +290,20 @@ function cmdCardsValidate(projectPath, args = []) {
   }
 
   if (jsonMode) {
-    console.log(JSON.stringify({
-      project: path.basename(abs),
-      valid: errors.length === 0,
-      errors,
-      warnings,
-      passed: passed.length,
-      total_checks: errors.length + warnings.length + passed.length,
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          project: path.basename(abs),
+          valid: errors.length === 0,
+          errors,
+          warnings,
+          passed: passed.length,
+          total_checks: errors.length + warnings.length + passed.length,
+        },
+        null,
+        2,
+      ),
+    );
     process.exit(errors.length ? EXIT.VALIDATION_FAILED : EXIT.OK);
   }
 
@@ -298,7 +331,8 @@ function cmdLockVerify(projectPath, args = []) {
 
   if (!fs.existsSync(abs)) error(`Project file not found: ${abs}`, EXIT.INPUT_ERROR);
   const project = readJson(abs);
-  if (!project || !project.kdna_studio) error(`Not a KDNA Studio project: ${abs}`, EXIT.INPUT_ERROR);
+  if (!project || !project.kdna_studio)
+    error(`Not a KDNA Studio project: ${abs}`, EXIT.INPUT_ERROR);
 
   const locked = [];
   const unlocked = [];
@@ -324,7 +358,10 @@ function cmdLockVerify(projectPath, args = []) {
           locked.push(label);
         } else {
           // Check Feynman restatement for axioms and misunderstandings
-          if ((cardType === 'axioms' || cardType === 'misunderstandings') && !card.feynman_restatement) {
+          if (
+            (cardType === 'axioms' || cardType === 'misunderstandings') &&
+            !card.feynman_restatement
+          ) {
             unlocked.push(label);
             blocking.push(`${label} missing Feynman restatement`);
           } else {
@@ -341,15 +378,21 @@ function cmdLockVerify(projectPath, args = []) {
   const publishable = blocking.length === 0 && locked.length > 0;
 
   if (jsonMode) {
-    console.log(JSON.stringify({
-      project: path.basename(abs),
-      locked_cards: locked.length,
-      unlocked_cards: unlocked.length,
-      publishable,
-      blocking,
-      locked: locked.sort(),
-      unlocked: unlocked.sort(),
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          project: path.basename(abs),
+          locked_cards: locked.length,
+          unlocked_cards: unlocked.length,
+          publishable,
+          blocking,
+          locked: locked.sort(),
+          unlocked: unlocked.sort(),
+        },
+        null,
+        2,
+      ),
+    );
     process.exit(publishable ? EXIT.OK : EXIT.HUMAN_LOCK_REQUIRED);
   }
 
@@ -381,13 +424,15 @@ function cmdStudioCompile(projectPath, args = []) {
 
   if (!fs.existsSync(abs)) error(`Project file not found: ${abs}`, EXIT.INPUT_ERROR);
   const project = readJson(abs);
-  if (!project || !project.kdna_studio) error(`Not a KDNA Studio project: ${abs}`, EXIT.INPUT_ERROR);
+  if (!project || !project.kdna_studio)
+    error(`Not a KDNA Studio project: ${abs}`, EXIT.INPUT_ERROR);
 
   // Determine output directory
   const outIdx = args.indexOf('--out');
-  const outDir = outIdx >= 0
-    ? path.resolve(args[outIdx + 1])
-    : path.join(path.dirname(abs), project.exports?.dir || 'exports');
+  const outDir =
+    outIdx >= 0
+      ? path.resolve(args[outIdx + 1])
+      : path.join(path.dirname(abs), project.exports?.dir || 'exports');
 
   fs.mkdirSync(outDir, { recursive: true });
 
@@ -519,7 +564,8 @@ function cmdStudioReadiness(projectPath, args = []) {
 
   if (!fs.existsSync(abs)) error(`Project file not found: ${abs}`, EXIT.INPUT_ERROR);
   const project = readJson(abs);
-  if (!project || !project.kdna_studio) error(`Not a KDNA Studio project: ${abs}`, EXIT.INPUT_ERROR);
+  if (!project || !project.kdna_studio)
+    error(`Not a KDNA Studio project: ${abs}`, EXIT.INPUT_ERROR);
 
   const readiness = {
     axioms: loadCardStats(project, path.dirname(abs), 'axioms'),
@@ -533,7 +579,9 @@ function cmdStudioReadiness(projectPath, args = []) {
   };
 
   // Determine publishability
-  const allTypes = Object.values(readiness).filter((v) => v && typeof v === 'object' && 'total' in v);
+  const allTypes = Object.values(readiness).filter(
+    (v) => v && typeof v === 'object' && 'total' in v,
+  );
   let allLocked = allTypes.every((t) => t.total > 0 && t.total === t.locked);
   if (allTypes.length === 0) allLocked = false;
   readiness.publishable = allLocked;

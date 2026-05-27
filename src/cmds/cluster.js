@@ -40,7 +40,10 @@ function cmdCluster(args) {
     if (!target) error('Usage: kdna cluster match <cluster.json> --input "<task>"');
     cmdClusterMatch(target, args);
   } else if (sub === 'compose') {
-    if (!target) error('Usage: kdna cluster compose <cluster.json> --input "<task>" [--profile=compact] [--json]');
+    if (!target)
+      error(
+        'Usage: kdna cluster compose <cluster.json> --input "<task>" [--profile=compact] [--json]',
+      );
     cmdClusterCompose(target, args);
   } else if (sub === 'conflicts') {
     if (!target) error('Usage: kdna cluster conflicts <cluster.json> --input "<task>" [--json]');
@@ -252,20 +255,26 @@ function cmdClusterCompose(target, args = []) {
   const { context } = composeContextWithAttribution(classification.selected);
 
   if (jsonMode) {
-    console.log(JSON.stringify({
-      cluster: manifest.cluster_id,
-      input: input.slice(0, 200),
-      selected: classification.selected.map((d) => ({
-        id: d.id,
-        role: d.role,
-        reason: d.reason,
-      })),
-      excluded: classification.excluded.map((d) => ({
-        id: d.id,
-        reason: d.reason,
-      })),
-      context,
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          cluster: manifest.cluster_id,
+          input: input.slice(0, 200),
+          selected: classification.selected.map((d) => ({
+            id: d.id,
+            role: d.role,
+            reason: d.reason,
+          })),
+          excluded: classification.excluded.map((d) => ({
+            id: d.id,
+            reason: d.reason,
+          })),
+          context,
+        },
+        null,
+        2,
+      ),
+    );
     return;
   }
 
@@ -273,7 +282,9 @@ function cmdClusterCompose(target, args = []) {
   console.log(`Profile: ${profile}`);
   console.log(`Input:   ${input.slice(0, 100)}${input.length > 100 ? '...' : ''}`);
   console.log('');
-  console.log(`Selected: ${classification.selected.length} | Excluded: ${classification.excluded.length}`);
+  console.log(
+    `Selected: ${classification.selected.length} | Excluded: ${classification.excluded.length}`,
+  );
   console.log('');
   console.log('─'.repeat(64));
   console.log(context);
@@ -300,25 +311,33 @@ function cmdClusterConflicts(target, args = []) {
   const conflicts = detectDomainConflicts(classification.selected);
 
   if (jsonMode) {
-    console.log(JSON.stringify({
-      cluster: manifest.cluster_id,
-      input: input.slice(0, 200),
-      selected: classification.selected.map((d) => ({ id: d.id, role: d.role })),
-      conflicts: conflicts.map((c) => ({
-        type: c.type,
-        domains: c.domains,
-        description: c.description,
-        severity: c.severity || 'warn',
-      })),
-      conflict_count: conflicts.length,
-      safe: conflicts.length === 0,
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          cluster: manifest.cluster_id,
+          input: input.slice(0, 200),
+          selected: classification.selected.map((d) => ({ id: d.id, role: d.role })),
+          conflicts: conflicts.map((c) => ({
+            type: c.type,
+            domains: c.domains,
+            description: c.description,
+            severity: c.severity || 'warn',
+          })),
+          conflict_count: conflicts.length,
+          safe: conflicts.length === 0,
+        },
+        null,
+        2,
+      ),
+    );
     process.exit(conflicts.length ? EXIT.HUMAN_LOCK_REQUIRED : EXIT.OK);
   }
 
   console.log(`Cluster: ${manifest.cluster_id}`);
   console.log(`Input:   ${input.slice(0, 100)}${input.length > 100 ? '...' : ''}`);
-  console.log(`Selected: ${classification.selected.length} domains | Conflicts: ${conflicts.length}`);
+  console.log(
+    `Selected: ${classification.selected.length} domains | Conflicts: ${conflicts.length}`,
+  );
   console.log('');
 
   if (!conflicts.length) {
@@ -382,15 +401,21 @@ function cmdClusterGraph(target, args = []) {
   for (const d of manifest.domains || []) {
     const shape = d.role === 'primary' ? 'box' : d.role === 'critic' ? 'diamond' : 'ellipse';
     const required = d.required !== false ? ',style=filled,fillcolor="#e8f0fe"' : ',style=dashed';
-    console.log(`  "${d.id || d.role}" [label="${d.id || d.role}\\n[${d.role}]",shape=${shape}${required}];`);
+    console.log(
+      `  "${d.id || d.role}" [label="${d.id || d.role}\\n[${d.role}]",shape=${shape}${required}];`,
+    );
   }
 
   // Edges
   if (manifest.relationships) {
     console.log('');
     for (const r of manifest.relationships) {
-      const style = r.type === 'conflicts' ? ',style=dashed,color=red' :
-                    r.type === 'extends' ? ',style=bold' : '';
+      const style =
+        r.type === 'conflicts'
+          ? ',style=dashed,color=red'
+          : r.type === 'extends'
+            ? ',style=bold'
+            : '';
       console.log(`  "${r.from}" -> "${r.to}" [label="${r.type}"${style}];`);
     }
   }
@@ -402,13 +427,15 @@ function cmdClusterGraph(target, args = []) {
  * Shared domain loader for cluster commands.
  */
 function loadClusterDomains(manifest) {
-  return (manifest.domains || []).map((d) => {
-    const domainId = d.id;
-    if (!domainId) return null;
-    const loaded = loadInstalledDomain(domainId);
-    if (!loaded) return null;
-    return { id: domainId, role: d.role, required: d.required !== false, ...loaded };
-  }).filter(Boolean);
+  return (manifest.domains || [])
+    .map((d) => {
+      const domainId = d.id;
+      if (!domainId) return null;
+      const loaded = loadInstalledDomain(domainId);
+      if (!loaded) return null;
+      return { id: domainId, role: d.role, required: d.required !== false, ...loaded };
+    })
+    .filter(Boolean);
 }
 
 module.exports = { cmdCluster };

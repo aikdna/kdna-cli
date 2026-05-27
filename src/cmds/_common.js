@@ -19,7 +19,9 @@ function setQuiet(val) {
   }
 }
 
-function isQuiet() { return _quiet; }
+function isQuiet() {
+  return _quiet;
+}
 
 function setExitCodeOnly(val) {
   _exitCodeOnly = val;
@@ -34,7 +36,9 @@ function setExitCodeOnly(val) {
   }
 }
 
-function isExitCodeOnly() { return _exitCodeOnly; }
+function isExitCodeOnly() {
+  return _exitCodeOnly;
+}
 
 function log(...args) {
   if (!_quiet && !_exitCodeOnly) _originalLog(...args);
@@ -154,7 +158,9 @@ function isYesNoSelfCheck(item) {
     raw.endsWith('？') ||
     raw.endsWith('吗') ||
     raw.includes('是否') ||
-    /^(have|has|can|does|do|is|are|did|was|were|should|will|would|could|might|can not|cannot|能不能|会不会|有没有|要不要|是不是)/.test(lower)
+    /^(have|has|can|does|do|is|are|did|was|were|should|will|would|could|might|can not|cannot|能不能|会不会|有没有|要不要|是不是)/.test(
+      lower,
+    )
   );
 }
 

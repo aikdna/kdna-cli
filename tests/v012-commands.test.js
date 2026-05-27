@@ -107,8 +107,14 @@ test('kdna doctor --agents --json returns parseable JSON', () => {
   assert.ok(r.ok);
   const parsed = JSON.parse(r.stdout);
   assert.ok(Array.isArray(parsed.checks), 'checks should be array');
-  assert.ok(parsed.checks.some(c => c.agent), 'at least one agent check');
-  assert.ok(parsed.checks.some(c => c.skillInstalled !== undefined), 'skillInstalled field present');
+  assert.ok(
+    parsed.checks.some((c) => c.agent),
+    'at least one agent check',
+  );
+  assert.ok(
+    parsed.checks.some((c) => c.skillInstalled !== undefined),
+    'skillInstalled field present',
+  );
 });
 
 test('kdna doctor --json reports healthy', () => {
@@ -123,7 +129,14 @@ test('kdna doctor --json reports healthy', () => {
 test('kdna doctor --domains reports installed .kdna assets', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-doctor-home-'));
   const kdnaHome = path.join(home, '.kdna');
-  const assetPath = path.join(kdnaHome, 'packages', '@aikdna', 'writing', '0.1.0', 'writing-0.1.0.kdna');
+  const assetPath = path.join(
+    kdnaHome,
+    'packages',
+    '@aikdna',
+    'writing',
+    '0.1.0',
+    'writing-0.1.0.kdna',
+  );
   fs.mkdirSync(path.dirname(assetPath), { recursive: true });
   fs.writeFileSync(assetPath, 'placeholder');
   fs.writeFileSync(
@@ -216,7 +229,10 @@ test('kdna license generate creates valid JSON', () => {
   const env = makeIsolatedEnv();
   ensureIdentity(env);
   const outPath = path.join(TMPDIR, 'test-license.json');
-  const r = run(['license', 'generate', '@aikdna/test', '--to', 'test@test.com', '--save', outPath], { env });
+  const r = run(
+    ['license', 'generate', '@aikdna/test', '--to', 'test@test.com', '--save', outPath],
+    { env },
+  );
   assert.ok(r.ok, `license generate failed: ${r.stderr}`);
   const lic = JSON.parse(fs.readFileSync(outPath, 'utf8'));
   assert.equal(lic.domain, '@aikdna/test');
@@ -322,7 +338,16 @@ test('kdna license activate and sync enforce entitlement revocation', () => {
   );
 
   const activate = run(
-    ['license', 'activate', '@aikdna/pro', '--key', key, '--server', `file://${serverPath}`, '--json'],
+    [
+      'license',
+      'activate',
+      '@aikdna/pro',
+      '--key',
+      key,
+      '--server',
+      `file://${serverPath}`,
+      '--json',
+    ],
     { env },
   );
   assert.ok(activate.ok, `license activate failed: ${activate.stderr}`);

@@ -31,7 +31,7 @@ We will acknowledge within 5 business days and provide a timeline for a fix.
 
 ## Out of Scope
 
-- Domain content files (KDNA_*.json) — these are user-authored judgment assets
+- Domain content files (KDNA\_\*.json) — these are user-authored judgment assets
 - Network-level attacks (man-in-the-middle on registry fetch) — use HTTPS
 - Local filesystem access — CLI runs with user privileges
 

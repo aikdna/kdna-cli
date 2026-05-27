@@ -90,13 +90,15 @@ function cmdIdentityShow(jsonMode = false) {
   const fp = fingerprint(pub);
 
   if (jsonMode) {
-    console.log(JSON.stringify({
-      pubkey: pub.trim(),
-      buyer_id: id,
-      fingerprint: fp,
-      public_key_path: PUBLIC_KEY_PATH,
-      private_key_exists: fs.existsSync(PRIVATE_KEY_PATH),
-    }));
+    console.log(
+      JSON.stringify({
+        pubkey: pub.trim(),
+        buyer_id: id,
+        fingerprint: fp,
+        public_key_path: PUBLIC_KEY_PATH,
+        private_key_exists: fs.existsSync(PRIVATE_KEY_PATH),
+      }),
+    );
     process.exit(EXIT.OK);
   }
 

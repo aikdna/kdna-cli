@@ -308,7 +308,9 @@ function cmdMatch(taskText, args = []) {
       }
     }
     console.log('');
-    console.log('To consider any of these, read its full data: kdna load <name|file.kdna> --as=json');
+    console.log(
+      'To consider any of these, read its full data: kdna load <name|file.kdna> --as=json',
+    );
   }
 }
 
@@ -379,16 +381,24 @@ function cmdLoad(input, args = []) {
   const signature = manifest.signature;
   const isPlaceholder = !signature || signature === '' || signature.includes('placeholder');
   if (isPlaceholder) {
-    loadWarnings.push('⚠  Domain is unsigned — no cryptographic proof of authorship. Trust depends on source.');
+    loadWarnings.push(
+      '⚠  Domain is unsigned — no cryptographic proof of authorship. Trust depends on source.',
+    );
   }
   if (manifest.status === 'deprecated') {
-    loadWarnings.push(`⚠  Domain is deprecated${manifest.replaced_by ? ', replaced by ' + manifest.replaced_by : ''}.`);
+    loadWarnings.push(
+      `⚠  Domain is deprecated${manifest.replaced_by ? ', replaced by ' + manifest.replaced_by : ''}.`,
+    );
   }
   const riskLevel = manifest.risk_level || 'R1';
   if (riskLevel === 'R3' || riskLevel === 'R4') {
-    loadWarnings.push(`⚠  High risk domain (${riskLevel}) — may influence agent behavior in safety-critical ways.`);
+    loadWarnings.push(
+      `⚠  High risk domain (${riskLevel}) — may influence agent behavior in safety-critical ways.`,
+    );
     if (manifest.quality_badge === 'untested' || !manifest.quality_badge) {
-      loadWarnings.push('⚠  High risk + untested — load only if you trust the source and understand the risks.');
+      loadWarnings.push(
+        '⚠  High risk + untested — load only if you trust the source and understand the risks.',
+      );
     }
   }
   if (loadWarnings.length > 0) {
@@ -399,21 +409,27 @@ function cmdLoad(input, args = []) {
 
   // JSON format
   if (format === 'json') {
-    process.stdout.write(JSON.stringify({
-      manifest,
-      core,
-      patterns: pat,
-      trust: {
-        signature: isPlaceholder ? 'unsigned' : 'present',
-        risk_level: riskLevel,
-        deprecated: manifest.status === 'deprecated',
-        yanked: false,
-        warnings: loadWarnings,
-        asset_digest: asset.asset_digest || null,
-        content_digest: asset.content_digest || null,
-        license_id: licenseActivation?.license_id || null,
-      },
-    }, null, 2) + '\n');
+    process.stdout.write(
+      JSON.stringify(
+        {
+          manifest,
+          core,
+          patterns: pat,
+          trust: {
+            signature: isPlaceholder ? 'unsigned' : 'present',
+            risk_level: riskLevel,
+            deprecated: manifest.status === 'deprecated',
+            yanked: false,
+            warnings: loadWarnings,
+            asset_digest: asset.asset_digest || null,
+            content_digest: asset.content_digest || null,
+            license_id: licenseActivation?.license_id || null,
+          },
+        },
+        null,
+        2,
+      ) + '\n',
+    );
     recordTrace({
       timestamp: new Date().toISOString(),
       agent: detectAgent(),
@@ -429,7 +445,9 @@ function cmdLoad(input, args = []) {
     for (const f of ['KDNA_Core.json', 'KDNA_Patterns.json']) {
       const encrypted = encryptedEntries.includes(f);
       const buf = encrypted
-        ? Buffer.from(JSON.stringify(container[f === 'KDNA_Core.json' ? 'core' : 'patterns'], null, 2))
+        ? Buffer.from(
+            JSON.stringify(container[f === 'KDNA_Core.json' ? 'core' : 'patterns'], null, 2),
+          )
         : readContainerEntry(asset.asset_path, f);
       if (buf) {
         process.stdout.write(`\n=== ${f} ===\n`);
@@ -1004,7 +1022,10 @@ function cmdRoute(taskText, args = []) {
 
   if (!taskText) {
     const err = { error: 'Usage: kdna route "<task description>" [--json] [--discover]' };
-    if (wantJson) { console.log(JSON.stringify(err)); process.exit(2); }
+    if (wantJson) {
+      console.log(JSON.stringify(err));
+      process.exit(2);
+    }
     console.error(err.error);
     process.exit(2);
   }
@@ -1031,19 +1052,53 @@ function cmdRoute(taskText, args = []) {
 
   // ═══ Gate 1: Intent — does this task need domain judgment? ═══
   const judgmentKeywords = [
-    'review', 'diagnose', 'critique', 'evaluate', 'assess', 'judge',
-    'should i', 'is this good', 'is this correct', 'how would you rate',
-    '分析', '诊断', '评估', '判断', '审查', '该怎么', '好不好',
+    'review',
+    'diagnose',
+    'critique',
+    'evaluate',
+    'assess',
+    'judge',
+    'should i',
+    'is this good',
+    'is this correct',
+    'how would you rate',
+    '分析',
+    '诊断',
+    '评估',
+    '判断',
+    '审查',
+    '该怎么',
+    '好不好',
   ];
   const mechanicalKeywords = [
-    'format', 'translate', 'convert', 'list', 'find', 'lookup', 'search',
-    'run', 'execute', 'compile', 'build', 'fix syntax', 'fix the bug',
-    '格式化', '翻译', '转换', '列出', '查找', '搜索', '运行', '执行', '编译', '修复语法',
+    'format',
+    'translate',
+    'convert',
+    'list',
+    'find',
+    'lookup',
+    'search',
+    'run',
+    'execute',
+    'compile',
+    'build',
+    'fix syntax',
+    'fix the bug',
+    '格式化',
+    '翻译',
+    '转换',
+    '列出',
+    '查找',
+    '搜索',
+    '运行',
+    '执行',
+    '编译',
+    '修复语法',
   ];
 
   const taskLower = taskText.toLowerCase();
-  const hasJudgmentSignal = judgmentKeywords.some(k => taskLower.includes(k));
-  const hasMechanicalSignal = mechanicalKeywords.some(k => taskLower.includes(k));
+  const hasJudgmentSignal = judgmentKeywords.some((k) => taskLower.includes(k));
+  const hasMechanicalSignal = mechanicalKeywords.some((k) => taskLower.includes(k));
 
   result.needs_kdna = hasJudgmentSignal && !hasMechanicalSignal;
 
@@ -1053,7 +1108,10 @@ function cmdRoute(taskText, args = []) {
     result.reason = hasMechanicalSignal
       ? 'task is mechanical — no domain judgment required'
       : 'task does not appear to need domain judgment';
-    if (wantJson) { console.log(JSON.stringify(result, null, 2)); return; }
+    if (wantJson) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
     console.log('SKIP (no judgment needed)');
     return;
   }
@@ -1062,7 +1120,10 @@ function cmdRoute(taskText, args = []) {
     result.status = 'SKIP_NO_LOCAL_DOMAIN';
     result.action = 'skip';
     result.reason = 'task may benefit from judgment, but no KDNA domains are installed';
-    if (wantJson) { console.log(JSON.stringify(result, null, 2)); return; }
+    if (wantJson) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
     console.log('SKIP (no domains installed)');
     return;
   }
@@ -1137,8 +1198,8 @@ function cmdRoute(taskText, args = []) {
   candidates.sort((a, b) => b.score - a.score);
 
   // ═══ Gate 4: Decision ═══
-  const strongCandidates = candidates.filter(c => c.score >= 6);
-  const weakCandidates = candidates.filter(c => c.score > 0 && c.score < 6);
+  const strongCandidates = candidates.filter((c) => c.score >= 6);
+  const weakCandidates = candidates.filter((c) => c.score > 0 && c.score < 6);
 
   if (strongCandidates.length === 0 && weakCandidates.length === 0) {
     // No matches at all
@@ -1148,7 +1209,7 @@ function cmdRoute(taskText, args = []) {
     if (result.rejected_domains.length > 0) {
       result.reason += ` (${result.rejected_domains.length} domains explicitly excluded by does_not_apply_when)`;
     }
-    result.candidates = candidates.map(c => ({
+    result.candidates = candidates.map((c) => ({
       domain: c.domain,
       decision: 'rejected',
       reason: 'insufficient match score',
@@ -1161,24 +1222,38 @@ function cmdRoute(taskText, args = []) {
     result.reason = `${strongCandidates.length} domains strongly match this task with different judgment frames`;
 
     result.ambiguity = {
-      domains: strongCandidates.slice(0, 3).map(c => ({
+      domains: strongCandidates.slice(0, 3).map((c) => ({
         domain: c.domain,
         description: c.description,
         judgment_frame: c.reasons.length > 0 ? c.reasons[0].text : c.description,
         risk_if_wrong: `may misclassify the task as a ${c.domain.split('/').pop()} problem`,
       })),
-      recommendation: 'Choose the domain whose judgment frame best matches the task intent. Do not blend domains.',
+      recommendation:
+        'Choose the domain whose judgment frame best matches the task intent. Do not blend domains.',
     };
 
-    result.candidates = strongCandidates.map(c => ({
-      domain: c.domain, decision: 'ambiguous', reason: `score ${c.score}`, confidence: c.confidence,
+    result.candidates = strongCandidates.map((c) => ({
+      domain: c.domain,
+      decision: 'ambiguous',
+      reason: `score ${c.score}`,
+      confidence: c.confidence,
     }));
   } else if (strongCandidates.length === 1) {
     // One strong match + possible weak matches
     const selected = strongCandidates[0];
     result.candidates = [
-      { domain: selected.domain, decision: 'strong_match', reason: `score ${selected.score}`, confidence: selected.confidence },
-      ...weakCandidates.map(c => ({ domain: c.domain, decision: 'weak_match', reason: `score ${c.score}`, confidence: c.confidence })),
+      {
+        domain: selected.domain,
+        decision: 'strong_match',
+        reason: `score ${selected.score}`,
+        confidence: selected.confidence,
+      },
+      ...weakCandidates.map((c) => ({
+        domain: c.domain,
+        decision: 'weak_match',
+        reason: `score ${c.score}`,
+        confidence: c.confidence,
+      })),
     ];
 
     // ═══ Trust Gate ═══
@@ -1200,11 +1275,15 @@ function cmdRoute(taskText, args = []) {
     // Only weak matches — skip
     result.status = 'SKIP_WEAK_FIT';
     result.action = 'skip';
-    result.reason = weakCandidates.length > 0
-      ? `${weakCandidates.length} domain(s) have weak match only — skipping to avoid contamination`
-      : 'no installed domain matches this task';
-    result.candidates = weakCandidates.map(c => ({
-      domain: c.domain, decision: 'weak_match', reason: `score ${c.score}`, confidence: c.confidence,
+    result.reason =
+      weakCandidates.length > 0
+        ? `${weakCandidates.length} domain(s) have weak match only — skipping to avoid contamination`
+        : 'no installed domain matches this task';
+    result.candidates = weakCandidates.map((c) => ({
+      domain: c.domain,
+      decision: 'weak_match',
+      reason: `score ${c.score}`,
+      confidence: c.confidence,
     }));
   }
 
@@ -1230,7 +1309,7 @@ function cmdRoute(taskText, args = []) {
   if (result.reason) console.log(`Reason: ${result.reason}`);
   if (result.selected_domain) console.log(`Domain: ${result.selected_domain}`);
   if (result.rejected_domains.length) {
-    console.log(`Rejected: ${result.rejected_domains.map(r => r.domain).join(', ')}`);
+    console.log(`Rejected: ${result.rejected_domains.map((r) => r.domain).join(', ')}`);
   }
 }
 
@@ -1252,7 +1331,9 @@ function checkTrust(domainName) {
 
   // 2. Deprecation check
   if (manifest.status === 'deprecated') {
-    warnings.push(`domain is deprecated${manifest.replaced_by ? ', replaced by ' + manifest.replaced_by : ''}`);
+    warnings.push(
+      `domain is deprecated${manifest.replaced_by ? ', replaced by ' + manifest.replaced_by : ''}`,
+    );
   }
 
   // 3. Signature check
@@ -1271,10 +1352,14 @@ function checkTrust(domainName) {
   const riskMap = { R0: 0, R1: 1, R2: 2, R3: 3, R4: 4 };
   const riskNum = riskMap[riskLevel] || 1;
   if (riskNum >= 3) {
-    warnings.push(`domain risk level is ${riskLevel} — high-risk judgment may influence agent behavior`);
+    warnings.push(
+      `domain risk level is ${riskLevel} — high-risk judgment may influence agent behavior`,
+    );
   }
   if (riskNum >= 2 && (manifest.quality_badge === 'untested' || !manifest.quality_badge)) {
-    warnings.push(`risk level ${riskLevel} with quality_badge '${manifest.quality_badge || 'none'}' — consider requiring review`);
+    warnings.push(
+      `risk level ${riskLevel} with quality_badge '${manifest.quality_badge || 'none'}' — consider requiring review`,
+    );
   }
 
   // 5. SPEC compatibility check
@@ -1290,8 +1375,8 @@ function checkTrust(domainName) {
     if (!licenseCheck.ok) {
       warnings.push(
         'commercial domain has no active entitlement — run: kdna license activate ' +
-        domainName +
-        ' --key <license-key> --server <url>'
+          domainName +
+          ' --key <license-key> --server <url>',
       );
     }
   }
@@ -1301,12 +1386,14 @@ function checkTrust(domainName) {
   const hasJudgmentCards = axioms.length > 0;
   if (hasJudgmentCards) {
     const humanLocks = evolution.human_locks || [];
-    const lockedAxioms = axioms.filter(a => {
+    const lockedAxioms = axioms.filter((a) => {
       // Check if axiom has a human_lock field OR if an evolution lock covers it
-      return a.human_lock || humanLocks.some(hl => hl.lock_type === 'accept');
+      return a.human_lock || humanLocks.some((hl) => hl.lock_type === 'accept');
     }).length;
     if (lockedAxioms === 0 && humanLocks.length === 0) {
-      warnings.push('domain has no Human Lock records — judgment-class content may not be human-verified');
+      warnings.push(
+        'domain has no Human Lock records — judgment-class content may not be human-verified',
+      );
     }
   }
 
@@ -1320,4 +1407,12 @@ function checkTrust(domainName) {
   };
 }
 
-module.exports = { cmdAvailable, cmdMatch, cmdLoad, cmdSelect, cmdPostvalidate, cmdRoute, checkTrust };
+module.exports = {
+  cmdAvailable,
+  cmdMatch,
+  cmdLoad,
+  cmdSelect,
+  cmdPostvalidate,
+  cmdRoute,
+  checkTrust,
+};
