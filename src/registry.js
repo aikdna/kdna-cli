@@ -69,7 +69,8 @@ function registryTrustIssues(registry, { now = new Date() } = {}) {
   const snapshotExpires = parseDate(trust.snapshot?.expires_at);
   const timestampExpires = parseDate(trust.timestamp?.expires_at);
   if (!snapshotExpires) issues.push('registry.trust.snapshot.expires_at must be an ISO timestamp');
-  if (!timestampExpires) issues.push('registry.trust.timestamp.expires_at must be an ISO timestamp');
+  if (!timestampExpires)
+    issues.push('registry.trust.timestamp.expires_at must be an ISO timestamp');
   if (snapshotExpires && snapshotExpires <= now) {
     issues.push(`registry snapshot expired at ${trust.snapshot.expires_at}`);
   }
@@ -86,12 +87,14 @@ function registryRevocations(registry) {
 
 function isEntryRevoked(registry, entry) {
   const revocations = registryRevocations(registry);
-  return revocations.find((rev) => {
-    if (rev.name && rev.name !== entry.name) return false;
-    if (rev.version && rev.version !== entry.version) return false;
-    if (rev.asset_digest && rev.asset_digest !== entry.asset_digest) return false;
-    return rev.name || rev.asset_digest;
-  }) || null;
+  return (
+    revocations.find((rev) => {
+      if (rev.name && rev.name !== entry.name) return false;
+      if (rev.version && rev.version !== entry.version) return false;
+      if (rev.asset_digest && rev.asset_digest !== entry.asset_digest) return false;
+      return rev.name || rev.asset_digest;
+    }) || null
+  );
 }
 
 // ─── Name parsing ───────────────────────────────────────────────────────
@@ -213,7 +216,9 @@ class RegistryResolver {
       trustIssues = data ? registryTrustIssues(data) : [];
     }
     if (trustIssues.length) {
-      throw new Error(`Registry trust check failed:\n${trustIssues.map((i) => `- ${i}`).join('\n')}`);
+      throw new Error(
+        `Registry trust check failed:\n${trustIssues.map((i) => `- ${i}`).join('\n')}`,
+      );
     }
     this._registries.set(scopeName, data);
     return data;

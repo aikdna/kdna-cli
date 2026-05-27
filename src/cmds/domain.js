@@ -620,6 +620,16 @@ function cmdInspect(dir, jsonMode = false, locale = null, options = {}) {
   ];
   const filesPresent = expected.filter((f) => fs.existsSync(path.join(abs, f)));
 
+  // Governance metadata (with locale support)
+  let kdnaCard = readJson(path.join(abs, 'KDNA_CARD.json'));
+  if (locale && !kdnaCard) {
+    kdnaCard = readJson(path.join(abs, 'locales', locale, 'KDNA_CARD.json'));
+  }
+  if (locale && kdnaCard) {
+    const localeCard = readJson(path.join(abs, 'locales', locale, 'KDNA_CARD.json'));
+    if (localeCard) kdnaCard = localeCard;
+  }
+
   if (jsonMode) {
     const result = {
       name: m.name || c.meta?.domain || path.basename(abs),
@@ -725,15 +735,6 @@ function cmdInspect(dir, jsonMode = false, locale = null, options = {}) {
 
   if (evo) console.log(`  Evolution stages:   ${(evo.stages || []).length}`);
 
-  // Governance metadata (with locale support)
-  let kdnaCard = readJson(path.join(abs, 'KDNA_CARD.json'));
-  if (locale && !kdnaCard) {
-    kdnaCard = readJson(path.join(abs, 'locales', locale, 'KDNA_CARD.json'));
-  }
-  if (locale && kdnaCard) {
-    const localeCard = readJson(path.join(abs, 'locales', locale, 'KDNA_CARD.json'));
-    if (localeCard) kdnaCard = localeCard;
-  }
   if (kdnaCard) {
     const displayName = kdnaCard.display_name || '';
     const summary = kdnaCard.summary || '';

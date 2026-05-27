@@ -115,8 +115,11 @@ function cmdTestRun(args = []) {
   if (!jsonMode) {
     console.log(`Test run recorded: ${result.test_id}`);
     console.log(`  Domain:  ${result.domain}`);
-    console.log(`  Input:   ${result.input.slice(0, 100)}${result.input.length > 100 ? '...' : ''}`);
-    if (result.expected.classification) console.log(`  Expected classification: ${result.expected.classification}`);
+    console.log(
+      `  Input:   ${result.input.slice(0, 100)}${result.input.length > 100 ? '...' : ''}`,
+    );
+    if (result.expected.classification)
+      console.log(`  Expected classification: ${result.expected.classification}`);
   }
 }
 

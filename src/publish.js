@@ -53,17 +53,17 @@ const SLOGAN_PATTERNS = [
 // PRIORITIZE or AVOID, not steps to follow.
 
 const SOP_PATTERNS = [
-  /^Step\s+\d/i,                     // "Step 1: identify the topic"
+  /^Step\s+\d/i, // "Step 1: identify the topic"
   /^First,?\s|^Next,?\s|^Then,?\s|^Finally,?\s/i, // "First, do X. Then do Y."
-  /^Check\s(for|if|whether)\s/i,    // "Check for spelling errors"
+  /^Check\s(for|if|whether)\s/i, // "Check for spelling errors"
   /^Always\s+(use|do|make|include)/i, // "Always use active voice"
-  /^Never\s+(use|do|make)/i,        // "Never use passive voice"
-  /^Generate\s/i,                    // "Generate three options"
-  /^Create\s+(a|the)\s/i,           // "Create a list of..."
-  /^Make\s+sure\s/i,                // "Make sure to check..."
-  /^Remember\s+to\s/i,              // "Remember to validate..."
+  /^Never\s+(use|do|make)/i, // "Never use passive voice"
+  /^Generate\s/i, // "Generate three options"
+  /^Create\s+(a|the)\s/i, // "Create a list of..."
+  /^Make\s+sure\s/i, // "Make sure to check..."
+  /^Remember\s+to\s/i, // "Remember to validate..."
   /^(You|The agent)\s+should\s+(use|do|make|include)/i, // "You should use X"
-  /^Avoid\s+(using|doing)/i,         // "Avoid using X" (too procedural)
+  /^Avoid\s+(using|doing)/i, // "Avoid using X" (too procedural)
 ];
 
 function isSOP(text) {
@@ -188,13 +188,19 @@ function checkHumanLock(domainPath) {
     // Rule 3: Lock must confirm judgment fields were reviewed
     const checked = card.human_lock.checked || {};
     if (!checked.applies_when) {
-      issues.push(`${card.type} "${card.id}" Human Lock does not confirm applies_when was reviewed.`);
+      issues.push(
+        `${card.type} "${card.id}" Human Lock does not confirm applies_when was reviewed.`,
+      );
     }
     if (!checked.does_not_apply_when) {
-      issues.push(`${card.type} "${card.id}" Human Lock does not confirm does_not_apply_when was reviewed.`);
+      issues.push(
+        `${card.type} "${card.id}" Human Lock does not confirm does_not_apply_when was reviewed.`,
+      );
     }
     if (!checked.failure_risk) {
-      issues.push(`${card.type} "${card.id}" Human Lock does not confirm failure_risk was reviewed.`);
+      issues.push(
+        `${card.type} "${card.id}" Human Lock does not confirm failure_risk was reviewed.`,
+      );
     }
   }
 
@@ -596,7 +602,10 @@ function sourceContentDigest(srcDir) {
     }
     parts.push(`${f}:${crypto.createHash('sha256').update(buf).digest('hex')}`);
   }
-  return `sha256:${crypto.createHash('sha256').update(Buffer.from(parts.join('\n'))).digest('hex')}`;
+  return `sha256:${crypto
+    .createHash('sha256')
+    .update(Buffer.from(parts.join('\n')))
+    .digest('hex')}`;
 }
 
 function signPayload(payload, privateKeyPem) {
@@ -626,7 +635,8 @@ function packToFile(domainDir, outPath) {
   const files = fs
     .readdirSync(domainDir)
     .filter((f) => f.endsWith('.json') || f === 'README.md' || f === 'LICENSE');
-  if (!files.includes('kdna.json')) error('kdna.json required in dev source directory for publish.');
+  if (!files.includes('kdna.json'))
+    error('kdna.json required in dev source directory for publish.');
 
   const script = `import zipfile, os
 src = ${JSON.stringify(domainDir)}
@@ -795,4 +805,10 @@ function cmdPublish(domainPath, args = []) {
   );
 }
 
-module.exports = { cmdPublishCheck, cmdPublish, checkHumanLock, canonicalPayload, publicKeyToScopeFormat };
+module.exports = {
+  cmdPublishCheck,
+  cmdPublish,
+  checkHumanLock,
+  canonicalPayload,
+  publicKeyToScopeFormat,
+};

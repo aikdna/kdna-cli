@@ -36,112 +36,112 @@ kdna doctor --agents
 
 ## The 6 Commands You Actually Need
 
-| Command | What it does |
-|---------|-------------|
-| `kdna setup` | Initialize ~/.kdna, install the agent skill loader |
-| `kdna install <domain>` | Install a domain from the registry |
-| `kdna list` | Show installed domains with quality info |
-| `kdna verify <domain>` | 3-layer check: structure + trust + judgment |
-| `kdna compare <domain> --input "..."` | Compare with/without KDNA judgment |
-| `kdna doctor --agents` | Check agent integration health |
+| Command                               | What it does                                       |
+| ------------------------------------- | -------------------------------------------------- |
+| `kdna setup`                          | Initialize ~/.kdna, install the agent skill loader |
+| `kdna install <domain>`               | Install a domain from the registry                 |
+| `kdna list`                           | Show installed domains with quality info           |
+| `kdna verify <domain>`                | 3-layer check: structure + trust + judgment        |
+| `kdna compare <domain> --input "..."` | Compare with/without KDNA judgment                 |
+| `kdna doctor --agents`                | Check agent integration health                     |
 
 ## All Commands by Role
 
 ### Domain Authoring
 
-| Command | Status | Description |
-|---------|--------|-------------|
-| `kdna init <name>` | Beta | Scaffold a new domain from template |
-| `kdna dev validate <path>` | Stable | Validate a non-canonical dev source directory |
-| `kdna dev pack <path>` | Beta | Build a dev source directory into a .kdna asset |
-| `kdna dev unpack <file>` | Beta | Unpack .kdna into a dev source directory |
-| `kdna dev inspect <path>` | Beta | Inspect a non-canonical dev source directory |
-| `kdna dev card <path>` | Beta | Display KDNA Card from a dev source directory |
-| `kdna inspect <file.kdna>` | Beta | Inspect a .kdna asset |
-| `kdna publish <path>` | Experimental | Pack + sign + publish to registry |
-| `kdna publish --check <path>` | Experimental | Quality gate check only |
-| `kdna version bump <level> [path]` | Beta | Bump domain version |
+| Command                            | Status       | Description                                     |
+| ---------------------------------- | ------------ | ----------------------------------------------- |
+| `kdna init <name>`                 | Beta         | Scaffold a new domain from template             |
+| `kdna dev validate <path>`         | Stable       | Validate a non-canonical dev source directory   |
+| `kdna dev pack <path>`             | Beta         | Build a dev source directory into a .kdna asset |
+| `kdna dev unpack <file>`           | Beta         | Unpack .kdna into a dev source directory        |
+| `kdna dev inspect <path>`          | Beta         | Inspect a non-canonical dev source directory    |
+| `kdna dev card <path>`             | Beta         | Display KDNA Card from a dev source directory   |
+| `kdna inspect <file.kdna>`         | Beta         | Inspect a .kdna asset                           |
+| `kdna publish <path>`              | Experimental | Pack + sign + publish to registry               |
+| `kdna publish --check <path>`      | Experimental | Quality gate check only                         |
+| `kdna version bump <level> [path]` | Beta         | Bump domain version                             |
 
 ### Agent Runtime
 
-| Command | Status | Description |
-|---------|--------|-------------|
-| `kdna available [--json]` | Beta | List installed domains with v2.1 fields |
-| `kdna match "<task>" [--json]` | Beta | Signal matching — find relevant domains |
-| `kdna load <name\|file.kdna> [--as=prompt\|json\|raw]` | Beta | Emit asset in agent-ready format |
-| `kdna postvalidate <name> --output <file>` | Beta | Post-generation judgment check |
+| Command                                                | Status | Description                             |
+| ------------------------------------------------------ | ------ | --------------------------------------- |
+| `kdna available [--json]`                              | Beta   | List installed domains with v2.1 fields |
+| `kdna match "<task>" [--json]`                         | Beta   | Signal matching — find relevant domains |
+| `kdna load <name\|file.kdna> [--as=prompt\|json\|raw]` | Beta   | Emit asset in agent-ready format        |
+| `kdna postvalidate <name> --output <file>`             | Beta   | Post-generation judgment check          |
 
 ### Testing & Verification
 
-| Command | Status | Description |
-|---------|--------|-------------|
-| `kdna verify <name\|file.kdna>` | Beta | 3-layer: structure + trust + judgment |
-| `kdna compare <name\|file.kdna> --input "..."` | Beta | With/without KDNA reasoning diff |
-| `kdna compare <name\|file.kdna> --input "..." --report-md` | Beta | Markdown report with scoring |
-| `kdna compare <name\|file.kdna> --input "..." --report-json` | Beta | JSON report with scoring |
-| `kdna diff <name>@<v1> <name>@<v2>` | Beta | Judgment-level diff between versions |
+| Command                                                      | Status | Description                           |
+| ------------------------------------------------------------ | ------ | ------------------------------------- |
+| `kdna verify <name\|file.kdna>`                              | Beta   | 3-layer: structure + trust + judgment |
+| `kdna compare <name\|file.kdna> --input "..."`               | Beta   | With/without KDNA reasoning diff      |
+| `kdna compare <name\|file.kdna> --input "..." --report-md`   | Beta   | Markdown report with scoring          |
+| `kdna compare <name\|file.kdna> --input "..." --report-json` | Beta   | JSON report with scoring              |
+| `kdna diff <name>@<v1> <name>@<v2>`                          | Beta   | Judgment-level diff between versions  |
 
 ### Diagnostics & Trace
 
-| Command | Status | Description |
-|---------|--------|-------------|
-| `kdna doctor` | Beta | System health check |
-| `kdna doctor --agents` | Beta | Agent integration check (Codex/Claude/OpenCode/Cursor/Gemini) |
-| `kdna doctor --json` | Beta | Machine-readable health report |
-| `kdna trace` | Experimental | View recent load/postvalidate traces |
-| `kdna trace --json` | Experimental | Machine-readable trace output |
-| `kdna trace --export <file>` | Experimental | Export traces for audit |
-| `kdna trace --since 7d\|30d\|90d` | Experimental | Filter by time range |
-| `kdna history` | Experimental | Recent domain usage (last 20) |
-| `kdna history --stats` | Experimental | Aggregate by domain and agent |
-| `kdna history --domain <name>` | Experimental | Filter by domain |
+| Command                           | Status       | Description                                                   |
+| --------------------------------- | ------------ | ------------------------------------------------------------- |
+| `kdna doctor`                     | Beta         | System health check                                           |
+| `kdna doctor --agents`            | Beta         | Agent integration check (Codex/Claude/OpenCode/Cursor/Gemini) |
+| `kdna doctor --json`              | Beta         | Machine-readable health report                                |
+| `kdna trace`                      | Experimental | View recent load/postvalidate traces                          |
+| `kdna trace --json`               | Experimental | Machine-readable trace output                                 |
+| `kdna trace --export <file>`      | Experimental | Export traces for audit                                       |
+| `kdna trace --since 7d\|30d\|90d` | Experimental | Filter by time range                                          |
+| `kdna history`                    | Experimental | Recent domain usage (last 20)                                 |
+| `kdna history --stats`            | Experimental | Aggregate by domain and agent                                 |
+| `kdna history --domain <name>`    | Experimental | Filter by domain                                              |
 
 ### License & Authorization
 
-| Command | Status | Description |
-|---------|--------|-------------|
-| `kdna license generate <domain> --to <email>` | Experimental | Generate signed license |
-| `kdna license install <license.json>` | Experimental | Register license for auto-decrypt |
-| `kdna license activate <domain> --key <key> --server <url>` | Experimental | Activate a license from entitlement source |
-| `kdna license sync [domain] [--server <url>]` | Experimental | Refresh entitlement and revocation status |
-| `kdna license verify <license.json>` | Experimental | Verify license signature and validity |
-| `kdna license bind <license.json>` | Experimental | Bind license to this machine |
-| `kdna license show <license.json>` | Experimental | Display license details |
-| `kdna license status [domain] [--json]` | Experimental | Show installed license activation status without exposing keys |
+| Command                                                     | Status       | Description                                                    |
+| ----------------------------------------------------------- | ------------ | -------------------------------------------------------------- |
+| `kdna license generate <domain> --to <email>`               | Experimental | Generate signed license                                        |
+| `kdna license install <license.json>`                       | Experimental | Register license for auto-decrypt                              |
+| `kdna license activate <domain> --key <key> --server <url>` | Experimental | Activate a license from entitlement source                     |
+| `kdna license sync [domain] [--server <url>]`               | Experimental | Refresh entitlement and revocation status                      |
+| `kdna license verify <license.json>`                        | Experimental | Verify license signature and validity                          |
+| `kdna license bind <license.json>`                          | Experimental | Bind license to this machine                                   |
+| `kdna license show <license.json>`                          | Experimental | Display license details                                        |
+| `kdna license status [domain] [--json]`                     | Experimental | Show installed license activation status without exposing keys |
 
 ### Cluster Composition
 
-| Command | Status | Description |
-|---------|--------|-------------|
+| Command                    | Status  | Description               |
+| -------------------------- | ------- | ------------------------- |
 | `kdna cluster lint <path>` | Planned | Validate cluster manifest |
 
 ### Registry & Distribution
 
-| Command | Status | Description |
-|---------|--------|-------------|
-| `kdna install <name>` | Beta | Install domain from registry |
-| `kdna install file.kdna` | Beta | Install from local .kdna asset |
-| `kdna remove <name>` | Beta | Uninstall a domain |
-| `kdna update <name>` | Beta | Update installed domain |
-| `kdna info <name>` | Beta | Show domain metadata and trust status |
-| `kdna list [--available]` | Beta | List installed or available domains |
-| `kdna search <keyword>` | Beta | Search registry |
-| `kdna registry refresh` | Beta | Refresh registry cache |
+| Command                   | Status | Description                           |
+| ------------------------- | ------ | ------------------------------------- |
+| `kdna install <name>`     | Beta   | Install domain from registry          |
+| `kdna install file.kdna`  | Beta   | Install from local .kdna asset        |
+| `kdna remove <name>`      | Beta   | Uninstall a domain                    |
+| `kdna update <name>`      | Beta   | Update installed domain               |
+| `kdna info <name>`        | Beta   | Show domain metadata and trust status |
+| `kdna list [--available]` | Beta   | List installed or available domains   |
+| `kdna search <keyword>`   | Beta   | Search registry                       |
+| `kdna registry refresh`   | Beta   | Refresh registry cache                |
 
 ### Identity & Signing
 
-| Command | Status | Description |
-|---------|--------|-------------|
-| `kdna identity init` | Experimental | Generate Ed25519 signing key |
-| `kdna identity show` | Experimental | Display public key and buyer ID |
-| `kdna identity export [--out]` | Experimental | Backup private key (encrypted) |
-| `kdna identity import <file>` | Experimental | Restore identity from backup |
+| Command                        | Status       | Description                     |
+| ------------------------------ | ------------ | ------------------------------- |
+| `kdna identity init`           | Experimental | Generate Ed25519 signing key    |
+| `kdna identity show`           | Experimental | Display public key and buyer ID |
+| `kdna identity export [--out]` | Experimental | Backup private key (encrypted)  |
+| `kdna identity import <file>`  | Experimental | Restore identity from backup    |
 
 ### Setup
 
-| Command | Status | Description |
-|---------|--------|-------------|
-| `kdna setup` | Beta | One-command setup: CLI + skill + data root |
+| Command      | Status | Description                                |
+| ------------ | ------ | ------------------------------------------ |
+| `kdna setup` | Beta   | One-command setup: CLI + skill + data root |
 
 ---
 
@@ -205,25 +205,25 @@ KDNA 同时支持开放判断资产和授权/私有判断资产。开放资产�
 
 ## Environment Variables
 
-| Variable | Purpose |
-|----------|---------|
-| `KDNA_AGENT` | Override agent name in trace logs (e.g. `claude_code`, `codex`, `opencode`) |
-| `KDNA_REGISTRY_URL` | Override canonical registry URL |
-| `KDNA_IDENTITY_DIR` | Override identity key directory |
+| Variable            | Purpose                                                                     |
+| ------------------- | --------------------------------------------------------------------------- |
+| `KDNA_AGENT`        | Override agent name in trace logs (e.g. `claude_code`, `codex`, `opencode`) |
+| `KDNA_REGISTRY_URL` | Override canonical registry URL                                             |
+| `KDNA_IDENTITY_DIR` | Override identity key directory                                             |
 
 ## Exit Codes
 
-| Code | Name | Meaning |
-|------|------|---------|
-| 0 | `OK` | Success |
-| 1 | `VALIDATION_FAILED` | Structure or schema validation failed |
-| 2 | `INPUT_ERROR` | Invalid input, missing argument, not found |
-| 3 | `TRUST_FAILED` | Signature or trust verification failed |
-| 4 | `JUDGMENT_QUALITY_FAILED` | Judgment governance fields missing or insufficient |
-| 5 | `REGISTRY_ERROR` | Registry lookup or network error |
-| 6 | `PROVIDER_ERROR` | LLM provider (API key, rate limit) error |
-| 7 | `POLICY_VIOLATION` | Publishing or governance policy violation |
-| 8 | `HUMAN_LOCK_REQUIRED` | Human lock required but not present |
+| Code | Name                      | Meaning                                            |
+| ---- | ------------------------- | -------------------------------------------------- |
+| 0    | `OK`                      | Success                                            |
+| 1    | `VALIDATION_FAILED`       | Structure or schema validation failed              |
+| 2    | `INPUT_ERROR`             | Invalid input, missing argument, not found         |
+| 3    | `TRUST_FAILED`            | Signature or trust verification failed             |
+| 4    | `JUDGMENT_QUALITY_FAILED` | Judgment governance fields missing or insufficient |
+| 5    | `REGISTRY_ERROR`          | Registry lookup or network error                   |
+| 6    | `PROVIDER_ERROR`          | LLM provider (API key, rate limit) error           |
+| 7    | `POLICY_VIOLATION`        | Publishing or governance policy violation          |
+| 8    | `HUMAN_LOCK_REQUIRED`     | Human lock required but not present                |
 
 ## JSON Output
 
@@ -240,15 +240,15 @@ kdna license verify --json <file>
 
 ## Product Matrix
 
-| Layer | Product | Responsibility |
-|-------|---------|---------------|
-| Protocol | KDNA SPEC | Define judgment asset format |
-| Core Library | @aikdna/kdna-core | load / validate / compose / render |
-| Runtime | @aikdna/kdna-cli | Agent runtime + compile + verify + test + publish + license |
-| Authoring | KDNA Studio | Human-led judgment production |
-| Consumption | KDNAChat | Load, use, compare |
-| Governance | KDNA Governance Console | Approve, release, audit |
-| Distribution | Registry | Discover, install, license, distribute |
+| Layer        | Product                 | Responsibility                                              |
+| ------------ | ----------------------- | ----------------------------------------------------------- |
+| Protocol     | KDNA SPEC               | Define judgment asset format                                |
+| Core Library | @aikdna/kdna-core       | load / validate / compose / render                          |
+| Runtime      | @aikdna/kdna-cli        | Agent runtime + compile + verify + test + publish + license |
+| Authoring    | KDNA Studio             | Human-led judgment production                               |
+| Consumption  | KDNAChat                | Load, use, compare                                          |
+| Governance   | KDNA Governance Console | Approve, release, audit                                     |
+| Distribution | Registry                | Discover, install, license, distribute                      |
 
 ## Development
 

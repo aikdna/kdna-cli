@@ -63,7 +63,11 @@ function cmdDiff(args) {
 function cmdSearch(args) {
   const { cmdSearch } = require('../search');
   const json = args.includes('--json');
-  const query = args.slice(1).filter((a) => a !== '--json').join(' ').trim();
+  const query = args
+    .slice(1)
+    .filter((a) => a !== '--json')
+    .join(' ')
+    .trim();
   cmdSearch(query, json);
 }
 
@@ -91,7 +95,10 @@ function cmdSelect(args) {
 function cmdLoad(args) {
   const { cmdLoad } = require('../agent');
   const target = args.filter((a) => !a.startsWith('--'))[1];
-  if (!target) error('Usage: kdna load <name|file.kdna> [--as=prompt|json|raw] [--profile=index|compact|scenario|full]');
+  if (!target)
+    error(
+      'Usage: kdna load <name|file.kdna> [--as=prompt|json|raw] [--profile=index|compact|scenario|full]',
+    );
   cmdLoad(target, args);
 }
 

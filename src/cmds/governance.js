@@ -36,7 +36,8 @@ function cmdProposalCreate(args = []) {
   if (!fs.existsSync(absTest)) error(`Test run file not found: ${absTest}`, EXIT.INPUT_ERROR);
 
   const runData = readJson(absTest);
-  if (!runData || !runData.test_id) error(`Not a valid test run file: ${absTest}`, EXIT.INPUT_ERROR);
+  if (!runData || !runData.test_id)
+    error(`Not a valid test run file: ${absTest}`, EXIT.INPUT_ERROR);
 
   const absDomain = path.resolve(domainPath);
 
@@ -63,7 +64,10 @@ function cmdProposalCreate(args = []) {
   };
 
   // Auto-detect suggested changes from test result gaps
-  if (runData.expected?.classification && runData.expected.classification !== runData.results?.classification) {
+  if (
+    runData.expected?.classification &&
+    runData.expected.classification !== runData.results?.classification
+  ) {
     proposal.suggested_changes.push({
       what: 'axiom',
       field: 'applies_when',
@@ -80,7 +84,17 @@ function cmdProposalCreate(args = []) {
   writeJson(outFile, proposal);
 
   if (jsonMode) {
-    console.log(JSON.stringify({ proposal_id: proposal.proposal_id, saved: outFile, suggested_changes: proposal.suggested_changes.length }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          proposal_id: proposal.proposal_id,
+          saved: outFile,
+          suggested_changes: proposal.suggested_changes.length,
+        },
+        null,
+        2,
+      ),
+    );
     return;
   }
 
@@ -98,7 +112,8 @@ function cmdProposalCreate(args = []) {
 
 function cmdProposalValidate(args = []) {
   const jsonMode = args.includes('--json');
-  const target = args.filter((a) => !a.startsWith('--'))[2] || args.filter((a) => !a.startsWith('--'))[1];
+  const target =
+    args.filter((a) => !a.startsWith('--'))[2] || args.filter((a) => !a.startsWith('--'))[1];
   if (!target) error('Usage: kdna proposal validate <proposal.json>', EXIT.INPUT_ERROR);
 
   const abs = path.resolve(target);
@@ -113,7 +128,8 @@ function cmdProposalValidate(args = []) {
   if (!proposal.source) issues.push('missing source');
   if (!proposal.domain) issues.push('missing domain');
   if (!proposal.trigger?.test_id) issues.push('missing trigger.test_id');
-  if (!proposal.reasoning || proposal.reasoning.length < 10) issues.push('reasoning too short (min 10 chars)');
+  if (!proposal.reasoning || proposal.reasoning.length < 10)
+    issues.push('reasoning too short (min 10 chars)');
   if (!proposal.suggested_changes || proposal.suggested_changes.length === 0) {
     issues.push('no suggested changes');
   } else {
@@ -124,11 +140,17 @@ function cmdProposalValidate(args = []) {
   }
 
   if (jsonMode) {
-    console.log(JSON.stringify({
-      proposal_id: proposal.proposal_id,
-      valid: issues.length === 0,
-      issues,
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          proposal_id: proposal.proposal_id,
+          valid: issues.length === 0,
+          issues,
+        },
+        null,
+        2,
+      ),
+    );
     process.exit(issues.length ? EXIT.VALIDATION_FAILED : EXIT.OK);
   }
 
@@ -184,12 +206,18 @@ function cmdReview(args = []) {
   writeJson(abs, proposal);
 
   if (jsonMode) {
-    console.log(JSON.stringify({
-      proposal_id: proposal.proposal_id,
-      decision: sub,
-      by,
-      reason,
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          proposal_id: proposal.proposal_id,
+          decision: sub,
+          by,
+          reason,
+        },
+        null,
+        2,
+      ),
+    );
     process.exit(sub === 'reject' ? EXIT.POLICY_VIOLATION : EXIT.OK);
   }
 
@@ -217,7 +245,10 @@ function cmdLockCard(args = []) {
   // Lock card in the current studio project (finds studio.project.json)
   const projectPath = path.resolve('studio.project.json');
   if (!fs.existsSync(projectPath)) {
-    error('No studio.project.json found in current directory. Run: kdna studio scaffold', EXIT.INPUT_ERROR);
+    error(
+      'No studio.project.json found in current directory. Run: kdna studio scaffold',
+      EXIT.INPUT_ERROR,
+    );
   }
 
   const project = readJson(projectPath);
@@ -240,11 +271,17 @@ function cmdLockCard(args = []) {
     found = true;
 
     if (jsonMode) {
-      console.log(JSON.stringify({
-        card: `${type}.${id}`,
-        locked: true,
-        lock: card.human_lock,
-      }, null, 2));
+      console.log(
+        JSON.stringify(
+          {
+            card: `${type}.${id}`,
+            locked: true,
+            lock: card.human_lock,
+          },
+          null,
+          2,
+        ),
+      );
     } else {
       console.log(`✓ Locked: ${type}.${id}`);
       console.log(`  By:     ${by}`);
@@ -254,7 +291,10 @@ function cmdLockCard(args = []) {
   }
 
   if (!found) {
-    error(`Card not found: ${cardId}. Check the card ID and that a studio project exists.`, EXIT.INPUT_ERROR);
+    error(
+      `Card not found: ${cardId}. Check the card ID and that a studio project exists.`,
+      EXIT.INPUT_ERROR,
+    );
   }
 }
 
@@ -320,17 +360,23 @@ function cmdEvolutionReport(domainPath, jsonMode) {
   const pending = evolution.pending || [];
 
   if (jsonMode) {
-    console.log(JSON.stringify({
-      domain: path.basename(abs),
-      total_stages: stages.length,
-      pending_changes: pending.length,
-      stages: stages.map((s) => ({
-        stage: s.stage,
-        version: s.version,
-        date: s.date,
-        changes: s.changes?.length || 0,
-      })),
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          domain: path.basename(abs),
+          total_stages: stages.length,
+          pending_changes: pending.length,
+          stages: stages.map((s) => ({
+            stage: s.stage,
+            version: s.version,
+            date: s.date,
+            changes: s.changes?.length || 0,
+          })),
+        },
+        null,
+        2,
+      ),
+    );
     return;
   }
 
@@ -362,7 +408,10 @@ function cmdRegression(args = []) {
   const evalsDir = evalsIdx >= 0 ? args[evalsIdx + 1] : null;
 
   if (!oldPath || !newPath) {
-    error('Usage: kdna regression <old-domain> <new-domain> --evals <dir> [--json]', EXIT.INPUT_ERROR);
+    error(
+      'Usage: kdna regression <old-domain> <new-domain> --evals <dir> [--json]',
+      EXIT.INPUT_ERROR,
+    );
   }
 
   const absOld = path.resolve(oldPath);
@@ -421,8 +470,18 @@ function cmdRegression(args = []) {
 
   const result = {
     domain: path.basename(absOld),
-    old: { axioms: oldAxiomCount, misunderstandings: oldMisCount, self_checks: oldSelfCheckCount, governance_coverage: oldGov },
-    new: { axioms: newAxiomCount, misunderstandings: newMisCount, self_checks: newSelfCheckCount, governance_coverage: newGov },
+    old: {
+      axioms: oldAxiomCount,
+      misunderstandings: oldMisCount,
+      self_checks: oldSelfCheckCount,
+      governance_coverage: oldGov,
+    },
+    new: {
+      axioms: newAxiomCount,
+      misunderstandings: newMisCount,
+      self_checks: newSelfCheckCount,
+      governance_coverage: newGov,
+    },
     delta: {
       axioms: newAxiomCount - oldAxiomCount,
       misunderstandings: newMisCount - oldMisCount,
@@ -442,12 +501,22 @@ function cmdRegression(args = []) {
 
   console.log(`Regression check: ${path.basename(absOld)} → ${path.basename(absNew)}`);
   console.log('');
-  console.log(`  Axioms:                  ${oldAxiomCount} → ${newAxiomCount}  (${result.delta.axioms >= 0 ? '+' : ''}${result.delta.axioms})`);
-  console.log(`  Misunderstandings:       ${oldMisCount} → ${newMisCount}  (${result.delta.misunderstandings >= 0 ? '+' : ''}${result.delta.misunderstandings})`);
-  console.log(`  Self-checks:             ${oldSelfCheckCount} → ${newSelfCheckCount}  (${result.delta.self_checks >= 0 ? '+' : ''}${result.delta.self_checks})`);
-  console.log(`  Governance coverage:     ${oldGov}% → ${newGov}%  (${result.delta.governance_coverage >= 0 ? '+' : ''}${result.delta.governance_coverage}%)`);
+  console.log(
+    `  Axioms:                  ${oldAxiomCount} → ${newAxiomCount}  (${result.delta.axioms >= 0 ? '+' : ''}${result.delta.axioms})`,
+  );
+  console.log(
+    `  Misunderstandings:       ${oldMisCount} → ${newMisCount}  (${result.delta.misunderstandings >= 0 ? '+' : ''}${result.delta.misunderstandings})`,
+  );
+  console.log(
+    `  Self-checks:             ${oldSelfCheckCount} → ${newSelfCheckCount}  (${result.delta.self_checks >= 0 ? '+' : ''}${result.delta.self_checks})`,
+  );
+  console.log(
+    `  Governance coverage:     ${oldGov}% → ${newGov}%  (${result.delta.governance_coverage >= 0 ? '+' : ''}${result.delta.governance_coverage}%)`,
+  );
   if (totalEvals) {
-    console.log(`  Evals:                   ${passedEvals} passed, ${failedEvals} failed out of ${totalEvals}`);
+    console.log(
+      `  Evals:                   ${passedEvals} passed, ${failedEvals} failed out of ${totalEvals}`,
+    );
   }
   console.log('');
   const mark = result.safe ? '✓' : '✗';

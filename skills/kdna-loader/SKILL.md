@@ -135,7 +135,7 @@ After evaluating, you should usually have:
   > "Two installed domains could apply here: @aikdna/writing
   > (structural diagnosis) and @yourorg/copy_polish (line-level
   > polish). Which judgment frame should I use?"
-  Do **not** silently blend.
+  > Do **not** silently blend.
 
 Never load more than one domain as primary. A secondary domain can
 constrain (e.g. `@aikdna/agent_safety` always advises on irreversible
@@ -181,8 +181,8 @@ stages.
 You have now internalized the domain's judgment surface. From this
 point on:
 
-1. **Adopt the axioms as your reasoning frame** — reason *from*
-   them, not *around* them.
+1. **Adopt the axioms as your reasoning frame** — reason _from_
+   them, not _around_ them.
 2. **Honour the boundaries** — for each axiom you'd apply, confirm
    the task is in `applies_when` AND not in `does_not_apply_when`.
 3. **Pre-check failure_risk** — before producing output, ask:
@@ -222,6 +222,7 @@ KDNA domains influence agent judgment. The loader MUST apply safety rules before
 ### Loading Priority
 
 When KDNA is loaded, the agent MUST respect this priority order:
+
 1. System safety policy (highest — cannot be overridden)
 2. Legal and compliance requirements
 3. User's explicit intent
@@ -234,12 +235,12 @@ KDNA MUST NOT override system safety policies, legal requirements, or the user's
 
 Before loading a KDNA domain, check its risk level in `kdna.json` or `KDNA_CARD.json`:
 
-| Risk Level | Loading Behavior |
-|-----------|-----------------|
-| **R0** (Low) | Load silently |
-| **R1** (Medium) | Load silently; log |
-| **R2** (High) | Warn user before loading; require confirmation |
-| **R3** (Restricted) | Reject loading unless explicitly authorized |
+| Risk Level          | Loading Behavior                               |
+| ------------------- | ---------------------------------------------- |
+| **R0** (Low)        | Load silently                                  |
+| **R1** (Medium)     | Load silently; log                             |
+| **R2** (High)       | Warn user before loading; require confirmation |
+| **R3** (Restricted) | Reject loading unless explicitly authorized    |
 
 ### Signature & Trust Checks
 
@@ -251,6 +252,7 @@ Before loading a KDNA domain, check its risk level in `kdna.json` or `KDNA_CARD.
 ### Runtime Logging
 
 Every KDNA load MUST be logged with:
+
 - Domain name and version
 - Risk level
 - Signature status
@@ -262,13 +264,13 @@ This enables audit and accountability.
 
 ## Failure handling
 
-| Situation | What to do |
-|---|---|
-| `kdna` CLI not installed | Skip KDNA. Answer normally. Mention installation only if user asks about KDNA itself. |
-| `kdna available --json` returns `[]` | No domains installed. Skip KDNA. |
-| `kdna load <name>` exits non-zero | That domain is broken (yanked, missing files, parse error). Try next candidate or skip KDNA. The error message tells you why. |
-| User explicitly asks for a domain that isn't installed | Tell them, suggest `kdna install <name>`. Do not fabricate the domain. |
-| Two domains' stances directly conflict on the task | Surface to user. Do not blend. |
+| Situation                                              | What to do                                                                                                                    |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `kdna` CLI not installed                               | Skip KDNA. Answer normally. Mention installation only if user asks about KDNA itself.                                         |
+| `kdna available --json` returns `[]`                   | No domains installed. Skip KDNA.                                                                                              |
+| `kdna load <name>` exits non-zero                      | That domain is broken (yanked, missing files, parse error). Try next candidate or skip KDNA. The error message tells you why. |
+| User explicitly asks for a domain that isn't installed | Tell them, suggest `kdna install <name>`. Do not fabricate the domain.                                                        |
+| Two domains' stances directly conflict on the task     | Surface to user. Do not blend.                                                                                                |
 
 ---
 

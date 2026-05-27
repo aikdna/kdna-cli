@@ -159,7 +159,10 @@ function parseSource(input) {
   // Local file (.kdna)
   if (
     input.endsWith('.kdna') &&
-    (input.startsWith('./') || input.startsWith('/') || input.startsWith('~/') || fs.existsSync(input))
+    (input.startsWith('./') ||
+      input.startsWith('/') ||
+      input.startsWith('~/') ||
+      fs.existsSync(input))
   ) {
     const resolved = path.resolve(input.replace(/^~/, process.env.HOME || ''));
     if (!fs.existsSync(resolved)) error(`Local file not found: ${resolved}`);
@@ -183,7 +186,7 @@ function parseSource(input) {
   const parsed = parseName(input);
   if (!parsed) {
     error(
-        `Cannot parse "${input}". Use:\n` +
+      `Cannot parse "${input}". Use:\n` +
         `  kdna install <name>             # @aikdna/<name>\n` +
         `  kdna install @scope/name        # any scope\n` +
         `  kdna install ./file.kdna        # local .kdna file`,
@@ -247,7 +250,10 @@ function verifySignature({ assetPath, scope, entry, lenient = true }) {
 
   // Full Ed25519 verify (requires public_key_pem embedded in the package)
   if (!manifest.author?.public_key_pem) {
-    error(`${entry.name}: manifest author.public_key_pem is required for Ed25519 verification.`, EXIT.TRUST_FAILED);
+    error(
+      `${entry.name}: manifest author.public_key_pem is required for Ed25519 verification.`,
+      EXIT.TRUST_FAILED,
+    );
   }
 
   const result = verifyAsset(assetPath, { requireSignature: true });
@@ -397,7 +403,9 @@ function installSingleFromUrl({ entry, scope }, jsonMode = false) {
     } catch {
       /* ignore */
     }
-    error(`asset digest mismatch for ${entry.name}: expected ${expectedDigest}, got ${actualDigest}`);
+    error(
+      `asset digest mismatch for ${entry.name}: expected ${expectedDigest}, got ${actualDigest}`,
+    );
   }
   if (!jsonMode) console.log(`  ✓ asset digest verified`);
 
@@ -639,8 +647,10 @@ function cmdInfo(input, jsonMode = false) {
   if (source.asset_url) {
     console.log(`  Source URL:        ${source.asset_url}`);
   }
-  if (installed.asset_digest) console.log(`  Asset digest:      ${installed.asset_digest.slice(0, 39)}…`);
-  if (installed.content_digest) console.log(`  Content digest:    ${installed.content_digest.slice(0, 39)}…`);
+  if (installed.asset_digest)
+    console.log(`  Asset digest:      ${installed.asset_digest.slice(0, 39)}…`);
+  if (installed.content_digest)
+    console.log(`  Content digest:    ${installed.content_digest.slice(0, 39)}…`);
   if (installed.receipt_path) console.log(`  Receipt:           ${installed.receipt_path}`);
   console.log(`  Installed:         ${installed.installed_at || '?'}`);
   console.log(`  Asset:             ${installed.asset_path}`);

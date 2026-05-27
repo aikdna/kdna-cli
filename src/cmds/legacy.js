@@ -4,8 +4,7 @@ function cmdPreview() {
   // Removed in v0.9 — no real user scenario for browser preview.
   // To inspect a .kdna file, use: kdna inspect <file.kdna>
   error(
-    'kdna preview was removed in v0.9.\n' +
-      'Use: kdna inspect <file.kdna> to view a .kdna asset.',
+    'kdna preview was removed in v0.9.\n' + 'Use: kdna inspect <file.kdna> to view a .kdna asset.',
   );
 }
 

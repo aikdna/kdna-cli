@@ -157,7 +157,8 @@ function cmdRegistryAudit(args = []) {
 
   if (yanked.length) audit.issues.push(`${yanked.length} yanked domain(s)`);
   if (deprecated.length) audit.issues.push(`${deprecated.length} deprecated domain(s)`);
-  if (noPackage.length) audit.issues.push(`${noPackage.length} domain(s) without .kdna dev package`);
+  if (noPackage.length)
+    audit.issues.push(`${noPackage.length} domain(s) without .kdna dev package`);
   if (noSignature.length) audit.issues.push(`${noSignature.length} domain(s) without signature`);
 
   audit.healthy = audit.issues.length === 0;
@@ -184,7 +185,9 @@ function cmdRegistryAudit(args = []) {
     if (d.yanked) flags.push('yanked');
     if (d.deprecated) flags.push('deprecated');
     if (!d.has_asset_url) flags.push('no-package');
-    console.log(`    ${d.name.padEnd(36)} v${d.version || '?'}  ${flags.length ? `[${flags.join(', ')}]` : '✓'}`);
+    console.log(
+      `    ${d.name.padEnd(36)} v${d.version || '?'}  ${flags.length ? `[${flags.join(', ')}]` : '✓'}`,
+    );
   }
 }
 
@@ -230,7 +233,9 @@ function cmdPackage(domainPath, args = []) {
       scenarios: readJson(path.join(abs, 'KDNA_Scenarios.json'))?.scenes?.length || 0,
       cases: readJson(path.join(abs, 'KDNA_Cases.json'))?.cases?.length || 0,
     },
-    files: fs.readdirSync(abs).filter((f) => f.endsWith('.json') || f === 'README.md' || f === 'LICENSE'),
+    files: fs
+      .readdirSync(abs)
+      .filter((f) => f.endsWith('.json') || f === 'README.md' || f === 'LICENSE'),
   };
 
   // Actually pack

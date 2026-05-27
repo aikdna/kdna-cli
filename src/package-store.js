@@ -171,7 +171,10 @@ function resolveAsset(input) {
   const expanded = input.replace(/^~/, process.env.HOME || '');
   const looksLikeFile =
     input.endsWith('.kdna') &&
-    (input.startsWith('./') || input.startsWith('/') || input.startsWith('~/') || fs.existsSync(expanded));
+    (input.startsWith('./') ||
+      input.startsWith('/') ||
+      input.startsWith('~/') ||
+      fs.existsSync(expanded));
   if (looksLikeFile) {
     const abs = path.resolve(expanded);
     if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) return null;

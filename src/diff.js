@@ -80,7 +80,10 @@ function downloadAndExtract(url, destDir) {
       stdio: 'pipe',
     });
   } catch (e) {
-    error(`Failed to download ${url}: ${e.stderr?.toString().trim() || e.message}`, EXIT.PROVIDER_ERROR);
+    error(
+      `Failed to download ${url}: ${e.stderr?.toString().trim() || e.message}`,
+      EXIT.PROVIDER_ERROR,
+    );
   }
 
   fs.mkdirSync(destDir, { recursive: true });
@@ -243,7 +246,9 @@ async function cmdDiff(a, b, args = []) {
     newEntry = entryA;
     if (oldVersion === newVersion) {
       if (jsonMode) {
-        console.log(JSON.stringify({ error: `${aParsed.full}@${oldVersion}: only one version found.` }));
+        console.log(
+          JSON.stringify({ error: `${aParsed.full}@${oldVersion}: only one version found.` }),
+        );
         process.exit(EXIT.OK);
       }
       console.log(
@@ -283,7 +288,13 @@ async function cmdDiff(a, b, args = []) {
     );
   }
 
-  const axiomsDiff = diffMaps('axioms', oldJ.axioms, newJ.axioms, (a) => a.one_sentence || a.id, jsonMode);
+  const axiomsDiff = diffMaps(
+    'axioms',
+    oldJ.axioms,
+    newJ.axioms,
+    (a) => a.one_sentence || a.id,
+    jsonMode,
+  );
   diffMaps('ontology', oldJ.ontology, newJ.ontology, (o) => o.one_sentence || o.id, jsonMode);
   const misunderstandingsDiff = diffMaps(
     'misunderstandings',
@@ -292,7 +303,13 @@ async function cmdDiff(a, b, args = []) {
     (m) => m.wrong || m.id,
     jsonMode,
   );
-  const bannedDiff = diffMaps('banned_terms', oldJ.banned_terms, newJ.banned_terms, (t) => t.term || '', jsonMode);
+  const bannedDiff = diffMaps(
+    'banned_terms',
+    oldJ.banned_terms,
+    newJ.banned_terms,
+    (t) => t.term || '',
+    jsonMode,
+  );
   const stancesDiff = diffStanceList(oldJ.stances, newJ.stances, jsonMode);
 
   // Cleanup
@@ -332,11 +349,7 @@ async function cmdDiff(a, b, args = []) {
     }));
 
   const affectedScenarios = axiomsDiff.changedDetails
-    .filter(
-      (d) =>
-        d.boundary_changes.applies_when ||
-        d.boundary_changes.does_not_apply_when,
-    )
+    .filter((d) => d.boundary_changes.applies_when || d.boundary_changes.does_not_apply_when)
     .map((d) => ({
       axiom_id: d.id,
       applies_when: d.boundary_changes.applies_when || null,
@@ -350,7 +363,8 @@ async function cmdDiff(a, b, args = []) {
   let recommendedVersionBump = 'none';
   if (hasRemoved) recommendedVersionBump = 'major';
   else if (hasAdded || hasChanged) recommendedVersionBump = 'minor';
-  else if (stancesDiff.added.length > 0 || stancesDiff.removed.length > 0) recommendedVersionBump = 'patch';
+  else if (stancesDiff.added.length > 0 || stancesDiff.removed.length > 0)
+    recommendedVersionBump = 'patch';
 
   if (jsonMode) {
     const result = {
@@ -376,7 +390,9 @@ async function cmdDiff(a, b, args = []) {
     const drift = Object.keys(newJ.axioms).length - Object.keys(oldJ.axioms).length;
     const note = drift !== 0 ? ` (axiom count drift: ${drift > 0 ? '+' : ''}${drift})` : '';
     console.log(`  Judgment surface change: ${oldVersion} → ${newVersion}${note}`);
-    console.log(`  Agent loading the new version may classify, diagnose, or recommend differently.`);
+    console.log(
+      `  Agent loading the new version may classify, diagnose, or recommend differently.`,
+    );
     console.log('═'.repeat(64));
   }
 }
