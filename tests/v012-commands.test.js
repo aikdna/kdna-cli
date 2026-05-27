@@ -51,6 +51,21 @@ function ensureWritingInstalled() {
 
 const TMPDIR = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-test-'));
 
+function makeIsolatedEnv(prefix = 'kdna-test-home-') {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  return {
+    HOME: home,
+    KDNA_HOME: path.join(home, '.kdna'),
+  };
+}
+
+function ensureIdentity(env) {
+  const keyPath = path.join(env.KDNA_HOME, 'identity', 'kdna.key');
+  if (fs.existsSync(keyPath)) return;
+  const r = run(['identity', 'init'], { env });
+  assert.ok(r.ok, `identity init failed: ${r.stderr || r.stdout}`);
+}
+
 // ─── kdna help — v0.12+ commands ──────────────────────────────────────
 
 test('help mentions doctor', () => {
@@ -198,8 +213,10 @@ test('kdna license generate requires domain', () => {
 });
 
 test('kdna license generate creates valid JSON', () => {
+  const env = makeIsolatedEnv();
+  ensureIdentity(env);
   const outPath = path.join(TMPDIR, 'test-license.json');
-  const r = run(['license', 'generate', '@aikdna/test', '--to', 'test@test.com', '--save', outPath]);
+  const r = run(['license', 'generate', '@aikdna/test', '--to', 'test@test.com', '--save', outPath], { env });
   assert.ok(r.ok, `license generate failed: ${r.stderr}`);
   const lic = JSON.parse(fs.readFileSync(outPath, 'utf8'));
   assert.equal(lic.domain, '@aikdna/test');
@@ -211,9 +228,11 @@ test('kdna license generate creates valid JSON', () => {
 });
 
 test('kdna license bind adds machine fingerprint', () => {
+  const env = makeIsolatedEnv();
+  ensureIdentity(env);
   const outPath = path.join(TMPDIR, 'test-lic-bind.json');
-  run(['license', 'generate', '@aikdna/test', '--to', 't@t.com', '--save', outPath]);
-  const r = run(['license', 'bind', outPath]);
+  run(['license', 'generate', '@aikdna/test', '--to', 't@t.com', '--save', outPath], { env });
+  const r = run(['license', 'bind', outPath], { env });
   assert.ok(r.ok, `license bind failed: ${r.stderr}`);
   const lic = JSON.parse(fs.readFileSync(outPath, 'utf8'));
   assert.ok(lic.machine_fingerprint);
@@ -223,20 +242,24 @@ test('kdna license bind adds machine fingerprint', () => {
 });
 
 test('kdna license verify reports valid', () => {
+  const env = makeIsolatedEnv();
+  ensureIdentity(env);
   const outPath = path.join(TMPDIR, 'test-lic-verify.json');
-  run(['license', 'generate', '@aikdna/test', '--to', 't@t.com', '--save', outPath]);
-  run(['license', 'bind', outPath]);
-  const r = run(['license', 'verify', outPath]);
+  run(['license', 'generate', '@aikdna/test', '--to', 't@t.com', '--save', outPath], { env });
+  run(['license', 'bind', outPath], { env });
+  const r = run(['license', 'verify', outPath], { env });
   assert.ok(r.ok, `license verify should pass: ${r.stderr}`);
   assert.match(r.stdout, /License valid/);
   fs.unlinkSync(outPath);
 });
 
 test('kdna license verify --json returns parseable', () => {
+  const env = makeIsolatedEnv();
+  ensureIdentity(env);
   const outPath = path.join(TMPDIR, 'test-lic-vj.json');
-  run(['license', 'generate', '@aikdna/test', '--to', 't@t.com', '--save', outPath]);
-  run(['license', 'bind', outPath]);
-  const r = run(['license', 'verify', '--json', outPath]);
+  run(['license', 'generate', '@aikdna/test', '--to', 't@t.com', '--save', outPath], { env });
+  run(['license', 'bind', outPath], { env });
+  const r = run(['license', 'verify', '--json', outPath], { env });
   assert.ok(r.ok);
   const parsed = JSON.parse(r.stdout);
   assert.ok('license_id' in parsed);
@@ -246,12 +269,12 @@ test('kdna license verify --json returns parseable', () => {
 });
 
 test('kdna license install registers to ~/.kdna/licenses/', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-license-home-'));
-  const kdnaHome = path.join(home, '.kdna');
-  const env = { HOME: home, KDNA_HOME: kdnaHome };
+  const env = makeIsolatedEnv('kdna-license-home-');
+  const kdnaHome = env.KDNA_HOME;
+  ensureIdentity(env);
   const outPath = path.join(TMPDIR, 'test-lic-install.json');
-  run(['license', 'generate', '@aikdna/test', '--to', 't@t.com', '--save', outPath]);
-  run(['license', 'bind', outPath]);
+  run(['license', 'generate', '@aikdna/test', '--to', 't@t.com', '--save', outPath], { env });
+  run(['license', 'bind', outPath], { env });
   const r = run(['license', 'install', outPath], { env });
   assert.ok(r.ok, `license install failed: ${r.stderr}`);
   assert.match(r.stdout, /License installed/);

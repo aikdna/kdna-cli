@@ -14,6 +14,7 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert');
 const path = require('node:path');
+const fs = require('node:fs');
 const { loadDomain, formatContext } = require('../../src/loader');
 
 const OPEN_SOURCE_ROOT = path.resolve(__dirname, '..', '..', '..');
@@ -27,6 +28,8 @@ const DOMAINS = [
   { id: 'content_strategy', path: path.join(OPEN_SOURCE_ROOT, 'kdna-content_strategy') },
 ];
 
+const HAS_DOMAIN_REPOS = DOMAINS.every((d) => fs.existsSync(path.join(d.path, 'kdna.json')));
+
 // Sample inputs that should trigger each domain
 const SAMPLES = {
   writing: 'Review this article I wrote about remote work. It got zero shares.',
@@ -37,7 +40,9 @@ const SAMPLES = {
   content_strategy: 'Give me content ideas for my newsletter about productivity.',
 };
 
-describe('Smoke — First-Wave Domains', () => {
+describe('Smoke — First-Wave Domains', {
+  skip: HAS_DOMAIN_REPOS ? false : 'requires sibling first-wave domain repositories',
+}, () => {
   describe('1. All domains load successfully', () => {
     for (const d of DOMAINS) {
       it(`loads ${d.id}`, () => {
