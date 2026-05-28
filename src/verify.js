@@ -21,13 +21,6 @@ const { RegistryResolver, parseName, registryTrustIssues, isEntryRevoked } = req
 const { EXIT, isYesNoSelfCheck } = require('./cmds/_common');
 const { licenseDecryptOptionsForManifest } = require('./cmds/license');
 
-let validateManifestFn;
-try {
-  validateManifestFn = require('@aikdna/kdna-core').validateManifest;
-} catch {
-  // kdna-core not available — manifest validation skipped
-}
-
 const {
   getInstalled,
   listContainerEntries,
@@ -36,6 +29,50 @@ const {
   resolveAsset,
   verifyAsset,
 } = require('./package-store');
+
+function validateManifestFn(manifest) {
+  const errors = [];
+  const warnings = [];
+  const required = [
+    'format',
+    'format_version',
+    'spec_version',
+    'name',
+    'version',
+    'judgment_version',
+    'description',
+    'author',
+    'license',
+    'status',
+    'quality_badge',
+    'access',
+    'languages',
+    'default_language',
+  ];
+
+  if (manifest.kdna_spec) errors.push('kdna.json: kdna_spec is not allowed. Use spec_version.');
+  if (manifest.language)
+    errors.push('kdna.json: language is not allowed. Use default_language and languages.');
+  for (const field of required) {
+    if (!(field in manifest) || manifest[field] === undefined || manifest[field] === '') {
+      errors.push(`kdna.json: missing required field "${field}"`);
+    }
+  }
+  if (manifest.format && manifest.format !== 'kdna') {
+    errors.push(`kdna.json.format: invalid value "${manifest.format}". Expected "kdna".`);
+  }
+  if (manifest.format_version && manifest.format_version !== '1.0') {
+    errors.push(
+      `kdna.json.format_version: invalid value "${manifest.format_version}". Expected "1.0".`,
+    );
+  }
+  if (manifest.spec_version && manifest.spec_version !== '1.0-rc') {
+    warnings.push(
+      `kdna.json.spec_version: non-standard value "${manifest.spec_version}". Expected "1.0-rc".`,
+    );
+  }
+  return { errors, warnings };
+}
 
 function readJson(p) {
   try {

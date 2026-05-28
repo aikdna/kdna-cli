@@ -1363,7 +1363,7 @@ function checkTrust(domainName) {
   }
 
   // 5. SPEC compatibility check
-  const specVersion = manifest.spec_version || manifest.kdna_spec || 'unknown';
+  const specVersion = manifest.spec_version || 'unknown';
   const supportedSpecs = ['1.0-rc', '1.0', '0.7'];
   if (!supportedSpecs.includes(specVersion)) {
     warnings.push(`SPEC version '${specVersion}' may not be fully compatible with current loader`);

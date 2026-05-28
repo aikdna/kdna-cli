@@ -51,23 +51,57 @@ for (const f of files) {
 
 const result = lintDomain(dataMap);
 
+function validateManifest(manifest) {
+  const errors = [];
+  const warnings = [];
+  const required = [
+    'format',
+    'format_version',
+    'spec_version',
+    'name',
+    'version',
+    'judgment_version',
+    'description',
+    'author',
+    'license',
+    'status',
+    'quality_badge',
+    'access',
+    'languages',
+    'default_language',
+  ];
+
+  if (manifest.kdna_spec) errors.push('kdna_spec is not allowed. Use spec_version.');
+  if (manifest.language)
+    errors.push('language is not allowed. Use default_language and languages.');
+  for (const field of required) {
+    if (!(field in manifest) || manifest[field] === undefined || manifest[field] === '') {
+      errors.push(`missing required field "${field}"`);
+    }
+  }
+  if (manifest.format && manifest.format !== 'kdna') {
+    errors.push(`format: invalid value "${manifest.format}". Expected "kdna".`);
+  }
+  if (manifest.format_version && manifest.format_version !== '1.0') {
+    errors.push(`format_version: invalid value "${manifest.format_version}". Expected "1.0".`);
+  }
+  if (manifest.spec_version && manifest.spec_version !== '1.0-rc') {
+    warnings.push(
+      `spec_version: non-standard value "${manifest.spec_version}". Expected "1.0-rc".`,
+    );
+  }
+  return { errors, warnings };
+}
+
 // Also validate kdna.json manifest if present and validateManifest is available
 let manifestPath;
 try {
   manifestPath = path.join(domainDir, 'kdna.json');
   if (fs.existsSync(manifestPath)) {
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-    let validateManifestFn;
-    try {
-      validateManifestFn = require('@aikdna/kdna-core').validateManifest;
-    } catch {
-      // validateManifest not yet available in installed kdna-core — skip manifest check
-    }
-    if (validateManifestFn) {
-      const mResult = validateManifestFn(manifest);
-      for (const e of mResult.errors) result.errors.push(`kdna.json: ${e}`);
-      for (const w of mResult.warnings) result.warnings.push(`kdna.json: ${w}`);
-    }
+    const mResult = validateManifest(manifest);
+    for (const e of mResult.errors) result.errors.push(`kdna.json: ${e}`);
+    for (const w of mResult.warnings) result.warnings.push(`kdna.json: ${w}`);
   }
 } catch (e) {
   if (e.code !== 'ENOENT') {

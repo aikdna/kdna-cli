@@ -235,12 +235,17 @@ function cmdPack(dir, outputDir) {
       .readdirSync(abs)
       .filter((f) => f.endsWith('.json') && f !== 'kdna.json').length;
     manifest = {
-      kdna_spec: '1.0-rc',
+      format: 'kdna',
+      format_version: '1.0',
+      spec_version: '1.0-rc',
       name: domainName,
       version: core.meta?.version || '0.1.0',
+      judgment_version: core.meta?.version || '0.1.0',
       status: 'experimental',
+      quality_badge: 'untested',
       access: 'open',
-      language: 'en',
+      languages: ['en'],
+      default_language: 'en',
       author: { name: '', id: '' },
       license: { type: 'CC-BY-4.0' },
       description: core.meta?.purpose || `${domainName} domain cognition`,
@@ -268,6 +273,7 @@ function cmdPack(dir, outputDir) {
 src = ${JSON.stringify(abs)}
 out = ${JSON.stringify(outPath)}
 with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
+    zf.writestr(zipfile.ZipInfo('mimetype'), 'application/vnd.aikdna.kdna+zip', compress_type=zipfile.ZIP_STORED)
     for f in sorted(os.listdir(src)):
         fp = os.path.join(src, f)
         if os.path.isfile(fp) and (f.endswith('.json') or f in ('README.md', 'LICENSE', 'kdna.json')):
@@ -286,7 +292,17 @@ with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
     }
   }
 
-  // Strategy 2: system zip command
+  // Strategy 2: Node.js native ZIP, which preserves the required mimetype entry
+  if (!packed) {
+    try {
+      createNodeZip(abs, outPath);
+      packed = true;
+    } catch {
+      /* try external zip last */
+    }
+  }
+
+  // Strategy 3: system zip command
   if (!packed) {
     const cwd = process.cwd();
     try {
@@ -299,16 +315,6 @@ with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
       packed = true;
     } catch {
       process.chdir(cwd);
-    }
-  }
-
-  // #22: Strategy 3 — Node.js native ZIP (no external dependencies)
-  if (!packed) {
-    try {
-      createNodeZip(abs, outPath);
-      packed = true;
-    } catch {
-      /* last attempt failed */
     }
   }
 
@@ -341,11 +347,14 @@ function createNodeZip(srcDir, outPath) {
   const fileData = [];
   let offset = 0;
 
-  for (const f of files) {
-    const raw = fs.readFileSync(path.join(srcDir, f));
+  for (const f of ['mimetype', ...files]) {
+    const raw =
+      f === 'mimetype'
+        ? Buffer.from('application/vnd.aikdna.kdna+zip')
+        : fs.readFileSync(path.join(srcDir, f));
     const crc = crc32(raw);
     const compressed = zlib.deflateRawSync(raw);
-    const useStore = compressed.length >= raw.length;
+    const useStore = f === 'mimetype' || compressed.length >= raw.length;
 
     const nameBytes = Buffer.from(f, 'utf8');
     const localHeader = Buffer.alloc(30);
@@ -513,7 +522,7 @@ function inspectKdnaFile(filePath, jsonMode = false) {
     const result = {
       name: m.name || c.meta?.domain || path.basename(abs, '.kdna'),
       format: 'kdna-zip',
-      spec: m.spec_version || m.kdna_spec || null,
+      spec: m.spec_version || null,
       version: m.version || null,
       status: m.status || 'experimental',
       access: m.access || 'open',
@@ -544,7 +553,7 @@ function inspectKdnaFile(filePath, jsonMode = false) {
   console.log('═'.repeat(50));
   console.log('');
   console.log(`  Format:      .kdna (ZIP container)`);
-  console.log(`  Spec:        ${m.spec_version || m.kdna_spec || '0.4'}`);
+  console.log(`  Spec:        ${m.spec_version || '?'}`);
   console.log(`  Version:     ${m.version || '?'}`);
   console.log(`  Status:      ${m.status || 'experimental'}`);
   console.log(`  Access:      ${m.access || 'open'}`);
