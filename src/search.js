@@ -36,14 +36,14 @@ function cmdSearch(query, json) {
   }
 
   const resolver = new RegistryResolver({ allowNetwork: true });
-  const domains = resolver.listAllDomains() || [];
+  const domains = (resolver.listAllDomains() || []).filter((d) => d.yanked !== true);
 
   if (!domains.length) {
     if (json) {
       console.log(JSON.stringify([]));
       process.exit(EXIT.OK);
     }
-    console.log('No registry entries found. Run: kdna registry refresh');
+    console.log('No installable registry entries found. Run: kdna registry refresh');
     return;
   }
 
@@ -74,7 +74,7 @@ function cmdSearch(query, json) {
       keywords: d.keywords || [],
       domain_field: d.domain_field || [],
       judgment_patterns: d.judgment_patterns || [],
-      yanked: d.yanked || false,
+      yanked: false,
       deprecated: d.deprecated || false,
       score,
     }));
@@ -86,10 +86,9 @@ function cmdSearch(query, json) {
   console.log('');
 
   for (const { d, score } of matches) {
-    const yanked = d.yanked ? ' [yanked]' : '';
     const dep = d.deprecated ? ' [deprecated]' : '';
     console.log(
-      `  ${(d.name || d.id || '?').padEnd(36)} v${d.version || '?'}  ${(d.type || 'domain').padEnd(8)}  score:${score}${yanked}${dep}`,
+      `  ${(d.name || d.id || '?').padEnd(36)} v${d.version || '?'}  ${(d.type || 'domain').padEnd(8)}  score:${score}${dep}`,
     );
     if (d.description) console.log(`    ${d.description}`);
     if (d.core_insight) console.log(`    » ${d.core_insight}`);

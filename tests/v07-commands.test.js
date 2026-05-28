@@ -53,7 +53,7 @@ function ensureWritingInstalled() {
   }
 }
 
-function writeRegistryHome() {
+function writeRegistryHome(options = {}) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-registry-home-'));
   const registryDir = path.join(home, '.kdna', 'registry');
   fs.mkdirSync(registryDir, { recursive: true });
@@ -102,6 +102,9 @@ function writeRegistryHome() {
             signature: 'ed25519:test',
             release_status: 'published_signed',
             author: { name: 'Test', id: 'test', pubkey: 'ed25519:test' },
+            yanked: options.yanked === true,
+            yanked_reason: options.yanked === true ? 'Protocol-invalid test asset.' : null,
+            yanked_at: options.yanked === true ? '2026-05-28T16:37:29Z' : null,
           },
         ],
       },
@@ -155,10 +158,24 @@ test('kdna search reports no-match cleanly', () => {
   assert.match(r.stdout, /No domains match/);
 });
 
+test('kdna search hides yanked registry entries by default', () => {
+  const r = run(['search', 'writing'], { env: writeRegistryHome({ yanked: true }) });
+  assert.ok(r.ok, `search failed: ${r.stderr}`);
+  assert.match(r.stdout, /No installable registry entries/);
+  assert.doesNotMatch(r.stdout, /@aikdna\/writing/);
+});
+
 test('kdna search rejects pre-v3 registry metadata', () => {
   const r = run(['search', 'writing'], { env: writeOldRegistryHome() });
   assert.ok(!r.ok, 'old registry schema must fail closed');
   assert.match(r.stderr, /Registry trust check failed/);
+});
+
+test('kdna list --available hides yanked registry entries by default', () => {
+  const r = run(['list', '--available'], { env: writeRegistryHome({ yanked: true }) });
+  assert.ok(r.ok, `list --available failed: ${r.stderr}`);
+  assert.match(r.stdout, /No non-yanked registry entries/);
+  assert.doesNotMatch(r.stdout, /@aikdna\/writing/);
 });
 
 // ─── kdna verify (structural only, offline) ──────────────────────────

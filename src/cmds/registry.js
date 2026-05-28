@@ -13,8 +13,10 @@ function cmdList(showAvailable, jsonMode = false, _locale = null) {
       error('No registry found.');
     }
 
+    const installableDomains = domains.filter((d) => d.yanked !== true);
+
     if (jsonMode) {
-      const result = domains.map((d) => ({
+      const result = installableDomains.map((d) => ({
         name: d.name || d.id || null,
         version: d.version || null,
         type: d.type || 'domain',
@@ -27,16 +29,20 @@ function cmdList(showAvailable, jsonMode = false, _locale = null) {
       process.exit(EXIT.OK);
     }
 
-    console.log('Available KDNA domains:');
+    console.log('Available installable KDNA domains:');
     console.log(`Registry: ${REGISTRY_CACHE}`);
     console.log('');
-    for (const d of domains) {
+    if (!installableDomains.length) {
+      console.log('  No non-yanked registry entries are currently installable.');
+      console.log('');
+      return;
+    }
+    for (const d of installableDomains) {
       const name = d.name || d.id || '?';
       const installed = listInstalled().some((entry) => entry.full === name) ? '[installed]' : '';
-      const yanked = d.yanked ? '[yanked] ' : '';
       const dep = d.deprecated ? '[deprecated] ' : '';
       console.log(
-        `  ${name.padEnd(36)} ${(d.version || '?').padEnd(8)} ${(d.type || 'domain').padEnd(8)} ${(d.status || '').padEnd(14)} ${yanked}${dep}${installed}`,
+        `  ${name.padEnd(36)} ${(d.version || '?').padEnd(8)} ${(d.type || 'domain').padEnd(8)} ${(d.status || '').padEnd(14)} ${dep}${installed}`,
       );
       if (d.description) console.log(`    ${d.description}`);
       console.log('');
