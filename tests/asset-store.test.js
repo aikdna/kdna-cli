@@ -72,6 +72,16 @@ function createAsset(tmpRoot) {
         applies_when: ['review this blog post for structural problems'],
         does_not_apply_when: ['only fix grammar'],
         failure_risk: 'Over-applies structural critique to copy editing.',
+        status: 'locked',
+        human_lock: {
+          by: 'test',
+          statement: 'Reviewed for test fixture packaging.',
+          checked: {
+            applies_when: true,
+            does_not_apply_when: true,
+            failure_risk: true,
+          },
+        },
       },
     ],
     ontology: [{ id: 'argument', one_sentence: 'A claim with a reason.' }],
@@ -323,6 +333,15 @@ test('local .kdna install stores immutable asset and runtime loads from package 
   const devInspect = run(['dev', 'inspect', source], { env });
   assert.ok(devInspect.ok, `dev inspect failed: ${devInspect.stderr}`);
   assert.match(devInspect.stdout, /KDNA Domain/);
+
+  const packedDir = path.join(tmpRoot, 'packed');
+  const devPack = run(['dev', 'pack', source, '--out', packedDir], { env });
+  assert.ok(devPack.ok, `dev pack failed: ${devPack.stderr}`);
+  const packedAsset = path.join(packedDir, 'writing.kdna');
+  assert.ok(fs.existsSync(packedAsset));
+  const packedInspect = run(['inspect', packedAsset, '--json'], { env });
+  assert.ok(packedInspect.ok, `packed asset inspect failed: ${packedInspect.stderr}`);
+  assert.equal(JSON.parse(packedInspect.stdout).format, 'kdna-zip');
 });
 
 test('licensed .kdna load requires installed activation and decrypts in memory', () => {

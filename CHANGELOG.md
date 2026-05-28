@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.19.2 (2026-05-29)
+
+**Publish output option compatibility**
+
+- Added `--out` and `-o` aliases for `kdna publish` output directory selection.
+- Added `--out` support for `kdna dev pack`.
+- Added coverage that `kdna dev pack --out <dir>` emits an inspectable v1.0 `.kdna` container.
+
 ## v0.19.1 (2026-05-29)
 
 **Registry yank visibility**

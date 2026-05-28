@@ -697,6 +697,14 @@ function sha256File(p) {
   return crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
 }
 
+function outputDirFromArgs(args, fallback) {
+  for (const flag of ['--output', '--out', '-o']) {
+    const idx = args.indexOf(flag);
+    if (idx >= 0) return args[idx + 1];
+  }
+  return fallback;
+}
+
 /**
  * kdna publish <path>  — Full publish pipeline.
  *
@@ -781,9 +789,7 @@ function cmdPublish(domainPath, args = []) {
 
   // 3. Pack
   const fileName = `${m[2]}-${manifest.version}.kdna`;
-  const outDir = args.includes('--output')
-    ? args[args.indexOf('--output') + 1]
-    : path.join(abs, 'dist');
+  const outDir = outputDirFromArgs(args, path.join(abs, 'dist'));
   fs.mkdirSync(outDir, { recursive: true });
   const outPath = path.join(outDir, fileName);
   packToFile(abs, outPath);
