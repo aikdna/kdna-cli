@@ -24,6 +24,7 @@
     "test": "node --test tests/v07-commands.test.js tests/v012-commands.test.js",
     "test:integration": "node --test tests/integration.test.js",
     "test:all": "node --test tests/*.test.js",
+    "release:preflight": "node scripts/release-preflight.js",
     "pretest": "npm install --ignore-scripts"
   },
   "keywords": [
