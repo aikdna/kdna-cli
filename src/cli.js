@@ -203,7 +203,7 @@ switch (cmd) {
       let output = null;
       let target = null;
       for (let i = 2; i < args.length; i++) {
-        if (args[i] === '--output' || args[i] === '-o') {
+        if (args[i] === '--output' || args[i] === '--out' || args[i] === '-o') {
           output = args[i + 1];
           i++;
         } else if (args[i].startsWith('-')) {
