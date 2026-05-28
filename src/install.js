@@ -642,7 +642,7 @@ function cmdInfo(input, jsonMode = false) {
   if (manifest?.author?.public_key_pem) {
     console.log(`  Embedded PEM:      yes (full Ed25519 verify available)`);
   } else {
-    console.log(`  Embedded PEM:      no (legacy pre-v0.7.1 package)`);
+    console.log(`  Embedded PEM:      no`);
   }
   if (source.asset_url) {
     console.log(`  Source URL:        ${source.asset_url}`);

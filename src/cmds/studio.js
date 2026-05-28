@@ -504,12 +504,17 @@ function cmdStudioCompile(projectPath, args = []) {
 
   // Compile manifest → kdna.json
   const manifest = {
-    kdna_spec: '1.0-rc',
+    format: 'kdna',
+    format_version: '1.0',
+    spec_version: '1.0-rc',
     name: `@aikdna/${project.name}`,
     version: '0.1.0',
+    judgment_version: '0.1.0',
     status: 'experimental',
+    quality_badge: 'untested',
     access: 'open',
-    language: 'en',
+    languages: ['en'],
+    default_language: 'en',
     author: { name: '', id: '' },
     license: { type: 'CC-BY-4.0' },
     description: '',

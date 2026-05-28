@@ -40,13 +40,16 @@ function createAsset(tmpRoot) {
   const source = path.join(tmpRoot, 'writing-source');
   fs.mkdirSync(source, { recursive: true });
   writeJson(path.join(source, 'kdna.json'), {
-    kdna_spec: '1.0-rc',
+    format: 'kdna',
+    format_version: '1.0',
+    spec_version: '1.0-rc',
     name: '@aikdna/writing',
     version: '0.1.0',
     judgment_version: '2026.05',
     status: 'experimental',
     access: 'open',
-    language: 'en',
+    languages: ['en'],
+    default_language: 'en',
     description: 'Writing judgment test asset.',
     core_insight: 'Writing quality is a structural judgment problem.',
     keywords: ['writing', 'review'],
@@ -94,6 +97,7 @@ function createAsset(tmpRoot) {
 src = ${JSON.stringify(source)}
 out = ${JSON.stringify(asset)}
 with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
+    zf.writestr(zipfile.ZipInfo('mimetype'), 'application/vnd.aikdna.kdna+zip', compress_type=zipfile.ZIP_STORED)
     for name in sorted(os.listdir(src)):
         zf.write(os.path.join(src, name), name)
 `;
@@ -107,13 +111,16 @@ function createLicensedAsset(tmpRoot) {
   const licenseKey = 'KDNA-LIC-TEST-ACTIVATION';
   const fingerprint = machineFingerprint();
   const manifest = {
-    kdna_spec: '1.0-rc',
+    format: 'kdna',
+    format_version: '1.0',
+    spec_version: '1.0-rc',
     name: '@aikdna/writing_pro',
     version: '0.2.0',
     judgment_version: '2026.05',
     status: 'experimental',
     access: 'licensed',
-    language: 'en',
+    languages: ['en'],
+    default_language: 'en',
     description: 'Licensed writing test asset.',
     core_insight: 'Protected judgment stays inside the asset.',
     keywords: ['writing', 'licensed'],
@@ -188,6 +195,7 @@ function createLicensedAsset(tmpRoot) {
 src = ${JSON.stringify(source)}
 out = ${JSON.stringify(asset)}
 with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
+    zf.writestr(zipfile.ZipInfo('mimetype'), 'application/vnd.aikdna.kdna+zip', compress_type=zipfile.ZIP_STORED)
     for name in sorted(os.listdir(src)):
         zf.write(os.path.join(src, name), name)
 `;

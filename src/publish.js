@@ -533,29 +533,24 @@ function identityPaths() {
 }
 
 /**
- * Canonical signing payload: sorted (filename, sha256) pairs of all .json files
- * inside the .kdna ZIP, joined as `name:hex\n`. This is what the signature covers.
+ * Canonical signing payload: sorted (filename, sha256) pairs of all published
+ * content entries inside the .kdna ZIP, joined as `name:hex\n`.
  *
  * Excludes the `signature` field from kdna.json itself (computed by removing it
  * before hashing). Digest self-reference fields are also excluded. All other files included as-is.
  */
 function canonicalPayload(srcDir, opts = {}) {
-  const files = fs
-    .readdirSync(srcDir)
-    .filter((f) => f.endsWith('.json'))
-    .sort();
+  const files = listPublishEntries(srcDir);
   const parts = [];
   for (const f of files) {
-    const full = path.join(srcDir, f);
+    const full = f === 'mimetype' ? null : path.join(srcDir, f);
     let buf;
-    if (f === 'kdna.json') {
+    if (f === 'mimetype') {
+      buf = Buffer.from('application/vnd.aikdna.kdna+zip');
+    } else if (f.endsWith('.json')) {
       const obj = JSON.parse(fs.readFileSync(full, 'utf8'));
-      delete obj.signature;
-      delete obj.asset_digest;
-      delete obj.container_sha256;
-      if (!opts.includeContentDigest) delete obj.content_digest;
-      delete obj._source;
-      buf = Buffer.from(JSON.stringify(obj));
+      const value = f === 'kdna.json' ? manifestForSigning(obj, opts) : obj;
+      buf = Buffer.from(stableStringify(value));
     } else {
       buf = fs.readFileSync(full);
     }
@@ -563,6 +558,16 @@ function canonicalPayload(srcDir, opts = {}) {
     parts.push(`${f}:${hash}`);
   }
   return parts.join('\n');
+}
+
+function manifestForSigning(manifest, opts = {}) {
+  const copy = { ...(manifest || {}) };
+  delete copy.signature;
+  delete copy.asset_digest;
+  delete copy.container_sha256;
+  if (!opts.includeContentDigest) delete copy.content_digest;
+  delete copy._source;
+  return copy;
 }
 
 function stableStringify(value) {
@@ -587,16 +592,16 @@ function manifestForContentDigest(manifest) {
 }
 
 function sourceContentDigest(srcDir) {
-  const files = fs
-    .readdirSync(srcDir)
-    .filter((f) => f.endsWith('.json') || f === 'README.md' || f === 'LICENSE')
-    .sort();
+  const files = listPublishEntries(srcDir);
   const parts = [];
   for (const f of files) {
     let buf;
-    if (f === 'kdna.json') {
+    if (f === 'mimetype') {
+      buf = Buffer.from('application/vnd.aikdna.kdna+zip');
+    } else if (f.endsWith('.json')) {
       const obj = JSON.parse(fs.readFileSync(path.join(srcDir, f), 'utf8'));
-      buf = Buffer.from(stableStringify(manifestForContentDigest(obj)));
+      const value = f === 'kdna.json' ? manifestForContentDigest(obj) : obj;
+      buf = Buffer.from(stableStringify(value));
     } else {
       buf = fs.readFileSync(path.join(srcDir, f));
     }
@@ -606,6 +611,36 @@ function sourceContentDigest(srcDir) {
     .createHash('sha256')
     .update(Buffer.from(parts.join('\n')))
     .digest('hex')}`;
+}
+
+function listPublishEntries(domainDir) {
+  const entries = ['mimetype'];
+  const skipDirs = new Set(['.git', 'node_modules', 'dist']);
+  function walk(dir, prefix = '') {
+    for (const name of fs.readdirSync(dir).sort()) {
+      if (name === 'mimetype') continue;
+      if (name === '.DS_Store' || name === 'signature.json') continue;
+      const abs = path.join(dir, name);
+      const rel = prefix ? `${prefix}/${name}` : name;
+      const stat = fs.statSync(abs);
+      if (stat.isDirectory()) {
+        if (!skipDirs.has(name)) walk(abs, rel);
+        continue;
+      }
+      if (
+        rel.endsWith('.json') ||
+        rel === 'README.md' ||
+        rel === 'LICENSE' ||
+        rel.startsWith('evals/') ||
+        rel.startsWith('examples/') ||
+        rel.startsWith('reports/')
+      ) {
+        entries.push(rel);
+      }
+    }
+  }
+  walk(domainDir);
+  return entries;
 }
 
 function signPayload(payload, privateKeyPem) {
@@ -632,9 +667,7 @@ function publicKeyToScopeFormat(publicKeyPem) {
 }
 
 function packToFile(domainDir, outPath) {
-  const files = fs
-    .readdirSync(domainDir)
-    .filter((f) => f.endsWith('.json') || f === 'README.md' || f === 'LICENSE');
+  const files = listPublishEntries(domainDir).filter((f) => f !== 'mimetype');
   if (!files.includes('kdna.json'))
     error('kdna.json required in dev source directory for publish.');
 
@@ -643,7 +676,8 @@ src = ${JSON.stringify(domainDir)}
 out = ${JSON.stringify(outPath)}
 files = ${JSON.stringify(files)}
 with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
-    for f in sorted(files):
+    zf.writestr(zipfile.ZipInfo('mimetype'), 'application/vnd.aikdna.kdna+zip', compress_type=zipfile.ZIP_STORED)
+    for f in files:
         zf.write(os.path.join(src, f), f)
 `;
   const tmpPy = `/tmp/kdna-publish-pack-${Date.now()}.py`;
@@ -739,13 +773,11 @@ function cmdPublish(domainPath, args = []) {
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
   manifest.content_digest = sourceContentDigest(abs);
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
-  const signedPayload = canonicalPayload(abs, { includeContentDigest: true });
+  const signedPayload = canonicalPayload(abs);
   const sig = signPayload(signedPayload, privateKey);
   manifest.signature = 'ed25519:' + sig;
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
-  console.log(
-    `  ✓ Signed (payload covers ${fs.readdirSync(abs).filter((f) => f.endsWith('.json')).length} json files)`,
-  );
+  console.log(`  ✓ Signed (payload covers ${listPublishEntries(abs).length} content entries)`);
 
   // 3. Pack
   const fileName = `${m[2]}-${manifest.version}.kdna`;
