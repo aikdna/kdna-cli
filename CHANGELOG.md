@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.19.1 (2026-05-29)
+
+**Registry yank visibility**
+
+- Hide yanked registry entries from default `kdna list --available` output.
+- Hide yanked registry entries from default `kdna search` results.
+- Keep install fail-closed behavior for yanked assets with the registry-provided reason.
+
 ## v0.18.0 (2026-05-27)
 
 **Asset-first install/runtime + licensed `.kdna` lifecycle**
