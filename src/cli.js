@@ -90,11 +90,11 @@ Dev Source Utilities (non-canonical):
   version bump <level> [path]      Bump domain version
   version bump --suggest [path]     Suggest version bump level
 
-Studio Integration (Phase 1):
+Studio Bridge (delegates to Studio-compatible authoring; trusted export belongs to Studio):
   studio scaffold <name>           Create Studio project + card templates
   cards validate <project.json>    Validate Judgment Cards structure
   lock verify <project.json>       Verify Human Lock status
-  studio compile <project.json>    Compile locked cards into KDNA domain
+  studio compile <project.json>    Compile locked cards into Studio build output
   studio readiness <project.json>  Generate domain readiness card
 
 Agent Runtime:

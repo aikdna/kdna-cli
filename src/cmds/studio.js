@@ -4,7 +4,7 @@
  *   kdna studio scaffold <name>         Create Studio project skeleton
  *   kdna cards validate <project.json>  Validate Judgment Cards
  *   kdna lock verify <project.json>     Verify Human Lock status
- *   kdna studio compile <project.json>  Compile locked cards into KDNA domain
+ *   kdna studio compile <project.json>  Compile locked cards into Studio build output
  *   kdna studio readiness <project.json>  Generate Domain Readiness Card
  */
 

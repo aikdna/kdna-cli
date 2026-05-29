@@ -18,7 +18,7 @@
   "author": {
     "name": "Your Name",
     "id": "your-id",
-    "pubkey": "[set automatically by kdna publish — must match your scope trust_pubkey]"
+    "pubkey": "[set by Studio export/signing — must match your scope trust_pubkey]"
   },
   "license": {
     "type": "CC-BY-4.0",
