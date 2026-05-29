@@ -186,18 +186,14 @@ function createLicensedAsset(tmpRoot) {
     encryptLicensedEntry(JSON.stringify(core), {
       entryName: 'KDNA_Core.json',
       manifest,
-      licenseKey,
-      machineFingerprint: fingerprint,
-    }),
+      licenseKey,    }),
   );
   writeJson(
     path.join(source, 'KDNA_Patterns.json'),
     encryptLicensedEntry(JSON.stringify(patterns), {
       entryName: 'KDNA_Patterns.json',
       manifest,
-      licenseKey,
-      machineFingerprint: fingerprint,
-    }),
+      licenseKey,    }),
   );
 
   const asset = path.join(tmpRoot, 'writing-pro.kdna');
