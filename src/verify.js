@@ -532,6 +532,16 @@ function checkJudgment(input, options = {}) {
           msg: 'trusted quality requires compiler, compiler_version, and compiled_at',
         });
       }
+      const hasIdentity = ['asset_uid', 'project_uid', 'build_id', 'domain_id', 'content_digest'].every(
+        field => !!(authoring[field] || manifest[field]),
+      );
+      bump(1, hasIdentity ? 1 : 0, 'authoring asset identity present');
+      if (!hasIdentity) {
+        issues.push({
+          severity: 'error',
+          msg: 'trusted quality requires asset_uid, project_uid, build_id, domain_id, and content_digest',
+        });
+      }
       const humanConfirmed = authoring.human_confirmed === true && Number(authoring.human_lock_count) > 0;
       bump(1, humanConfirmed ? 1 : 0, `Human Lock provenance (${authoring.human_lock_count || 0})`);
       if (!humanConfirmed) {

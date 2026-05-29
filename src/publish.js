@@ -730,6 +730,11 @@ function validateAuthoringProvenance(manifest) {
     issues.push('trusted assets require authoring.compiler_version');
   }
   if (highTrust && !authoring.compiled_at) issues.push('trusted assets require authoring.compiled_at');
+  for (const field of ['asset_uid', 'project_uid', 'build_id', 'domain_id', 'content_digest']) {
+    if (highTrust && !authoring[field] && !manifest[field]) {
+      issues.push(`trusted assets require ${field} in authoring provenance or manifest`);
+    }
+  }
   if (highTrust && authoring.human_confirmed !== true) {
     issues.push('trusted assets require authoring.human_confirmed = true');
   }

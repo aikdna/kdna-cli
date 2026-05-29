@@ -14,6 +14,12 @@ The CLI is how a KDNA domain judgment package becomes usable by agents. It insta
 
 KDNA CLI 让一个领域判断资产真正被 Agent 使用。它负责安装 KDNA、验证结构与信任信息、把 KDNA 转换成 Agent 可加载的形式、对比加载前后的判断路径，并记录可审计的使用痕迹。
 
+A `.kdna` asset is not created by writing JSON files. It is compiled by a
+Studio-compatible authoring pipeline that performs human confirmation,
+validation, canonicalization, identity generation, digest computation, signing,
+optional encryption, and provenance recording. kdna-cli verifies and publishes
+existing assets; it does not author trusted KDNA.
+
 Part of the [KDNA](https://github.com/aikdna/kdna) ecosystem.
 
 ## Install
@@ -245,8 +251,8 @@ kdna license verify --json <file>
 | ------------ | ----------------------- | ----------------------------------------------------------- |
 | Protocol     | KDNA SPEC               | Define judgment asset format                                |
 | Core Library | @aikdna/kdna-core       | load / validate / compose / render                          |
-| Runtime      | @aikdna/kdna-cli        | Agent runtime + verify + test + publish + license |
-| Authoring    | KDNA Studio             | Human-led judgment production                               |
+| Runtime      | @aikdna/kdna-cli        | install / verify / load / compare / publish existing assets / license / trace |
+| Authoring    | KDNA Studio             | author / lock / compile / export / sign / encrypt           |
 | Consumption  | KDNAChat                | Load, use, compare                                          |
 | Governance   | KDNA Governance Console | Approve, release, audit                                     |
 | Distribution | Registry                | Discover, install, license, distribute                      |
