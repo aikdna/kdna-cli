@@ -307,13 +307,14 @@ function cmdInstallExtended(input, args = []) {
 
   const yes = args.includes('--yes');
   const jsonMode = args.includes('--json');
+  const trusted = args.includes('--trusted');
   const source = parseSource(input);
 
   switch (source.type) {
     case 'registry':
       return installFromRegistry(source.parsed, yes, jsonMode);
     case 'local-file':
-      return installFromLocalFile(source.path, yes, jsonMode);
+      return installFromLocalFile(source.path, yes, jsonMode, trusted);
   }
 }
 
@@ -484,7 +485,7 @@ function installCluster(clusterEntry, resolver, _yes, jsonMode = false) {
   }
 }
 
-function installFromLocalFile(filePath, yes, jsonMode = false) {
+function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false) {
   const abs = path.resolve(filePath);
   if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) error(`Not a file: ${abs}`);
   if (!abs.endsWith('.kdna')) error(`Not a .kdna asset: ${abs}`, EXIT.INPUT_ERROR);
@@ -538,6 +539,16 @@ function installFromLocalFile(filePath, yes, jsonMode = false) {
     } catch {
       trustLevel.issues.push('signature verification failed');
     }
+  }
+
+  // --trusted mode: block install if any trust checks fail
+  if (trusted && trustLevel.issues.length > 0) {
+    const reasons = trustLevel.issues.map(i => `  - ${i}`).join('\n');
+    error(
+      `Trust verification failed for local .kdna asset:\n${reasons}\n\n` +
+      `Use 'kdna install <file.kdna>' without --trusted to install anyway (unverified local asset).`,
+      EXIT.TRUST_FAILED,
+    );
   }
 
   if (!jsonMode) {
