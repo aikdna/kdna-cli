@@ -29,4 +29,4 @@ This copies `templates/cluster/` and `templates/minimal-domain/` into a new dire
 
 ## Adding sub-domains
 
-Run `kdna init <cluster>/<sub_domain>` inside the cluster root (or copy `templates/minimal-domain/`).
+Run `kdna dev scaffold <cluster>/<sub_domain>` inside the cluster root (or copy `templates/minimal-domain/`). This creates a non-canonical dev source workspace; trusted `.kdna` output still requires Studio-compatible compile/export.

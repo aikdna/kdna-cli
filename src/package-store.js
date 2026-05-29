@@ -222,6 +222,7 @@ module.exports = {
   readContainer,
   readContainerEntry,
   readContainerJson,
+  readAssetManifest,
   listContainerEntries,
   verifyAsset,
   getInstalled,

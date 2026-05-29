@@ -53,17 +53,18 @@ function usage() {
 
 Usage:
 
-  --- Domain authors ---
-  kdna init <name>              Scaffold a new KDNA domain from template
+  --- Dev source utilities (non-canonical) ---
+  kdna init <name>              Deprecated alias for kdna dev scaffold <name>
+  kdna dev scaffold <name>      Scaffold a non-canonical dev source workspace
   kdna dev validate <path>      Validate a dev source directory
-  kdna dev pack <path>          Build a dev source directory into .kdna
+  kdna dev pack <path>          Build a dev-only non-trusted .kdna bundle
   kdna dev unpack <path>        Unpack .kdna into a dev source directory
   kdna dev inspect <path>       Inspect a dev source directory
   kdna dev card <path>          Display KDNA Card from a dev source directory
   kdna inspect <file.kdna>      Inspect a .kdna asset
-  kdna publish <path>           Pack + sign a dev source directory
-  kdna publish <path> --release-tag <tag> --repo <o/r>   ...also upload to GitHub
-  kdna publish --check <path>   Run quality gate only (no pack/upload)
+  kdna publish <file.kdna>      Publish an existing Studio-compiled .kdna asset
+  kdna publish <file.kdna> --release-tag <tag> --repo <o/r>   ...also upload to GitHub
+  kdna publish --check <path>   Run dev source readiness checks only
   kdna version bump <patch|minor|major> [path]   Bump domain version
   kdna cluster lint <path>      Validate a cluster manifest
 
@@ -109,8 +110,8 @@ Examples:
   kdna install writing
   kdna verify @aikdna/writing
   kdna available
-  kdna init my_domain
-  kdna publish ./my_domain --release-tag v0.1.0 --repo yourname/kdna-my_domain`);
+  kdna dev scaffold my_domain
+  kdna publish ./dist/my_domain.kdna --release-tag v0.1.0 --repo yourname/kdna-my_domain`);
 }
 
 // Exit codes — semantic exit codes for all KDNA CLI commands

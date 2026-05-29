@@ -4,8 +4,7 @@ const { execFileSync } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
-const crypto = require('node:crypto');
-const { encryptLicensedEntry, verifyAssetSync } = require('@aikdna/kdna-core');
+const { encryptLicensedEntry } = require('@aikdna/kdna-core');
 const { machineFingerprint } = require('../src/cmds/license');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
@@ -114,21 +113,6 @@ with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
 `;
   execFileSync('python3', ['-c', script], { stdio: 'pipe' });
   return { source, asset };
-}
-
-function createIdentity(tmpRoot) {
-  const identityDir = path.join(tmpRoot, 'identity');
-  fs.mkdirSync(identityDir, { recursive: true });
-  const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
-  fs.writeFileSync(
-    path.join(identityDir, 'kdna.key'),
-    privateKey.export({ type: 'pkcs8', format: 'pem' }),
-  );
-  fs.writeFileSync(
-    path.join(identityDir, 'kdna.pub'),
-    publicKey.export({ type: 'spki', format: 'pem' }),
-  );
-  return identityDir;
 }
 
 function createLicensedAsset(tmpRoot) {
@@ -360,26 +344,18 @@ test('local .kdna install stores immutable asset and runtime loads from package 
   assert.equal(JSON.parse(packedInspect.stdout).format, 'kdna-zip');
 });
 
-test('kdna publish creates an Ed25519-verifiable .kdna package', () => {
+test('kdna publish rejects source directories and publishes existing .kdna assets', () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-publish-sign-'));
-  const { source } = createAsset(tmpRoot);
-  const manifestPath = path.join(source, 'kdna.json');
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  delete manifest.author.pubkey;
-  writeJson(manifestPath, manifest);
+  const { source, asset } = createAsset(tmpRoot);
 
-  const identityDir = createIdentity(tmpRoot);
-  const outDir = path.join(tmpRoot, 'dist');
-  const published = run(['publish', source, '--out', outDir], {
-    env: { KDNA_IDENTITY_DIR: identityDir },
-  });
+  const sourcePublish = run(['publish', source]);
+  assert.equal(sourcePublish.code, 2);
+  assert.match(sourcePublish.stderr, /only accepts existing \.kdna assets/);
+
+  const published = run(['publish', asset]);
   assert.ok(published.ok, `publish failed: ${published.stderr}`);
-
-  const assetPath = path.join(outDir, 'writing-0.1.0.kdna');
-  assert.ok(fs.existsSync(assetPath), 'publish should write versioned .kdna asset');
-  const verification = verifyAssetSync(assetPath, { requireSignature: true });
-  assert.equal(verification.signature_valid, true);
-  assert.equal(verification.ok, true, verification.errors.join('\n'));
+  assert.match(published.stdout, /Registry patch/);
+  assert.match(published.stdout, /"asset_digest": "sha256:/);
 });
 
 test('licensed .kdna load requires installed activation and decrypts in memory', () => {

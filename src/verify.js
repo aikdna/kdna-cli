@@ -491,6 +491,65 @@ function checkJudgment(input, options = {}) {
     issues.push({ severity: 'error', msg: 'kdna.json missing required field: judgment_version' });
   }
 
+  // 7. Authoring provenance gate for trusted quality claims.
+  const badgeRank = {
+    untested: 0,
+    tested: 1,
+    validated: 2,
+    expert_reviewed: 3,
+    production_ready: 4,
+  };
+  const badge = manifest?.quality_badge || 'untested';
+  const highTrust = (badgeRank[badge] || 0) >= badgeRank.tested;
+  const authoring = manifest?.authoring;
+  const studioCompatible = new Set([
+    'kdna-studio',
+    'kdna-studio-cli',
+    'kdna-studio-sdk',
+    'third-party-studio-compatible',
+  ]);
+  if (highTrust) {
+    if (!authoring) {
+      score.max += 2;
+      issues.push({
+        severity: 'error',
+        msg: `quality_badge ${badge} requires authoring provenance`,
+      });
+    } else {
+      const okSource = studioCompatible.has(authoring.created_by);
+      bump(1, okSource ? 1 : 0, `authoring.created_by: ${authoring.created_by || '?'}`);
+      if (!okSource) {
+        issues.push({
+          severity: 'error',
+          msg: 'trusted quality requires Studio-compatible authoring.created_by',
+        });
+      }
+      const hasCompiler = !!(authoring.compiler && authoring.compiler_version && authoring.compiled_at);
+      bump(1, hasCompiler ? 1 : 0, 'authoring compiler metadata present');
+      if (!hasCompiler) {
+        issues.push({
+          severity: 'error',
+          msg: 'trusted quality requires compiler, compiler_version, and compiled_at',
+        });
+      }
+      const humanConfirmed = authoring.human_confirmed === true && Number(authoring.human_lock_count) > 0;
+      bump(1, humanConfirmed ? 1 : 0, `Human Lock provenance (${authoring.human_lock_count || 0})`);
+      if (!humanConfirmed) {
+        issues.push({
+          severity: 'error',
+          msg: 'trusted quality requires human_confirmed=true and human_lock_count > 0',
+        });
+      }
+    }
+  } else if (!authoring) {
+    issues.push({
+      severity: 'warn',
+      msg: 'authoring provenance missing; asset cannot be promoted above untested',
+    });
+  } else if (authoring.created_by === 'manual-dev-source') {
+    passed.push('authoring provenance: manual-dev-source (untested ceiling)');
+  }
+
   return { layer: 'judgment', issues, passed, score };
 }
 

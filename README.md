@@ -2,13 +2,13 @@
 
 > **KDNA Ecosystem:** [`kdna`](https://github.com/aikdna/kdna) — the protocol. [KDNAChat](https://github.com/AhaSparkCoach/kdnachat) — the consumption client. [KDNaStudio](https://github.com/AhaSparkCoach/kdnastudio) — the authoring tool. [KDNAWork](https://github.com/AhaSparkCoach/kdnawork) — the workbench. **You are here → kdna-cli** — the toolchain. [Registry](https://github.com/aikdna/kdna-registry) — the catalog.
 
-**Role**: kdna-cli is the **runtime control plane** — the official reference implementation for domain validation, loading, packaging, comparison, and agent-facing runtime workflows. It bridges Studio output to Chat/Work consumption.
+**Role**: kdna-cli is the **runtime control plane** — the official reference implementation for asset validation, loading, installation, comparison, publishing, and agent-facing runtime workflows. It bridges Studio output to Chat/Work consumption.
 
-**KDNA CLI is the official open-source reference implementation for KDNA validation, loading, packaging, comparison, registry access, and agent-facing runtime workflows.**
+**KDNA CLI is the official open-source reference implementation for KDNA verification, loading, installation, comparison, registry access, publishing, and agent-facing runtime workflows.**
 
 It is the runtime control plane for loading, validating, composing, testing, and governing domain judgment for AI agents.
 
-KDNA CLI 是 KDNA 验证、加载、打包、比较、注册表访问和 Agent 运行时工作流的官方开源参考实现，也是 AI Agent 加载、验证、组合、测试和治理领域判断的运行控制平面。
+KDNA CLI 是 KDNA 验证、加载、安装、比较、注册表访问、发布和 Agent 运行时工作流的官方开源参考实现，也是 AI Agent 加载、验证、组合、测试和治理领域判断的运行控制平面。
 
 The CLI is how a KDNA domain judgment package becomes usable by agents. It installs KDNA domains, verifies their structure and trust metadata, loads them into agent-readable form, compares judgment paths with and without KDNA, and records traces for audit.
 
@@ -47,19 +47,20 @@ kdna doctor --agents
 
 ## All Commands by Role
 
-### Domain Authoring
+### Dev Source Utilities
 
 | Command                            | Status       | Description                                     |
 | ---------------------------------- | ------------ | ----------------------------------------------- |
-| `kdna init <name>`                 | Beta         | Scaffold a new domain from template             |
+| `kdna init <name>`                 | Deprecated   | Alias for `kdna dev scaffold`; creates a non-canonical dev source workspace |
+| `kdna dev scaffold <name>`         | Beta         | Scaffold a non-canonical dev source workspace   |
 | `kdna dev validate <path>`         | Stable       | Validate a non-canonical dev source directory   |
-| `kdna dev pack <path>`             | Beta         | Build a dev source directory into a .kdna asset |
+| `kdna dev pack <path>`             | Deprecated   | Build a dev-only non-trusted `.kdna` bundle     |
 | `kdna dev unpack <file>`           | Beta         | Unpack .kdna into a dev source directory        |
 | `kdna dev inspect <path>`          | Beta         | Inspect a non-canonical dev source directory    |
 | `kdna dev card <path>`             | Beta         | Display KDNA Card from a dev source directory   |
 | `kdna inspect <file.kdna>`         | Beta         | Inspect a .kdna asset                           |
-| `kdna publish <path>`              | Experimental | Pack + sign + publish to registry               |
-| `kdna publish --check <path>`      | Experimental | Quality gate check only                         |
+| `kdna publish <file.kdna>`         | Experimental | Publish an existing Studio-compiled `.kdna` asset |
+| `kdna publish --check <path>`      | Experimental | Dev source readiness check only; does not publish |
 | `kdna version bump <level> [path]` | Beta         | Bump domain version                             |
 
 ### Agent Runtime
@@ -165,7 +166,7 @@ The minimum valid `.kdna` asset requires these internal entries:
 
 Each KDNA judgment file must include `meta.version`, `meta.domain`, `meta.created`, `meta.purpose`, and `meta.load_condition`.
 
-Source directories are dev-only authoring workspaces. Public install, inspect, verify, load, compare, and agent-facing commands consume `.kdna` assets or installed asset names, not source directories.
+Source directories are dev-only authoring workspaces. Public install, inspect, verify, load, compare, publish, and agent-facing commands consume `.kdna` assets or installed asset names, not source directories. To create a trusted `.kdna`, use KDNA Studio or a Studio-compatible compiler that records authoring provenance, Human Lock evidence, compiler metadata, and asset digest.
 
 ---
 
@@ -244,7 +245,7 @@ kdna license verify --json <file>
 | ------------ | ----------------------- | ----------------------------------------------------------- |
 | Protocol     | KDNA SPEC               | Define judgment asset format                                |
 | Core Library | @aikdna/kdna-core       | load / validate / compose / render                          |
-| Runtime      | @aikdna/kdna-cli        | Agent runtime + compile + verify + test + publish + license |
+| Runtime      | @aikdna/kdna-cli        | Agent runtime + verify + test + publish + license |
 | Authoring    | KDNA Studio             | Human-led judgment production                               |
 | Consumption  | KDNAChat                | Load, use, compare                                          |
 | Governance   | KDNA Governance Console | Approve, release, audit                                     |

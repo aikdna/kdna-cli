@@ -74,18 +74,19 @@ function showHelp() {
 
 Usage: kdna <command> [options]
 
-Domain Authoring:
-  init <name>                      Scaffold a new domain from template
+Dev Source Utilities (non-canonical):
+  init <name>                      Deprecated alias for dev scaffold
+  dev scaffold <name>              Scaffold a non-canonical dev source workspace
   dev validate <path>              Validate a dev source directory
-  dev pack <path>                  Build a dev source directory into .kdna
+  dev pack <path>                  Build a dev-only non-trusted .kdna bundle
   dev unpack <file>                Unpack .kdna into a dev source directory
   dev inspect <path>               Inspect a dev source directory
   dev card <path>                  Display KDNA Card from a dev source directory
   inspect <file.kdna>              Inspect a .kdna asset
   card <file.kdna> [--locale zh-CN] Display KDNA Card from a .kdna asset
   explain <name>                   Natural language summary: axioms, terms, scenarios
-  publish <path>                   Pack + sign + publish
-  publish --check <path>           Quality gate check only
+  publish <file.kdna>              Publish an existing Studio-compiled .kdna asset
+  publish --check <path>           Dev source readiness check only
   version bump <level> [path]      Bump domain version
   version bump --suggest [path]     Suggest version bump level
 
@@ -214,6 +215,11 @@ switch (cmd) {
       }
       if (!target) error('Usage: kdna dev pack <source-dir>');
       cmdPack(target, output);
+      break;
+    }
+    if (sub === 'scaffold') {
+      const { cmdInit } = require('./init');
+      cmdInit(args[2], { devScaffold: true });
       break;
     }
     if (sub === 'unpack') {
@@ -560,7 +566,7 @@ switch (cmd) {
   }
   case 'init': {
     const { cmdInit } = require('./init');
-    cmdInit(args[1]);
+    cmdInit(args[1], { deprecatedAlias: true });
     break;
   }
   case 'publish': {
@@ -576,10 +582,10 @@ switch (cmd) {
       if (!target) {
         error(
           'Usage:\n' +
-            '  kdna publish <path>                      Pack + sign, output patch JSON\n' +
-            '  kdna publish <path> --release-tag <tag> --repo <owner/name>\n' +
+            '  kdna publish <file.kdna>                 Publish existing asset, output patch JSON\n' +
+            '  kdna publish <file.kdna> --release-tag <tag> --repo <owner/name>\n' +
             '                                           ...also upload to GitHub Release\n' +
-            '  kdna publish --check <path>              Quality gate only',
+            '  kdna publish --check <path>              Dev source readiness check only',
         );
       }
       cmdPublish(target, args);

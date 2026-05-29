@@ -213,6 +213,9 @@ function cmdPack(dir, outputDir) {
   if (!core) error('KDNA_Core.json not found or invalid');
   if (!pat) error('KDNA_Patterns.json not found or invalid');
 
+  console.warn('Warning: kdna dev pack creates a dev-only non-trusted .kdna bundle.');
+  console.warn('Use KDNA Studio compile/export to create a trusted canonical .kdna asset.');
+
   // Human Lock Gate — check judgment-class cards before packing
   const { checkHumanLock } = require('../publish');
   const hl = checkHumanLock(abs);
@@ -333,6 +336,7 @@ with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
   console.log(`  Domain: ${domainName} v${manifest.version}`);
   console.log(`  Files: ${fileCount} KDNA JSONs`);
   console.log(`  Container: ZIP (DEFLATE)`);
+  console.log(`  Trust: dev-only bundle; not registry-trusted`);
 }
 
 // #22: Node.js-native ZIP creator (zero dependencies, fallback when python3/zip unavailable)
@@ -527,6 +531,7 @@ function inspectKdnaFile(filePath, jsonMode = false) {
       status: m.status || 'experimental',
       access: m.access || 'open',
       author: m.author?.name || null,
+      authoring: m.authoring || null,
       license: m.license?.type || null,
       created: m.created || c.meta?.created || null,
       description: m.description || c.meta?.purpose || null,
@@ -558,6 +563,14 @@ function inspectKdnaFile(filePath, jsonMode = false) {
   console.log(`  Status:      ${m.status || 'experimental'}`);
   console.log(`  Access:      ${m.access || 'open'}`);
   console.log(`  Author:      ${m.author?.name || '?'}`);
+  if (m.authoring) {
+    console.log(
+      `  Authoring:   ${m.authoring.created_by || '?'} via ${m.authoring.compiler || m.authoring.authoring_tool || '?'}`,
+    );
+    console.log(
+      `  Human Lock:  ${m.authoring.human_confirmed ? 'confirmed' : 'unconfirmed'} (${m.authoring.human_lock_count ?? 0})`,
+    );
+  }
   console.log(`  License:     ${m.license?.type || '?'}`);
   console.log(`  Created:     ${m.created || c.meta?.created || '?'}`);
   console.log(`  Description: ${m.description || c.meta?.purpose || '?'}`);

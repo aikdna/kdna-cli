@@ -45,7 +45,8 @@ kdna verify ./.
 
 # 7. Publish
 KDNA_IDENTITY_DIR=~/.kdna/identity-official \
-  kdna publish ./. \
+  # Trusted publish starts from a Studio-compiled .kdna asset.
+  kdna publish ./dist/your-domain.kdna \
     --release-tag v0.1.0 \
     --repo yourname/kdna-<your_domain_id>
 
