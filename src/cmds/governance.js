@@ -246,7 +246,7 @@ function cmdLockCard(args = []) {
   const projectPath = path.resolve('studio.project.json');
   if (!fs.existsSync(projectPath)) {
     error(
-      'No studio.project.json found in current directory. Run: kdna studio scaffold',
+      'No studio.project.json found in current directory. Run: kdna-studio create',
       EXIT.INPUT_ERROR,
     );
   }

@@ -1,11 +1,11 @@
 /**
- * KDNA Studio CLI commands — Phase 1: Studio Beta 底层支撑.
+ * Dev-only Studio project diagnostics retained for old project files.
  *
- *   kdna studio scaffold <name>         Create Studio project skeleton
+ *   kdna-studio create <name>         Create Studio project skeleton
  *   kdna cards validate <project.json>  Validate Judgment Cards
  *   kdna lock verify <project.json>     Verify Human Lock status
- *   kdna studio compile <project.json>  Compile locked cards into Studio build output
- *   kdna studio readiness <project.json>  Generate Domain Readiness Card
+ *   kdna-studio compile <project.json>  Compile locked cards into Studio build output
+ *   kdna-studio report <project.json>  Generate Domain Readiness Card
  */
 
 const fs = require('fs');
@@ -81,7 +81,7 @@ const CARD_TEMPLATES = {
 function cmdStudioScaffold(name, args = []) {
   if (!name)
     error(
-      'Usage: kdna studio scaffold <name> [--type=domain|cluster] [--minimal]',
+      'Usage: kdna-studio create <name> [--type=domain|cluster] [--minimal]',
       EXIT.INPUT_ERROR,
     );
   if (!/^[a-z][a-z0-9_-]*$/.test(name)) {
@@ -139,7 +139,7 @@ function cmdStudioScaffold(name, args = []) {
   // Write exports/README.md
   fs.writeFileSync(
     path.join(targetDir, 'exports', 'README.md'),
-    `# ${name}\n\nCompiled KDNA domain files will appear here after \`kdna studio compile\`.\n`,
+    `# ${name}\n\nCompiled KDNA domain files will appear here after \`kdna-studio compile\`.\n`,
   );
 
   console.log(`✓ Studio project created: ${targetDir}/`);
@@ -150,7 +150,7 @@ function cmdStudioScaffold(name, args = []) {
   console.log('  1. Edit cards/ — replace all [TODO] placeholders');
   console.log('  2. Run: kdna cards validate studio.project.json');
   console.log('  3. Run: kdna lock verify studio.project.json');
-  console.log('  4. Run: kdna studio compile studio.project.json');
+  console.log('  4. Run: kdna-studio compile studio.project.json');
 }
 
 // ─── Cards Validate ───────────────────────────────────────────────────

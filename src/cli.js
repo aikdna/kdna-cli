@@ -36,13 +36,7 @@ const {
   cmdLicenseSync,
 } = require('./cmds/license');
 const { cmdPreview, cmdProject, cmdEval, cmdExport, cmdDemo } = require('./cmds/legacy');
-const {
-  cmdStudioScaffold,
-  cmdCardsValidate,
-  cmdLockVerify,
-  cmdStudioCompile,
-  cmdStudioReadiness,
-} = require('./cmds/studio');
+const { cmdCardsValidate, cmdLockVerify } = require('./cmds/studio');
 const { cmdTestRun, cmdTestImport } = require('./cmds/test');
 const { cmdChangelog } = require('./cmds/changelog');
 const {
@@ -90,12 +84,10 @@ Dev Source Utilities (non-canonical):
   version bump <level> [path]      Bump domain version
   version bump --suggest [path]     Suggest version bump level
 
-Studio Bridge (delegates to Studio-compatible authoring; trusted export belongs to Studio):
-  studio scaffold <name>           Create Studio project + card templates
-  cards validate <project.json>    Validate Judgment Cards structure
-  lock verify <project.json>       Verify Human Lock status
-  studio compile <project.json>    Compile locked cards into Studio build output
-  studio readiness <project.json>  Generate domain readiness card
+Studio Authoring Boundary:
+  cards validate <project.json>    Dev-only card structure check
+  lock verify <project.json>       Dev-only Human Lock status check
+  studio                           Removed. Use kdna-studio from @aikdna/kdna-studio-cli
 
 Agent Runtime:
   route "<task>" [--json] [--discover]  5-Gate 7-State routing decision
@@ -627,28 +619,14 @@ switch (cmd) {
     break;
   }
   case 'studio': {
-    const sub = args[1];
-    if (sub === 'scaffold') {
-      const target = args.filter((a) => !a.startsWith('--'))[2];
-      if (!target) error('Usage: kdna studio scaffold <name> [--type=cluster] [--minimal]');
-      cmdStudioScaffold(target, args);
-    } else if (sub === 'compile') {
-      const target = args.filter((a) => !a.startsWith('--'))[2];
-      if (!target) error('Usage: kdna studio compile <studio.project.json> [--out <dir>]');
-      cmdStudioCompile(target, args);
-    } else if (sub === 'readiness') {
-      const target = args.filter((a) => !a.startsWith('--'))[2];
-      if (!target) error('Usage: kdna studio readiness <studio.project.json>');
-      cmdStudioReadiness(target, args);
-    } else {
-      error(
-        'Usage:\n' +
-          '  kdna studio scaffold <name> [--type=cluster] [--minimal]\n' +
-          '  kdna studio compile <studio.project.json> [--out <dir>]\n' +
-          '  kdna studio readiness <studio.project.json>',
-        EXIT.INPUT_ERROR,
-      );
-    }
+    error(
+        'kdna studio has been removed from the runtime CLI.\n' +
+        'Trusted KDNA authoring belongs to the standalone Studio CLI:\n' +
+        '  npm install -g @aikdna/kdna-studio-cli\n' +
+        '  kdna-studio create <project>\n' +
+        '  kdna-studio export <project> --out <file.kdna> --sign',
+      EXIT.INPUT_ERROR,
+    );
     break;
   }
   default:
