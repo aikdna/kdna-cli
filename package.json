@@ -1,6 +1,6 @@
 {
   "name": "@aikdna/kdna-cli",
-  "version": "0.19.2",
+  "version": "0.19.3",
   "description": "KDNA CLI — create, validate, install, and manage domain judgment packages for AI agents.",
   "type": "commonjs",
   "bin": {
@@ -21,7 +21,7 @@
     "lint": "eslint src/ validators/ tests/",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --test tests/v07-commands.test.js tests/v012-commands.test.js",
+    "test": "node --test tests/v07-commands.test.js tests/v012-commands.test.js tests/asset-store.test.js",
     "test:integration": "node --test tests/integration.test.js",
     "test:all": "node --test tests/*.test.js",
     "release:preflight": "node scripts/release-preflight.js",
