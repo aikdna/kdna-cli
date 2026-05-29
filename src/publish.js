@@ -648,7 +648,9 @@ function cmdPublish(assetPath, args = []) {
   console.log(`  ✓ asset_digest: ${digest}`);
   console.log(`  ✓ content_digest: ${content}`);
   if (manifest.authoring) {
-    console.log(`  ✓ Authoring: ${manifest.authoring.created_by} / ${manifest.authoring.compiler || '?'}`);
+    console.log(
+      `  ✓ Authoring: ${manifest.authoring.created_by} / ${manifest.authoring.compiler || '?'}`,
+    );
   }
 
   // 4. Optional upload via gh CLI
@@ -729,7 +731,8 @@ function validateAuthoringProvenance(manifest) {
   if (highTrust && !authoring.compiler_version) {
     issues.push('trusted assets require authoring.compiler_version');
   }
-  if (highTrust && !authoring.compiled_at) issues.push('trusted assets require authoring.compiled_at');
+  if (highTrust && !authoring.compiled_at)
+    issues.push('trusted assets require authoring.compiled_at');
   for (const field of ['asset_uid', 'project_uid', 'build_id', 'domain_id', 'content_digest']) {
     if (highTrust && !authoring[field] && !manifest[field]) {
       issues.push(`trusted assets require ${field} in authoring provenance or manifest`);

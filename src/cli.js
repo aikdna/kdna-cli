@@ -620,7 +620,7 @@ switch (cmd) {
   }
   case 'studio': {
     error(
-        'kdna studio has been removed from the runtime CLI.\n' +
+      'kdna studio has been removed from the runtime CLI.\n' +
         'Trusted KDNA authoring belongs to the standalone Studio CLI:\n' +
         '  npm install -g @aikdna/kdna-studio-cli\n' +
         '  kdna-studio create <project>\n' +
