@@ -540,7 +540,7 @@ function identityPaths() {
  * before hashing). Digest self-reference fields are also excluded. All other files included as-is.
  */
 function canonicalPayload(srcDir, opts = {}) {
-  const files = listPublishEntries(srcDir);
+  const files = listPublishEntries(srcDir).sort();
   const parts = [];
   for (const f of files) {
     const full = f === 'mimetype' ? null : path.join(srcDir, f);
@@ -592,7 +592,7 @@ function manifestForContentDigest(manifest) {
 }
 
 function sourceContentDigest(srcDir) {
-  const files = listPublishEntries(srcDir);
+  const files = listPublishEntries(srcDir).sort();
   const parts = [];
   for (const f of files) {
     let buf;
