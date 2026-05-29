@@ -275,11 +275,10 @@ switch (cmd) {
         domainId = args[i];
       }
     }
-    if (!domainId) error('Usage: kdna install <domain-id|file.kdna>');
+    if (!domainId) error('Usage: kdna install <domain-id|file.kdna> [--trusted]');
 
     const { cmdInstallExtended } = require('./install');
     if (fromGit) {
-      // Legacy --from-git: treat as github: URL
       const url = fromGit.replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, '');
       cmdInstallExtended(`github:${url}`, args);
     } else {
