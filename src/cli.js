@@ -84,10 +84,10 @@ Dev Source Utilities (non-canonical):
   version bump <level> [path]      Bump domain version
   version bump --suggest [path]     Suggest version bump level
 
-Studio Authoring Boundary:
+Studio Authoring Boundary (dev-preview only — use standalone kdna-studio for trusted authoring):
   cards validate <project.json>    Dev-only card structure check
   lock verify <project.json>       Dev-only Human Lock status check
-  studio                           Removed. Use kdna-studio from @aikdna/kdna-studio-cli
+  studio                           Removed. Trusted KDNA authoring: npm install -g @aikdna/kdna-studio-cli
 
 Agent Runtime:
   route "<task>" [--json] [--discover]  5-Gate 7-State routing decision
@@ -132,7 +132,6 @@ Governance & Release (Phase 6):
 Quality & Distribution (Phase 7):
   badge compute <domain>              Compute quality badge (draft/tested/trusted)
   registry audit --scope <@scope>     Audit registry scope health
-  package <domain> --format=kdna      Package domain as distributable asset
 
 Registry & Distribution:
   install <name>                   Install domain from registry
