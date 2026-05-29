@@ -80,10 +80,7 @@ const CARD_TEMPLATES = {
 
 function cmdStudioScaffold(name, args = []) {
   if (!name)
-    error(
-      'Usage: kdna-studio create <name> [--type=domain|cluster] [--minimal]',
-      EXIT.INPUT_ERROR,
-    );
+    error('Usage: kdna-studio create <name> [--type=domain|cluster] [--minimal]', EXIT.INPUT_ERROR);
   if (!/^[a-z][a-z0-9_-]*$/.test(name)) {
     error(
       `Invalid name "${name}". Use lowercase letters, numbers, hyphens, underscores. Start with letter.`,

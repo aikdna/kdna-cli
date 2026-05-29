@@ -58,7 +58,9 @@ function cmdInit(name, options = {}) {
   });
 
   if (options.deprecatedAlias) {
-    console.warn('Warning: kdna init is deprecated. Use kdna dev scaffold for dev source workspaces.');
+    console.warn(
+      'Warning: kdna init is deprecated. Use kdna dev scaffold for dev source workspaces.',
+    );
   }
   console.log(`✓ Created non-canonical KDNA dev source workspace: ${targetDir}/`);
   console.log(`  Files: KDNA_Core.json, KDNA_Patterns.json, kdna.json, tests/before-after.json`);

@@ -55,19 +55,19 @@ kdna doctor --agents
 
 ### Dev Source Utilities
 
-| Command                            | Status       | Description                                     |
-| ---------------------------------- | ------------ | ----------------------------------------------- |
+| Command                            | Status       | Description                                                                 |
+| ---------------------------------- | ------------ | --------------------------------------------------------------------------- |
 | `kdna init <name>`                 | Deprecated   | Alias for `kdna dev scaffold`; creates a non-canonical dev source workspace |
-| `kdna dev scaffold <name>`         | Beta         | Scaffold a non-canonical dev source workspace   |
-| `kdna dev validate <path>`         | Stable       | Validate a non-canonical dev source directory   |
-| `kdna dev pack <path>`             | Deprecated   | Build a dev-only non-trusted `.kdna` bundle     |
-| `kdna dev unpack <file>`           | Beta         | Unpack .kdna into a dev source directory        |
-| `kdna dev inspect <path>`          | Beta         | Inspect a non-canonical dev source directory    |
-| `kdna dev card <path>`             | Beta         | Display KDNA Card from a dev source directory   |
-| `kdna inspect <file.kdna>`         | Beta         | Inspect a .kdna asset                           |
-| `kdna publish <file.kdna>`         | Experimental | Publish an existing Studio-compiled `.kdna` asset |
-| `kdna publish --check <path>`      | Experimental | Dev source readiness check only; does not publish |
-| `kdna version bump <level> [path]` | Beta         | Bump domain version                             |
+| `kdna dev scaffold <name>`         | Beta         | Scaffold a non-canonical dev source workspace                               |
+| `kdna dev validate <path>`         | Stable       | Validate a non-canonical dev source directory                               |
+| `kdna dev pack <path>`             | Deprecated   | Build a dev-only non-trusted `.kdna` bundle                                 |
+| `kdna dev unpack <file>`           | Beta         | Unpack .kdna into a dev source directory                                    |
+| `kdna dev inspect <path>`          | Beta         | Inspect a non-canonical dev source directory                                |
+| `kdna dev card <path>`             | Beta         | Display KDNA Card from a dev source directory                               |
+| `kdna inspect <file.kdna>`         | Beta         | Inspect a .kdna asset                                                       |
+| `kdna publish <file.kdna>`         | Experimental | Publish an existing Studio-compiled `.kdna` asset                           |
+| `kdna publish --check <path>`      | Experimental | Dev source readiness check only; does not publish                           |
+| `kdna version bump <level> [path]` | Beta         | Bump domain version                                                         |
 
 ### Agent Runtime
 
@@ -247,15 +247,15 @@ kdna license verify --json <file>
 
 ## Product Matrix
 
-| Layer        | Product                 | Responsibility                                              |
-| ------------ | ----------------------- | ----------------------------------------------------------- |
-| Protocol     | KDNA SPEC               | Define judgment asset format                                |
-| Core Library | @aikdna/kdna-core       | load / validate / compose / render                          |
+| Layer        | Product                 | Responsibility                                                                |
+| ------------ | ----------------------- | ----------------------------------------------------------------------------- |
+| Protocol     | KDNA SPEC               | Define judgment asset format                                                  |
+| Core Library | @aikdna/kdna-core       | load / validate / compose / render                                            |
 | Runtime      | @aikdna/kdna-cli        | install / verify / load / compare / publish existing assets / license / trace |
-| Authoring    | KDNA Studio             | author / lock / compile / export / sign / encrypt           |
-| Consumption  | KDNAChat                | Load, use, compare                                          |
-| Governance   | KDNA Governance Console | Approve, release, audit                                     |
-| Distribution | Registry                | Discover, install, license, distribute                      |
+| Authoring    | KDNA Studio             | author / lock / compile / export / sign / encrypt                             |
+| Consumption  | KDNAChat                | Load, use, compare                                                            |
+| Governance   | KDNA Governance Console | Approve, release, audit                                                       |
+| Distribution | Registry                | Discover, install, license, distribute                                        |
 
 ## Development
 
