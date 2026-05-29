@@ -510,27 +510,13 @@ function cmdPublishCheck(domainPath, args = []) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// v0.7: full publish pipeline (validate + pack + sign + upload + patch)
+// Registry publish pipeline for existing .kdna assets.
 // ═══════════════════════════════════════════════════════════════════════
 
 const crypto = require('crypto');
-const { execSync, execFileSync } = require('child_process');
-const identity = require('./identity');
-const { fingerprint } = identity;
+const { execFileSync } = require('child_process');
 
 const NAME_RE = /^@([a-z][a-z0-9-]*)\/([a-z][a-z0-9_]*)$/;
-
-function identityPaths() {
-  // Recompute each call so KDNA_IDENTITY_DIR env var can be changed at runtime
-  const dir =
-    process.env.KDNA_IDENTITY_DIR ||
-    path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna', 'identity');
-  return {
-    privateKeyPath: path.join(dir, 'kdna.key'),
-    publicKeyPath: path.join(dir, 'kdna.pub'),
-    dir,
-  };
-}
 
 /**
  * Canonical signing payload: sorted (filename, sha256) pairs of all published
@@ -581,38 +567,6 @@ function stableStringify(value) {
   return JSON.stringify(value);
 }
 
-function manifestForContentDigest(manifest) {
-  const copy = { ...(manifest || {}) };
-  delete copy.signature;
-  delete copy.asset_digest;
-  delete copy.container_sha256;
-  delete copy.content_digest;
-  delete copy._source;
-  return copy;
-}
-
-function sourceContentDigest(srcDir) {
-  const files = listPublishEntries(srcDir).sort();
-  const parts = [];
-  for (const f of files) {
-    let buf;
-    if (f === 'mimetype') {
-      buf = Buffer.from('application/vnd.aikdna.kdna+zip');
-    } else if (f.endsWith('.json')) {
-      const obj = JSON.parse(fs.readFileSync(path.join(srcDir, f), 'utf8'));
-      const value = f === 'kdna.json' ? manifestForContentDigest(obj) : obj;
-      buf = Buffer.from(stableStringify(value));
-    } else {
-      buf = fs.readFileSync(path.join(srcDir, f));
-    }
-    parts.push(`${f}:${crypto.createHash('sha256').update(buf).digest('hex')}`);
-  }
-  return `sha256:${crypto
-    .createHash('sha256')
-    .update(Buffer.from(parts.join('\n')))
-    .digest('hex')}`;
-}
-
 function listPublishEntries(domainDir) {
   const entries = ['mimetype'];
   const skipDirs = new Set(['.git', 'node_modules', 'dist']);
@@ -643,88 +597,32 @@ function listPublishEntries(domainDir) {
   return entries;
 }
 
-function signPayload(payload, privateKeyPem) {
-  const privateKey = crypto.createPrivateKey(privateKeyPem);
-  const sig = crypto.sign(null, Buffer.from(payload), privateKey);
-  return sig.toString('hex');
-}
-
-function loadIdentity() {
-  const { privateKeyPath, publicKeyPath, dir } = identityPaths();
-  if (!fs.existsSync(privateKeyPath) || !fs.existsSync(publicKeyPath)) {
-    error(`No identity found at ${dir}. Run: kdna identity init  (or set KDNA_IDENTITY_DIR)`);
-  }
-  return {
-    privateKey: fs.readFileSync(privateKeyPath, 'utf8'),
-    publicKey: fs.readFileSync(publicKeyPath, 'utf8'),
-  };
-}
-
 function publicKeyToScopeFormat(publicKeyPem) {
   // The trust_pubkey in registry is stored as "ed25519:<sha256-of-PEM-hex>"
   // because Ed25519 PEM is multi-line; the scope key is a stable fingerprint.
   return 'ed25519:' + crypto.createHash('sha256').update(publicKeyPem).digest('hex');
 }
 
-function packToFile(domainDir, outPath) {
-  const files = listPublishEntries(domainDir).filter((f) => f !== 'mimetype');
-  if (!files.includes('kdna.json'))
-    error('kdna.json required in dev source directory for publish.');
-
-  const script = `import zipfile, os
-src = ${JSON.stringify(domainDir)}
-out = ${JSON.stringify(outPath)}
-files = ${JSON.stringify(files)}
-with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
-    zf.writestr(zipfile.ZipInfo('mimetype'), 'application/vnd.aikdna.kdna+zip', compress_type=zipfile.ZIP_STORED)
-    for f in files:
-        zf.write(os.path.join(src, f), f)
-`;
-  const tmpPy = `/tmp/kdna-publish-pack-${Date.now()}.py`;
-  try {
-    fs.writeFileSync(tmpPy, script);
-    execSync(`python3 ${tmpPy}`, { stdio: 'pipe' });
-  } finally {
-    try {
-      fs.unlinkSync(tmpPy);
-    } catch {
-      /* ignore */
-    }
-  }
-}
-
-function sha256File(p) {
-  return crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
-}
-
-function outputDirFromArgs(args, fallback) {
-  for (const flag of ['--output', '--out', '-o']) {
-    const idx = args.indexOf(flag);
-    if (idx >= 0) return args[idx + 1];
-  }
-  return fallback;
-}
-
 /**
- * kdna publish <path>  — Full publish pipeline.
+ * kdna publish <file.kdna> — Publish an existing Studio-compiled asset.
  *
- * Steps:
- *   1. Validate name = @scope/name; load identity; validate author.pubkey
- *   2. Quality gate (cmdPublishCheck, soft)
- *   3. Write signature into kdna.json (canonical payload signed with identity)
- *   4. Pack into .kdna
- *   5. Compute sha256
- *   6. If --release-tag <tag> and --repo <owner/name>: upload via gh CLI
- *   7. Print registry patch JSON
+ * Publishing no longer packs arbitrary source directories. Source directories
+ * are non-canonical dev workspaces; trusted assets come from Studio-compatible
+ * compile/export pipelines.
  */
-function cmdPublish(domainPath, args = []) {
-  const abs = path.resolve(domainPath);
-  if (!fs.existsSync(abs) || !fs.statSync(abs).isDirectory()) error(`Not a directory: ${abs}`);
+function cmdPublish(assetPath, args = []) {
+  const abs = path.resolve(assetPath);
+  if (!fs.existsSync(abs)) error(`Path not found: ${abs}`, EXIT.INPUT_ERROR);
+  if (fs.statSync(abs).isDirectory()) {
+    error(
+      'kdna publish only accepts existing .kdna assets. Source directories are non-canonical; use KDNA Studio compile/export, then run kdna publish <file.kdna>.',
+      EXIT.INPUT_ERROR,
+    );
+  }
+  if (!abs.endsWith('.kdna')) error('kdna publish requires a .kdna asset file.', EXIT.INPUT_ERROR);
 
-  const manifestPath = path.join(abs, 'kdna.json');
-  if (!fs.existsSync(manifestPath)) error('kdna.json required at domain root.');
-
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const { readAssetManifest, assetDigest, contentDigest } = require('./package-store');
+  const manifest = readAssetManifest(abs);
   const name = manifest.name;
   const m = name && name.match(NAME_RE);
   if (!m) {
@@ -732,72 +630,26 @@ function cmdPublish(domainPath, args = []) {
   }
   if (!manifest.version) error('kdna.json.version required.');
 
-  const { privateKey, publicKey } = loadIdentity();
-  const scopeKey = publicKeyToScopeFormat(publicKey);
-
   console.log('═'.repeat(60));
   console.log(`  Publishing ${name}@${manifest.version}`);
   console.log('═'.repeat(60));
 
-  // ─── Human Lock Gate ──────────────────────────────────────────────
-  const hl = checkHumanLock(abs);
-  if (!hl.passed) {
-    console.error('');
-    console.error('  Human Lock Gate: BLOCKED');
-    for (const issue of hl.issues) {
-      console.error(`    ✗ ${issue}`);
-    }
-    console.error('');
-    console.error('  Use kdna publish --check for details, or --force to override.');
-    if (!args.includes('--force')) {
-      process.exit(EXIT.HUMAN_LOCK_REQUIRED);
-    }
-    console.warn('  ⚠  --force override: publishing without Human Lock (emergency only)');
-  } else {
-    console.log(`  ✓ Human Lock Gate: passed`);
-  }
-  console.log('');
-
-  console.log(`  Identity fingerprint: ${fingerprint(publicKey)}`);
-  console.log(`  Scope trust key:      ${scopeKey.slice(0, 28)}…`);
-  console.log('');
-
-  // 1. Update author.pubkey if missing/mismatch
-  if (!manifest.author) manifest.author = {};
-  if (manifest.author.pubkey && manifest.author.pubkey !== scopeKey) {
+  const provenanceIssues = validateAuthoringProvenance(manifest);
+  if (provenanceIssues.length) {
     error(
-      `kdna.json.author.pubkey (${manifest.author.pubkey.slice(0, 20)}…) does not match your identity (${scopeKey.slice(0, 20)}…). Refusing to overwrite. Either remove the field, or use the matching identity.`,
+      `Authoring provenance gate failed:\n${provenanceIssues.map((issue) => `  - ${issue}`).join('\n')}`,
     );
   }
-  manifest.author.pubkey = scopeKey;
-  // Embed full PEM so consumers can verify the signature against author.pubkey fingerprint
-  manifest.author.public_key_pem = publicKey;
 
-  // 2. Write signature
-  delete manifest.signature;
-  delete manifest.asset_digest;
-  delete manifest.container_sha256;
-  delete manifest.content_digest;
-  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
-  manifest.content_digest = sourceContentDigest(abs);
-  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
-  const signedPayload = canonicalPayload(abs);
-  const sig = signPayload(signedPayload, privateKey);
-  manifest.signature = 'ed25519:' + sig;
-  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
-  console.log(`  ✓ Signed (payload covers ${listPublishEntries(abs).length} content entries)`);
-
-  // 3. Pack
-  const fileName = `${m[2]}-${manifest.version}.kdna`;
-  const outDir = outputDirFromArgs(args, path.join(abs, 'dist'));
-  fs.mkdirSync(outDir, { recursive: true });
-  const outPath = path.join(outDir, fileName);
-  packToFile(abs, outPath);
-  const sha256 = sha256File(outPath);
-  const assetDigest = `sha256:${sha256}`;
-  const size = fs.statSync(outPath).size;
-  console.log(`  ✓ Packed: ${outPath} (${size} bytes)`);
-  console.log(`  ✓ asset_digest: ${assetDigest}`);
+  const digest = assetDigest(abs);
+  const content = contentDigest(abs);
+  const size = fs.statSync(abs).size;
+  console.log(`  ✓ Asset: ${abs} (${size} bytes)`);
+  console.log(`  ✓ asset_digest: ${digest}`);
+  console.log(`  ✓ content_digest: ${content}`);
+  if (manifest.authoring) {
+    console.log(`  ✓ Authoring: ${manifest.authoring.created_by} / ${manifest.authoring.compiler || '?'}`);
+  }
 
   // 4. Optional upload via gh CLI
   const tagIdx = args.indexOf('--release-tag');
@@ -809,13 +661,13 @@ function cmdPublish(domainPath, args = []) {
     console.log('');
     console.log(`  Uploading to ${repo} release ${tag}...`);
     try {
-      execFileSync('gh', ['release', 'upload', tag, outPath, '--repo', repo, '--clobber'], {
+      execFileSync('gh', ['release', 'upload', tag, abs, '--repo', repo, '--clobber'], {
         stdio: 'inherit',
       });
-      kdnaUrl = `https://github.com/${repo}/releases/download/${tag}/${fileName}`;
+      kdnaUrl = `https://github.com/${repo}/releases/download/${tag}/${path.basename(abs)}`;
       console.log(`  ✓ Uploaded: ${kdnaUrl}`);
     } catch {
-      console.warn(`  ⚠ Upload failed. You can manually upload ${outPath}.`);
+      console.warn(`  ⚠ Upload failed. You can manually upload ${abs}.`);
     }
   }
 
@@ -825,9 +677,10 @@ function cmdPublish(domainPath, args = []) {
     type: manifest.cluster ? 'cluster' : 'domain',
     version: manifest.version,
     asset_url: kdnaUrl,
-    asset_digest: assetDigest,
-    content_digest: manifest.content_digest || null,
+    asset_digest: digest,
+    content_digest: manifest.content_digest || content,
     signature: manifest.signature,
+    authoring: manifest.authoring || null,
     release_status: kdnaUrl ? 'published_signed' : 'published_signed_local',
     author: { ...manifest.author },
   };
@@ -843,10 +696,57 @@ function cmdPublish(domainPath, args = []) {
   );
 }
 
+function validateAuthoringProvenance(manifest) {
+  const issues = [];
+  const badgeRank = {
+    untested: 0,
+    tested: 1,
+    validated: 2,
+    expert_reviewed: 3,
+    production_ready: 4,
+  };
+  const badge = manifest.quality_badge || 'untested';
+  const highTrust = (badgeRank[badge] || 0) >= badgeRank.tested;
+  const authoring = manifest.authoring;
+  const studioCompatible = new Set([
+    'kdna-studio',
+    'kdna-studio-cli',
+    'kdna-studio-sdk',
+    'third-party-studio-compatible',
+  ]);
+
+  if (!authoring) {
+    if (highTrust) issues.push(`quality_badge "${badge}" requires authoring provenance`);
+    return issues;
+  }
+  if (authoring.created_by === 'manual-dev-source' && highTrust) {
+    issues.push('manual-dev-source assets cannot claim tested or higher quality');
+  }
+  if (highTrust && !studioCompatible.has(authoring.created_by)) {
+    issues.push(`quality_badge "${badge}" requires Studio-compatible created_by`);
+  }
+  if (highTrust && !authoring.compiler) issues.push('trusted assets require authoring.compiler');
+  if (highTrust && !authoring.compiler_version) {
+    issues.push('trusted assets require authoring.compiler_version');
+  }
+  if (highTrust && !authoring.compiled_at) issues.push('trusted assets require authoring.compiled_at');
+  if (highTrust && authoring.human_confirmed !== true) {
+    issues.push('trusted assets require authoring.human_confirmed = true');
+  }
+  if (highTrust && !Number.isInteger(authoring.human_lock_count)) {
+    issues.push('trusted assets require authoring.human_lock_count');
+  }
+  if (highTrust && Number.isInteger(authoring.human_lock_count) && authoring.human_lock_count < 1) {
+    issues.push('trusted assets require at least one Human Lock');
+  }
+  return issues;
+}
+
 module.exports = {
   cmdPublishCheck,
   cmdPublish,
   checkHumanLock,
   canonicalPayload,
   publicKeyToScopeFormat,
+  validateAuthoringProvenance,
 };

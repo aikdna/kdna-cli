@@ -1,5 +1,6 @@
 /**
- * kdna init <name>        — Scaffold a new KDNA domain from template.
+ * kdna init <name>        — Deprecated alias for kdna dev scaffold <name>.
+ * kdna dev scaffold <name> — Scaffold a non-canonical dev source workspace.
  * kdna cluster init <name> — Scaffold a new KDNA cluster from template.
  */
 
@@ -27,9 +28,9 @@ function copyRecursive(src, dest, replacements) {
   }
 }
 
-function cmdInit(name) {
+function cmdInit(name, options = {}) {
   if (!name) {
-    console.error('Error: Domain name required. Usage: kdna init <name>');
+    console.error('Error: Domain name required. Usage: kdna dev scaffold <name>');
     process.exit(1);
   }
 
@@ -56,8 +57,13 @@ function cmdInit(name) {
     'YYYY-MM-DD': today,
   });
 
-  console.log(`✓ Created KDNA domain: ${targetDir}/`);
+  if (options.deprecatedAlias) {
+    console.warn('Warning: kdna init is deprecated. Use kdna dev scaffold for dev source workspaces.');
+  }
+  console.log(`✓ Created non-canonical KDNA dev source workspace: ${targetDir}/`);
   console.log(`  Files: KDNA_Core.json, KDNA_Patterns.json, kdna.json, tests/before-after.json`);
+  console.log('  This workspace is not a trusted KDNA asset.');
+  console.log('  To create a trusted .kdna asset, use KDNA Studio compile/export.');
 
   // Run structural validation (lint + schema only). Content quality checks
   // are for publish time, not scaffold time — the template contains placeholders
@@ -92,8 +98,8 @@ function cmdInit(name) {
   );
   console.log(`  3. Edit ${targetDir}/kdna.json — set author, description, repo`);
   console.log(`  4. Run: kdna dev validate ${name}           (structural check)`);
-  console.log(`  5. Run: kdna publish --check ${name}         (content quality gate)`);
-  console.log(`  6. Run: kdna verify ${name}                  (full judgment scoring)`);
+  console.log(`  5. Run: kdna publish --check ${name}         (dev readiness check only)`);
+  console.log(`  6. Use KDNA Studio to Human Lock, compile, and export a trusted .kdna asset`);
 }
 
 /**
