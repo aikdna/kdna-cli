@@ -136,6 +136,7 @@ Quality & Distribution (Phase 7):
 Registry & Distribution:
   install <name>                   Install domain from registry
   install <file.kdna>              Install a local .kdna asset
+  install <file.kdna> --trusted    Install with mandatory trust verification
   remove <name>                    Uninstall a domain
   update <name>                    Update installed domain
   info <name>                      Show domain metadata and trust status
