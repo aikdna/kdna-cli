@@ -429,7 +429,7 @@ function installSingleFromUrl({ entry, scope }, jsonMode = false) {
 
   verifySignature({ assetPath: tmpFile, scope, entry, lenient: true });
 
-  auditLog('install', { name: declared, version: manifest.version, source: 'local-file', path: abs });
+  auditLog('install', { name: entry.name, version: entry.version, source: 'registry' });
   const installed = installAsset({
     sourcePath: tmpFile,
     name: entry.name,
