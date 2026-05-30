@@ -541,12 +541,20 @@ function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false) 
     }
   }
 
-  // --trusted mode: block install if any trust checks fail
+  // --trusted mode: signature must be present and verified
   if (trusted && trustLevel.issues.length > 0) {
     const reasons = trustLevel.issues.map(i => `  - ${i}`).join('\n');
     error(
       `Trust verification failed for local .kdna asset:\n${reasons}\n\n` +
       `Use 'kdna install <file.kdna>' without --trusted to install anyway (unverified local asset).`,
+      EXIT.TRUST_FAILED,
+    );
+  }
+  // Signature is required for --trusted mode
+  if (trusted && !manifest.signature) {
+    error(
+      '--trusted requires a signed .kdna asset. This asset has no signature.\n' +
+      'Use Studio compile/export with --sign, or install without --trusted.',
       EXIT.TRUST_FAILED,
     );
   }
