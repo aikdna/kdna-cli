@@ -154,6 +154,22 @@ function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
+// ─── Audit Log ───────────────────────────────────────────────────────
+
+function auditLog(action, details) {
+  try {
+    const logDir = path.join(USER_KDNA_DIR, 'logs');
+    ensureDir(logDir);
+    const logFile = path.join(logDir, 'audit.log');
+    const entry = JSON.stringify({
+      timestamp: new Date().toISOString(),
+      action,
+      ...details,
+    });
+    fs.appendFileSync(logFile, entry + '\n');
+  } catch { /* audit is best-effort, never block on it */ }
+}
+
 // ─── Source parsing ─────────────────────────────────────────────────────
 
 function parseSource(input) {
@@ -413,6 +429,7 @@ function installSingleFromUrl({ entry, scope }, jsonMode = false) {
 
   verifySignature({ assetPath: tmpFile, scope, entry, lenient: true });
 
+  auditLog('install', { name: declared, version: manifest.version, source: 'local-file', path: abs });
   const installed = installAsset({
     sourcePath: tmpFile,
     name: entry.name,
@@ -558,6 +575,15 @@ function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false) 
       EXIT.TRUST_FAILED,
     );
   }
+  // For tested+ quality_badge, require Studio-compatible authoring provenance
+  const highTrustBadges = new Set(['tested', 'validated', 'expert_reviewed', 'production_ready']);
+  if (trusted && highTrustBadges.has(manifest.quality_badge) && (!manifest.authoring?.compiler || !manifest.authoring?.compiler_version)) {
+    error(
+      `--trusted requires Studio-compatible authoring provenance for quality_badge "${manifest.quality_badge}".\n` +
+      'This asset lacks compiler provenance. Re-publish through Studio pipeline.',
+      EXIT.TRUST_FAILED,
+    );
+  }
 
   if (!jsonMode) {
     if (trustLevel.label === 'local_signature_verified') {
@@ -567,6 +593,7 @@ function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false) 
     }
   }
 
+  auditLog('install', { name: declared, version: manifest.version, source: 'local-file', path: abs });
   const installed = installAsset({
     sourcePath: abs,
     name: declared,
@@ -598,6 +625,7 @@ function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false) 
 function cmdRemove(input) {
   const parsed = parseName(input);
   if (!parsed) error(`Invalid name "${input}". Use @scope/name or bare name.`);
+  auditLog('remove', { name: parsed.full });
   if (!removeInstalled(parsed.full)) {
     console.log(`${parsed.full} is not installed.`);
     return;
