@@ -1,6 +1,6 @@
 # @aikdna/kdna-cli
 
-> **KDNA Ecosystem:** [`kdna`](https://github.com/aikdna/kdna) — the protocol. [KDNAChat](https://github.com/AhaSparkCoach/kdnachat) — the consumption client. [KDNaStudio](https://github.com/AhaSparkCoach/kdnastudio) — the authoring tool. [KDNAWork](https://github.com/AhaSparkCoach/kdnawork) — the workbench. **You are here → kdna-cli** — the toolchain. [Registry](https://github.com/aikdna/kdna-registry) — the catalog.
+> **KDNA Ecosystem:** [`kdna`](https://github.com/aikdna/kdna) — the protocol. [KDNAChat](https://github.com/aikdna/kdnachat) — the consumption client. [KDNaStudio](https://github.com/aikdna/kdnastudio) — the authoring tool. [KDNAWork](https://github.com/aikdna/kdnawork) — the workbench. **You are here → kdna-cli** — the toolchain. [Registry](https://github.com/aikdna/kdna-registry) — the catalog.
 
 **Role**: kdna-cli is the **runtime control plane** — the official reference implementation for asset validation, loading, installation, comparison, publishing, and agent-facing runtime workflows. It bridges Studio output to Chat/Work consumption.
 
