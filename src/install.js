@@ -167,7 +167,9 @@ function auditLog(action, details) {
       ...details,
     });
     fs.appendFileSync(logFile, entry + '\n');
-  } catch { /* audit is best-effort, never block on it */ }
+  } catch {
+    /* audit is best-effort, never block on it */
+  }
 }
 
 // ─── Source parsing ─────────────────────────────────────────────────────
@@ -519,7 +521,8 @@ function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false) 
   // Check mimetype (plain text, not JSON)
   try {
     const mimeEntry = readContainerEntry(abs, 'mimetype');
-    const hasMimetype = mimeEntry && mimeEntry.toString().trim() === 'application/vnd.aikdna.kdna+zip';
+    const hasMimetype =
+      mimeEntry && mimeEntry.toString().trim() === 'application/vnd.aikdna.kdna+zip';
     if (!hasMimetype) trustLevel.issues.push('missing or incorrect mimetype');
   } catch {
     trustLevel.issues.push('no mimetype entry');
@@ -549,7 +552,7 @@ function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false) 
       const sigResult = verifyAsset(abs, { requireSignature: true });
       if (sigResult.signature_valid) {
         trustLevel.label = 'local_signature_verified';
-        trustLevel.issues = trustLevel.issues.filter(i => !i.includes('not Studio-compiled'));
+        trustLevel.issues = trustLevel.issues.filter((i) => !i.includes('not Studio-compiled'));
       } else {
         trustLevel.issues.push('signature present but failed verification');
       }
@@ -560,10 +563,10 @@ function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false) 
 
   // --trusted mode: signature must be present and verified
   if (trusted && trustLevel.issues.length > 0) {
-    const reasons = trustLevel.issues.map(i => `  - ${i}`).join('\n');
+    const reasons = trustLevel.issues.map((i) => `  - ${i}`).join('\n');
     error(
       `Trust verification failed for local .kdna asset:\n${reasons}\n\n` +
-      `Use 'kdna install <file.kdna>' without --trusted to install anyway (unverified local asset).`,
+        `Use 'kdna install <file.kdna>' without --trusted to install anyway (unverified local asset).`,
       EXIT.TRUST_FAILED,
     );
   }
@@ -571,16 +574,20 @@ function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false) 
   if (trusted && !manifest.signature) {
     error(
       '--trusted requires a signed .kdna asset. This asset has no signature.\n' +
-      'Use Studio compile/export with --sign, or install without --trusted.',
+        'Use Studio compile/export with --sign, or install without --trusted.',
       EXIT.TRUST_FAILED,
     );
   }
   // For tested+ quality_badge, require Studio-compatible authoring provenance
   const highTrustBadges = new Set(['tested', 'validated', 'expert_reviewed', 'production_ready']);
-  if (trusted && highTrustBadges.has(manifest.quality_badge) && (!manifest.authoring?.compiler || !manifest.authoring?.compiler_version)) {
+  if (
+    trusted &&
+    highTrustBadges.has(manifest.quality_badge) &&
+    (!manifest.authoring?.compiler || !manifest.authoring?.compiler_version)
+  ) {
     error(
       `--trusted requires Studio-compatible authoring provenance for quality_badge "${manifest.quality_badge}".\n` +
-      'This asset lacks compiler provenance. Re-publish through Studio pipeline.',
+        'This asset lacks compiler provenance. Re-publish through Studio pipeline.',
       EXIT.TRUST_FAILED,
     );
   }
@@ -593,7 +600,12 @@ function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false) 
     }
   }
 
-  auditLog('install', { name: declared, version: manifest.version, source: 'local-file', path: abs });
+  auditLog('install', {
+    name: declared,
+    version: manifest.version,
+    source: 'local-file',
+    path: abs,
+  });
   const installed = installAsset({
     sourcePath: abs,
     name: declared,
