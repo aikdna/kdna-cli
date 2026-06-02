@@ -105,6 +105,11 @@ kdna doctor --agents
 
 ### License & Authorization
 
+Licensed asset loading (`kdna install`, `kdna load`, `kdna verify`) requires a
+valid local activation. Full RFC-0008 conformance across JS Core, Swift Core,
+and CLI is tracked via cross-language test vectors in the
+[kdna](https://github.com/aikdna/kdna) conformance suite.
+
 | Command                                                     | Status       | Description                                                    |
 | ----------------------------------------------------------- | ------------ | -------------------------------------------------------------- |
 | `kdna license generate <domain> --to <email>`               | Experimental | Generate signed license                                        |
