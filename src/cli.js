@@ -121,11 +121,14 @@ Cluster Composition:
   cluster graph <path>             Output domain relationship graph (DOT/JSON)
 
 Work Pack (reusable AI work capabilities):
-  workpack validate <path>         Schema validation + structural completeness check
-  workpack validate <path> --json  Machine-readable validation output
-  workpack inspect <path>          Show Work Pack structure, KDNA refs, skills, gates
-  workpack inspect <path> --json   Machine-readable inspection output
-  workpack explain <path>          Natural-language explanation of what the Work Pack does
+  workpack validate <path>          Schema validation + structural completeness (L0→L1)
+  workpack validate <path> --json   Machine-readable validation output
+  workpack inspect <path>           Show Work Pack structure, KDNA refs, skills, gates
+  workpack inspect <path> --json    Machine-readable inspection output
+  workpack explain <path>           Natural-language explanation of what the Work Pack does
+  workpack plan <path> [--input]    Dry-run execution plan — what WOULD happen
+  workpack run <path> --input <f>   Execute Work Pack (--dry-run for simulation)
+  workpack report <session-id>      Display session report
 
 Governance & Release (Phase 6):
   proposal create --from-test <run> --domain <path>  Create improvement proposal
@@ -178,9 +181,9 @@ License & Authorization:
   license status [domain] [--json]         Show installed license activation status
 
 Protected Assets (RFC-0009):
-  protect <file.kdna> --password <pw> --out <file.kdna>  Encrypt entries with password
-  unlock <file.kdna> --password <pw> [--profile ...]     Decrypt and load protected asset
-  recover <file.kdna> --code <code> --new-password <pw> --out <file.kdna>  Reset password
+  protect <file.kdna> --out <file.kdna> [--entries <list>]  Encrypt entries with password
+  unlock <file.kdna> [--profile compact|index|full]         Decrypt and load protected asset
+  recover <file.kdna> --out <file.kdna> [--code-stdin]       Reset password with recovery code
 
 Flags:
   --json                           Structured JSON output (machine-readable)
