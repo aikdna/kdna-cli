@@ -599,13 +599,68 @@ function buildReportFromRun(dirPath, runResultPath, tracePath) {
   };
 }
 
+// ── Init ────────────────────────────────────────────────────────────
+
+function cmdWorkpackInit(name, argsArr = []) {
+  const domainIdx = argsArr.indexOf('--domain');
+  const domain = domainIdx >= 0 ? argsArr[domainIdx + 1] : 'code_review';
+
+  if (!name) error('Usage: kdna workpack init <name> [--domain <domain>]');
+
+  const dir = path.resolve(name);
+  if (fs.existsSync(dir)) error(`Directory "${name}" already exists.`);
+
+  const dirs = ['kdna', 'skills', 'templates', 'review-gates', 'risk', 'trace', 'evals', 'examples'];
+  for (const d of dirs) fs.mkdirSync(path.join(dir, d), { recursive: true });
+
+  const manifest = {
+    format: 'kdna-workpack', format_version: '0.1', name, version: '0.1.0',
+    description: `A KDNA Work Pack for ${name.replace(/-/g, ' ')}.`, status: 'draft', access: 'open', license: 'Apache-2.0',
+    kdna: { mode: 'single', asset: { name: domain, version: '^1.0.0', role: 'primary' } },
+    skills: [{ name: 'analyze_input', type: 'analysis', required: true }],
+    templates: { task: 'templates/task-template.md', output: 'templates/output-template.md' },
+    review_gates: ['review-gates/quality-gate.json'],
+    risk_policy: 'risk/risk-policy.json', trace_policy: 'trace/trace-policy.json', evals: 'evals/cases.jsonl',
+  };
+  fs.writeFileSync(path.join(dir, 'workpack.json'), JSON.stringify(manifest, null, 2) + '\n');
+  fs.writeFileSync(path.join(dir, 'review-gates/quality-gate.json'), JSON.stringify({
+    name: 'quality-gate', description: 'Checks whether the output meets quality standards.',
+    criteria: [{ id: 'completeness', description: 'Output covers all required aspects' }],
+    results: { pass: 'All criteria satisfied', redo: 'Issues found', block: 'Critical issues', human_review: 'Ambiguous' },
+  }, null, 2) + '\n');
+  fs.writeFileSync(path.join(dir, 'risk/risk-policy.json'), JSON.stringify({
+    levels: [
+      { level: 'low', label: 'Low', action: 'proceed_with_note', description: 'Minor issues' },
+      { level: 'medium', label: 'Medium', action: 'flag_and_continue', description: 'Notable issues' },
+      { level: 'high', label: 'High', action: 'require_confirmation', description: 'Requires confirmation' },
+      { level: 'critical', label: 'Critical', action: 'block', description: 'Block execution' },
+    ],
+  }, null, 2) + '\n');
+  fs.writeFileSync(path.join(dir, 'trace/trace-policy.json'), JSON.stringify({
+    record: ['workpack_identity', 'kdna_assets_loaded', 'review_gate_results', 'risk_events', 'final_output_path'],
+    integrity: { sign_trace: false, include_timestamps: true },
+  }, null, 2) + '\n');
+  fs.writeFileSync(path.join(dir, 'skills/skill-bindings.json'), JSON.stringify([{ name: 'analyze_input', type: 'analysis', required: true }], null, 2) + '\n');
+  fs.writeFileSync(path.join(dir, 'kdna/references.json'), JSON.stringify({ kdna_assets: [{ name: domain, version: '^1.0.0', role: 'primary' }], routing: { strategy: 'role_based' }, conflict_resolution: 'expose_all' }, null, 2) + '\n');
+  fs.writeFileSync(path.join(dir, 'evals/cases.jsonl'), JSON.stringify({ id: 'case-001', input: 'Sample input.', expected: { gate: 'quality-gate', result: 'pass' } }) + '\n');
+  fs.writeFileSync(path.join(dir, 'examples/sample-input.md'), '# Sample Input\n\n[Replace with a real example.]\n');
+  fs.writeFileSync(path.join(dir, 'templates/task-template.md'), `## Task: ${name}\n\n### Input\n{{input}}\n\n### Instructions\nApply the loaded KDNA judgment framework.\n`);
+  fs.writeFileSync(path.join(dir, 'templates/output-template.md'), `# ${name} Report\n\n## Summary\n{{summary}}\n\n## Gate Results\n{{gate_results}}\n`);
+  fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n.DS_Store\n.runs/\n');
+
+  console.log(`✓ Work Pack "${name}" created at ./${name}/`);
+  console.log(`  cd ${name} && kdna workpack validate .`);
+}
+
 // ── Dispatcher ──────────────────────────────────────────────────────
 
 function cmdWorkpack(args) {
   const sub = args[1];
   const target = args[2];
 
-  if (sub === 'validate') {
+  if (sub === 'init') {
+    cmdWorkpackInit(target, args);
+  } else if (sub === 'validate') {
     if (!target) error('Usage: kdna workpack validate <path> [--json] [--schema-only]');
     cmdWorkpackValidate(target, args);
   } else if (sub === 'inspect') {
@@ -627,6 +682,7 @@ function cmdWorkpack(args) {
     error(
       `Unknown workpack subcommand: ${sub || '(none)'}\n` +
         'Usage:\n' +
+        '  kdna workpack init <name> [--domain <domain>]\n' +
         '  kdna workpack validate <path> [--json] [--schema-only]\n' +
         '  kdna workpack inspect <path> [--json]\n' +
         '  kdna workpack explain <path>\n' +

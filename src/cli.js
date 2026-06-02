@@ -121,7 +121,8 @@ Cluster Composition:
   cluster graph <path>             Output domain relationship graph (DOT/JSON)
 
 Work Pack (reusable AI work capabilities):
-  workpack validate <path>          Schema validation + structural completeness (L0→L1)
+  workpack init <name> [--domain]     Scaffold a new Work Pack from template
+  workpack validate <path>            Schema validation + structural completeness (L0→L1)
   workpack validate <path> --json   Machine-readable validation output
   workpack inspect <path>           Show Work Pack structure, KDNA refs, skills, gates
   workpack inspect <path> --json    Machine-readable inspection output
