@@ -5,7 +5,7 @@
  *   kdna protect <file.kdna> --out <file.kdna> [--entries <list>]
  *   kdna unlock <file.kdna> [--profile compact|index|full]
  *   kdna recover <file.kdna> --out <file.kdna> [--code-stdin]
- */
+ *
 
 const fs = require('fs');
 const path = require('path');

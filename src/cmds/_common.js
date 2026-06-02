@@ -169,6 +169,60 @@ function loadRegistry() {
   return loadCanonicalRegistry({ allowNetwork: true });
 }
 
+/**
+ * Prompt for a password interactively without echoing to the terminal.
+ * Reads from stdin pipe if non-interactive.
+ */
+function promptPassword(question) {
+  const tty = require('tty');
+
+  // Non-interactive: read from stdin pipe
+  if (!tty.isatty(process.stdin.fd)) {
+    const data = fs.readFileSync(0, 'utf8').trim();
+    return data;
+  }
+
+  process.stdout.write(question);
+  const stdin = process.stdin;
+  const wasRaw = stdin.isRaw;
+
+  if (stdin.setRawMode) {
+    stdin.setRawMode(true);
+  }
+  stdin.resume();
+
+  let password = '';
+  const buffer = Buffer.alloc(1);
+
+  while (true) {
+    fs.readSync(stdin.fd, buffer, 0, 1);
+    const ch = buffer[0];
+    if (ch === 0x0d || ch === 0x0a) {
+      process.stdout.write('\n');
+      break;
+    }
+    if (ch === 0x03) { // Ctrl+C
+      if (stdin.setRawMode) stdin.setRawMode(!!wasRaw);
+      stdin.pause();
+      process.exit(130);
+    }
+    if (ch === 0x7f) { // Backspace
+      if (password.length > 0) {
+        password = password.slice(0, -1);
+        process.stdout.write('\b \b');
+      }
+      continue;
+    }
+    password += String.fromCharCode(ch);
+  }
+
+  if (stdin.setRawMode) {
+    stdin.setRawMode(!!wasRaw);
+  }
+  stdin.pause();
+  return password;
+}
+
 module.exports = {
   EXIT,
   USER_KDNA_DIR,
@@ -186,4 +240,5 @@ module.exports = {
   selfCheckText,
   isYesNoSelfCheck,
   loadRegistry,
+  promptPassword,
 };
