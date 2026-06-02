@@ -77,8 +77,9 @@ function cmdProtect(args) {
     zipEntries.mimetype = 'application/vnd.aikdna.kdna+zip';
   }
 
-  // Write new asset using core's internal ZIP builder or a simple approach
-  // For the CLI, we use the asset reader's internal helper if available, otherwise manual ZIP
+  // Recompute content digest and strip invalidated signature after encryption
+  updateManifestDigest(zipEntries, reader);
+
   const zipBuffer = buildZip(zipEntries);
   fs.writeFileSync(outPath, zipBuffer);
 
@@ -181,6 +182,9 @@ function cmdRecover(args) {
     zipEntries.mimetype = 'application/vnd.aikdna.kdna+zip';
   }
 
+  // Recompute content digest and strip invalidated signature after re-encryption
+  updateManifestDigest(zipEntries, reader);
+
   const zipBuffer = buildZip(zipEntries);
   fs.writeFileSync(outPath, zipBuffer);
 
@@ -189,6 +193,26 @@ function cmdRecover(args) {
   console.log('New recovery code: (displayed once — save it)');
   console.log(`  ${newRecoveryCode}`);
   console.log('  The old recovery code is no longer valid.');
+}
+
+/**
+ * Recompute content_digest after encryption changes and strip invalidated signature fields.
+ * The old signature and any stale digest fields are removed because the ciphertext has changed.
+ */
+function updateManifestDigest(zipEntries, reader) {
+  const tempAsset = reader.openSync(buildZip(zipEntries));
+  const newDigest = reader.contentDigestSync(tempAsset);
+  let manifest = {};
+  try {
+    manifest = JSON.parse(zipEntries['kdna.json'] || '{}');
+  } catch {
+    manifest = {};
+  }
+  delete manifest.signature;
+  delete manifest.asset_digest;
+  delete manifest.container_sha256;
+  manifest.content_digest = newDigest;
+  zipEntries['kdna.json'] = JSON.stringify(manifest);
 }
 
 // Simple ZIP builder for CLI usage
