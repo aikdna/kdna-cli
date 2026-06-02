@@ -35,6 +35,7 @@ const {
   cmdLicenseActivate,
   cmdLicenseSync,
 } = require('./cmds/license');
+const { cmdProtect, cmdUnlock, cmdRecover } = require('./cmds/protect');
 const { cmdPreview, cmdProject, cmdEval, cmdExport, cmdDemo } = require('./cmds/legacy');
 const { cmdCardsValidate, cmdLockVerify } = require('./cmds/studio');
 const { cmdTestRun, cmdTestImport } = require('./cmds/test');
@@ -49,6 +50,7 @@ const {
 } = require('./cmds/governance');
 const { cmdBadgeCompute, cmdRegistryAudit } = require('./cmds/badge');
 const { cmdExplain } = require('./cmds/explain');
+const { cmdWorkpack } = require('./cmds/workpack');
 
 // ─── Main ─────────────────────────────────────────────────────────────
 
@@ -118,6 +120,13 @@ Cluster Composition:
   cluster conflicts <path> --input Detect inter-domain conflicts
   cluster graph <path>             Output domain relationship graph (DOT/JSON)
 
+Work Pack (reusable AI work capabilities):
+  workpack validate <path>         Schema validation + structural completeness check
+  workpack validate <path> --json  Machine-readable validation output
+  workpack inspect <path>          Show Work Pack structure, KDNA refs, skills, gates
+  workpack inspect <path> --json   Machine-readable inspection output
+  workpack explain <path>          Natural-language explanation of what the Work Pack does
+
 Governance & Release (Phase 6):
   proposal create --from-test <run> --domain <path>  Create improvement proposal
   proposal validate <proposal.json>   Validate proposal structure
@@ -167,6 +176,11 @@ License & Authorization:
   license bind <license.json>              Bind license to this machine
   license show <license.json>              Display license details
   license status [domain] [--json]         Show installed license activation status
+
+Protected Assets (RFC-0009):
+  protect <file.kdna> --password <pw> --out <file.kdna>  Encrypt entries with password
+  unlock <file.kdna> --password <pw> [--profile ...]     Decrypt and load protected asset
+  recover <file.kdna> --code <code> --new-password <pw> --out <file.kdna>  Reset password
 
 Flags:
   --json                           Structured JSON output (machine-readable)
@@ -504,6 +518,10 @@ switch (cmd) {
     cmdCluster(args);
     break;
   }
+  case 'workpack': {
+    cmdWorkpack(args);
+    break;
+  }
   case 'doctor': {
     cmdDoctor(args);
     break;
@@ -549,6 +567,21 @@ switch (cmd) {
         EXIT.INPUT_ERROR,
       );
     }
+    break;
+  }
+  case 'protect': {
+    const rest = args.slice(1);
+    cmdProtect(rest);
+    break;
+  }
+  case 'unlock': {
+    const rest = args.slice(1);
+    cmdUnlock(rest);
+    break;
+  }
+  case 'recover': {
+    const rest = args.slice(1);
+    cmdRecover(rest);
     break;
   }
   case 'identity': {
