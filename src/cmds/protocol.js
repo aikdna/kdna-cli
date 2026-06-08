@@ -4,7 +4,9 @@ const { error, EXIT } = require('./_common');
 
 const SCHEMA_DIR = path.join(
   path.dirname(require.resolve('@aikdna/kdna-core/package.json')),
-  '..', '..', 'specs',
+  '..',
+  '..',
+  'specs',
 );
 
 const SCHEMAS = {
@@ -36,7 +38,10 @@ function validate(args) {
   for (const name of schemasToCheck) {
     const schemaFile = SCHEMAS[name];
     if (!schemaFile) {
-      error(`Unknown schema: ${name}. Available: ${Object.keys(SCHEMAS).join(', ')}`, EXIT.INPUT_ERROR);
+      error(
+        `Unknown schema: ${name}. Available: ${Object.keys(SCHEMAS).join(', ')}`,
+        EXIT.INPUT_ERROR,
+      );
     }
 
     try {
@@ -82,7 +87,8 @@ function inspect(args) {
     const summary = summarize(data);
     console.log(`Type: ${summary.type}`);
     if (summary.artifact_type) console.log(`Artifact: ${summary.artifact_type}`);
-    if (summary.generator) console.log(`Generator: ${summary.generator.engine} v${summary.generator.version}`);
+    if (summary.generator)
+      console.log(`Generator: ${summary.generator.engine} v${summary.generator.version}`);
     if (summary.source_kdna_count) console.log(`KDNA domains: ${summary.source_kdna_count}`);
     if (summary.stages_count) console.log(`Stages: ${summary.stages_count}`);
     if (summary.quality) console.log(`Quality: ${summary.quality}`);
@@ -107,8 +113,12 @@ function summarize(data) {
     summary.source_kdna_count = data.source_kdna?.length || 0;
     if (data.quality?.overall_result) summary.quality = data.quality.overall_result;
     if (data.review?.status) summary.review = data.review.status;
-    if (data.quality?.fidelity?.score !== undefined) summary.fidelity = `${data.quality.fidelity.score} (v${data.quality.fidelity.protocol_version})`;
-  } else if (data.fidelity_id && (data.protocol_version !== undefined || data.protocolVersion !== undefined)) {
+    if (data.quality?.fidelity?.score !== undefined)
+      summary.fidelity = `${data.quality.fidelity.score} (v${data.quality.fidelity.protocol_version})`;
+  } else if (
+    data.fidelity_id &&
+    (data.protocol_version !== undefined || data.protocolVersion !== undefined)
+  ) {
     summary.type = 'fidelity_result';
     summary.overall_score = data.overall_score ?? data.overallScore;
     summary.passed = data.passed;
@@ -136,7 +146,11 @@ function loadAjv() {
     addFormats(ajv);
     _ajv = { ajv, validate: (schema, data) => ajv.validate(schema, data) };
   } catch {
-    _ajv = { validate: () => { throw new Error('ajv not installed. Run: npm install ajv ajv-formats'); } };
+    _ajv = {
+      validate: () => {
+        throw new Error('ajv not installed. Run: npm install ajv ajv-formats');
+      },
+    };
   }
   return _ajv;
 }
@@ -155,9 +169,10 @@ function cmdProtocol(args) {
     default:
       error(
         'Usage: kdna protocol <validate|inspect> [file]\n' +
-        '  kdna protocol validate <file.json> [--schema <name>]\n' +
-        '  kdna protocol inspect <file.json> [--json]\n' +
-        '\nSchemas: ' + Object.keys(SCHEMAS).join(', '),
+          '  kdna protocol validate <file.json> [--schema <name>]\n' +
+          '  kdna protocol inspect <file.json> [--json]\n' +
+          '\nSchemas: ' +
+          Object.keys(SCHEMAS).join(', '),
         EXIT.INPUT_ERROR,
       );
   }
