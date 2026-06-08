@@ -108,11 +108,15 @@ function summarize(data) {
     if (data.quality?.overall_result) summary.quality = data.quality.overall_result;
     if (data.review?.status) summary.review = data.review.status;
     if (data.quality?.fidelity?.score !== undefined) summary.fidelity = `${data.quality.fidelity.score} (v${data.quality.fidelity.protocol_version})`;
-  } else if (data.fidelity_id && data.protocolVersion !== undefined) {
+  } else if (data.fidelity_id && (data.protocol_version !== undefined || data.protocolVersion !== undefined)) {
     summary.type = 'fidelity_result';
-    summary.overall_score = data.overallScore;
+    summary.overall_score = data.overall_score ?? data.overallScore;
     summary.passed = data.passed;
-    if (data.comparison?.blindDelta !== undefined) summary.blind_delta = data.comparison.blindDelta;
+    const cmp = data.comparison;
+    if (cmp) {
+      if (cmp.blind_delta !== undefined) summary.blind_delta = cmp.blind_delta;
+      else if (cmp.blindDelta !== undefined) summary.blind_delta = cmp.blindDelta;
+    }
   } else if (data.format === 'kdna-product-runtime') {
     summary.type = 'product_runtime';
     if (data.schedule) summary.schedule_type = data.schedule.type;
