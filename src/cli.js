@@ -51,6 +51,7 @@ const {
 const { cmdBadgeCompute, cmdRegistryAudit } = require('./cmds/badge');
 const { cmdExplain } = require('./cmds/explain');
 const { cmdWorkpack } = require('./cmds/workpack');
+const { cmdProtocol } = require('./cmds/protocol');
 
 // ─── Main ─────────────────────────────────────────────────────────────
 
@@ -524,6 +525,10 @@ switch (cmd) {
   }
   case 'workpack': {
     cmdWorkpack(args);
+    break;
+  }
+  case 'protocol': {
+    cmdProtocol(args);
     break;
   }
   case 'doctor': {
