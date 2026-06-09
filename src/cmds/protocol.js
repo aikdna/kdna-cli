@@ -142,7 +142,7 @@ function loadAjv() {
   try {
     const Ajv = require('ajv');
     const addFormats = require('ajv-formats');
-    const ajv = new Ajv({ allErrors: true });
+    const ajv = new Ajv({ allErrors: true, strict: false, validateSchema: false });
     addFormats(ajv);
     _ajv = { ajv, validate: (schema, data) => ajv.validate(schema, data) };
   } catch {
