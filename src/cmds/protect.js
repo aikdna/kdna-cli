@@ -25,7 +25,11 @@ function parseEntriesFlag(flag) {
 
 function cmdProtect(args) {
   const file = args[0];
-  if (!file) error('Usage: kdna protect <file.kdna> --out <file.kdna> [--entries KDNA_Core.json,KDNA_Patterns.json]', EXIT.INPUT_ERROR);
+  if (!file)
+    error(
+      'Usage: kdna protect <file.kdna> --out <file.kdna> [--entries KDNA_Core.json,KDNA_Patterns.json]',
+      EXIT.INPUT_ERROR,
+    );
 
   const outIdx = args.indexOf('--out');
   const outPath = outIdx >= 0 ? args[outIdx + 1] : null;
@@ -48,7 +52,11 @@ function cmdProtect(args) {
   }
 
   // Update manifest
-  const newManifest = { ...manifest, access: 'protected', encryption: { profile: 'kdna-password-protected-v1', encrypted_entries: entriesToEncrypt } };
+  const newManifest = {
+    ...manifest,
+    access: 'protected',
+    encryption: { profile: 'kdna-password-protected-v1', encrypted_entries: entriesToEncrypt },
+  };
 
   // Build new ZIP with encrypted entries
   const allEntries = reader.listEntriesSync(asset);
@@ -92,7 +100,8 @@ function cmdProtect(args) {
 
 function cmdUnlock(args) {
   const file = args[0];
-  if (!file) error('Usage: kdna unlock <file.kdna> [--profile compact|index|full]', EXIT.INPUT_ERROR);
+  if (!file)
+    error('Usage: kdna unlock <file.kdna> [--profile compact|index|full]', EXIT.INPUT_ERROR);
 
   const profileIdx = args.indexOf('--profile');
   const profile = profileIdx >= 0 ? args[profileIdx + 1] : 'compact';
@@ -122,7 +131,8 @@ function cmdUnlock(args) {
 
 function cmdRecover(args) {
   const file = args[0];
-  if (!file) error('Usage: kdna recover <file.kdna> --out <file.kdna> [--code-stdin]', EXIT.INPUT_ERROR);
+  if (!file)
+    error('Usage: kdna recover <file.kdna> --out <file.kdna> [--code-stdin]', EXIT.INPUT_ERROR);
 
   const outIdx = args.indexOf('--out');
   const outPath = outIdx >= 0 ? args[outIdx + 1] : null;
@@ -168,7 +178,10 @@ function cmdRecover(args) {
       // Re-encrypt with new password and new recovery code
       const encrypted = encryptProtectedEntry(plaintext, {
         entryName,
-        manifest: { ...manifest, encryption: { ...manifest.encryption, encrypted_entries: entriesToEncrypt } },
+        manifest: {
+          ...manifest,
+          encryption: { ...manifest.encryption, encrypted_entries: entriesToEncrypt },
+        },
         password: newPassword,
         recoveryCode: newRecoveryCode,
       });
@@ -237,17 +250,42 @@ function buildZip(entries) {
     const nameBuf = Buffer.from(name);
     const data = Buffer.from(value);
     const local = Buffer.concat([
-      u32(0x04034b50), u16(20), u16(0), u16(0), u16(0), u16(0),
-      u32(0), u32(data.length), u32(data.length), u16(nameBuf.length), u16(0),
-      nameBuf, data,
+      u32(0x04034b50),
+      u16(20),
+      u16(0),
+      u16(0),
+      u16(0),
+      u16(0),
+      u32(0),
+      u32(data.length),
+      u32(data.length),
+      u16(nameBuf.length),
+      u16(0),
+      nameBuf,
+      data,
     ]);
     localParts.push(local);
 
     centralParts.push(
       Buffer.concat([
-        u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), u16(0), u16(0),
-        u32(0), u32(data.length), u32(data.length), u16(nameBuf.length), u16(0),
-        u16(0), u16(0), u16(0), u32(0), u32(offset), nameBuf,
+        u32(0x02014b50),
+        u16(20),
+        u16(20),
+        u16(0),
+        u16(0),
+        u16(0),
+        u16(0),
+        u32(0),
+        u32(data.length),
+        u32(data.length),
+        u16(nameBuf.length),
+        u16(0),
+        u16(0),
+        u16(0),
+        u16(0),
+        u32(0),
+        u32(offset),
+        nameBuf,
       ]),
     );
     offset += local.length;
@@ -256,8 +294,14 @@ function buildZip(entries) {
   const central = Buffer.concat(centralParts);
   const local = Buffer.concat(localParts);
   const eocd = Buffer.concat([
-    u32(0x06054b50), u16(0), u16(0), u16(centralParts.length), u16(centralParts.length),
-    u32(central.length), u32(local.length), u16(0),
+    u32(0x06054b50),
+    u16(0),
+    u16(0),
+    u16(centralParts.length),
+    u16(centralParts.length),
+    u32(central.length),
+    u32(local.length),
+    u16(0),
   ]);
   return Buffer.concat([local, central, eocd]);
 }
