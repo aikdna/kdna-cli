@@ -201,12 +201,14 @@ function promptPassword(question) {
       process.stdout.write('\n');
       break;
     }
-    if (ch === 0x03) { // Ctrl+C
+    if (ch === 0x03) {
+      // Ctrl+C
       if (stdin.setRawMode) stdin.setRawMode(!!wasRaw);
       stdin.pause();
       process.exit(130);
     }
-    if (ch === 0x7f) { // Backspace
+    if (ch === 0x7f) {
+      // Backspace
       if (password.length > 0) {
         password = password.slice(0, -1);
         process.stdout.write('\b \b');

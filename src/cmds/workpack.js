@@ -20,7 +20,11 @@ function timestamp() {
 }
 
 function readJsonSafe(p) {
-  try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; }
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch {
+    return null;
+  }
 }
 
 // ── Validate ────────────────────────────────────────────────────────
@@ -28,7 +32,8 @@ function readJsonSafe(p) {
 function cmdWorkpackValidate(target, args = []) {
   const abs = path.resolve(target);
   if (!fs.existsSync(abs)) error(`Work Pack directory not found: ${abs}`);
-  if (!fs.statSync(abs).isDirectory()) error(`Not a directory: ${abs}. Work Packs must be directories.`);
+  if (!fs.statSync(abs).isDirectory())
+    error(`Not a directory: ${abs}. Work Packs must be directories.`);
 
   const jsonMode = args.includes('--json');
   const schemaOnly = args.includes('--schema-only');
@@ -44,15 +49,26 @@ function cmdWorkpackValidate(target, args = []) {
   }
 
   const schemaResult = validateWorkPackManifest(manifest);
-  const structResult = schemaOnly ? { complete: true, missing: [] } : checkWorkPackStructure(manifest, abs);
+  const structResult = schemaOnly
+    ? { complete: true, missing: [] }
+    : checkWorkPackStructure(manifest, abs);
   const valid = schemaResult.valid && structResult.complete;
 
   if (jsonMode) {
-    console.log(JSON.stringify({
-      valid, level: valid ? (structResult.complete ? 'L1' : 'L0') : 'INVALID',
-      schema: { valid: schemaResult.valid, errors: schemaResult.errors },
-      structure: structResult.complete ? { complete: true } : { complete: false, missing: structResult.missing },
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          valid,
+          level: valid ? (structResult.complete ? 'L1' : 'L0') : 'INVALID',
+          schema: { valid: schemaResult.valid, errors: schemaResult.errors },
+          structure: structResult.complete
+            ? { complete: true }
+            : { complete: false, missing: structResult.missing },
+        },
+        null,
+        2,
+      ),
+    );
   } else {
     if (valid) {
       console.log(`✓ Valid: ${manifest.name} v${manifest.version}`);
@@ -60,11 +76,11 @@ function cmdWorkpackValidate(target, args = []) {
     } else {
       if (!schemaResult.valid) {
         console.error(`✗ Schema validation failed for ${manifest.name}:`);
-        schemaResult.errors.forEach(e => console.error(`  ${e}`));
+        schemaResult.errors.forEach((e) => console.error(`  ${e}`));
       }
       if (!structResult.complete) {
         console.error(`✗ Structural completeness — missing files:`);
-        structResult.missing.forEach(f => console.error(`  ${f}`));
+        structResult.missing.forEach((f) => console.error(`  ${f}`));
       }
     }
   }
@@ -81,7 +97,10 @@ function cmdWorkpackInspect(target, args = []) {
   const jsonMode = args.includes('--json');
   const info = inspectWorkPack(manifest, abs);
 
-  if (jsonMode) { console.log(JSON.stringify(info, null, 2)); return; }
+  if (jsonMode) {
+    console.log(JSON.stringify(info, null, 2));
+    return;
+  }
 
   console.log(`${info.name} v${info.version}`);
   console.log(`  Description:   ${info.description}`);
@@ -103,7 +122,9 @@ function cmdWorkpackInspect(target, args = []) {
       const flags = [];
       if (s.required) flags.push('required');
       if (s.fallback) flags.push(`fallback:${s.fallback}`);
-      console.log(`  • ${s.name}${s.type !== 'unspecified' ? ` (${s.type})` : ''} ${flags.length ? `[${flags.join(', ')}]` : ''}`);
+      console.log(
+        `  • ${s.name}${s.type !== 'unspecified' ? ` (${s.type})` : ''} ${flags.length ? `[${flags.join(', ')}]` : ''}`,
+      );
     }
     console.log('');
   }
@@ -122,7 +143,7 @@ function cmdWorkpackInspect(target, args = []) {
   console.log(`  Eval Cases:     ${info.has_evals ? '✓' : '✗'}`);
   console.log(`  Structural:     ${info.structural_complete ? 'complete ✓' : 'incomplete ✗'}`);
   if (info.missing_files.length) {
-    info.missing_files.forEach(f => console.log(`    Missing: ${f}`));
+    info.missing_files.forEach((f) => console.log(`    Missing: ${f}`));
   }
 }
 
@@ -138,28 +159,37 @@ function cmdWorkpackExplain(target) {
 
   lines.push(`${info.name} is a KDNA Work Pack — a packaged AI work capability.`);
   lines.push('');
-  lines.push(`It combines ${info.kdna.assets.length} KDNA judgment asset(s) with ${info.skills.length} skill(s), ${info.review_gates} review gate(s), and quality controls to perform: "${info.description}"`);
+  lines.push(
+    `It combines ${info.kdna.assets.length} KDNA judgment asset(s) with ${info.skills.length} skill(s), ${info.review_gates} review gate(s), and quality controls to perform: "${info.description}"`,
+  );
   lines.push('');
 
-  const primary = info.kdna.assets.find(a => a.role === 'primary');
-  const constraints = info.kdna.assets.filter(a => a.role === 'constraint');
-  if (primary) lines.push(`The primary judgment framework is "${primary.name}" — it defines the core standards for this task.`);
+  const primary = info.kdna.assets.find((a) => a.role === 'primary');
+  const constraints = info.kdna.assets.filter((a) => a.role === 'constraint');
+  if (primary)
+    lines.push(
+      `The primary judgment framework is "${primary.name}" — it defines the core standards for this task.`,
+    );
   if (constraints.length) {
-    lines.push(`${constraints.map(a => `"${a.name}"`).join(' and ')} provides additional safety or quality boundaries.`);
+    lines.push(
+      `${constraints.map((a) => `"${a.name}"`).join(' and ')} provides additional safety or quality boundaries.`,
+    );
   }
   lines.push('');
 
   if (info.skills.length) {
-    const req = info.skills.filter(s => s.required);
-    const opt = info.skills.filter(s => !s.required);
-    if (req.length) lines.push(`Required skills: ${req.map(s => s.name).join(', ')}.`);
-    if (opt.length) lines.push(`Optional skills: ${opt.map(s => s.name).join(', ')}.`);
+    const req = info.skills.filter((s) => s.required);
+    const opt = info.skills.filter((s) => !s.required);
+    if (req.length) lines.push(`Required skills: ${req.map((s) => s.name).join(', ')}.`);
+    if (opt.length) lines.push(`Optional skills: ${opt.map((s) => s.name).join(', ')}.`);
     lines.push('');
   }
 
   lines.push(`${info.review_gates} review gate(s) check output quality.`);
-  if (info.has_risk_policy) lines.push('Risk policy configured — high-risk actions may be blocked.');
-  if (info.has_trace_policy) lines.push('Trace policy ensures all judgment decisions are auditable.');
+  if (info.has_risk_policy)
+    lines.push('Risk policy configured — high-risk actions may be blocked.');
+  if (info.has_trace_policy)
+    lines.push('Trace policy ensures all judgment decisions are auditable.');
   lines.push('');
   lines.push(`Status: ${info.status}.`);
 
@@ -247,8 +277,12 @@ function cmdWorkpackPlan(target, args = []) {
   }
   console.log('');
 
-  console.log(`Trace: ${plan.trace_enabled ? 'enabled' : 'disabled'} (${plan.trace_fields.length} fields)`);
-  console.log(`Conflicts: ${plan.kdna_assets.length > 1 ? 'will be exposed if detected' : 'N/A (single asset)'}`);
+  console.log(
+    `Trace: ${plan.trace_enabled ? 'enabled' : 'disabled'} (${plan.trace_fields.length} fields)`,
+  );
+  console.log(
+    `Conflicts: ${plan.kdna_assets.length > 1 ? 'will be exposed if detected' : 'N/A (single asset)'}`,
+  );
   console.log('');
 
   console.log('Execution Phases:');
@@ -260,14 +294,26 @@ function cmdWorkpackPlan(target, args = []) {
 function buildPlan(manifest, rootDir, sessionId, input, inputSource) {
   const kdnaAssets = [];
   if (manifest.kdna?.mode === 'single') {
-    kdnaAssets.push({ name: manifest.kdna.asset.name, version: manifest.kdna.asset.version, role: manifest.kdna.asset.role, digest: manifest.kdna.asset.digest || null, status: 'resolved' });
+    kdnaAssets.push({
+      name: manifest.kdna.asset.name,
+      version: manifest.kdna.asset.version,
+      role: manifest.kdna.asset.role,
+      digest: manifest.kdna.asset.digest || null,
+      status: 'resolved',
+    });
   } else if (manifest.kdna?.mode === 'cluster') {
     for (const a of manifest.kdna.assets || []) {
-      kdnaAssets.push({ name: a.name, version: a.version, role: a.role, digest: a.digest || null, status: 'resolved' });
+      kdnaAssets.push({
+        name: a.name,
+        version: a.version,
+        role: a.role,
+        digest: a.digest || null,
+        status: 'resolved',
+      });
     }
   }
 
-  const skills = (manifest.skills || []).map(s => {
+  const skills = (manifest.skills || []).map((s) => {
     const fallbackAvail = s.fallback ? true : false;
     return {
       name: s.name,
@@ -279,7 +325,7 @@ function buildPlan(manifest, rootDir, sessionId, input, inputSource) {
     };
   });
 
-  const reviewGates = (manifest.review_gates || []).map(gp => {
+  const reviewGates = (manifest.review_gates || []).map((gp) => {
     const gatePath = path.resolve(rootDir, gp);
     const gate = readJsonSafe(gatePath);
     return {
@@ -313,7 +359,11 @@ function buildPlan(manifest, rootDir, sessionId, input, inputSource) {
   const phases = [
     { order: 1, name: 'Input Normalization', expected_duration: 'instant' },
     { order: 2, name: 'Work Pack Resolution', expected_duration: 'instant' },
-    { order: 3, name: 'KDNA Loading', expected_duration: kdnaAssets.length > 1 ? 'brief' : 'instant' },
+    {
+      order: 3,
+      name: 'KDNA Loading',
+      expected_duration: kdnaAssets.length > 1 ? 'brief' : 'instant',
+    },
     { order: 4, name: 'Skill Binding', expected_duration: 'instant' },
     { order: 5, name: 'Agent Execution', expected_duration: 'model-dependent' },
     { order: 6, name: 'Review Gate Execution', expected_duration: `${reviewGates.length} gates` },
@@ -333,7 +383,7 @@ function buildPlan(manifest, rootDir, sessionId, input, inputSource) {
     review_gates: reviewGates,
     risk_checks: riskChecks,
     risk_policy_loaded: !!riskPolicy,
-    risk_levels: riskPolicy?.levels?.map(l => l.level) || ['low', 'medium', 'high', 'critical'],
+    risk_levels: riskPolicy?.levels?.map((l) => l.level) || ['low', 'medium', 'high', 'critical'],
     trace_enabled: traceEnabled,
     trace_fields: traceFields,
     phases,
@@ -395,13 +445,15 @@ function cmdWorkpackRun(target, args = []) {
     console.log('');
     console.log(`Status: ${dryRunResult.run.status}`);
     console.log(`Overall Gate: ${dryRunResult.run.overall_gate_result}`);
-    console.log(`Gates: ${dryRunResult.run.review_gate_results.map(g => `${g.gate_name}=${g.result}`).join(', ')}`);
+    console.log(
+      `Gates: ${dryRunResult.run.review_gate_results.map((g) => `${g.gate_name}=${g.result}`).join(', ')}`,
+    );
     console.log(`Risk Events: ${dryRunResult.run.risk_events.length}`);
     console.log(`Conflicts: ${dryRunResult.run.conflicts.length}`);
     console.log(`Skill Fallbacks: ${dryRunResult.run.skill_fallbacks.length}`);
     if (dryRunResult.limitations.length) {
       console.log(`\nLimitations:`);
-      dryRunResult.limitations.forEach(l => console.log(`  ⚠ ${l}`));
+      dryRunResult.limitations.forEach((l) => console.log(`  ⚠ ${l}`));
     }
   } else {
     error('Real execution (without --dry-run) requires an LLM backend. Coming in Phase 5.2.');
@@ -410,7 +462,7 @@ function cmdWorkpackRun(target, args = []) {
 
 function buildDryRunResult(manifest, plan, sessionId, runId, input) {
   // Simulate gate results — in dry-run, gates pass by default
-  const gateResults = plan.review_gates.map(g => ({
+  const gateResults = plan.review_gates.map((g) => ({
     gate_name: g.name,
     result: 'pass',
     timestamp: timestamp(),
@@ -430,9 +482,7 @@ function buildDryRunResult(manifest, plan, sessionId, runId, input) {
     },
   ];
 
-  const limitations = [
-    ...plan.limitations,
-  ];
+  const limitations = [...plan.limitations];
 
   // Check for skill fallbacks
   const fallbacks = [];
@@ -477,12 +527,28 @@ function buildDryRunResult(manifest, plan, sessionId, runId, input) {
       session_id: sessionId,
       trace_version: '0.2',
       workpack_identity: plan.workpack,
-      kdna_assets_loaded: plan.kdna_assets.map(a => ({ name: a.name, version: a.version, role: a.role })),
+      kdna_assets_loaded: plan.kdna_assets.map((a) => ({
+        name: a.name,
+        version: a.version,
+        role: a.role,
+      })),
       entries: [
         { timestamp: timestamp(), type: 'phase_transition', data: { phase: 'resolution' } },
-        { timestamp: timestamp(), type: 'phase_transition', data: { phase: 'kdna_loading', assets_count: plan.kdna_assets.length } },
-        { timestamp: timestamp(), type: 'phase_transition', data: { phase: 'skill_binding', skills_bound: plan.skills.length } },
-        { timestamp: timestamp(), type: 'phase_transition', data: { phase: 'completed', note: '[dry-run] No real execution performed.' } },
+        {
+          timestamp: timestamp(),
+          type: 'phase_transition',
+          data: { phase: 'kdna_loading', assets_count: plan.kdna_assets.length },
+        },
+        {
+          timestamp: timestamp(),
+          type: 'phase_transition',
+          data: { phase: 'skill_binding', skills_bound: plan.skills.length },
+        },
+        {
+          timestamp: timestamp(),
+          type: 'phase_transition',
+          data: { phase: 'completed', note: '[dry-run] No real execution performed.' },
+        },
       ],
       conflict_log: [],
       skill_fallback_log: fallbacks,
@@ -529,10 +595,16 @@ function cmdWorkpackReport(target, args = []) {
       summary: {
         status: 'unknown',
         overall_gate_result: 'unknown',
-        total_gates: 0, gates_passed: 0, gates_failed: 0,
-        risk_events_total: 0, risk_events_high: 0, risk_events_critical: 0,
-        conflicts_detected: 0, skill_fallbacks_used: 0,
-        unresolved_questions_count: 0, duration_ms: 0,
+        total_gates: 0,
+        gates_passed: 0,
+        gates_failed: 0,
+        risk_events_total: 0,
+        risk_events_high: 0,
+        risk_events_critical: 0,
+        conflicts_detected: 0,
+        skill_fallbacks_used: 0,
+        unresolved_questions_count: 0,
+        duration_ms: 0,
         limitations: ['No run data found for this session.'],
       },
       judgment_report: {},
@@ -556,14 +628,20 @@ function cmdWorkpackReport(target, args = []) {
   console.log('');
   console.log(`Status:       ${reportData.summary.status}`);
   console.log(`Gate Result:  ${reportData.summary.overall_gate_result}`);
-  console.log(`Gates:        ${reportData.summary.gates_passed}/${reportData.summary.total_gates} passed`);
-  console.log(`Risk Events:  ${reportData.summary.risk_events_total} (${reportData.summary.risk_events_high} high)`);
+  console.log(
+    `Gates:        ${reportData.summary.gates_passed}/${reportData.summary.total_gates} passed`,
+  );
+  console.log(
+    `Risk Events:  ${reportData.summary.risk_events_total} (${reportData.summary.risk_events_high} high)`,
+  );
   console.log(`Conflicts:    ${reportData.summary.conflicts_detected}`);
   console.log(`Fallbacks:    ${reportData.summary.skill_fallbacks_used}`);
-  console.log(`Output:       ${reportData.output_available ? reportData.output_path : 'not available'}`);
+  console.log(
+    `Output:       ${reportData.output_available ? reportData.output_path : 'not available'}`,
+  );
   if (reportData.summary.limitations?.length) {
     console.log(`\nLimitations:`);
-    reportData.summary.limitations.forEach(l => console.log(`  ⚠ ${l}`));
+    reportData.summary.limitations.forEach((l) => console.log(`  ⚠ ${l}`));
   }
 }
 
@@ -579,8 +657,10 @@ function buildReportFromRun(dirPath, runResultPath, tracePath) {
       status: runResult?.status || 'unknown',
       overall_gate_result: runResult?.overall_gate_result || 'unknown',
       total_gates: (runResult?.review_gate_results || []).length,
-      gates_passed: (runResult?.review_gate_results || []).filter(g => g.result === 'pass').length,
-      gates_failed: (runResult?.review_gate_results || []).filter(g => g.result !== 'pass').length,
+      gates_passed: (runResult?.review_gate_results || []).filter((g) => g.result === 'pass')
+        .length,
+      gates_failed: (runResult?.review_gate_results || []).filter((g) => g.result !== 'pass')
+        .length,
       risk_events_total: (runResult?.risk_events || []).length,
       risk_events_high: 0,
       risk_events_critical: 0,
@@ -588,7 +668,15 @@ function buildReportFromRun(dirPath, runResultPath, tracePath) {
       skill_fallbacks_used: (runResult?.skill_fallbacks || []).length,
       unresolved_questions_count: (runResult?.unresolved_questions || []).length,
       duration_ms: 0,
-      limitations: trace?.entries?.find(e => e.type === 'phase_transition' && e.data?.phase === 'completed' && e.data?.note) ? [trace.entries.find(e => e.type === 'phase_transition' && e.data?.phase === 'completed').data.note] : [],
+      limitations: trace?.entries?.find(
+        (e) => e.type === 'phase_transition' && e.data?.phase === 'completed' && e.data?.note,
+      )
+        ? [
+            trace.entries.find(
+              (e) => e.type === 'phase_transition' && e.data?.phase === 'completed',
+            ).data.note,
+          ]
+        : [],
     },
     review_report: runResult?.review_gate_results || [],
     risk_report: { events: runResult?.risk_events || [], highest_risk_level: 'low' },
@@ -610,42 +698,132 @@ function cmdWorkpackInit(name, argsArr = []) {
   const dir = path.resolve(name);
   if (fs.existsSync(dir)) error(`Directory "${name}" already exists.`);
 
-  const dirs = ['kdna', 'skills', 'templates', 'review-gates', 'risk', 'trace', 'evals', 'examples'];
+  const dirs = [
+    'kdna',
+    'skills',
+    'templates',
+    'review-gates',
+    'risk',
+    'trace',
+    'evals',
+    'examples',
+  ];
   for (const d of dirs) fs.mkdirSync(path.join(dir, d), { recursive: true });
 
   const manifest = {
-    format: 'kdna-workpack', format_version: '0.1', name, version: '0.1.0',
-    description: `A KDNA Work Pack for ${name.replace(/-/g, ' ')}.`, status: 'draft', access: 'open', license: 'Apache-2.0',
+    format: 'kdna-workpack',
+    format_version: '0.1',
+    name,
+    version: '0.1.0',
+    description: `A KDNA Work Pack for ${name.replace(/-/g, ' ')}.`,
+    status: 'draft',
+    access: 'open',
+    license: 'Apache-2.0',
     kdna: { mode: 'single', asset: { name: domain, version: '^1.0.0', role: 'primary' } },
     skills: [{ name: 'analyze_input', type: 'analysis', required: true }],
     templates: { task: 'templates/task-template.md', output: 'templates/output-template.md' },
     review_gates: ['review-gates/quality-gate.json'],
-    risk_policy: 'risk/risk-policy.json', trace_policy: 'trace/trace-policy.json', evals: 'evals/cases.jsonl',
+    risk_policy: 'risk/risk-policy.json',
+    trace_policy: 'trace/trace-policy.json',
+    evals: 'evals/cases.jsonl',
   };
   fs.writeFileSync(path.join(dir, 'workpack.json'), JSON.stringify(manifest, null, 2) + '\n');
-  fs.writeFileSync(path.join(dir, 'review-gates/quality-gate.json'), JSON.stringify({
-    name: 'quality-gate', description: 'Checks whether the output meets quality standards.',
-    criteria: [{ id: 'completeness', description: 'Output covers all required aspects' }],
-    results: { pass: 'All criteria satisfied', redo: 'Issues found', block: 'Critical issues', human_review: 'Ambiguous' },
-  }, null, 2) + '\n');
-  fs.writeFileSync(path.join(dir, 'risk/risk-policy.json'), JSON.stringify({
-    levels: [
-      { level: 'low', label: 'Low', action: 'proceed_with_note', description: 'Minor issues' },
-      { level: 'medium', label: 'Medium', action: 'flag_and_continue', description: 'Notable issues' },
-      { level: 'high', label: 'High', action: 'require_confirmation', description: 'Requires confirmation' },
-      { level: 'critical', label: 'Critical', action: 'block', description: 'Block execution' },
-    ],
-  }, null, 2) + '\n');
-  fs.writeFileSync(path.join(dir, 'trace/trace-policy.json'), JSON.stringify({
-    record: ['workpack_identity', 'kdna_assets_loaded', 'review_gate_results', 'risk_events', 'final_output_path'],
-    integrity: { sign_trace: false, include_timestamps: true },
-  }, null, 2) + '\n');
-  fs.writeFileSync(path.join(dir, 'skills/skill-bindings.json'), JSON.stringify([{ name: 'analyze_input', type: 'analysis', required: true }], null, 2) + '\n');
-  fs.writeFileSync(path.join(dir, 'kdna/references.json'), JSON.stringify({ kdna_assets: [{ name: domain, version: '^1.0.0', role: 'primary' }], routing: { strategy: 'role_based' }, conflict_resolution: 'expose_all' }, null, 2) + '\n');
-  fs.writeFileSync(path.join(dir, 'evals/cases.jsonl'), JSON.stringify({ id: 'case-001', input: 'Sample input.', expected: { gate: 'quality-gate', result: 'pass' } }) + '\n');
-  fs.writeFileSync(path.join(dir, 'examples/sample-input.md'), '# Sample Input\n\n[Replace with a real example.]\n');
-  fs.writeFileSync(path.join(dir, 'templates/task-template.md'), `## Task: ${name}\n\n### Input\n{{input}}\n\n### Instructions\nApply the loaded KDNA judgment framework.\n`);
-  fs.writeFileSync(path.join(dir, 'templates/output-template.md'), `# ${name} Report\n\n## Summary\n{{summary}}\n\n## Gate Results\n{{gate_results}}\n`);
+  fs.writeFileSync(
+    path.join(dir, 'review-gates/quality-gate.json'),
+    JSON.stringify(
+      {
+        name: 'quality-gate',
+        description: 'Checks whether the output meets quality standards.',
+        criteria: [{ id: 'completeness', description: 'Output covers all required aspects' }],
+        results: {
+          pass: 'All criteria satisfied',
+          redo: 'Issues found',
+          block: 'Critical issues',
+          human_review: 'Ambiguous',
+        },
+      },
+      null,
+      2,
+    ) + '\n',
+  );
+  fs.writeFileSync(
+    path.join(dir, 'risk/risk-policy.json'),
+    JSON.stringify(
+      {
+        levels: [
+          { level: 'low', label: 'Low', action: 'proceed_with_note', description: 'Minor issues' },
+          {
+            level: 'medium',
+            label: 'Medium',
+            action: 'flag_and_continue',
+            description: 'Notable issues',
+          },
+          {
+            level: 'high',
+            label: 'High',
+            action: 'require_confirmation',
+            description: 'Requires confirmation',
+          },
+          { level: 'critical', label: 'Critical', action: 'block', description: 'Block execution' },
+        ],
+      },
+      null,
+      2,
+    ) + '\n',
+  );
+  fs.writeFileSync(
+    path.join(dir, 'trace/trace-policy.json'),
+    JSON.stringify(
+      {
+        record: [
+          'workpack_identity',
+          'kdna_assets_loaded',
+          'review_gate_results',
+          'risk_events',
+          'final_output_path',
+        ],
+        integrity: { sign_trace: false, include_timestamps: true },
+      },
+      null,
+      2,
+    ) + '\n',
+  );
+  fs.writeFileSync(
+    path.join(dir, 'skills/skill-bindings.json'),
+    JSON.stringify([{ name: 'analyze_input', type: 'analysis', required: true }], null, 2) + '\n',
+  );
+  fs.writeFileSync(
+    path.join(dir, 'kdna/references.json'),
+    JSON.stringify(
+      {
+        kdna_assets: [{ name: domain, version: '^1.0.0', role: 'primary' }],
+        routing: { strategy: 'role_based' },
+        conflict_resolution: 'expose_all',
+      },
+      null,
+      2,
+    ) + '\n',
+  );
+  fs.writeFileSync(
+    path.join(dir, 'evals/cases.jsonl'),
+    JSON.stringify({
+      id: 'case-001',
+      input: 'Sample input.',
+      expected: { gate: 'quality-gate', result: 'pass' },
+    }) + '\n',
+  );
+  fs.writeFileSync(
+    path.join(dir, 'examples/sample-input.md'),
+    '# Sample Input\n\n[Replace with a real example.]\n',
+  );
+  fs.writeFileSync(
+    path.join(dir, 'templates/task-template.md'),
+    `## Task: ${name}\n\n### Input\n{{input}}\n\n### Instructions\nApply the loaded KDNA judgment framework.\n`,
+  );
+  fs.writeFileSync(
+    path.join(dir, 'templates/output-template.md'),
+    `# ${name} Report\n\n## Summary\n{{summary}}\n\n## Gate Results\n{{gate_results}}\n`,
+  );
   fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n.DS_Store\n.runs/\n');
 
   console.log(`✓ Work Pack "${name}" created at ./${name}/`);
