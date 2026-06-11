@@ -307,7 +307,7 @@ function cmdMatch(taskText, args = []) {
     }
     console.log('');
     console.log(
-      'To consider any of these, read its full data: kdna load <name|file.kdna> --as=json',
+      'To load a domain: kdna load <name|file.kdna>',
     );
   }
 }
@@ -320,10 +320,6 @@ function cmdLoad(input, args = []) {
   if (formatIdx >= 0) {
     const eq = args[formatIdx].indexOf('=');
     format = eq > 0 ? args[formatIdx].slice(eq + 1) : args[formatIdx + 1];
-    if (format === 'json' || format === 'raw') {
-      console.error('Note: --as=json and --as=raw are deprecated. Use kdna dev decode <file> --reveal for raw inspection.');
-      console.error('Agent consumption should use default --as=prompt or --profile=<name>.');
-    }
   }
 
   // --profile=<name> for load profiles (Phase 2)
@@ -409,61 +405,12 @@ function cmdLoad(input, args = []) {
   const core = container.core || {};
   const pat = container.patterns || {};
 
-  // JSON format
-  if (format === 'json') {
-    process.stdout.write(
-      JSON.stringify(
-        {
-          manifest,
-          core,
-          patterns: pat,
-          trust: {
-            signature: isPlaceholder ? 'unsigned' : 'present',
-            risk_level: riskLevel,
-            deprecated: manifest.status === 'deprecated',
-            yanked: false,
-            warnings: loadWarnings,
-            asset_digest: asset.asset_digest || null,
-            content_digest: asset.content_digest || null,
-            license_id: licenseActivation?.license_id || null,
-          },
-        },
-        null,
-        2,
-      ) + '\n',
-    );
-    recordTrace({
-      timestamp: new Date().toISOString(),
-      agent: detectAgent(),
-      domain: label,
-      format: 'json',
-      asset: traceAssetFields(asset, manifest, licenseActivation),
-    });
-    return;
-  }
-
-  // Raw format
-  if (format === 'raw') {
-    for (const f of ['KDNA_Core.json', 'KDNA_Patterns.json']) {
-      const encrypted = encryptedEntries.includes(f);
-      const buf = encrypted
-        ? Buffer.from(
-            JSON.stringify(container[f === 'KDNA_Core.json' ? 'core' : 'patterns'], null, 2),
-          )
-        : readContainerEntry(asset.asset_path, f);
-      if (buf) {
-        process.stdout.write(`\n=== ${f} ===\n`);
-        process.stdout.write(buf.toString('utf8'));
-      }
-    }
-    recordTrace({
-      timestamp: new Date().toISOString(),
-      agent: detectAgent(),
-      domain: label,
-      format: 'raw',
-      asset: traceAssetFields(asset, manifest, licenseActivation),
-    });
-    return;
+  // JSON format — removed from agent runtime
+  if (format === 'json' || format === 'raw') {
+    console.error(`ERR_RAW_LOAD_REMOVED: --as=${format} is not supported in agent runtime.`);
+    console.error('Use: kdna dev decode <asset.kdna> --reveal');
+    console.error('Agent consumption: kdna load @scope/name [--as=prompt]');
+    process.exit(2);
   }
 
   // Load profiles
