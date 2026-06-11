@@ -16,17 +16,15 @@
  *         not treat as a fit decision; many false positives expected)
  *     The agent makes the final call using its own language understanding.
  *
- *   kdna load <name|file.kdna> [--as=prompt|json|raw]
- *     Read the domain's Core + Patterns and emit:
- *       --as=prompt (default): compact text suitable for system-prompt
- *                              injection (axioms one-liners + stances +
- *                              banned-terms + misunderstandings + self-checks)
- *       --as=json:  raw JSON of Core + Patterns
- *       --as=raw:   concatenated raw file contents
+ *   kdna load <name|file.kdna> [--as=prompt]
+ *     Read the domain's judgment and emit context suitable for agent
+ *     system-prompt injection (axioms one-liners + stances +
+ *     banned-terms + misunderstandings + self-checks).
+ *     For raw inspection use: kdna dev decode <file.kdna> --reveal
  *
  * These commands are the supported interface between the kdna-loader
- * skill and the KDNA file format. The skill should not parse JSON
- * directly.
+ * skill and the KDNA file format. The skill should not read KDNA
+ * internals directly.
  */
 
 const fs = require('fs');
@@ -322,6 +320,10 @@ function cmdLoad(input, args = []) {
   if (formatIdx >= 0) {
     const eq = args[formatIdx].indexOf('=');
     format = eq > 0 ? args[formatIdx].slice(eq + 1) : args[formatIdx + 1];
+    if (format === 'json' || format === 'raw') {
+      console.error('Note: --as=json and --as=raw are deprecated. Use kdna dev decode <file> --reveal for raw inspection.');
+      console.error('Agent consumption should use default --as=prompt or --profile=<name>.');
+    }
   }
 
   // --profile=<name> for load profiles (Phase 2)
