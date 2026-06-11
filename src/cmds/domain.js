@@ -493,7 +493,11 @@ function inspectKdnaFile(filePath, jsonMode = false) {
   const isZip = head[0] === 0x50 && head[1] === 0x4b;
   if (!isZip) error('Invalid .kdna asset: expected ZIP container');
 
-  const { listContainerEntries, readContainerJson } = require('../package-store');
+  const {
+    listContainerEntries,
+    readContainerJson,
+    readContainerDataMap,
+  } = require('../package-store');
   const { licenseDecryptOptionsForManifest } = require('./license');
   const presentFiles = listContainerEntries(abs).filter(
     (f) => (f.startsWith('KDNA_') && f.endsWith('.json')) || f === 'README.md' || f === 'LICENSE',
@@ -513,8 +517,20 @@ function inspectKdnaFile(filePath, jsonMode = false) {
   let core = null;
   let patterns = null;
   try {
-    core = decryptError ? null : readContainerJson(abs, 'KDNA_Core.json', decryptOptions);
-    patterns = decryptError ? null : readContainerJson(abs, 'KDNA_Patterns.json', decryptOptions);
+    if (decryptError) {
+      /* skip */
+    }
+    // v2 container: use readDataMap
+    else if (listContainerEntries(abs).includes('payload.kdnab')) {
+      const dm = readContainerDataMap(abs, decryptOptions);
+      core = dm['KDNA_Core.json'] || null;
+      patterns = dm['KDNA_Patterns.json'] || null;
+    }
+    // v1 container: read individual files
+    else {
+      core = readContainerJson(abs, 'KDNA_Core.json', decryptOptions);
+      patterns = readContainerJson(abs, 'KDNA_Patterns.json', decryptOptions);
+    }
   } catch (e) {
     if (!encryptedEntries.length) error(`Cannot inspect .kdna asset: ${e.message}`);
     decryptError = e.message;
