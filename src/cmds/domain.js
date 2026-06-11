@@ -331,7 +331,13 @@ with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
     error(`Cannot create ZIP.\n${hints[platform] || 'Install python3 or zip command.'}`);
   }
 
-  const fileCount = manifest.file_count || 0;
+  // Count KDNA domain files from actual filesystem, not manifest (which may be stale)
+  const fileCount = [...KDNA_DOMAIN_FILES].filter((f) => fs.existsSync(path.join(abs, f))).length;
+  // Update manifest file_count to match reality
+  if (manifest.file_count !== fileCount) {
+    manifest.file_count = fileCount;
+    writeJson(path.join(abs, 'kdna.json'), manifest);
+  }
   console.log(`✓ Packed: ${outPath}`);
   console.log(`  Domain: ${domainName} v${manifest.version}`);
   console.log(`  Files: ${fileCount} KDNA JSONs`);

@@ -62,7 +62,7 @@ kdna doctor --agents
 | `kdna init <name>`                 | Deprecated   | Alias for `kdna dev scaffold`; creates a non-canonical dev source workspace |
 | `kdna dev scaffold <name>`         | Beta         | Scaffold a non-canonical dev source workspace                               |
 | `kdna dev validate <path>`         | Stable       | Validate a non-canonical dev source directory                               |
-| `kdna dev pack <path>`             | Deprecated   | Build a dev-only non-trusted `.kdna` bundle                                 |
+| `kdna dev pack <path>`             | Beta         | Build a dev-only non-trusted `.kdna` bundle                                 |
 | `kdna dev unpack <file>`           | Beta         | Unpack .kdna into a dev source directory                                    |
 | `kdna dev inspect <path>`          | Beta         | Inspect a non-canonical dev source directory                                |
 | `kdna dev card <path>`             | Beta         | Display KDNA Card from a dev source directory                               |
