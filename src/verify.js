@@ -26,6 +26,7 @@ const {
   listContainerEntries,
   readContainerEntry,
   readContainerJson,
+  readContainerDataMap,
   resolveAsset,
   verifyAsset,
 } = require('./package-store');
@@ -108,6 +109,61 @@ function directoryView(root) {
 
 function assetView(kdnaPath, options = {}) {
   const entries = new Set(listContainerEntries(kdnaPath));
+
+  // v2 container: synthesize view from CBOR payload
+  if (entries.has('payload.kdnab')) {
+    let dataMap = null;
+    const _ensureDataMap = () => {
+      if (!dataMap) dataMap = readContainerDataMap(kdnaPath, options);
+      return dataMap;
+    };
+
+    const v2Entries = new Set(entries);
+    v2Entries.add('KDNA_Core.json');
+    v2Entries.add('KDNA_Patterns.json');
+    if (dataMap) {
+      for (const k of [
+        'KDNA_Scenarios.json',
+        'KDNA_Cases.json',
+        'KDNA_Reasoning.json',
+        'KDNA_Evolution.json',
+      ]) {
+        if (dataMap[k]) v2Entries.add(k);
+      }
+    }
+
+    return {
+      kind: 'asset',
+      path: kdnaPath,
+      exists(name) {
+        if (v2Entries.has(name)) return true;
+        return entries.has(name);
+      },
+      readJson(name) {
+        if (entries.has(name)) return readContainerJson(kdnaPath, name, options);
+        const dm = _ensureDataMap();
+        return dm[name] || null;
+      },
+      readText(name) {
+        if (entries.has(name)) return readContainerEntry(kdnaPath, name).toString('utf8');
+        const dm = _ensureDataMap();
+        return dm[name] ? JSON.stringify(dm[name]) : '';
+      },
+      listDirFiles(dirName) {
+        const prefix = `${dirName.replace(/\/+$/, '')}/`;
+        const files = [];
+        for (const e of entries) {
+          if (e.startsWith(prefix)) {
+            const rest = e.slice(prefix.length);
+            if (rest && !rest.includes('/')) files.push(rest);
+          }
+        }
+        return files;
+      },
+    };
+  }
+
+  // v1 container: standard ZIP entry view
   return {
     kind: 'asset',
     path: kdnaPath,

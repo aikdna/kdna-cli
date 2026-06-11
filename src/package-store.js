@@ -85,6 +85,39 @@ function readContainerJson(kdnaPath, fileName, options = {}) {
   return assetReader.readJsonSync(asset, fileName, options);
 }
 
+function readContainerDataMap(kdnaPath, options = {}) {
+  const asset = assetReader.openSync(kdnaPath);
+  if (asset.entries.has('payload.kdnab')) {
+    const dataMap = assetReader.readDataMapSync(asset, undefined, options);
+    // readDataMapSync only returns judgment files — add kdna.json explicitly
+    if (asset.entries.has('kdna.json')) {
+      dataMap['kdna.json'] = assetReader.readJsonSync(asset, 'kdna.json', options);
+    }
+    return dataMap;
+  }
+  // v1 fallback: read individual JSON files
+  const dataMap = {};
+  const v1Files = [
+    'kdna.json',
+    'KDNA_Core.json',
+    'KDNA_Patterns.json',
+    'KDNA_Scenarios.json',
+    'KDNA_Cases.json',
+    'KDNA_Reasoning.json',
+    'KDNA_Evolution.json',
+  ];
+  for (const f of v1Files) {
+    if (asset.entries.has(f)) {
+      try {
+        dataMap[f] = assetReader.readJsonSync(asset, f, options);
+      } catch {
+        /* skip */
+      }
+    }
+  }
+  return dataMap;
+}
+
 function readContainerEntry(kdnaPath, fileName) {
   const asset = assetReader.openSync(kdnaPath);
   return assetReader.readEntrySync(asset, fileName);
@@ -241,6 +274,7 @@ module.exports = {
   assetDigest,
   contentDigest,
   readContainer,
+  readContainerDataMap,
   readContainerEntry,
   readContainerJson,
   readAssetManifest,
