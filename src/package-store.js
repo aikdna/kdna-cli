@@ -78,14 +78,15 @@ function listContainerEntries(kdnaPath) {
 
 function readContainer(kdnaPath, options = {}) {
   const asset = assetReader.openSync(kdnaPath);
+  const dataMap = assetReader.readDataMapSync(asset, undefined, options);
   return {
-    manifest: assetReader.readJsonSync(asset, 'kdna.json'),
-    core: assetReader.readJsonSync(asset, 'KDNA_Core.json', options),
-    patterns: assetReader.readJsonSync(asset, 'KDNA_Patterns.json', options),
-    scenarios: assetReader.readJsonSync(asset, 'KDNA_Scenarios.json', options),
-    cases: assetReader.readJsonSync(asset, 'KDNA_Cases.json', options),
-    reasoning: assetReader.readJsonSync(asset, 'KDNA_Reasoning.json', options),
-    evolution: assetReader.readJsonSync(asset, 'KDNA_Evolution.json', options),
+    manifest: dataMap['kdna.json'] || {},
+    core: dataMap['KDNA_Core.json'] || {},
+    patterns: dataMap['KDNA_Patterns.json'] || {},
+    scenarios: dataMap['KDNA_Scenarios.json'] || null,
+    cases: dataMap['KDNA_Cases.json'] || null,
+    reasoning: dataMap['KDNA_Reasoning.json'] || null,
+    evolution: dataMap['KDNA_Evolution.json'] || null,
     files: assetReader.listEntriesSync(asset),
   };
 }
