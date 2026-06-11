@@ -62,7 +62,11 @@ function validateManifestFn(manifest) {
   if (manifest.format && manifest.format !== 'kdna') {
     errors.push(`kdna.json.format: invalid value "${manifest.format}". Expected "kdna".`);
   }
-  if (manifest.format_version && manifest.format_version !== '1.0' && manifest.format_version !== '2.0') {
+  if (
+    manifest.format_version &&
+    manifest.format_version !== '1.0' &&
+    manifest.format_version !== '2.0'
+  ) {
     errors.push(
       `kdna.json.format_version: invalid value "${manifest.format_version}". Expected "1.0" or "2.0".`,
     );
@@ -118,8 +122,11 @@ function assetView(kdnaPath, options = {}) {
   allEntries.add('KDNA_Core.json');
   allEntries.add('KDNA_Patterns.json');
   return {
-    kind: 'asset', path: kdnaPath,
-    exists(name) { return allEntries.has(name) || entries.has(name); },
+    kind: 'asset',
+    path: kdnaPath,
+    exists(name) {
+      return allEntries.has(name) || entries.has(name);
+    },
     readJson(name) {
       if (entries.has(name)) return readContainerJson(kdnaPath, name, options);
       return _ensureDataMap()[name] || null;
@@ -130,7 +137,14 @@ function assetView(kdnaPath, options = {}) {
       return dm[name] ? JSON.stringify(dm[name]) : '';
     },
     listDirFiles(dirName) {
-      return [...entries].filter(e => e.startsWith(dirName.replace(//+$/,'')+'/')).map(e => { const r = e.slice(dirName.length+1); return r.includes('/') ? null : r; }).filter(Boolean);
+      const prefix = dirName.replace(/\/+$/, '') + '/';
+      return [...entries]
+        .filter((e) => e.startsWith(prefix))
+        .map((e) => {
+          const r = e.slice(prefix.length);
+          return r.includes('/') ? null : r;
+        })
+        .filter(Boolean);
     },
   };
 }
