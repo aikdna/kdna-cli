@@ -11,6 +11,18 @@ if (typeof core.createKdnaAssetReader !== 'function') {
 
 const assetReader = core.createKdnaAssetReader();
 
+const V1_ENTRIES = ['KDNA_Core.json', 'KDNA_Patterns.json', 'KDNA_Scenarios.json', 'KDNA_Cases.json', 'KDNA_Reasoning.json', 'KDNA_Evolution.json'];
+
+function validateContainerV2(asset, assetPath) {
+  const hasPayload = asset.entries.has('payload.kdnab');
+  if (hasPayload) return; // v2, OK
+  const hasV1 = V1_ENTRIES.some(e => asset.entries.has(e));
+  if (!hasV1) return; // neither v1 nor v2, probably empty — let caller decide
+  const found = V1_ENTRIES.filter(e => asset.entries.has(e));
+  const msg = `ERR_LEGACY_PLAINTEXT_CONTAINER: This .kdna uses the removed v1 plaintext ZIP format (found: ${found.join(', ')}). Rebuild from source with KDNA Container v2.`;
+  throw Object.assign(new Error(msg), { code: 'ERR_LEGACY_PLAINTEXT_CONTAINER' });
+}
+
 const INDEX_VERSION = 2;
 
 function ensureDir(dir) {
@@ -78,14 +90,16 @@ function listContainerEntries(kdnaPath) {
 
 function readContainer(kdnaPath, options = {}) {
   const asset = assetReader.openSync(kdnaPath);
+  validateContainerV2(asset, kdnaPath);
+  const dataMap = assetReader.readDataMapSync(asset, undefined, options);
   return {
-    manifest: assetReader.readJsonSync(asset, 'kdna.json'),
-    core: assetReader.readJsonSync(asset, 'KDNA_Core.json', options),
-    patterns: assetReader.readJsonSync(asset, 'KDNA_Patterns.json', options),
-    scenarios: assetReader.readJsonSync(asset, 'KDNA_Scenarios.json', options),
-    cases: assetReader.readJsonSync(asset, 'KDNA_Cases.json', options),
-    reasoning: assetReader.readJsonSync(asset, 'KDNA_Reasoning.json', options),
-    evolution: assetReader.readJsonSync(asset, 'KDNA_Evolution.json', options),
+    manifest: dataMap['kdna.json'] || {},
+    core: dataMap['KDNA_Core.json'] || {},
+    patterns: dataMap['KDNA_Patterns.json'] || {},
+    scenarios: dataMap['KDNA_Scenarios.json'] || null,
+    cases: dataMap['KDNA_Cases.json'] || null,
+    reasoning: dataMap['KDNA_Reasoning.json'] || null,
+    evolution: dataMap['KDNA_Evolution.json'] || null,
     files: assetReader.listEntriesSync(asset),
   };
 }
