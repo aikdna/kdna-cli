@@ -11,14 +11,21 @@ if (typeof core.createKdnaAssetReader !== 'function') {
 
 const assetReader = core.createKdnaAssetReader();
 
-const V1_ENTRIES = ['KDNA_Core.json', 'KDNA_Patterns.json', 'KDNA_Scenarios.json', 'KDNA_Cases.json', 'KDNA_Reasoning.json', 'KDNA_Evolution.json'];
+const V1_ENTRIES = [
+  'KDNA_Core.json',
+  'KDNA_Patterns.json',
+  'KDNA_Scenarios.json',
+  'KDNA_Cases.json',
+  'KDNA_Reasoning.json',
+  'KDNA_Evolution.json',
+];
 
 function validateContainerV2(asset, assetPath) {
   const hasPayload = asset.entries.has('payload.kdnab');
   if (hasPayload) return; // v2, OK
-  const hasV1 = V1_ENTRIES.some(e => asset.entries.has(e));
+  const hasV1 = V1_ENTRIES.some((e) => asset.entries.has(e));
   if (!hasV1) return; // neither v1 nor v2, probably empty — let caller decide
-  const found = V1_ENTRIES.filter(e => asset.entries.has(e));
+  const found = V1_ENTRIES.filter((e) => asset.entries.has(e));
   const msg = `ERR_LEGACY_PLAINTEXT_CONTAINER: This .kdna uses the removed v1 plaintext ZIP format (found: ${found.join(', ')}). Rebuild from source with KDNA Container v2.`;
   throw Object.assign(new Error(msg), { code: 'ERR_LEGACY_PLAINTEXT_CONTAINER' });
 }
