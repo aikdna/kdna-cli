@@ -161,25 +161,16 @@ and CLI is tracked via cross-language test vectors in the
 
 ## SPEC Compatibility
 
-KDNA CLI follows the canonical KDNA asset structure defined in [`aikdna/kdna`](https://github.com/aikdna/kdna).
+KDNA CLI follows the canonical KDNA Container format defined in [`aikdna/kdna`](https://github.com/aikdna/kdna).
 
-A valid KDNA domain is a `.kdna` asset. The internal tree of that asset may include up to six standard KDNA judgment files:
+A valid KDNA asset is a `.kdna` container with:
+- `kdna.json` — public manifest and metadata (no judgment content)
+- `payload.kdnab` — CBOR-encoded judgment payload
+- `signature.kdsig` — Ed25519 signature
 
-- `KDNA_Core.json`
-- `KDNA_Patterns.json`
-- `KDNA_Scenarios.json`
-- `KDNA_Cases.json`
-- `KDNA_Reasoning.json`
-- `KDNA_Evolution.json`
+The authoring source tree uses standard JSON files (KDNA_Core.json, KDNA_Patterns.json, etc.) for human editing and Git review. These files belong to the source tree only and MUST NOT appear as top-level entries in a distribution `.kdna` asset.
 
-The minimum valid `.kdna` asset requires these internal entries:
-
-- `KDNA_Core.json`
-- `KDNA_Patterns.json`
-
-Each KDNA judgment file must include `meta.version`, `meta.domain`, `meta.created`, `meta.purpose`, and `meta.load_condition`.
-
-Source directories are dev-only authoring workspaces. Public install, inspect, verify, load, compare, publish, and agent-facing commands consume `.kdna` assets or installed asset names, not source directories. To create a trusted `.kdna`, use KDNA Studio or a Studio-compatible compiler that records authoring provenance, Human Lock evidence, compiler metadata, and asset digest.
+To create a trusted `.kdna`, use `kdna-studio migrate <source-dir> --out <file.kdna>` or a Studio-compatible compiler that records authoring provenance, Human Lock evidence, compiler metadata, and asset digest.
 
 ---
 
