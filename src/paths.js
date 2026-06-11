@@ -1,5 +1,7 @@
 // KDNA shared path configuration — canonical source for ~/.kdna structure
 // Spec: docs/local-kdna-home-spec.md
+// NOTE: domains/ is NOT part of the runtime model (see local-kdna-home-spec.md §Invariants).
+// The domains field below is retained ONLY for legacy migration. New code MUST use packages/.
 
 const path = require('path');
 
@@ -10,14 +12,13 @@ const PATHS = {
   root: KDNA_HOME,
   config: path.join(KDNA_HOME, 'config.json'),
   identity: path.join(KDNA_HOME, 'identity'),
+  // LEGACY — domains/ is not part of the runtime model. Retained for migration only.
   domains: {
     root: path.join(KDNA_HOME, 'domains'),
     official: path.join(KDNA_HOME, 'domains', 'official'),
     local: path.join(KDNA_HOME, 'domains', 'local'),
     private: path.join(KDNA_HOME, 'domains', 'private'),
-    // Legacy flat path — used for migration only
     legacy: path.join(KDNA_HOME, 'domains'),
-    // All three directories for scanning
     all: [
       path.join(KDNA_HOME, 'domains', 'official'),
       path.join(KDNA_HOME, 'domains', 'local'),
