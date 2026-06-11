@@ -12,6 +12,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 
 const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
@@ -81,12 +82,75 @@ function registryTrustIssues(registry, { now = new Date() } = {}) {
   return issues;
 }
 
-function registryRevocations(registry) {
-  return registry?.trust?.revocations || [];
+function verifyRegistrySignature(registry, rawPayload) {
+  const trust = registry?.trust;
+  if (!trust) return { verified: false, error: 'No trust metadata in registry' };
+
+  const rootKeys = (trust.root?.keys || []).filter((k) => k.scheme === 'ed25519');
+  if (rootKeys.length === 0)
+    return { verified: false, error: 'No Ed25519 root keys in trust metadata' };
+
+  // Check if the registry has a signature file
+  const sigUrl = CANONICAL_REGISTRY_URL.replace(/\.json$/, '.sig');
+  let signature;
+  try {
+    const sigResult = execFileSync('curl', ['-sL', '--max-time', '10', sigUrl], {
+      encoding: 'utf8',
+      timeout: 15000,
+    });
+    signature = sigResult.trim();
+  } catch {
+    // .sig file may not exist yet (pre-signing transition)
+    return { verified: false, error: 'No registry signature file found' };
+  }
+
+  if (!rawPayload) {
+    try {
+      rawPayload = execFileSync('curl', ['-sL', '--max-time', '10', CANONICAL_REGISTRY_URL], {
+        encoding: 'utf8',
+        timeout: 15000,
+      });
+    } catch {
+      return { verified: false, error: 'Cannot fetch registry for verification' };
+    }
+  }
+
+  for (const key of rootKeys) {
+    try {
+      if (
+        crypto.verify(
+          null,
+          Buffer.from(rawPayload),
+          crypto.createPublicKey(key.pubkey),
+          Buffer.from(signature, 'hex'),
+        )
+      ) {
+        return { verified: true, keyid: key.keyid };
+      }
+    } catch {
+      /* try next key */
+    }
+  }
+
+  return { verified: false, error: 'Signature verification failed against all root keys' };
+}
+
+function checkRegistryRevocations(registry, scope) {
+  const revocations = registry?.trust?.revocations || [];
+  const scopeKey = scope?.trust_pubkey || '';
+  if (!scopeKey) return [];
+
+  const active = [];
+  for (const r of revocations) {
+    if (r.scope && r.scope !== scopeKey) continue;
+    if (r.expires_at && new Date(r.expires_at) < new Date()) continue;
+    active.push(r);
+  }
+  return active;
 }
 
 function isEntryRevoked(registry, entry) {
-  const revocations = registryRevocations(registry);
+  const revocations = checkRegistryRevocations(registry, entry);
   return (
     revocations.find((rev) => {
       if (rev.name && rev.name !== entry.name) return false;
@@ -219,6 +283,12 @@ class RegistryResolver {
       throw new Error(
         `Registry trust check failed:\n${trustIssues.map((i) => `- ${i}`).join('\n')}`,
       );
+    }
+    // Verify cryptographic signature
+    const sigResult = verifyRegistrySignature(data);
+    if (sigResult.error) {
+      // Non-fatal: allow operation but log warning (transitional)
+      console.error(`Warning: Registry signature verification: ${sigResult.error}`);
     }
     this._registries.set(scopeName, data);
     return data;
