@@ -3,7 +3,22 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const cbor = require('cbor-x');
+
+let _cbor = null;
+function getCbor() {
+  if (!_cbor) {
+    try {
+      _cbor = require('cbor-x');
+    } catch {
+      try {
+        _cbor = require('@aikdna/kdna-core/../cbor-x');
+      } catch {
+        throw new Error('cbor-x is required for dev pack v2. Install: npm install cbor-x');
+      }
+    }
+  }
+  return _cbor;
+}
 
 const KDNA_FILES = [
   'KDNA_Core.json',
@@ -46,7 +61,7 @@ function packV2(sourceDir, manifest, options = {}) {
       source_tree_digest: `sha256:${computeDirHash(abs)}`,
     },
   };
-  const payloadBuf = cbor.encode(payload);
+  const payloadBuf = getCbor().encode(payload);
 
   // 3. Build manifest (v2)
   const v2Manifest = {
