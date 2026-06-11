@@ -307,6 +307,7 @@ function buildZip(entries) {
 }
 
 module.exports = {
+  buildZip,
   cmdProtect,
   cmdUnlock,
   cmdRecover,
