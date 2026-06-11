@@ -6,8 +6,12 @@ const crypto = require('crypto');
 const cbor = require('cbor-x');
 
 const KDNA_FILES = [
-  'KDNA_Core.json', 'KDNA_Patterns.json', 'KDNA_Scenarios.json',
-  'KDNA_Cases.json', 'KDNA_Reasoning.json', 'KDNA_Evolution.json',
+  'KDNA_Core.json',
+  'KDNA_Patterns.json',
+  'KDNA_Scenarios.json',
+  'KDNA_Cases.json',
+  'KDNA_Reasoning.json',
+  'KDNA_Evolution.json',
 ];
 
 function packV2(sourceDir, manifest, options = {}) {
@@ -18,8 +22,16 @@ function packV2(sourceDir, manifest, options = {}) {
   for (const f of KDNA_FILES) {
     const filePath = path.join(abs, f);
     if (fs.existsSync(filePath)) {
-      try { judgment[f.replace(/^KDNA_/, '').replace(/\.json$/, '').toLowerCase()] = JSON.parse(fs.readFileSync(filePath, 'utf8')); }
-      catch { /* skip unreadable */ }
+      try {
+        judgment[
+          f
+            .replace(/^KDNA_/, '')
+            .replace(/\.json$/, '')
+            .toLowerCase()
+        ] = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      } catch {
+        /* skip unreadable */
+      }
     }
   }
 
@@ -56,7 +68,7 @@ function packV2(sourceDir, manifest, options = {}) {
 
   return {
     entries: {
-      'mimetype': 'application/vnd.aikdna.kdna+zip',
+      mimetype: 'application/vnd.aikdna.kdna+zip',
       'kdna.json': JSON.stringify(v2Manifest, null, 2),
       'payload.kdnab': payloadBuf,
     },
@@ -66,7 +78,10 @@ function packV2(sourceDir, manifest, options = {}) {
 }
 
 function computeDirHash(dir) {
-  const files = fs.readdirSync(dir).filter(f => fs.statSync(path.join(dir, f)).isFile()).sort();
+  const files = fs
+    .readdirSync(dir)
+    .filter((f) => fs.statSync(path.join(dir, f)).isFile())
+    .sort();
   const hash = crypto.createHash('sha256');
   for (const f of files) {
     hash.update(f);

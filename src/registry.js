@@ -86,14 +86,18 @@ function verifyRegistrySignature(registry, rawPayload) {
   const trust = registry?.trust;
   if (!trust) return { verified: false, error: 'No trust metadata in registry' };
 
-  const rootKeys = (trust.root?.keys || []).filter(k => k.scheme === 'ed25519');
-  if (rootKeys.length === 0) return { verified: false, error: 'No Ed25519 root keys in trust metadata' };
+  const rootKeys = (trust.root?.keys || []).filter((k) => k.scheme === 'ed25519');
+  if (rootKeys.length === 0)
+    return { verified: false, error: 'No Ed25519 root keys in trust metadata' };
 
   // Check if the registry has a signature file
   const sigUrl = CANONICAL_REGISTRY_URL.replace(/\.json$/, '.sig');
   let signature;
   try {
-    const sigResult = execFileSync('curl', ['-sL', '--max-time', '10', sigUrl], { encoding: 'utf8', timeout: 15000 });
+    const sigResult = execFileSync('curl', ['-sL', '--max-time', '10', sigUrl], {
+      encoding: 'utf8',
+      timeout: 15000,
+    });
     signature = sigResult.trim();
   } catch {
     // .sig file may not exist yet (pre-signing transition)
@@ -101,16 +105,31 @@ function verifyRegistrySignature(registry, rawPayload) {
   }
 
   if (!rawPayload) {
-    try { rawPayload = execFileSync('curl', ['-sL', '--max-time', '10', CANONICAL_REGISTRY_URL], { encoding: 'utf8', timeout: 15000 }); }
-    catch { return { verified: false, error: 'Cannot fetch registry for verification' }; }
+    try {
+      rawPayload = execFileSync('curl', ['-sL', '--max-time', '10', CANONICAL_REGISTRY_URL], {
+        encoding: 'utf8',
+        timeout: 15000,
+      });
+    } catch {
+      return { verified: false, error: 'Cannot fetch registry for verification' };
+    }
   }
 
   for (const key of rootKeys) {
     try {
-      if (crypto.verify(null, Buffer.from(rawPayload), crypto.createPublicKey(key.pubkey), Buffer.from(signature, 'hex'))) {
+      if (
+        crypto.verify(
+          null,
+          Buffer.from(rawPayload),
+          crypto.createPublicKey(key.pubkey),
+          Buffer.from(signature, 'hex'),
+        )
+      ) {
         return { verified: true, keyid: key.keyid };
       }
-    } catch { /* try next key */ }
+    } catch {
+      /* try next key */
+    }
   }
 
   return { verified: false, error: 'Signature verification failed against all root keys' };
@@ -129,11 +148,9 @@ function checkRegistryRevocations(registry, scope) {
   }
   return active;
 }
-  return registry?.trust?.revocations || [];
-}
 
 function isEntryRevoked(registry, entry) {
-  const revocations = registryRevocations(registry);
+  const revocations = checkRegistryRevocations(registry, entry);
   return (
     revocations.find((rev) => {
       if (rev.name && rev.name !== entry.name) return false;

@@ -6,7 +6,11 @@ const { execFileSync } = require('child_process');
 function verifyCapsule(capsulePath, options = {}) {
   const raw = require('fs').readFileSync(capsulePath, 'utf8');
   let capsule;
-  try { capsule = JSON.parse(raw); } catch { return { valid: false, error: 'Invalid capsule JSON' }; }
+  try {
+    capsule = JSON.parse(raw);
+  } catch {
+    return { valid: false, error: 'Invalid capsule JSON' };
+  }
 
   const errors = [];
   const warnings = [];
@@ -25,11 +29,18 @@ function verifyCapsule(capsulePath, options = {}) {
   // 3. Digest integrity
   if (capsule.asset_digest && capsule.domain) {
     try {
-      const kdnaHome = process.env.KDNA_HOME || require('path').join(require('os').homedir(), '.kdna');
-      const packagesDir = require('path').join(kdnaHome, 'packages', capsule.domain.replace('@', '').replace('/', '-'));
+      const kdnaHome =
+        process.env.KDNA_HOME || require('path').join(require('os').homedir(), '.kdna');
+      const packagesDir = require('path').join(
+        kdnaHome,
+        'packages',
+        capsule.domain.replace('@', '').replace('/', '-'),
+      );
       // Check if the installed asset matches the capsule's claimed digest
       const result = execFileSync('kdna', ['verify', capsule.domain, '--structure'], {
-        encoding: 'utf8', timeout: 15000, stdio: ['ignore', 'pipe', 'pipe'],
+        encoding: 'utf8',
+        timeout: 15000,
+        stdio: ['ignore', 'pipe', 'pipe'],
       });
       if (!result.includes('valid')) {
         warnings.push('Could not verify installed asset against capsule digest');
@@ -41,8 +52,10 @@ function verifyCapsule(capsulePath, options = {}) {
 
   // 4. Trace metadata
   if (capsule.trace) {
-    if (!capsule.trace.schema_valid) warnings.push('Schema validation was not performed during load');
-    if (!capsule.trace.signature_valid) warnings.push('Asset signature was not verified during load');
+    if (!capsule.trace.schema_valid)
+      warnings.push('Schema validation was not performed during load');
+    if (!capsule.trace.signature_valid)
+      warnings.push('Asset signature was not verified during load');
     if (!capsule.trace.loaded_at) warnings.push('Missing load timestamp');
   }
 
