@@ -8,7 +8,7 @@
  *  5. Core + Patterns + optional files all parse
  *
  * Usage: node tests/smoke/smoke-test.js
- * Requires this checkout to live under /Users/AI/K/OPEN_SOURCE.
+ * Requires the domain repos to be checked out as sibling directories.
  */
 
 const { describe, it } = require('node:test');

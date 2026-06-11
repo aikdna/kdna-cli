@@ -2,7 +2,7 @@
 
 [![npm](https://img.shields.io/npm/v/@aikdna/kdna-cli)](https://www.npmjs.com/package/@aikdna/kdna-cli) [![CI](https://github.com/aikdna/kdna-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/aikdna/kdna-cli/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
-> **KDNA Ecosystem:** [`kdna`](https://github.com/aikdna/kdna) — the protocol. [KDNAChat](https://github.com/aikdna/kdnachat) — the consumption client. [KDNaStudio](https://github.com/aikdna/kdnastudio) — the authoring tool. [KDNAWork](https://github.com/aikdna/kdnawork) — the workbench. **You are here → kdna-cli** — the toolchain. [Registry](https://github.com/aikdna/kdna-registry) — the catalog.
+> **KDNA Ecosystem:** [`kdna`](https://github.com/aikdna/kdna) — the protocol. [KDNAChat](https://github.com/aikdna/kdnachat) — the consumption client. [KDNA Studio](https://github.com/aikdna/kdnastudio) — the authoring tool. [KDNAWork](https://github.com/aikdna/kdnawork) — the workbench. **You are here → kdna-cli** — the toolchain. [Registry](https://github.com/aikdna/kdna-registry) — the catalog.
 
 **Role**: kdna-cli is the **runtime control plane** — the official reference implementation for asset validation, loading, installation, comparison, publishing, and agent-facing runtime workflows. It bridges Studio output to Chat/Work consumption.
 
