@@ -21,11 +21,11 @@
     "lint": "eslint src/ validators/ tests/",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --test tests/v07-commands.test.js tests/v012-commands.test.js tests/asset-store.test.js",
+    "test": "npm run test:core-smoke && node --test tests/v07-commands.test.js tests/v012-commands.test.js tests/asset-store.test.js",
     "test:integration": "node --test tests/integration.test.js",
-    "test:all": "node --test tests/*.test.js",
-    "release:preflight": "node scripts/release-preflight.js",
-    "pretest": "npm install --ignore-scripts"
+    "test:all": "npm run test:core-smoke && node --test tests/*.test.js",
+    "test:core-smoke": "node scripts/pretest-smoke.js",
+    "release:preflight": "node scripts/release-preflight.js"
   },
   "keywords": [
     "kdna",
@@ -48,7 +48,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@aikdna/kdna-core": "^0.8.0"
+    "@aikdna/kdna-core": "^0.9.1"
   },
   "optionalDependencies": {
     "ajv": "^8.17.1",
