@@ -200,6 +200,109 @@ function cmdValidate(dir, schemaOnly, jsonMode = false) {
   }
 }
 
+/**
+ * Anti-Monolithic Domain lint entry point.
+ *
+ * Runs schema validation (same as `kdna dev validate`) and then runs
+ * the Anti-Monolithic Domain Principle check (RFC-0013 §4 / SPEC §1.6)
+ * on top. The Anti-Monolithic check produces warnings by default and
+ * errors under `--strict`.
+ *
+ * Exits with non-zero only on schema errors or (under --strict) on
+ * Anti-Monolithic trigger.
+ */
+function cmdValidateAntiMonolithic(dir, opts = {}) {
+  const jsonMode = !!opts.json;
+  const strict = !!opts.strict;
+
+  // First, run the standard schema validation but capture its result
+  // rather than letting it process.exit(0).
+  // We achieve this by re-using the underlying helpers.
+  const abs = path.resolve(dir);
+  if (!fs.existsSync(abs) || !fs.statSync(abs).isDirectory()) {
+    error(`Not a directory: ${abs}`, EXIT.INPUT_ERROR);
+  }
+
+  const SCHEMA_DIR = path.join(
+    path.dirname(require.resolve('@aikdna/kdna-core/package.json')),
+    'schema',
+  );
+  const { schemaMap, loadedSchemas, missingSchemas } = loadSchemaMap(SCHEMA_DIR);
+
+  const schemaResult = isClusterDirectory(abs)
+    ? validateClusterDirectory(abs, schemaMap, false)
+    : validateDomainDirectory(abs, schemaMap, false);
+
+  // Run Anti-Monolithic check on the top-level (or first sub-) directory.
+  // For clusters, run on each domain dir and aggregate.
+  const amResults = [];
+  if (schemaResult.cluster && Array.isArray(schemaResult.domains)) {
+    for (const d of schemaResult.domains) {
+      amResults.push(
+        runAntiMonolithicCheckOnCore(d.path || abs, { strict }),
+      );
+    }
+  } else {
+    amResults.push(runAntiMonolithicCheckOnCore(abs, { strict }));
+  }
+
+  // Aggregate.
+  const allErrors = [...schemaResult.errors];
+  const allWarnings = [...schemaResult.warnings];
+  for (const r of amResults) {
+    allErrors.push(...r.errors);
+    allWarnings.push(...r.warnings);
+  }
+
+  if (jsonMode) {
+    console.log(
+      JSON.stringify(
+        {
+          path: abs,
+          schema_validation: {
+            valid: schemaResult.errors.length === 0,
+            errors: schemaResult.errors,
+            warnings: schemaResult.warnings,
+            cluster: !!schemaResult.cluster,
+            files: schemaResult.files,
+            domains: schemaResult.domains,
+            schemas_loaded: loadedSchemas.length,
+            missing_schemas: missingSchemas,
+          },
+          anti_monolithic: amResults,
+        },
+        null,
+        2,
+      ),
+    );
+    process.exit(allErrors.length ? EXIT.VALIDATION_FAILED : EXIT.OK);
+  }
+
+  if (allErrors.length) {
+    console.error('Errors:');
+    allErrors.forEach((e) => console.error(`  - ${e}`));
+  }
+  if (allWarnings.length) {
+    console.log('Warnings:');
+    allWarnings.forEach((w) => console.log(`  - ${w}`));
+  }
+  if (allErrors.length === 0) {
+    if (amResults.some((r) => r.triggered)) {
+      console.log(
+        `✓ Schema valid; Anti-Monolithic triggered (${amResults.filter((r) => r.triggered).length}/${amResults.length} domain(s))`,
+      );
+    } else {
+      console.log(`✓ Schema valid; Anti-Monolithic check passed (${amResults.length} domain(s))`);
+    }
+  }
+  process.exit(allErrors.length ? EXIT.VALIDATION_FAILED : EXIT.OK);
+}
+
+function runAntiMonolithicCheckOnCore(dir, opts) {
+  const { runAntiMonolithicCheck } = require('./anti-monolithic');
+  return runAntiMonolithicCheck(dir, opts);
+}
+
 // ─── Pack / Unpack (.kdna ZIP container) ──────────────────────────────────
 
 function cmdPack(dir, outputDir) {
@@ -918,6 +1021,7 @@ function cmdCard(dir, jsonMode = false, locale = null, options = {}) {
 
 module.exports = {
   cmdValidate,
+  cmdValidateAntiMonolithic,
   cmdPack,
   cmdUnpack,
   cmdInspect,

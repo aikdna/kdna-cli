@@ -206,9 +206,23 @@ switch (cmd) {
     if (sub === 'validate') {
       const schemaFlag = args.includes('--schema');
       const jsonFlag = args.includes('--json');
-      const target = args.filter((a, i) => i > 1 && a !== '--schema' && a !== '--json')[0];
-      if (!target) error('Usage: kdna dev validate <source-dir>');
-      cmdValidate(target, schemaFlag, jsonFlag);
+      const antiMonolithicFlag = args.includes('--anti-monolithic');
+      const strictFlag = args.includes('--strict');
+      const target = args.filter(
+        (a, i) =>
+          i > 1 &&
+          a !== '--schema' &&
+          a !== '--json' &&
+          a !== '--anti-monolithic' &&
+          a !== '--strict',
+      )[0];
+      if (!target) error('Usage: kdna dev validate <source-dir> [--schema] [--json] [--anti-monolithic] [--strict]');
+      if (antiMonolithicFlag) {
+        const { cmdValidateAntiMonolithic } = require('./cmds/domain');
+        cmdValidateAntiMonolithic(target, { json: jsonFlag, strict: strictFlag });
+      } else {
+        cmdValidate(target, schemaFlag, jsonFlag);
+      }
       break;
     }
     if (sub === 'pack') {
