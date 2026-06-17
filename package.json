@@ -1,6 +1,6 @@
 {
   "name": "@aikdna/kdna-cli",
-  "version": "0.21.1",
+  "version": "0.22.0",
   "description": "KDNA CLI — runtime control plane for verifying, installing, loading, comparing, publishing, and auditing existing .kdna assets.",
   "type": "commonjs",
   "bin": {
@@ -15,13 +15,15 @@
     "skills/",
     "LICENSE",
     "NOTICE",
-    "SECURITY.md"
+    "SECURITY.md",
+    "schema/",
+    "fixtures/"
   ],
   "scripts": {
     "lint": "eslint src/ validators/ tests/",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "npm run test:core-smoke && node --test tests/v07-commands.test.js tests/v012-commands.test.js tests/asset-store.test.js",
+    "test": "npm run test:core-smoke; node --test tests/v07-commands.test.js tests/v012-commands.test.js tests/asset-store.test.js; node --test tests/v1-global-cli.test.js",
     "test:integration": "node --test tests/integration.test.js",
     "test:all": "npm run test:core-smoke && node --test tests/*.test.js",
     "test:core-smoke": "node scripts/pretest-smoke.js",
@@ -51,7 +53,7 @@
     "@aikdna/kdna-core": "^0.9.1"
   },
   "optionalDependencies": {
-    "ajv": "^8.17.1",
+    "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "cbor-x": "^1.6.4"
   },

@@ -216,7 +216,10 @@ switch (cmd) {
           a !== '--anti-monolithic' &&
           a !== '--strict',
       )[0];
-      if (!target) error('Usage: kdna dev validate <source-dir> [--schema] [--json] [--anti-monolithic] [--strict]');
+      if (!target)
+        error(
+          'Usage: kdna dev validate <source-dir> [--schema] [--json] [--anti-monolithic] [--strict]',
+        );
       if (antiMonolithicFlag) {
         const { cmdValidateAntiMonolithic } = require('./cmds/domain');
         cmdValidateAntiMonolithic(target, { json: jsonFlag, strict: strictFlag });
@@ -274,6 +277,16 @@ switch (cmd) {
     break;
   }
   case 'validate': {
+    const v1Target = args.filter((a) => !a.startsWith('--'))[1];
+    if (v1Target) {
+      const v1 = require('./v1-cli');
+      const abs = require('node:path').resolve(v1Target);
+      if (v1.isV1SourceDir(abs) || v1.detectContainerFormat(abs) === 'v1') {
+        const result = v1.validate(v1Target);
+        console.log(JSON.stringify(result, null, 2));
+        process.exit(result.overall_valid ? 0 : 1);
+      }
+    }
     error(
       'Directory validation is a dev-only operation. Use: kdna dev validate <source-dir>',
       EXIT.INPUT_ERROR,
@@ -281,6 +294,23 @@ switch (cmd) {
     break;
   }
   case 'pack': {
+    const v1Target = args.filter((a) => !a.startsWith('--'))[1];
+    if (v1Target) {
+      const v1 = require('./v1-cli');
+      const abs = require('node:path').resolve(v1Target);
+      if (v1.isV1SourceDir(abs)) {
+        const out = args.filter((a) => !a.startsWith('--'))[2];
+        if (!out) {
+          process.stderr.write('Usage: kdna pack <source-dir> <output.kdna>\n');
+          process.exit(2);
+        }
+        const r = v1.pack(v1Target, out);
+        process.stdout.write(
+          `Packed: ${r.outputPath}\nEntries: ${r.entries.length} (${r.entries.join(', ')})\n`,
+        );
+        return;
+      }
+    }
     error(
       'Directory packaging is a dev-only operation. Use: kdna dev pack <source-dir>',
       EXIT.INPUT_ERROR,
@@ -288,6 +318,23 @@ switch (cmd) {
     break;
   }
   case 'unpack': {
+    const v1Target = args.filter((a) => !a.startsWith('--'))[1];
+    if (v1Target) {
+      const v1 = require('./v1-cli');
+      const abs = require('node:path').resolve(v1Target);
+      if (v1.detectContainerFormat(abs) === 'v1') {
+        const out = args.filter((a) => !a.startsWith('--'))[2];
+        if (!out) {
+          process.stderr.write('Usage: kdna unpack <input.kdna> <output-dir>\n');
+          process.exit(2);
+        }
+        const r = v1.unpack(v1Target, out);
+        process.stdout.write(
+          `Unpacked: ${r.outputDir}\nEntries: ${r.entries.length} (${r.entries.join(', ')})\n`,
+        );
+        return;
+      }
+    }
     error(
       'Unpacking exposes internal files and is dev-only. Use: kdna dev unpack <file.kdna>',
       EXIT.INPUT_ERROR,
@@ -351,7 +398,14 @@ switch (cmd) {
   }
   case 'inspect': {
     const target = args.filter((a) => !a.startsWith('--'))[1];
-    if (!target) error('Usage: kdna inspect <file.kdna> [--json] [--locale zh-CN]');
+    if (!target) error('Usage: kdna inspect <path> [--json] [--locale zh-CN]');
+    const v1 = require('./v1-cli');
+    const abs = require('node:path').resolve(target);
+    if (v1.isV1SourceDir(abs) || v1.detectContainerFormat(abs) === 'v1') {
+      const out = v1.inspect(target);
+      console.log(JSON.stringify(out, null, 2));
+      return;
+    }
     const localeIdx = args.indexOf('--locale');
     const locale = localeIdx >= 0 ? args[localeIdx + 1] : null;
     cmdInspect(target, args.includes('--json'), locale);
