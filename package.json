@@ -34,8 +34,9 @@
     "kdna-cli",
     "ai-agent",
     "domain-judgment",
-    "judgment-protocol",
-    "cli"
+    "cli",
+    "judgment-asset",
+    "official-toolchain"
   ],
   "license": "Apache-2.0",
   "repository": {
