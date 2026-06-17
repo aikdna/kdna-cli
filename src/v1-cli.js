@@ -89,7 +89,9 @@ function loadSchemas() {
   }
   const repoRoot = getRepoRoot();
   const schemaDir = path.join(repoRoot, 'schema');
-  const manifestSchema = JSON.parse(fs.readFileSync(path.join(schemaDir, 'manifest.schema.json'), 'utf8'));
+  const manifestSchema = JSON.parse(
+    fs.readFileSync(path.join(schemaDir, 'manifest.schema.json'), 'utf8'),
+  );
   const payloadSchema = JSON.parse(
     fs.readFileSync(path.join(schemaDir, 'payload-profile-v1.schema.json'), 'utf8'),
   );
@@ -333,7 +335,7 @@ function readV1Layout(absPath) {
     throw new Error(`path not found: ${absPath}`);
   }
 
-  let map = {};
+  const map = {};
   let entries = null; // ZIP entries if container
   let kind = null; // 'dir' | 'file'
 
@@ -389,9 +391,7 @@ function readV1Layout(absPath) {
   // mimetype content must equal the literal v1 media type.
   const mime = map.mimetype.toString('utf8');
   if (mime !== MIMETYPE_V1) {
-    throw new Error(
-      `not a KDNA v1 layout: mimetype is "${mime}", expected "${MIMETYPE_V1}"`,
-    );
+    throw new Error(`not a KDNA v1 layout: mimetype is "${mime}", expected "${MIMETYPE_V1}"`);
   }
 
   // Lineage must be a single object, not an array. (Format rule from
@@ -430,7 +430,8 @@ function buildInspectOutput(v1) {
     profile: m.compatibility ? m.compatibility.profile : null,
     load_contract_default_profile: m.load_contract ? m.load_contract.default_profile : null,
   };
-  if (m.signatures !== undefined) out.signature_count = Array.isArray(m.signatures) ? m.signatures.length : 0;
+  if (m.signatures !== undefined)
+    out.signature_count = Array.isArray(m.signatures) ? m.signatures.length : 0;
   if (v1.map.checksums) out.checksums_present = true;
   return out;
 }
@@ -664,7 +665,7 @@ function unpack(inputPath, outputDir) {
 
 // ─── Public router entry points ────────────────────────────────────────
 
-function inspect(inputPath, opts = {}) {
+function inspect(inputPath, _opts = {}) {
   const v1 = readV1Layout(path.resolve(inputPath));
   const out = buildInspectOutput(v1);
   // Guard against accidental forbidden wording in any future field additions.
@@ -672,7 +673,7 @@ function inspect(inputPath, opts = {}) {
   return out;
 }
 
-function validate(inputPath, opts = {}) {
+function validate(inputPath, _opts = {}) {
   const v1 = readV1Layout(path.resolve(inputPath));
   return runValidate(v1);
 }
