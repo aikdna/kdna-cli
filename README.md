@@ -2,17 +2,17 @@
 
 [![npm](https://img.shields.io/npm/v/@aikdna/kdna-cli)](https://www.npmjs.com/package/@aikdna/kdna-cli) [![CI](https://github.com/aikdna/kdna-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/aikdna/kdna-cli/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
-> **KDNA Ecosystem:** [`kdna`](https://github.com/aikdna/kdna) — the protocol. [KDNAChat](https://github.com/aikdna/kdnachat) — the consumption client. [KDNA Studio](https://github.com/aikdna/kdnastudio) — the authoring tool. [KDNAWork](https://github.com/aikdna/kdnawork) — the workbench. **You are here → kdna-cli** — the toolchain. [Registry](https://github.com/aikdna/kdna-registry) — the catalog.
+> **KDNA Core v1 is the official KDNA judgment-asset format and runtime loading contract.** `.kdna` assets are created, inspected, packed, unpacked, and validated through the **official KDNA toolchain**.
 
-**Role**: kdna-cli is the **runtime control plane** — the official reference implementation for asset validation, loading, installation, comparison, publishing, and agent-facing runtime workflows. It bridges Studio output to Chat/Work consumption.
+**Role**: kdna-cli is the **official KDNA runtime CLI** — the official command-line entry point of the KDNA toolchain for inspecting, validating, packing, unpacking, and loading `.kdna` assets.
 
-**KDNA CLI is the official open-source reference implementation for KDNA verification, loading, installation, comparison, registry access, publishing, and agent-facing runtime workflows.**
+**KDNA CLI is the official CLI entry of the KDNA toolchain — the official command-line surface for `.kdna` asset operations.**
 
-It is the runtime control plane for loading, validating, composing, testing, and governing domain judgment for AI agents.
+Third-party products integrate KDNA through the official SDK, CLI, Loader, or API.
 
-KDNA CLI 是 KDNA 验证、加载、安装、比较、注册表访问、发布和 Agent 运行时工作流的官方开源参考实现，也是 AI Agent 加载、验证、组合、测试和治理领域判断的运行控制平面。
+KDNA CLI 是 KDNA 官方工具链的 CLI 入口,是 `.kdna` 资产操作的官方命令行界面。第三方产品通过官方 SDK、CLI、Loader 或 API 接入 KDNA。
 
-The CLI is how a KDNA domain judgment package becomes usable by agents. It installs KDNA domains, verifies their structure and trust metadata, loads them into agent-readable form, compares judgment paths with and without KDNA, and records traces for audit.
+The CLI is how a `.kdna` judgment asset becomes usable by agents. It inspects, validates, packs, unpacks, and loads KDNA assets, and records traces for audit.
 
 KDNA CLI 让一个领域判断资产真正被 Agent 使用。它负责安装 KDNA、验证结构与信任信息、把 KDNA 转换成 Agent 可加载的形式、对比加载前后的判断路径，并记录可审计的使用痕迹。
 
@@ -174,86 +174,31 @@ To create a trusted `.kdna`, use `kdna-studio migrate <source-dir> --out <file.k
 
 ---
 
-## Default Registry
+## Legacy Registry (deprecated)
 
-By default, KDNA CLI uses the official KDNA registry. Registry schema v3 is asset-first: installable entries must publish `asset_url`, `asset_digest`, signature metadata, trust snapshot/timestamp metadata, and revocations. Expired, yanked, revoked, or digest-mismatched assets are rejected. Users may override the registry with `KDNA_REGISTRY_URL`.
+KDNA Core v1 is the **official KDNA judgment-asset format**. KDNA Core v1 does not define a registry, marketplace, or quality-badge system. Assets are loaded by path or by the official CLI, not by registry name.
+
+The legacy `kdna install <name>` command and the `KDNA_REGISTRY_URL` env var are preserved for backward compatibility with the legacy `kdna-registry` repository (marked as a legacy experiment). New KDNA Core v1 integrations should use the official CLI route:
 
 ```bash
-# Use the official registry (default)
-kdna install @aikdna/writing
-
-# Use a custom registry
-export KDNA_REGISTRY_URL="https://my-registry.example.com/domains.json"
-kdna install @myorg/internal
+kdna inspect <path>
+kdna validate <path>
+kdna pack <source-dir> <output.kdna>
+kdna unpack <input.kdna> <output-dir>
 ```
 
 ---
 
-## Open Source and Commercial Boundary
+## Official toolchain components
 
-KDNA keeps the protocol, schemas, validator, core CLI, benchmark tools, and reference examples open source.
+KDNA Core v1 is the **official KDNA judgment-asset format**. `.kdna` assets are created, inspected, protected, loaded, and consumed through the official KDNA toolchain. Third-party products integrate KDNA through the official SDK, CLI, Loader, or API.
 
-Commercial or hosted layers may include:
-
-- Managed registry services
-- Quality badge review workflows
-- Hosted runtime guard
-- Enterprise private registry
-- Team collaboration in KDNA Studio
-- Licensed/private judgment asset distribution
-
-KDNA supports both open judgment assets and licensed/private judgment assets. Open assets remain the default path for community adoption. Licensed assets still use the `.kdna` extension; protected entries are decrypted only in memory after local license activation.
-
-KDNA 同时支持开放判断资产和授权/私有判断资产。开放资产是社区采用的默认路径；授权资产仍然使用 `.kdna` 后缀，受保护条目只会在本地 license activation 通过后以内存方式解密。
-
----
-
-## Environment Variables
-
-| Variable            | Purpose                                                                     |
-| ------------------- | --------------------------------------------------------------------------- |
-| `KDNA_AGENT`        | Override agent name in trace logs (e.g. `claude_code`, `codex`, `opencode`) |
-| `KDNA_REGISTRY_URL` | Override canonical registry URL                                             |
-| `KDNA_IDENTITY_DIR` | Override identity key directory                                             |
-
-## Exit Codes
-
-| Code | Name                      | Meaning                                            |
-| ---- | ------------------------- | -------------------------------------------------- |
-| 0    | `OK`                      | Success                                            |
-| 1    | `VALIDATION_FAILED`       | Structure or schema validation failed              |
-| 2    | `INPUT_ERROR`             | Invalid input, missing argument, not found         |
-| 3    | `TRUST_FAILED`            | Signature or trust verification failed             |
-| 4    | `JUDGMENT_QUALITY_FAILED` | Judgment governance fields missing or insufficient |
-| 5    | `REGISTRY_ERROR`          | Registry lookup or network error                   |
-| 6    | `PROVIDER_ERROR`          | LLM provider (API key, rate limit) error           |
-| 7    | `POLICY_VIOLATION`        | Publishing or governance policy violation          |
-| 8    | `HUMAN_LOCK_REQUIRED`     | Human lock required but not present                |
-
-## JSON Output
-
-Machine-consumable commands support `--json` for structured output:
-
-```bash
-kdna verify @aikdna/writing --json
-kdna available --json
-kdna doctor --agents --json
-kdna trace --json
-kdna history --json
-kdna license verify --json <file>
-```
-
-## Product Matrix
-
-| Layer        | Product                 | Responsibility                                                                |
-| ------------ | ----------------------- | ----------------------------------------------------------------------------- |
-| Protocol     | KDNA SPEC               | Define judgment asset format                                                  |
-| Core Library | @aikdna/kdna-core       | load / validate / compose / render                                            |
-| Runtime      | @aikdna/kdna-cli        | install / verify / load / compare / publish existing assets / license / trace |
-| Authoring    | KDNA Studio             | author / lock / compile / export / sign / encrypt                             |
-| Consumption  | KDNAChat                | Load, use, compare                                                            |
-| Governance   | KDNA Governance Console | Approve, release, audit                                                       |
-| Distribution | Registry                | Discover, install, license, distribute                                        |
+| Layer | Component | Responsibility |
+| ------ | -------------------------- | --------------- |
+| Format | KDNA Core | Official KDNA judgment-asset format and runtime loading contract |
+| Core Library | @aikdna/kdna-core | Official loader SDK |
+| Runtime | @aikdna/kdna-cli | Official CLI: inspect, validate, pack, unpack, load |
+| Authoring | KDNA Studio Core | Official authoring kernel |
 
 ## Development
 
@@ -266,9 +211,8 @@ npm test
 
 ## Related
 
-- [@aikdna/kdna-core](https://github.com/aikdna/kdna/tree/main/packages/kdna-core) — Pure logic library
-- [KDNA Registry](https://github.com/aikdna/kdna-registry) — Domain catalog
-- [KDNA SPEC](https://github.com/aikdna/kdna) — Protocol specification
+- [@aikdna/kdna-core](https://github.com/aikdna/kdna/tree/main/packages/kdna-core) — Official loader SDK
+- [KDNA SPEC](https://github.com/aikdna/kdna) — Official KDNA Core format
 - [aikdna.com](https://aikdna.com) — Website
 
 ## License
