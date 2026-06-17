@@ -429,6 +429,37 @@ switch (cmd) {
     break;
   }
   case 'load': {
+    const target = args.filter((a) => !a.startsWith('--'))[1];
+    if (target) {
+      const { isV1SourceDir, detectContainerFormat, loadV1 } = require('@aikdna/kdna-core');
+      const abs = require('node:path').resolve(target);
+      if (isV1SourceDir(abs) || detectContainerFormat(abs) === 'v1') {
+        const getFlag = (name) => {
+          const eq = args.find((a) => a.startsWith(name + '='));
+          if (eq) return eq.split('=')[1];
+          const idx = args.indexOf(name);
+          return idx >= 0 ? args[idx + 1] : null;
+        };
+        const profile = getFlag('--profile') || 'compact';
+        const as = getFlag('--as') || 'json';
+        try {
+          const r = loadV1(target, { profile, as });
+          if (as === 'prompt') {
+            process.stdout.write(r.text + '\n');
+          } else {
+            console.log(JSON.stringify(r, null, 2));
+          }
+          return;
+        } catch (e) {
+          if (e.code === 'requires_decryption') {
+            process.stderr.write('Error: payload requires decryption.\n');
+            process.exit(4);
+          }
+          process.stderr.write('Error: ' + e.message + '\n');
+          process.exit(1);
+        }
+      }
+    }
     cmdLoad(args);
     break;
   }
