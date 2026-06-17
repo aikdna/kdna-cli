@@ -57,8 +57,17 @@ const { cmdProtocol } = require('./cmds/protocol');
 // ─── Main ─────────────────────────────────────────────────────────────
 
 const args = process.argv.slice(2);
-if (!args.length || args[0] === 'help' || args[0] === '--help' || args[0] === '-h') {
+if (!args.length || args[0] === '--help' || args[0] === '-h') {
   showHelp();
+  process.exit(0);
+}
+if (args[0] === 'help') {
+  const sub = args[1];
+  if (sub === 'advanced' || sub === 'legacy') {
+    sub === 'advanced' ? showHelpAdvanced() : showHelpLegacy();
+  } else {
+    showHelp();
+  }
   process.exit(0);
 }
 
@@ -68,137 +77,101 @@ if (args.includes('--exit-code')) setExitCodeOnly(true);
 
 function showHelp() {
   const v = require('../package.json').version;
-  console.log(`kdna v${v} — The runtime control plane for domain judgment
+  console.log(`kdna v${v} — Runtime control plane for KDNA Core v1
 
-Usage: kdna <command> [options]
+Start here:
+  kdna demo minimal <dir>           Create a minimal KDNA Core v1 demo
 
-Dev Source Utilities (non-canonical):
-  init <name>                      Deprecated alias for dev scaffold
-  dev scaffold <name>              Scaffold a non-canonical dev source workspace
-  dev validate <path>              Validate a dev source directory
-  dev pack <path>                  Build a dev-only non-trusted .kdna bundle
-  dev unpack <file>                Unpack .kdna into a dev source directory
-  dev inspect <path>               Inspect a dev source directory
-  dev card <path>                  Display KDNA Card from a dev source directory
-  inspect <file.kdna>              Inspect a .kdna asset
-  card <file.kdna> [--locale zh-CN] Display KDNA Card from a .kdna asset
-  explain <name>                   Natural language summary: axioms, terms, scenarios
-  publish <file.kdna>              Publish an existing Studio-compiled .kdna asset
-  publish --check <path>           Dev source readiness check only
-  version bump <level> [path]      Bump domain version
-  version bump --suggest [path]     Suggest version bump level
+Core v1:
+  inspect  <path>                   Inspect v1 source dir or .kdna container
+  validate <path>                   Validate v1 source dir or .kdna container
+  pack     <src> <out>              Deterministic pack into .kdna container
+  unpack   <in>  <out>              Extract .kdna container
 
-Studio Authoring Boundary (dev-preview only — use standalone kdna-studio for trusted authoring):
-  cards validate <project.json>    Dev-only card structure check
-  lock verify <project.json>       Dev-only Human Lock status check
-  studio                           Removed. Trusted KDNA authoring: npm install -g @aikdna/kdna-studio-cli
-
-Agent Runtime:
-  route "<task>" [--json] [--discover]  5-Gate 7-State routing decision
-  available [--json]               List installed domains with v2.1 fields
-  match "<task>" [--json]          Signal matching — find relevant domains
-  select --input "..." [--json]    Selection policy — decide which domains to load
-  load <name|file.kdna> [--as=prompt|json|raw]  Emit asset in agent-ready format
-  load <name|file.kdna> --profile=index|compact|scenario|full  Load profiles (Phase 2)
-  postvalidate <name> --output <file>  Post-generation judgment check
-
-Testing & Verification:
-  verify <name|file.kdna>          3-layer: structure + trust + judgment
-  verify <name|file.kdna> --i18n     I18N verification: locales, overlays, card completeness
-  verify <name|file.kdna> --governance  Governance verification: risk_level, KDNA_CARD, provenance
-  verify <name|file.kdna> --judgment --run-tests  Judgment validation with eval cases
-  compare <name|file.kdna> --input "..."     With/without KDNA reasoning diff
-  compare <name|file.kdna> --input "..." --report-md     Markdown report format
-  compare <name|file.kdna> --input "..." --report-json   JSON report with scoring
-  diff <name>@<v1> <name>@<v2>     Judgment-level diff between versions
-  test run <name> --input <file>   Record test result against domain
-  test import <run> --as-eval      Convert test result to eval card
-  changelog <name> --from --to     Generate judgment changelog
-
-Cluster Composition:
-  cluster lint <path>              Validate cluster manifest
-  cluster match <path> --input ".." Match input to cluster domains
-  cluster compose <path> --input   Compose context with source attribution
-  cluster conflicts <path> --input Detect inter-domain conflicts
-  cluster graph <path>             Output domain relationship graph (DOT/JSON)
-
-Work Pack (reusable AI work capabilities):
-  workpack init <name> [--domain]     Scaffold a new Work Pack from template
-  workpack validate <path>            Schema validation + structural completeness (L0→L1)
-  workpack validate <path> --json   Machine-readable validation output
-  workpack inspect <path>           Show Work Pack structure, KDNA refs, skills, gates
-  workpack inspect <path> --json    Machine-readable inspection output
-  workpack explain <path>           Natural-language explanation of what the Work Pack does
-  workpack plan <path> [--input]    Dry-run execution plan — what WOULD happen
-  workpack run <path> --input <f>   Execute Work Pack (--dry-run for simulation)
-  workpack report <session-id>      Display session report
-
-Governance & Release (Phase 6):
-  proposal create --from-test <run> --domain <path>  Create improvement proposal
-  proposal validate <proposal.json>   Validate proposal structure
-  review accept <proposal> --by --reason   Accept improvement proposal
-  review reject <proposal> --by --reason   Reject improvement proposal
-  lock card <id> --by --reason        Record human lock on a card
-  evolution add-proposal <file>        Add proposal to evolution record
-  evolution add-lock <file>            Add lock to evolution record
-  evolution report <domain>            Show domain evolution history
-  regression <old> <new> --evals <dir>  Detect judgment regression
-
-Quality & Distribution (Phase 7):
-  badge compute <domain>              Compute quality badge (draft/tested/trusted)
-  registry audit --scope <@scope>     Audit registry scope health
-
-Registry & Distribution:
-  install <name>                   Install domain from registry
-  install <file.kdna>              Install a local .kdna asset
-  install <file.kdna> --trusted    Install with mandatory trust verification
-  remove <name>                    Uninstall a domain
-  update <name>                    Update installed domain
-  info <name>                      Show domain metadata and trust status
-  list [--available]               List installed or available domains
-  search <keyword>                 Search registry
-  registry refresh                 Refresh registry cache
-
-Identity & Signing:
-  identity init                    Generate Ed25519 signing key
-  identity show                    Display public key and buyer ID
-  identity export [--out]          Backup private key (encrypted)
-  identity import <file>           Restore identity from backup
-
-Setup:
-  setup                            One-command setup: CLI + skill + data root
-
-Trace & Diagnostics:
-  doctor [--agents] [--domains] [--json]   System health check
-  trace [--json] [--since 7d] [--export <file>]  Agent judgment trace
-  history [--stats] [--domain <name>] [--agent <name>]  Recent usage
-
-License & Authorization:
-  license generate <domain> --to <email>   Generate signed license
-  license install <license.json>           Register license for auto-decrypt
-  license activate <domain> --key --server Activate license from entitlement source
-  license sync [domain] [--server]         Refresh entitlement / revocation status
-  license verify <license.json>            Verify license signature
-  license bind <license.json>              Bind license to this machine
-  license show <license.json>              Display license details
-  license status [domain] [--json]         Show installed license activation status
-
-Protected Assets (RFC-0009):
-  protect <file.kdna> --out <file.kdna> [--entries <list>]  Encrypt entries with password
-  unlock <file.kdna> [--profile compact|index|full]         Decrypt and load protected asset
-  recover <file.kdna> --out <file.kdna> [--code-stdin]       Reset password with recovery code
+More:
+  kdna help advanced                Agent runtime, setup, loading, comparison
+  kdna help legacy                  Registry, badges, licenses (pre-v1)
 
 Flags:
-  --json                           Structured JSON output (machine-readable)
-  --quiet                          Suppress non-error output
-
-Exit Codes:
-  0 OK  1 VALIDATION_FAILED  2 INPUT_ERROR  3 TRUST_FAILED
-  4 JUDGMENT_QUALITY_FAILED  5 REGISTRY_ERROR  6 PROVIDER_ERROR
-  7 POLICY_VIOLATION  8 HUMAN_LOCK_REQUIRED
+  --json                            Structured JSON output
+  --quiet                           Suppress non-error output
 `);
 }
 
+function showHelpAdvanced() {
+  const v = require('../package.json').version;
+  console.log(`kdna v${v} — Advanced commands
+
+Core v1:
+  inspect  <path>                   Inspect v1 source dir or .kdna container
+  validate <path>                   Validate v1 source dir or .kdna container
+  pack     <src> <out>              Deterministic pack into .kdna container
+  unpack   <in>  <out>              Extract .kdna container
+  demo     minimal <dir> [--force]  Create a minimal v1 fixture
+
+Setup:
+  setup                             One-command setup: CLI + skill + data root
+  doctor [--agents] [--domains] [--json]  System health check
+
+Agent Runtime:
+  load   <name|file> [--as=prompt|json|raw]  Emit asset in agent-ready form
+  load   <name|file> --profile=index|compact|scenario|full  Load profiles
+  verify <name|file> [--structure|--trust|--judgment]  3-layer verification
+  compare <name|file> --input "..."       With/without KDNA reasoning diff
+
+Authoring (beta):
+  Studio authoring: npm install -g @aikdna/kdna-studio-cli
+
+Flags:
+  --json                            Structured JSON output
+  --quiet                           Suppress non-error output
+
+More:
+  kdna help legacy                  Legacy / experimental commands
+`);
+}
+
+function showHelpLegacy() {
+  const v = require('../package').version;
+  console.log(`kdna v${v} — Legacy / experimental commands
+
+Not part of the current KDNA Core v1 first-run path. Preserved for
+backward compatibility. These commands may change or be removed.
+
+Registry (legacy — kdna-registry is a legacy experiment):
+  install <name>                    Install domain from legacy registry
+  remove <name>                     Uninstall a domain
+  update <name>                     Update installed domain
+  info <name>                       Show domain metadata
+  list [--available]                List installed or available domains
+  search <keyword>                  Search legacy registry
+  registry refresh                  Refresh legacy registry cache
+
+Legacy dev source utilities:
+  dev validate <path>               Validate a dev source directory
+  dev pack <path>                   Build a dev-only .kdna bundle
+  dev unpack <file>                 Unpack .kdna into a dev source directory
+  dev inspect <path>                Inspect a dev source directory
+
+Legacy operations:
+  badge compute <domain>            Compute quality badge (pre-v1)
+  registry audit --scope <@scope>   Audit registry scope health
+  license <subcommand> ...          License management
+  protect / unlock / recover        Protected assets (RFC-0009)
+  publish <file.kdna>               Publish to legacy registry
+  identity <subcommand> ...         Ed25519 signing key management
+  cluster <subcommand> ...          Cluster composition
+  workpack <subcommand> ...         Work Pack (experimental)
+  governance / proposal / review / evolution / regression
+  trace / history / route / match / select / postvalidate
+  test run / test import / changelog / diff / compare
+  explain / card / version bump
+
+Flags:
+  --json                            Structured JSON output
+  --quiet                           Suppress non-error output
+`);
+}
 const cmd = args[0];
 
 switch (cmd) {
