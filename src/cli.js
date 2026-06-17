@@ -253,10 +253,10 @@ switch (cmd) {
   case 'validate': {
     const v1Target = args.filter((a) => !a.startsWith('--'))[1];
     if (v1Target) {
-      const v1 = require('./v1-cli');
+      const { isV1SourceDir, detectContainerFormat, validate, pack, unpack, inspect } = require('@aikdna/kdna-core');
       const abs = require('node:path').resolve(v1Target);
-      if (v1.isV1SourceDir(abs) || v1.detectContainerFormat(abs) === 'v1') {
-        const result = v1.validate(v1Target);
+      if (isV1SourceDir(abs) || detectContainerFormat(abs) === 'v1') {
+        const result = validate(v1Target);
         console.log(JSON.stringify(result, null, 2));
         process.exit(result.overall_valid ? 0 : 1);
       }
@@ -270,15 +270,15 @@ switch (cmd) {
   case 'pack': {
     const v1Target = args.filter((a) => !a.startsWith('--'))[1];
     if (v1Target) {
-      const v1 = require('./v1-cli');
+      const { isV1SourceDir, detectContainerFormat, validate, pack, unpack, inspect } = require('@aikdna/kdna-core');
       const abs = require('node:path').resolve(v1Target);
-      if (v1.isV1SourceDir(abs)) {
+      if (isV1SourceDir(abs)) {
         const out = args.filter((a) => !a.startsWith('--'))[2];
         if (!out) {
           process.stderr.write('Usage: kdna pack <source-dir> <output.kdna>\n');
           process.exit(2);
         }
-        const r = v1.pack(v1Target, out);
+        const r = pack(v1Target, out);
         process.stdout.write(
           `Packed: ${r.outputPath}\nEntries: ${r.entries.length} (${r.entries.join(', ')})\n`,
         );
@@ -294,15 +294,15 @@ switch (cmd) {
   case 'unpack': {
     const v1Target = args.filter((a) => !a.startsWith('--'))[1];
     if (v1Target) {
-      const v1 = require('./v1-cli');
+      const { isV1SourceDir, detectContainerFormat, validate, pack, unpack, inspect } = require('@aikdna/kdna-core');
       const abs = require('node:path').resolve(v1Target);
-      if (v1.detectContainerFormat(abs) === 'v1') {
+      if (detectContainerFormat(abs) === 'v1') {
         const out = args.filter((a) => !a.startsWith('--'))[2];
         if (!out) {
           process.stderr.write('Usage: kdna unpack <input.kdna> <output-dir>\n');
           process.exit(2);
         }
-        const r = v1.unpack(v1Target, out);
+        const r = unpack(v1Target, out);
         process.stdout.write(
           `Unpacked: ${r.outputDir}\nEntries: ${r.entries.length} (${r.entries.join(', ')})\n`,
         );
@@ -373,10 +373,10 @@ switch (cmd) {
   case 'inspect': {
     const target = args.filter((a) => !a.startsWith('--'))[1];
     if (!target) error('Usage: kdna inspect <path> [--json] [--locale zh-CN]');
-    const v1 = require('./v1-cli');
+    const { isV1SourceDir, detectContainerFormat, validate, pack, unpack, inspect } = require('@aikdna/kdna-core');
     const abs = require('node:path').resolve(target);
-    if (v1.isV1SourceDir(abs) || v1.detectContainerFormat(abs) === 'v1') {
-      const out = v1.inspect(target);
+    if (isV1SourceDir(abs) || detectContainerFormat(abs) === 'v1') {
+      const out = inspect(target);
       console.log(JSON.stringify(out, null, 2));
       return;
     }
