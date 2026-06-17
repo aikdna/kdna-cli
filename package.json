@@ -23,11 +23,14 @@
     "lint": "eslint src/ validators/ tests/",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "npm run test:core-smoke; node --test tests/v07-commands.test.js tests/v012-commands.test.js tests/asset-store.test.js; node --test tests/v1-global-cli.test.js",
+    "test": "npm run test:v1 && npm run test:smoke",
     "test:integration": "node --test tests/integration.test.js",
-    "test:all": "npm run test:core-smoke && node --test tests/*.test.js",
+    "test:all": "npm run test:v1 && npm run test:smoke && npm run test:legacy",
     "test:core-smoke": "node scripts/pretest-smoke.js",
-    "release:preflight": "node scripts/release-preflight.js"
+    "release:preflight": "node scripts/release-preflight.js",
+    "test:v1": "node --test tests/v1-global-cli.test.js",
+    "test:smoke": "npm run test:core-smoke",
+    "test:legacy": "node --test tests/v07-commands.test.js tests/v012-commands.test.js tests/asset-store.test.js"
   },
   "keywords": [
     "kdna",
