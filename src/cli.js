@@ -37,6 +37,7 @@ const {
 } = require('./cmds/license');
 const { cmdProtect, cmdUnlock, cmdRecover } = require('./cmds/protect');
 const { cmdPreview, cmdProject, cmdEval, cmdExport, cmdDemo } = require('./cmds/legacy');
+const { cmdDemo: cmdDemoMinimal } = require('./cmds/demo');
 const { cmdCardsValidate, cmdLockVerify } = require('./cmds/studio');
 const { cmdTestRun, cmdTestImport } = require('./cmds/test');
 const { cmdChangelog } = require('./cmds/changelog');
@@ -570,7 +571,11 @@ switch (cmd) {
     break;
   }
   case 'demo': {
-    cmdDemo();
+    if (args[1] === 'minimal') {
+      cmdDemoMinimal(args.slice(1));
+    } else {
+      cmdDemo();
+    }
     break;
   }
   case 'explain': {
