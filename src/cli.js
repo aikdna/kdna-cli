@@ -90,7 +90,7 @@ Core v1:
 
 More:
   kdna help advanced                Agent runtime, setup, loading, comparison
-  kdna help legacy                  Registry, badges, licenses (pre-v1)
+  kdna help legacy                  Pre-v1 compatibility commands
 
 Flags:
   --json                            Structured JSON output
