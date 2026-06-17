@@ -216,7 +216,10 @@ switch (cmd) {
           a !== '--anti-monolithic' &&
           a !== '--strict',
       )[0];
-      if (!target) error('Usage: kdna dev validate <source-dir> [--schema] [--json] [--anti-monolithic] [--strict]');
+      if (!target)
+        error(
+          'Usage: kdna dev validate <source-dir> [--schema] [--json] [--anti-monolithic] [--strict]',
+        );
       if (antiMonolithicFlag) {
         const { cmdValidateAntiMonolithic } = require('./cmds/domain');
         cmdValidateAntiMonolithic(target, { json: jsonFlag, strict: strictFlag });
@@ -302,7 +305,9 @@ switch (cmd) {
           process.exit(2);
         }
         const r = v1.pack(v1Target, out);
-        process.stdout.write(`Packed: ${r.outputPath}\nEntries: ${r.entries.length} (${r.entries.join(', ')})\n`);
+        process.stdout.write(
+          `Packed: ${r.outputPath}\nEntries: ${r.entries.length} (${r.entries.join(', ')})\n`,
+        );
         return;
       }
     }
@@ -324,7 +329,9 @@ switch (cmd) {
           process.exit(2);
         }
         const r = v1.unpack(v1Target, out);
-        process.stdout.write(`Unpacked: ${r.outputDir}\nEntries: ${r.entries.length} (${r.entries.join(', ')})\n`);
+        process.stdout.write(
+          `Unpacked: ${r.outputDir}\nEntries: ${r.entries.length} (${r.entries.join(', ')})\n`,
+        );
         return;
       }
     }
