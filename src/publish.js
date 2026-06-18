@@ -689,12 +689,12 @@ function cmdPublish(assetPath, args = []) {
 
   console.log('');
   console.log('─'.repeat(60));
-  console.log('Registry patch (apply to kdna-registry/domains.json):');
+  console.log('Legacy registry patch (historical compatibility only):');
   console.log('─'.repeat(60));
   console.log(JSON.stringify(patch, null, 2));
   console.log('');
   console.log(
-    `Next: open a PR to kdna-registry merging this patch into the matching entry by "name".`,
+    `Next: do not open a public registry PR. Core v1 publishes local .kdna files through validate/load evidence, not a central registry.`,
   );
 }
 
