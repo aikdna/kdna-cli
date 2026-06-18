@@ -61,6 +61,10 @@ if (!args.length || args[0] === '--help' || args[0] === '-h') {
   showHelp();
   process.exit(0);
 }
+if (args[0] === '--version' || args[0] === '-v') {
+  console.log(require('../package.json').version);
+  process.exit(0);
+}
 if (args[0] === 'help') {
   const sub = args[1];
   if (sub === 'advanced' || sub === 'legacy') {
