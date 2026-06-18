@@ -138,7 +138,7 @@ function showHelpLegacy() {
 Not part of the current KDNA Core v1 first-run path. Preserved for
 backward compatibility. These commands may change or be removed.
 
-Registry (legacy — kdna-registry is a legacy experiment):
+Registry (legacy compatibility — not a Core v1 public path):
   install <name>                    Install domain from legacy registry
   remove <name>                     Uninstall a domain
   update <name>                     Update installed domain
