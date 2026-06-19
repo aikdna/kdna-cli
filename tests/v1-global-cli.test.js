@@ -7,6 +7,7 @@ const { execFileSync, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const core = require('@aikdna/kdna-core');
 
 const cliBin = path.join(__dirname, '..', 'src', 'cli.js');
 const fixture = path.join(__dirname, '..', 'fixtures', 'v1-minimal');
@@ -44,6 +45,22 @@ test('kdna validate v1 source dir reports overall_valid=true', () => {
   assert.equal(out.checksums_valid, true);
   assert.equal(out.load_contract_valid, true);
   assert.deepEqual(out.problems, []);
+});
+
+test('kdna plan-load uses the Core LoadPlan API when available', () => {
+  const r = runCli(['plan-load', fixture, '--json']);
+  if (typeof core.planLoad !== 'function') {
+    assert.equal(r.status, 6, r.stderr);
+    assert.match(r.stderr, /requires @aikdna\/kdna-core with the LoadPlan v1 API/);
+    return;
+  }
+
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.access, 'public');
+  assert.equal(out.state, 'ready');
+  assert.equal(out.required_action, 'load');
+  assert.equal(out.can_load_now, true);
 });
 
 test('kdna pack produces deterministic container', () => {
