@@ -11,6 +11,11 @@ handled by KDNA Studio CLI and Studio Core.
 KDNA Core v1 does not require a public registry, marketplace, quality badge, or
 signature system. The current first-run path uses local `.kdna` files.
 
+Authorization and runtime-load decisions are defined in `aikdna/kdna`, not in
+this repository. `kdna plan-load` is the CLI diagnostic surface for that
+contract and MUST call the LoadPlan API from `@aikdna/kdna-core` instead of
+deriving authorization state directly from manifest fields.
+
 ## Install
 
 ```bash
@@ -23,6 +28,7 @@ npm install -g @aikdna/kdna-cli
 kdna demo minimal ./minimal
 kdna inspect ./minimal
 kdna validate ./minimal
+kdna plan-load ./minimal --json
 kdna pack ./minimal ./minimal.kdna
 kdna validate ./minimal.kdna
 kdna load ./minimal.kdna --profile=compact --as=prompt
@@ -49,6 +55,7 @@ Successful validation returns:
 | `kdna demo minimal <dir>` | Create a minimal v1 source directory |
 | `kdna inspect <path>` | Inspect a v1 source dir or `.kdna` container |
 | `kdna validate <path>` | Validate format, schema, payload, checksums, and load contract |
+| `kdna plan-load <path> --json` | Return the Core LoadPlan before runtime load |
 | `kdna pack <source-dir> <output.kdna>` | Pack a v1 source directory |
 | `kdna unpack <input.kdna> <output-dir>` | Unpack a v1 container |
 | `kdna load <path> --profile=<index|compact|scenario|full> --as=<json|prompt>` | Render judgment context for agents or tools |
@@ -79,9 +86,35 @@ New integrations should use the v1 Core route:
 source or Studio project
 → v1 .kdna container
 → kdna validate
+→ kdna plan-load
 → kdna load
 → agent/runtime context
 ```
+
+## Runtime Authorization Contract
+
+The source of truth is `aikdna/kdna`:
+
+- `specs/kdna-authorization-contract.md`
+- `schema/load-plan.schema.json`
+- `conformance/authorization/cases.json`
+- `conformance/authorization/goldens/*.loadplan.json`
+
+This CLI is a diagnostic control plane. It may display, validate, and transport
+LoadPlan results, but it must not define access modes, entitlement profiles,
+issue codes, crypto profiles, or fail-closed policy independently.
+
+Current local authorization path:
+
+```bash
+kdna validate ./asset.kdna --json
+kdna plan-load ./asset.kdna --json
+kdna load ./asset.kdna --profile=compact --as=prompt
+```
+
+`plan-load` requires a version of `@aikdna/kdna-core` that exports the LoadPlan
+v1 API. Until that dependency is released and installed, the command fails with
+a version-gate error instead of falling back to duplicated CLI-side parsing.
 
 ## Development
 

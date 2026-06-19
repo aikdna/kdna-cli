@@ -89,6 +89,7 @@ Start here:
 Core v1:
   inspect  <path>                   Inspect v1 source dir or .kdna container
   validate <path>                   Validate v1 source dir or .kdna container
+  plan-load <path>                  Return a LoadPlan before runtime load
   pack     <src> <out>              Deterministic pack into .kdna container
   unpack   <in>  <out>              Extract .kdna container
 
@@ -109,6 +110,7 @@ function showHelpAdvanced() {
 Core v1:
   inspect  <path>                   Inspect v1 source dir or .kdna container
   validate <path>                   Validate v1 source dir or .kdna container
+  plan-load <path> [--has-password] Return a LoadPlan before runtime load
   pack     <src> <out>              Deterministic pack into .kdna container
   unpack   <in>  <out>              Extract .kdna container
   demo     minimal <dir> [--force]  Create a minimal v1 fixture
@@ -270,6 +272,24 @@ switch (cmd) {
       EXIT.INPUT_ERROR,
     );
     break;
+  }
+  case 'plan-load': {
+    const v1Target = args.filter((a) => !a.startsWith('--'))[1];
+    if (!v1Target) error('Usage: kdna plan-load <path> [--json] [--has-password]', EXIT.INPUT_ERROR);
+    const core = require('@aikdna/kdna-core');
+    const abs = require('node:path').resolve(v1Target);
+    if (!(core.isV1SourceDir(abs) || core.detectContainerFormat(abs) === 'v1')) {
+      error('plan-load requires a KDNA Core v1 source dir or .kdna container', EXIT.INPUT_ERROR);
+    }
+    if (typeof core.planLoad !== 'function') {
+      error(
+        'kdna plan-load requires @aikdna/kdna-core with the LoadPlan v1 API. Update @aikdna/kdna-core before enabling runtime authorization diagnostics.',
+        EXIT.PROVIDER_ERROR,
+      );
+    }
+    const plan = core.planLoad(v1Target, { hasPassword: args.includes('--has-password') });
+    console.log(JSON.stringify(plan, null, 2));
+    process.exit(plan.state === 'invalid' ? 1 : 0);
   }
   case 'pack': {
     const v1Target = args.filter((a) => !a.startsWith('--'))[1];
