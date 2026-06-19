@@ -90,6 +90,7 @@ Core v1:
   inspect  <path>                   Inspect v1 source dir or .kdna container
   validate <path>                   Validate v1 source dir or .kdna container
   plan-load <path>                  Return a LoadPlan before runtime load
+                                  Add --has-password or --entitlement-status for diagnostics
   pack     <src> <out>              Deterministic pack into .kdna container
   unpack   <in>  <out>              Extract .kdna container
 
@@ -110,7 +111,8 @@ function showHelpAdvanced() {
 Core v1:
   inspect  <path>                   Inspect v1 source dir or .kdna container
   validate <path>                   Validate v1 source dir or .kdna container
-  plan-load <path> [--has-password] Return a LoadPlan before runtime load
+  plan-load <path> [--has-password] [--entitlement-status <status>]
+                                  Return a LoadPlan before runtime load
   pack     <src> <out>              Deterministic pack into .kdna container
   unpack   <in>  <out>              Extract .kdna container
   demo     minimal <dir> [--force]  Create a minimal v1 fixture
@@ -275,7 +277,7 @@ switch (cmd) {
   }
   case 'plan-load': {
     const v1Target = args.filter((a) => !a.startsWith('--'))[1];
-    if (!v1Target) error('Usage: kdna plan-load <path> [--json] [--has-password]', EXIT.INPUT_ERROR);
+    if (!v1Target) error('Usage: kdna plan-load <path> [--json] [--has-password] [--entitlement-status <status>]', EXIT.INPUT_ERROR);
     const core = require('@aikdna/kdna-core');
     const abs = require('node:path').resolve(v1Target);
     if (!(core.isV1SourceDir(abs) || core.detectContainerFormat(abs) === 'v1')) {
@@ -287,7 +289,16 @@ switch (cmd) {
         EXIT.PROVIDER_ERROR,
       );
     }
-    const plan = core.planLoad(v1Target, { hasPassword: args.includes('--has-password') });
+    const entitlementStatusIndex = args.indexOf('--entitlement-status');
+    const entitlementStatus = entitlementStatusIndex >= 0 ? args[entitlementStatusIndex + 1] : null;
+    const allowedEntitlementStatuses = new Set(['active', 'expired', 'revoked', 'offline_grace']);
+    if (entitlementStatusIndex >= 0 && !allowedEntitlementStatuses.has(entitlementStatus)) {
+      error('Invalid --entitlement-status. Use active, expired, revoked, or offline_grace.', EXIT.INPUT_ERROR);
+    }
+    const plan = core.planLoad(v1Target, {
+      hasPassword: args.includes('--has-password'),
+      entitlement: entitlementStatus ? { status: entitlementStatus } : undefined,
+    });
     console.log(JSON.stringify(plan, null, 2));
     process.exit(plan.state === 'invalid' ? 1 : 0);
   }

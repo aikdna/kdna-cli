@@ -56,6 +56,8 @@ Successful validation returns:
 | `kdna inspect <path>` | Inspect a v1 source dir or `.kdna` container |
 | `kdna validate <path>` | Validate format, schema, payload, checksums, and load contract |
 | `kdna plan-load <path> --json` | Return the Core LoadPlan before runtime load |
+| `kdna plan-load <path> --json --has-password` | Diagnose password-authorized load state |
+| `kdna plan-load <path> --json --entitlement-status active` | Diagnose receipt/entitlement load state |
 | `kdna pack <source-dir> <output.kdna>` | Pack a v1 source directory |
 | `kdna unpack <input.kdna> <output-dir>` | Unpack a v1 container |
 | `kdna load <path> --profile=<index|compact|scenario|full> --as=<json|prompt>` | Render judgment context for agents or tools |
@@ -109,6 +111,8 @@ Current local authorization path:
 ```bash
 kdna validate ./asset.kdna --json
 kdna plan-load ./asset.kdna --json
+kdna plan-load ./asset.kdna --json --has-password
+kdna plan-load ./asset.kdna --json --entitlement-status active
 kdna load ./asset.kdna --profile=compact --as=prompt
 ```
 
