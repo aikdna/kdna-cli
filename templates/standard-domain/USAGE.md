@@ -45,8 +45,9 @@ kdna verify ./.
 
 # 7. Export and verify the local v1 asset
 KDNA_IDENTITY_DIR=~/.kdna/identity-official \
-  kdna validate ./dist/your-domain.kdna
+  kdna validate ./dist/your-domain.kdna --runtime
 
+kdna plan-load ./dist/your-domain.kdna --json
 kdna load ./dist/your-domain.kdna --profile=compact --as=prompt
 ```
 

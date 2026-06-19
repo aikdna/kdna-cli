@@ -30,7 +30,8 @@ kdna inspect ./minimal
 kdna validate ./minimal
 kdna plan-load ./minimal --json
 kdna pack ./minimal ./minimal.kdna
-kdna validate ./minimal.kdna
+kdna validate ./minimal.kdna --runtime
+kdna plan-load ./minimal.kdna --json
 kdna load ./minimal.kdna --profile=compact --as=prompt
 ```
 
@@ -71,8 +72,17 @@ Use Studio CLI to create formal v1 `.kdna` assets:
 ```bash
 npm install -g @aikdna/kdna-studio-cli
 kdna-studio create my_domain --name @yourscope/my_domain
-kdna-studio migrate ./my_domain --format v1 --out ./my_domain.kdna
-kdna validate ./my_domain.kdna
+kdna-studio card add my_domain axiom \
+  --field one_sentence="Prefer specific evidence over broad claims" \
+  --field full_statement="When reviewing content, prefer specific evidence over broad claims because unsupported generalizations make the judgment impossible to verify or improve." \
+  --field why="Broad claims hide the actual reason for a judgment, so reviewers cannot tell whether the conclusion is evidence based, reusable, or merely plausible sounding." \
+  --field applies_when='["reviewing content"]' \
+  --field does_not_apply_when='["pure formatting"]' \
+  --field failure_risk="generic advice"
+kdna-studio card approve my_domain --all --by expert --statement "I confirm this judgment."
+kdna-studio export my_domain --format v1 --out ./my_domain.kdna
+kdna validate ./my_domain.kdna --runtime
+kdna plan-load ./my_domain.kdna --json
 kdna load ./my_domain.kdna --profile=compact --as=prompt
 ```
 
