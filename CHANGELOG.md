@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.26.9 (2026-06-20)
+
+**Core boundary projection fix**
+
+- Depend on `@aikdna/kdna-core@^0.12.2` so compact prompt loading preserves
+  axiom `applies_when`, `does_not_apply_when`, and `failure_risk` fields from
+  Studio-exported `.kdna` files.
+
 ## v0.26.8 (2026-06-20)
 
 **Release wording cleanup**

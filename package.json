@@ -1,6 +1,6 @@
 {
   "name": "@aikdna/kdna-cli",
-  "version": "0.26.8",
+  "version": "0.26.9",
   "description": "KDNA CLI — runtime control plane for inspecting, validating, planning, packing, unpacking, and loading local .kdna assets.",
   "type": "commonjs",
   "bin": {
@@ -56,7 +56,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@aikdna/kdna-core": "^0.12.1"
+    "@aikdna/kdna-core": "^0.12.2"
   },
   "optionalDependencies": {
     "ajv": "^8.20.0",
