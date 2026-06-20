@@ -68,7 +68,7 @@ function readContainerJson(kdnaPath, fileName, options = {}) {
 
 function readContainerDataMap(kdnaPath, options = {}) {
   const asset = assetReader.openSync(kdnaPath);
-  const dataMap = assetReader.readDataMapSync(asset, undefined, options);
+  const dataMap = readDataMapCompatSync(asset, options);
   if (asset.entries.has('kdna.json')) {
     dataMap['kdna.json'] = assetReader.readJsonSync(asset, 'kdna.json', options);
   }
@@ -87,7 +87,7 @@ function listContainerEntries(kdnaPath) {
 
 function readContainer(kdnaPath, options = {}) {
   const asset = assetReader.openSync(kdnaPath);
-  const dataMap = assetReader.readDataMapSync(asset, undefined, options);
+  const dataMap = readDataMapCompatSync(asset, options);
   return {
     manifest: dataMap['kdna.json'] || {},
     core: dataMap['KDNA_Core.json'] || {},
@@ -98,6 +98,31 @@ function readContainer(kdnaPath, options = {}) {
     evolution: dataMap['KDNA_Evolution.json'] || null,
     files: assetReader.listEntriesSync(asset),
   };
+}
+
+function readDataMapCompatSync(asset, options = {}) {
+  try {
+    return assetReader.readDataMapSync(asset, undefined, options);
+  } catch (e) {
+    if (!String(e?.message || '').includes('missing payload.kdnab')) {
+      throw e;
+    }
+  }
+
+  const dataMap = {};
+  for (const entry of [
+    'KDNA_Core.json',
+    'KDNA_Patterns.json',
+    'KDNA_Scenarios.json',
+    'KDNA_Cases.json',
+    'KDNA_Reasoning.json',
+    'KDNA_Evolution.json',
+  ]) {
+    if (asset.entries.has(entry)) {
+      dataMap[entry] = assetReader.readJsonSync(asset, entry, options);
+    }
+  }
+  return dataMap;
 }
 
 function verifyAsset(kdnaPath, options = {}) {

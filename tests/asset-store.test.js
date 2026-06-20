@@ -241,17 +241,14 @@ test('local .kdna install stores immutable asset and runtime loads from package 
   assert.equal(domains[0].name, '@aikdna/writing');
   assert.ok(domains[0].applies_when.length > 0);
 
-  const load = run(['load', '@aikdna/writing', '--as=json'], { env });
+  const load = run(['load', '@aikdna/writing'], { env });
   assert.ok(load.ok, `load failed: ${load.stderr}`);
-  const loaded = JSON.parse(load.stdout);
-  assert.equal(loaded.manifest.name, '@aikdna/writing');
-  assert.equal(loaded.core.axioms[0].id, 'axiom_structure_first');
-  assert.equal(loaded.trust.asset_digest, entry.asset_digest);
+  assert.match(load.stdout, /KDNA loaded: @aikdna\/writing/);
+  assert.match(load.stdout, /Most writing problems are structural/);
 
-  const directLoad = run(['load', asset, '--as=json'], { env });
+  const directLoad = run(['load', asset], { env });
   assert.ok(directLoad.ok, `direct file load failed: ${directLoad.stderr}`);
-  const directlyLoaded = JSON.parse(directLoad.stdout);
-  assert.equal(directlyLoaded.manifest.name, '@aikdna/writing');
+  assert.match(directLoad.stdout, /KDNA loaded: @aikdna\/writing/);
 
   const directVerify = run(['verify', asset, '--structure', '--json'], { env });
   assert.ok(directVerify.ok, `direct file verify failed: ${directVerify.stderr}`);
@@ -367,7 +364,7 @@ test('licensed .kdna load requires installed activation and decrypts in memory',
   const install = run(['install', asset, '--yes'], { env });
   assert.ok(install.ok, `install failed: ${install.stderr}`);
 
-  const denied = run(['load', '@aikdna/writing_pro', '--as=json'], { env });
+  const denied = run(['load', '@aikdna/writing_pro'], { env });
   assert.equal(denied.code, 3);
   assert.match(denied.stderr, /KDNA license required/);
 
@@ -416,11 +413,10 @@ test('licensed .kdna load requires installed activation and decrypts in memory',
   assert.equal(inspectAllowedJson.license_required, false);
   assert.equal(inspectAllowedJson.content.axioms, 1);
 
-  const loaded = run(['load', '@aikdna/writing_pro', '--as=json'], { env });
+  const loaded = run(['load', '@aikdna/writing_pro'], { env });
   assert.ok(loaded.ok, `licensed load failed: ${loaded.stderr}`);
-  const parsed = JSON.parse(loaded.stdout);
-  assert.equal(parsed.core.axioms[0].id, 'licensed_axiom');
-  assert.equal(parsed.trust.license_id, 'lic_test_activation');
+  assert.match(loaded.stdout, /KDNA loaded: @aikdna\/writing_pro/);
+  assert.match(loaded.stdout, /Licensed judgment loads only after activation/);
 
   const traceDir = path.join(kdnaHome, 'traces');
   const traceFile = fs.readdirSync(traceDir).find((name) => name.endsWith('.jsonl'));
@@ -430,7 +426,7 @@ test('licensed .kdna load requires installed activation and decrypts in memory',
   assert.doesNotMatch(traceText, /KDNA-LIC-TEST-ACTIVATION/);
 
   const raw = run(['load', '@aikdna/writing_pro', '--as=raw'], { env });
-  assert.ok(raw.ok, `licensed raw load failed: ${raw.stderr}`);
-  assert.match(raw.stdout, /Licensed judgment loads only after activation/);
-  assert.doesNotMatch(raw.stdout, /ciphertext/);
+  assert.equal(raw.code, 2);
+  assert.match(raw.stderr, /ERR_RAW_LOAD_REMOVED/);
+  assert.doesNotMatch(raw.stdout + raw.stderr, /ciphertext|KDNA-LIC-TEST-ACTIVATION/);
 });
