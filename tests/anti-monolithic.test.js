@@ -131,7 +131,10 @@ test('large domain with module_manifest + substantive rationale: soft warning on
       'This domain intentionally keeps its three sub-tools as internal modules ' +
       'because they are not independently loadable and share a single highest question. ' +
       'Test sign-off: maintainer @test.';
-    fs.writeFileSync(path.join(dir, 'module_manifest.json'), JSON.stringify(makeManifest({ withRationale: true, rationaleText: rationale })));
+    fs.writeFileSync(
+      path.join(dir, 'module_manifest.json'),
+      JSON.stringify(makeManifest({ withRationale: true, rationaleText: rationale })),
+    );
     const result = runAntiMonolithicCheck(dir);
     assert.equal(result.summary.has_module_manifest, true);
     assert.equal(result.summary.has_decomposition_rationale, true);

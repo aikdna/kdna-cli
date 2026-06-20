@@ -26,9 +26,7 @@ function cmdDemo(args) {
   if (fs.existsSync(outDir)) {
     const existing = fs.readdirSync(outDir).filter((f) => f !== '.DS_Store');
     if (existing.length > 0 && !force) {
-      console.error(
-        `Target already exists and is not empty: ${outDir}`,
-      );
+      console.error(`Target already exists and is not empty: ${outDir}`);
       console.error('Use --force to overwrite.');
       process.exit(2);
     }

@@ -16,8 +16,13 @@ const path = require('path');
 let failures = 0;
 
 function check(name, fn) {
-  try { fn(); console.log(`  PASS ${name}`); }
-  catch (e) { failures += 1; console.error(`  FAIL ${name}: ${e.message}`); }
+  try {
+    fn();
+    console.log(`  PASS ${name}`);
+  } catch (e) {
+    failures += 1;
+    console.error(`  FAIL ${name}: ${e.message}`);
+  }
 }
 
 console.log('kdna-cli pretest smoke');

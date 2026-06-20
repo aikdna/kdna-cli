@@ -11,7 +11,13 @@ const core = require('@aikdna/kdna-core');
 
 const cliBin = path.join(__dirname, '..', 'src', 'cli.js');
 const fixture = path.join(__dirname, '..', 'fixtures', 'v1-minimal');
-const FORBIDDEN_TERMS = ['trusted', 'recommended', 'high_quality', 'officially_approved', 'quality_badge'];
+const FORBIDDEN_TERMS = [
+  'trusted',
+  'recommended',
+  'high_quality',
+  'officially_approved',
+  'quality_badge',
+];
 
 function runCli(args) {
   return spawnSync(process.execPath, [cliBin, ...args], {
@@ -64,7 +70,10 @@ test('kdna validate --runtime exits 3 when LoadPlan cannot load now', () => {
     const payload = JSON.parse(fs.readFileSync(payloadPath, 'utf8'));
     payload.core.axioms = [{ id: 'secret', one_sentence: secret }];
     fs.writeFileSync(payloadPath, JSON.stringify(payload, null, 2));
-    fs.writeFileSync(path.join(tmp, 'checksums.json'), JSON.stringify(core.buildChecksumsV1(tmp), null, 2));
+    fs.writeFileSync(
+      path.join(tmp, 'checksums.json'),
+      JSON.stringify(core.buildChecksumsV1(tmp), null, 2),
+    );
 
     const r = runCli(['validate', tmp, '--runtime']);
     assert.equal(r.status, 3, r.stderr);
@@ -112,7 +121,10 @@ test('kdna load refuses v1 assets when LoadPlan cannot load now', () => {
     const payload = JSON.parse(fs.readFileSync(payloadPath, 'utf8'));
     payload.core.axioms = [{ id: 'secret', one_sentence: secret }];
     fs.writeFileSync(payloadPath, JSON.stringify(payload, null, 2));
-    fs.writeFileSync(path.join(tmp, 'checksums.json'), JSON.stringify(core.buildChecksumsV1(tmp), null, 2));
+    fs.writeFileSync(
+      path.join(tmp, 'checksums.json'),
+      JSON.stringify(core.buildChecksumsV1(tmp), null, 2),
+    );
 
     const plan = runCli(['plan-load', tmp, '--json']);
     assert.equal(plan.status, 3, plan.stderr);
@@ -180,19 +192,31 @@ test('kdna validate on lineage-as-array exits non-zero', () => {
   const dir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'kdna-cli-la-'));
   try {
     fs.writeFileSync(path.join(dir, 'mimetype'), 'application/vnd.kdna.asset');
-    fs.writeFileSync(path.join(dir, 'kdna.json'), JSON.stringify({
-      kdna_version: '1.0', asset_id: 'kdna:test:lineage-arr',
-      asset_uid: 'urn:uuid:00000000-0000-4000-8000-000000000099',
-      asset_type: 'sample', title: 'test', version: '1.0.0', judgment_version: '1.0.0',
-      created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
-      creator: { name: 'Test' },
-      compatibility: { min_loader_version: '1.0.0', profile: 'judgment-profile-v1' },
-      payload: { path: 'payload.kdnab', encoding: 'json', encrypted: false },
-      lineage: [{ type: 'original' }],
-    }));
-    fs.writeFileSync(path.join(dir, 'payload.kdnab'), JSON.stringify({
-      profile: 'judgment-profile-v1', core: { highest_question: 'q', axioms: [] },
-    }));
+    fs.writeFileSync(
+      path.join(dir, 'kdna.json'),
+      JSON.stringify({
+        kdna_version: '1.0',
+        asset_id: 'kdna:test:lineage-arr',
+        asset_uid: 'urn:uuid:00000000-0000-4000-8000-000000000099',
+        asset_type: 'sample',
+        title: 'test',
+        version: '1.0.0',
+        judgment_version: '1.0.0',
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        creator: { name: 'Test' },
+        compatibility: { min_loader_version: '1.0.0', profile: 'judgment-profile-v1' },
+        payload: { path: 'payload.kdnab', encoding: 'json', encrypted: false },
+        lineage: [{ type: 'original' }],
+      }),
+    );
+    fs.writeFileSync(
+      path.join(dir, 'payload.kdnab'),
+      JSON.stringify({
+        profile: 'judgment-profile-v1',
+        core: { highest_question: 'q', axioms: [] },
+      }),
+    );
     const r = runCli(['validate', dir]);
     assert.notEqual(r.status, 0, 'lineage as array must be rejected');
   } finally {

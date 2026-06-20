@@ -9,7 +9,12 @@ const path = require('node:path');
 const zlib = require('node:zlib');
 const os = require('node:os');
 
-const { isV1SourceDir, detectContainerFormat, MIMETYPE_V1, MIMETYPE_V2 } = require('@aikdna/kdna-core');
+const {
+  isV1SourceDir,
+  detectContainerFormat,
+  MIMETYPE_V1,
+  MIMETYPE_V2,
+} = require('@aikdna/kdna-core');
 const cliBin = path.join(__dirname, '..', 'src', 'cli.js');
 
 function run(args) {
@@ -45,7 +50,17 @@ function makeLegacyV2Kdna(target) {
     'utf8',
   );
   files['KDNA_Core.json'] = Buffer.from(
-    JSON.stringify({ meta: { domain: 'legacy_v2', version: '0.1.0', created: '2026-01-01', purpose: 'test', load_condition: 'always' }, axioms: [{ id: 'a1', one_sentence: 'Test.' }], ontology: [] }),
+    JSON.stringify({
+      meta: {
+        domain: 'legacy_v2',
+        version: '0.1.0',
+        created: '2026-01-01',
+        purpose: 'test',
+        load_condition: 'always',
+      },
+      axioms: [{ id: 'a1', one_sentence: 'Test.' }],
+      ontology: [],
+    }),
     'utf8',
   );
 
@@ -154,7 +169,9 @@ test('detectContainerFormat on v1 fixture returns v1', () => {
   try {
     const v1dir = path.join(__dirname, '..', 'fixtures', 'v1-minimal');
     // Pack a v1 container
-    spawnSync(process.execPath, [cliBin, 'pack', v1dir, path.join(tmp, 'v1.kdna')], { stdio: 'ignore' });
+    spawnSync(process.execPath, [cliBin, 'pack', v1dir, path.join(tmp, 'v1.kdna')], {
+      stdio: 'ignore',
+    });
     assert.equal(detectContainerFormat(path.join(tmp, 'v1.kdna')), 'v1');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
@@ -189,7 +206,10 @@ test('CLI validate on legacy v2 .kdna is NOT routed to v1', () => {
     makeLegacyV2Kdna(file);
     const r = run(['validate', file]);
     // Must NOT produce v1 validate output (overall_valid/formAT_valid etc are v1-only)
-    assert.ok(!/overall_valid.*true/.test(r.stdout), 'v1 validate output must NOT appear for legacy v2');
+    assert.ok(
+      !/overall_valid.*true/.test(r.stdout),
+      'v1 validate output must NOT appear for legacy v2',
+    );
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -219,7 +239,12 @@ test('v1 inspect still works after legacy fallback additions', () => {
 });
 
 test('v1 load still works after legacy fallback additions', () => {
-  const r = run(['load', path.join(__dirname, '..', 'fixtures', 'v1-minimal'), '--profile=compact', '--as=json']);
+  const r = run([
+    'load',
+    path.join(__dirname, '..', 'fixtures', 'v1-minimal'),
+    '--profile=compact',
+    '--as=json',
+  ]);
   assert.equal(r.status, 0, r.stderr);
   const out = JSON.parse(r.stdout);
   assert.equal(out.profile, 'compact');
@@ -228,7 +253,13 @@ test('v1 load still works after legacy fallback additions', () => {
 
 // ── Forbidden terms in legacy fallback ─────────────────────────────
 
-const FORBIDDEN = ['trusted', 'recommended', 'high_quality', 'officially_approved', 'quality_badge'];
+const FORBIDDEN = [
+  'trusted',
+  'recommended',
+  'high_quality',
+  'officially_approved',
+  'quality_badge',
+];
 
 test('legacy v2 fallback output does not contain forbidden trust terms', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-legacy-'));
