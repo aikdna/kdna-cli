@@ -384,6 +384,24 @@ test('local .kdna install stores immutable asset and runtime loads from package 
   assert.equal(JSON.parse(packedInspect.stdout).format, 'kdna-zip');
 });
 
+test('kdna dev pack does not require Human Lock for dev-only bundles', () => {
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-dev-pack-unlocked-'));
+  const { source } = createAsset(tmpRoot);
+  const corePath = path.join(source, 'KDNA_Core.json');
+  const core = JSON.parse(fs.readFileSync(corePath, 'utf8'));
+  for (const axiom of core.axioms) {
+    axiom.status = 'draft';
+    delete axiom.human_lock;
+  }
+  writeJson(corePath, core);
+
+  const packedDir = path.join(tmpRoot, 'packed');
+  const devPack = run(['dev', 'pack', source, '--out', packedDir]);
+  assert.ok(devPack.ok, `dev pack should allow unlocked dev bundles: ${devPack.stderr}`);
+  assert.doesNotMatch(`${devPack.stdout || ''}${devPack.stderr || ''}`, /Human Lock Gate: BLOCKED/);
+  assert.ok(fs.existsSync(path.join(packedDir, 'writing.kdna')));
+});
+
 test('kdna publish rejects source directories and publishes existing .kdna assets', () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-publish-sign-'));
   const { source, asset } = createAsset(tmpRoot);
