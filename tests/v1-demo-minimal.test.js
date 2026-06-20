@@ -23,7 +23,9 @@ test('demo minimal creates fixture in empty dir', () => {
   assert.ok(fs.existsSync(path.join(target, 'payload.kdnab')));
   assert.ok(fs.existsSync(path.join(target, 'checksums.json')));
   assert.match(r.stdout, /Next:/);
-  assert.match(r.stdout, /kdna inspect/);
+  assert.match(r.stdout, new RegExp(`kdna pack\\s+${target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} ${target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.kdna`));
+  assert.match(r.stdout, new RegExp(`kdna inspect\\s+${target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.kdna`));
+  assert.doesNotMatch(r.stdout, new RegExp(`kdna inspect\\s+${target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`));
   assert.match(r.stdout, /kdna plan-load/);
   assert.match(r.stdout, /kdna load/);
   fs.rmSync(tmp, { recursive: true, force: true });
