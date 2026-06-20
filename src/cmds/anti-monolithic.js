@@ -38,7 +38,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const AXIOM_THRESHOLD = 6;     // SPEC §5.2 says "between 2 and 6 axioms"
+const AXIOM_THRESHOLD = 6; // SPEC §5.2 says "between 2 and 6 axioms"
 const FRAMEWORK_THRESHOLD = 3; // RFC-0013 §4 companion rule
 const RATIONALE_MIN_LENGTH = 30;
 
@@ -103,7 +103,11 @@ function runAntiMonolithicCheck(dir, opts = {}) {
     hasRationale = typeof rationale === 'string' && rationale.trim().length >= RATIONALE_MIN_LENGTH;
     result.summary.has_decomposition_rationale = hasRationale;
 
-    if (rationale && rationale.trim().length > 0 && rationale.trim().length < RATIONALE_MIN_LENGTH) {
+    if (
+      rationale &&
+      rationale.trim().length > 0 &&
+      rationale.trim().length < RATIONALE_MIN_LENGTH
+    ) {
       result.warnings.push(
         `module_manifest.json: decomposition_rationale is only ${rationale.trim().length} chars; ` +
           `minimum is ${RATIONALE_MIN_LENGTH} chars to count as a real sign-off.`,

@@ -29,11 +29,11 @@ incorrectly, assigns wrong priorities, applies wrong risk models, and
 offers wrong recommendations — all with the false confidence of having
 "loaded expert judgment."
 
-*No KDNA*: the agent uses model capability, tools, MCP, project files,
+_No KDNA_: the agent uses model capability, tools, MCP, project files,
 and normal prompts. It may lack domain-specific judgment, but it is
 not polluted by incorrect judgment.
 
-*Wrong KDNA*: the agent applies a mismatched framework — e.g., diagnosing
+_Wrong KDNA_: the agent applies a mismatched framework — e.g., diagnosing
 a website design task through a team management lens, or treating a
 price question as an editing issue. The output is worse than baseline.
 
@@ -152,15 +152,15 @@ what you'd produce if you loaded the domain? If yes, skip it.
 After evaluating against `applies_when`, `does_not_apply_when`, and
 `failure_risks`, classify into one of 7 states:
 
-| State | Condition | Action |
-|-------|-----------|--------|
-| **SKIP_NO_JUDGMENT_NEEDED** | Task is mechanical: format, translate, lookup, execute | Answer normally. Do not mention KDNA. |
-| **SKIP_NO_LOCAL_DOMAIN** | Task may need judgment, but no installed domain covers it | Answer normally. Only mention KDNA if user explicitly asks. |
-| **SKIP_WEAK_FIT** | A domain is weakly related but insufficiently matches | Answer normally. Trace notes "weak match, skipped." |
-| **REJECT_NEGATIVE_MATCH** | A domain's `does_not_apply_when` explicitly excludes this task | Block loading. Respect the author's boundary. |
-| **ASK_AMBIGUOUS_DOMAIN** | 2+ domains could apply but with different judgment frameworks | Ask user to choose. Do **not** silently blend. |
-| **LOAD_STRONG_FIT** | One local domain strongly matches and validates | Load it. |
-| **BLOCK_INTEGRITY_FAILED** | Domain matches but validation, checksum, parsing, or runtime loading fails | Block loading. Notify if appropriate. |
+| State                       | Condition                                                                  | Action                                                      |
+| --------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| **SKIP_NO_JUDGMENT_NEEDED** | Task is mechanical: format, translate, lookup, execute                     | Answer normally. Do not mention KDNA.                       |
+| **SKIP_NO_LOCAL_DOMAIN**    | Task may need judgment, but no installed domain covers it                  | Answer normally. Only mention KDNA if user explicitly asks. |
+| **SKIP_WEAK_FIT**           | A domain is weakly related but insufficiently matches                      | Answer normally. Trace notes "weak match, skipped."         |
+| **REJECT_NEGATIVE_MATCH**   | A domain's `does_not_apply_when` explicitly excludes this task             | Block loading. Respect the author's boundary.               |
+| **ASK_AMBIGUOUS_DOMAIN**    | 2+ domains could apply but with different judgment frameworks              | Ask user to choose. Do **not** silently blend.              |
+| **LOAD_STRONG_FIT**         | One local domain strongly matches and validates                            | Load it.                                                    |
+| **BLOCK_INTEGRITY_FAILED**  | Domain matches but validation, checksum, parsing, or runtime loading fails | Block loading. Notify if appropriate.                       |
 
 **Rule: Negative Match First.** Check `does_not_apply_when` before
 checking `applies_when`. A domain that says "not for visual design"
@@ -223,8 +223,8 @@ stages.
 You have now internalized the domain's judgment surface. From this
 point on:
 
-1. **Adopt the axioms as your reasoning frame** — reason *from*
-   them, not *around* them.
+1. **Adopt the axioms as your reasoning frame** — reason _from_
+   them, not _around_ them.
 2. **Honour the boundaries** — for each axiom you'd apply, confirm
    the task is in `applies_when` AND not in `does_not_apply_when`.
 3. **Pre-check failure_risk** — before producing output, ask:
@@ -259,14 +259,14 @@ KDNA does not override:
 
 ## Failure handling
 
-| Situation | What to do |
-|---|---|
-| `kdna` CLI not installed | Skip KDNA. Answer normally. Mention installation only if user asks about KDNA itself. |
-| No local v1 assets are found | No domains installed. Skip KDNA. |
-| `kdna plan-load <asset>` returns `can_load_now=false` | Do not load. Follow `required_action` and `issues[].code`. |
-| `kdna load <name>` exits non-zero | That domain is broken (validation, authorization, parse, or runtime loading failure). Try next candidate or skip KDNA. The error message tells you why. |
-| User explicitly asks for a domain that isn't installed | Tell them, suggest `kdna install <name>`. Do not fabricate the domain. |
-| Two domains' stances directly conflict on the task | Surface to user. Do not blend. |
+| Situation                                              | What to do                                                                                                                                              |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kdna` CLI not installed                               | Skip KDNA. Answer normally. Mention installation only if user asks about KDNA itself.                                                                   |
+| No local v1 assets are found                           | No domains installed. Skip KDNA.                                                                                                                        |
+| `kdna plan-load <asset>` returns `can_load_now=false`  | Do not load. Follow `required_action` and `issues[].code`.                                                                                              |
+| `kdna load <name>` exits non-zero                      | That domain is broken (validation, authorization, parse, or runtime loading failure). Try next candidate or skip KDNA. The error message tells you why. |
+| User explicitly asks for a domain that isn't installed | Tell them, suggest `kdna install <name>`. Do not fabricate the domain.                                                                                  |
+| Two domains' stances directly conflict on the task     | Surface to user. Do not blend.                                                                                                                          |
 
 ---
 

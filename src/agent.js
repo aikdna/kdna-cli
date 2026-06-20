@@ -306,9 +306,7 @@ function cmdMatch(taskText, args = []) {
       }
     }
     console.log('');
-    console.log(
-      'To load a domain: kdna load <name|file.kdna>',
-    );
+    console.log('To load a domain: kdna load <name|file.kdna>');
   }
 }
 

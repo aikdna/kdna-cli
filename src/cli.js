@@ -268,17 +268,33 @@ switch (cmd) {
   case 'validate': {
     const v1Target = args.filter((a) => !a.startsWith('--'))[1];
     if (v1Target) {
-      const { isV1SourceDir, detectContainerFormat, validate, pack, unpack, inspect } = require('@aikdna/kdna-core');
+      const {
+        isV1SourceDir,
+        detectContainerFormat,
+        validate,
+        pack,
+        unpack,
+        inspect,
+      } = require('@aikdna/kdna-core');
       const abs = require('node:path').resolve(v1Target);
       if (isV1SourceDir(abs) || detectContainerFormat(abs) === 'v1') {
         const runtimeMode = args.includes('--runtime');
         const result = validate(v1Target);
         if (runtimeMode) {
           const entitlementStatusIndex = args.indexOf('--entitlement-status');
-          const entitlementStatus = entitlementStatusIndex >= 0 ? args[entitlementStatusIndex + 1] : null;
-          const allowedEntitlementStatuses = new Set(['active', 'expired', 'revoked', 'offline_grace']);
+          const entitlementStatus =
+            entitlementStatusIndex >= 0 ? args[entitlementStatusIndex + 1] : null;
+          const allowedEntitlementStatuses = new Set([
+            'active',
+            'expired',
+            'revoked',
+            'offline_grace',
+          ]);
           if (entitlementStatusIndex >= 0 && !allowedEntitlementStatuses.has(entitlementStatus)) {
-            error('Invalid --entitlement-status. Use active, expired, revoked, or offline_grace.', EXIT.INPUT_ERROR);
+            error(
+              'Invalid --entitlement-status. Use active, expired, revoked, or offline_grace.',
+              EXIT.INPUT_ERROR,
+            );
           }
           const core = require('@aikdna/kdna-core');
           if (typeof core.planLoad !== 'function') {
@@ -294,7 +310,11 @@ switch (cmd) {
         }
         console.log(JSON.stringify(result, null, 2));
         if (!result.overall_valid) process.exit(1);
-        if (runtimeMode && result.runtime_load_plan && result.runtime_load_plan.can_load_now !== true) {
+        if (
+          runtimeMode &&
+          result.runtime_load_plan &&
+          result.runtime_load_plan.can_load_now !== true
+        ) {
           process.exit(result.runtime_load_plan.state === 'invalid' ? 1 : 3);
         }
         process.exit(0);
@@ -308,7 +328,11 @@ switch (cmd) {
   }
   case 'plan-load': {
     const v1Target = args.filter((a) => !a.startsWith('--'))[1];
-    if (!v1Target) error('Usage: kdna plan-load <path> [--json] [--has-password] [--entitlement-status <status>]', EXIT.INPUT_ERROR);
+    if (!v1Target)
+      error(
+        'Usage: kdna plan-load <path> [--json] [--has-password] [--entitlement-status <status>]',
+        EXIT.INPUT_ERROR,
+      );
     const core = require('@aikdna/kdna-core');
     const abs = require('node:path').resolve(v1Target);
     if (!(core.isV1SourceDir(abs) || core.detectContainerFormat(abs) === 'v1')) {
@@ -324,7 +348,10 @@ switch (cmd) {
     const entitlementStatus = entitlementStatusIndex >= 0 ? args[entitlementStatusIndex + 1] : null;
     const allowedEntitlementStatuses = new Set(['active', 'expired', 'revoked', 'offline_grace']);
     if (entitlementStatusIndex >= 0 && !allowedEntitlementStatuses.has(entitlementStatus)) {
-      error('Invalid --entitlement-status. Use active, expired, revoked, or offline_grace.', EXIT.INPUT_ERROR);
+      error(
+        'Invalid --entitlement-status. Use active, expired, revoked, or offline_grace.',
+        EXIT.INPUT_ERROR,
+      );
     }
     const plan = core.planLoad(v1Target, {
       hasPassword: args.includes('--has-password'),
@@ -337,7 +364,14 @@ switch (cmd) {
   case 'pack': {
     const v1Target = args.filter((a) => !a.startsWith('--'))[1];
     if (v1Target) {
-      const { isV1SourceDir, detectContainerFormat, validate, pack, unpack, inspect } = require('@aikdna/kdna-core');
+      const {
+        isV1SourceDir,
+        detectContainerFormat,
+        validate,
+        pack,
+        unpack,
+        inspect,
+      } = require('@aikdna/kdna-core');
       const abs = require('node:path').resolve(v1Target);
       if (isV1SourceDir(abs)) {
         const out = args.filter((a) => !a.startsWith('--'))[2];
@@ -361,7 +395,14 @@ switch (cmd) {
   case 'unpack': {
     const v1Target = args.filter((a) => !a.startsWith('--'))[1];
     if (v1Target) {
-      const { isV1SourceDir, detectContainerFormat, validate, pack, unpack, inspect } = require('@aikdna/kdna-core');
+      const {
+        isV1SourceDir,
+        detectContainerFormat,
+        validate,
+        pack,
+        unpack,
+        inspect,
+      } = require('@aikdna/kdna-core');
       const abs = require('node:path').resolve(v1Target);
       if (detectContainerFormat(abs) === 'v1') {
         const out = args.filter((a) => !a.startsWith('--'))[2];
@@ -440,7 +481,14 @@ switch (cmd) {
   case 'inspect': {
     const target = args.filter((a) => !a.startsWith('--'))[1];
     if (!target) error('Usage: kdna inspect <path> [--json] [--locale zh-CN]');
-    const { isV1SourceDir, detectContainerFormat, validate, pack, unpack, inspect } = require('@aikdna/kdna-core');
+    const {
+      isV1SourceDir,
+      detectContainerFormat,
+      validate,
+      pack,
+      unpack,
+      inspect,
+    } = require('@aikdna/kdna-core');
     const abs = require('node:path').resolve(target);
     if (isV1SourceDir(abs) || detectContainerFormat(abs) === 'v1') {
       const out = inspect(target);
@@ -511,20 +559,24 @@ switch (cmd) {
         const profile = getFlag('--profile') || 'compact';
         const as = getFlag('--as') || 'json';
         try {
-          const loadV1Authorized = core.loadAuthorized || ((input, options) => {
-            if (typeof core.planLoad !== 'function') {
-              throw new Error('LoadPlan API is required before loading KDNA Core v1 assets');
-            }
-            const plan = core.planLoad(input, options);
-            if (plan.can_load_now !== true) {
-              const err = new Error(
-                `LoadPlan denied loading: state=${plan.state || 'invalid'} required_action=${plan.required_action || 'block'}`,
-              );
-              err.code = (plan.issues && plan.issues[0] && plan.issues[0].code) || 'KDNA_LOAD_NOT_AUTHORIZED';
-              throw err;
-            }
-            return core.loadV1(input, options);
-          });
+          const loadV1Authorized =
+            core.loadAuthorized ||
+            ((input, options) => {
+              if (typeof core.planLoad !== 'function') {
+                throw new Error('LoadPlan API is required before loading KDNA Core v1 assets');
+              }
+              const plan = core.planLoad(input, options);
+              if (plan.can_load_now !== true) {
+                const err = new Error(
+                  `LoadPlan denied loading: state=${plan.state || 'invalid'} required_action=${plan.required_action || 'block'}`,
+                );
+                err.code =
+                  (plan.issues && plan.issues[0] && plan.issues[0].code) ||
+                  'KDNA_LOAD_NOT_AUTHORIZED';
+                throw err;
+              }
+              return core.loadV1(input, options);
+            });
           const r = loadV1Authorized(target, { profile, as });
           if (as === 'prompt') {
             process.stdout.write(r.text + '\n');

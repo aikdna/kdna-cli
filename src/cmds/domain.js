@@ -238,9 +238,7 @@ function cmdValidateAntiMonolithic(dir, opts = {}) {
   const amResults = [];
   if (schemaResult.cluster && Array.isArray(schemaResult.domains)) {
     for (const d of schemaResult.domains) {
-      amResults.push(
-        runAntiMonolithicCheckOnCore(d.path || abs, { strict }),
-      );
+      amResults.push(runAntiMonolithicCheckOnCore(d.path || abs, { strict }));
     }
   } else {
     amResults.push(runAntiMonolithicCheckOnCore(abs, { strict }));
