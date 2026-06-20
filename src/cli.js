@@ -98,6 +98,11 @@ Core v1:
 More:
   kdna help advanced                Agent runtime, setup, loading, comparison
   kdna help legacy                  Pre-v1 compatibility commands
+  Advanced index: doctor, trace, history, license, verify, compare, diff, search
+  verify  <name|file>               Legacy asset verification
+  compare <name|file> --input "..." Legacy comparison report
+  diff    <left> <right>             Legacy asset diff
+  search  <query>                    Search installed/available legacy entries
 
 Flags:
   --json                            Structured JSON output
@@ -327,6 +332,7 @@ switch (cmd) {
     });
     console.log(JSON.stringify(plan, null, 2));
     process.exit(plan.state === 'invalid' ? 1 : plan.can_load_now === true ? 0 : 3);
+    break;
   }
   case 'pack': {
     const v1Target = args.filter((a) => !a.startsWith('--'))[1];

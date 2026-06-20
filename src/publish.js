@@ -689,7 +689,7 @@ function cmdPublish(assetPath, args = []) {
 
   console.log('');
   console.log('─'.repeat(60));
-  console.log('Legacy registry patch (historical compatibility only):');
+  console.log('Legacy Registry patch (historical compatibility only):');
   console.log('─'.repeat(60));
   console.log(JSON.stringify(patch, null, 2));
   console.log('');
