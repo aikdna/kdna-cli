@@ -366,13 +366,13 @@ function cmdLockVerify(projectPath, args = []) {
           }
         }
       } else {
-        unlocked.push(label);
-        blocking.push(`${label} requires human lock`);
+            unlocked.push(label);
+            blocking.push(`${label} requires Studio review approval`);
       }
     }
   }
 
-  const publishable = blocking.length === 0 && locked.length > 0;
+  const exportReady = blocking.length === 0 && locked.length > 0;
 
   if (jsonMode) {
     console.log(
@@ -381,7 +381,7 @@ function cmdLockVerify(projectPath, args = []) {
           project: path.basename(abs),
           locked_cards: locked.length,
           unlocked_cards: unlocked.length,
-          publishable,
+          export_ready: exportReady,
           blocking,
           locked: locked.sort(),
           unlocked: unlocked.sort(),
@@ -390,14 +390,14 @@ function cmdLockVerify(projectPath, args = []) {
         2,
       ),
     );
-    process.exit(publishable ? EXIT.OK : EXIT.HUMAN_LOCK_REQUIRED);
+    process.exit(exportReady ? EXIT.OK : EXIT.HUMAN_LOCK_REQUIRED);
   }
 
-  console.log(`Lock status for: ${path.basename(abs)}`);
+  console.log(`Studio review status for: ${path.basename(abs)}`);
   console.log('');
-  console.log(`  Locked:   ${locked.length}`);
-  console.log(`  Unlocked: ${unlocked.length}`);
-  console.log(`  Publishable: ${publishable ? '✓ yes' : '✗ no'}`);
+  console.log(`  Approved: ${locked.length}`);
+  console.log(`  Pending:  ${unlocked.length}`);
+  console.log(`  Export ready: ${exportReady ? '✓ yes' : '✗ no'}`);
   console.log('');
 
   if (blocking.length) {
@@ -407,11 +407,11 @@ function cmdLockVerify(projectPath, args = []) {
   }
 
   if (locked.length) {
-    console.log('Locked cards:');
+    console.log('Approved cards:');
     locked.forEach((l) => console.log(`  ✓ ${l}`));
   }
 
-  process.exit(publishable ? EXIT.OK : EXIT.HUMAN_LOCK_REQUIRED);
+  process.exit(exportReady ? EXIT.OK : EXIT.HUMAN_LOCK_REQUIRED);
 }
 
 // ─── Studio Compile ───────────────────────────────────────────────────
@@ -577,20 +577,20 @@ function cmdStudioReadiness(projectPath, args = []) {
     self_checks: loadCardStats(project, path.dirname(abs), 'self_checks'),
     test_cases: 0,
     human_pass: '0/0',
-    publishable: false,
+    export_ready: false,
   };
 
-  // Determine publishability
+  // Determine Studio export readiness.
   const allTypes = Object.values(readiness).filter(
     (v) => v && typeof v === 'object' && 'total' in v,
   );
   let allLocked = allTypes.every((t) => t.total > 0 && t.total === t.locked);
   if (allTypes.length === 0) allLocked = false;
-  readiness.publishable = allLocked;
+  readiness.export_ready = allLocked;
 
   if (jsonMode) {
     console.log(JSON.stringify(readiness, null, 2));
-    process.exit(readiness.publishable ? EXIT.OK : EXIT.HUMAN_LOCK_REQUIRED);
+    process.exit(readiness.export_ready ? EXIT.OK : EXIT.HUMAN_LOCK_REQUIRED);
   }
 
   console.log(`Domain Readiness: ${project.name}`);
@@ -605,8 +605,8 @@ function cmdStudioReadiness(projectPath, args = []) {
   }
 
   console.log('');
-  console.log(`  Publishable: ${readiness.publishable ? '✓ yes' : '✗ no'}`);
-  process.exit(readiness.publishable ? EXIT.OK : EXIT.HUMAN_LOCK_REQUIRED);
+  console.log(`  Export ready: ${readiness.export_ready ? '✓ yes' : '✗ no'}`);
+  process.exit(readiness.export_ready ? EXIT.OK : EXIT.HUMAN_LOCK_REQUIRED);
 }
 
 function loadCardStats(project, projectDir, cardType) {

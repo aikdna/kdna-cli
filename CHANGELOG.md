@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.26.6 (2026-06-20)
+
+**First-run help cleanup**
+
+- Center Core v1 help on local `.kdna` files.
+- Describe pack/unpack as creator/debug views instead of a second public asset model.
+
+## v0.26.5 (2026-06-20)
+
+**Public CLI wording closure**
+
+- Move current help text to the local `.kdna` inspect/validate/plan-load/load path.
+- Reword `kdna init`, legacy publish checks, and removed Studio CLI guidance so they no longer present Human Lock, registry publishing, or "trusted" status as Core v1 format requirements.
+- Keep registry, install, publish, identity, and protected flows behind legacy / compatibility language.
+
+## v0.26.4 (2026-06-20)
+
+**Public wording alignment**
+
+- Clarify npm/package description around the current local `.kdna` runtime path.
+- Replace dev-pack "non-trusted" help wording with "diagnostic" wording.
+- Reword legacy publish provenance messages to avoid treating trust as a format layer.
+
 ## v0.19.2 (2026-05-29)
 
 **Publish output option compatibility**

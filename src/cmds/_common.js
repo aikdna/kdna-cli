@@ -49,69 +49,42 @@ function warn(...args) {
 }
 
 function usage() {
-  console.log(`kdna — KDNA domain cognition asset tool
+  console.log(`kdna — KDNA .kdna file tool
 
 Usage:
 
-  --- Dev source utilities (non-canonical) ---
+  --- Current Core v1 path ---
+  kdna inspect <file.kdna>      Inspect a local .kdna asset
+  kdna validate <file.kdna>     Validate a local .kdna asset
+  kdna plan-load <file.kdna>    Produce the required LoadPlan
+  kdna load <file.kdna> [--as=prompt|json|raw]   Load only when LoadPlan allows it
+
+  --- Dev source utilities (creator/debug path) ---
   kdna init <name>              Deprecated alias for kdna dev scaffold <name>
   kdna dev scaffold <name>      Scaffold a non-canonical dev source workspace
   kdna dev validate <path>      Validate a dev source directory
-  kdna dev pack <path>          Build a dev-only non-trusted .kdna bundle
+  kdna dev pack <path>          Build a dev-only diagnostic .kdna bundle
   kdna dev unpack <path>        Unpack .kdna into a dev source directory
   kdna dev inspect <path>       Inspect a dev source directory
   kdna dev card <path>          Display KDNA Card from a dev source directory
-  kdna inspect <file.kdna>      Inspect a .kdna asset
-  kdna publish <file.kdna>      Publish an existing Studio-compiled .kdna asset
-  kdna publish <file.kdna> --release-tag <tag> --repo <o/r>   ...also upload to GitHub
-  kdna publish --check <path>   Run dev source readiness checks only
   kdna version bump <patch|minor|major> [path]   Bump domain version
   kdna cluster lint <path>      Validate a cluster manifest
 
-  --- Domain consumers ---
-  kdna install <name>           Install official domain: @aikdna/<name>
-  kdna install @scope/name      Install any scoped domain
-  kdna install @aikdna/animation    Install a cluster (installs all sub-domains)
-  kdna install ./file.kdna      Install from a local .kdna file
-  kdna remove <name>            Uninstall a domain
-  kdna update <name>            Update an installed domain
-  kdna update --all             Update all installed domains
-  kdna info <name>              Show version, signature, governance, risks
-  kdna list                     List installed domains
-  kdna list --available         List available domains from registry
-  kdna search <keyword>         Search registry by name/keywords/insight
-  kdna registry refresh         Refresh the canonical registry cache
-
-  --- Quality + judgment ---
-  kdna verify <name|file.kdna>  Quality check: structure + trust + judgment
-  kdna compare <name|file.kdna> --input "<text>"   With/without KDNA reasoning diff
-  kdna diff <name>@<v1> <name>@<v2>      Judgment-level diff between versions
-
   --- Agent-facing (called by the kdna-loader skill) ---
-  kdna available [--json]                List installed domains + v2.1 fields
-  kdna match "<task>" [--json]           Hint signals (dropped + weak overlap)
-  kdna load <name|file.kdna> [--as=prompt|json|raw]   Emit asset in agent-ready format
-
-  --- Identity ---
-  kdna identity init            Generate Ed25519 identity key pair
-  kdna identity show            Display public key and buyer ID
-  kdna identity export [--out]  Backup private key (passphrase-encrypted)
-  kdna identity import <file>   Restore identity from backup
+  kdna available [--json]       List locally available assets
+  kdna match "<task>" [--json]  Hint signals for local assets
 
   --- Other ---
   kdna setup                    One-command setup: CLI + skill + data root
   kdna doctor [--agents] [--domains] [--json]   System health check
-  kdna trace [--json] [--since 7d] [--export <file>]  Agent judgment trace
-  kdna history [--stats] [--domain <name>] [--agent <name>]  Recent usage
   kdna version                  Show kdna CLI version
   kdna help                     Show this help
+  kdna help legacy              Show legacy / experimental commands
 
 Examples:
-  kdna install writing
-  kdna verify @aikdna/writing
-  kdna available
-  kdna dev scaffold my_domain
-  kdna publish ./dist/my_domain.kdna --release-tag v0.1.0 --repo yourname/kdna-my_domain`);
+  kdna validate example.kdna
+  kdna plan-load example.kdna
+  kdna load example.kdna --profile=compact --as=prompt`);
 }
 
 // Exit codes — semantic exit codes for all KDNA CLI commands

@@ -87,13 +87,13 @@ Start here:
   kdna demo minimal <dir>           Create a minimal KDNA Core v1 demo
 
 Core v1:
-  inspect  <path>                   Inspect v1 source dir or .kdna container
-  validate <path>                   Validate v1 source dir or .kdna container
+  inspect  <file.kdna>              Inspect a local v1 .kdna container
+  validate <file.kdna>              Validate a local v1 .kdna container
   validate <path> --runtime         Validate and require LoadPlan readiness
-  plan-load <path>                  Return a LoadPlan before runtime load
+  plan-load <file.kdna>             Return a LoadPlan before runtime load
                                   Add --has-password or --entitlement-status for diagnostics
-  pack     <src> <out>              Deterministic pack into .kdna container
-  unpack   <in>  <out>              Extract .kdna container
+  pack     <dev-source> <out>       Deterministic creator/debug pack into .kdna
+  unpack   <file.kdna> <out>        Extract .kdna into an editing/debug view
 
 More:
   kdna help advanced                Agent runtime, setup, loading, comparison
@@ -873,10 +873,10 @@ switch (cmd) {
   case 'studio': {
     error(
       'kdna studio has been removed from the runtime CLI.\n' +
-        'Trusted KDNA authoring belongs to the standalone Studio CLI:\n' +
+        'Studio project authoring belongs to the standalone Studio CLI:\n' +
         '  npm install -g @aikdna/kdna-studio-cli\n' +
         '  kdna-studio create <project>\n' +
-        '  kdna-studio export <project> --out <file.kdna> --sign',
+        '  kdna-studio export <project> --out <file.kdna>',
       EXIT.INPUT_ERROR,
     );
     break;
