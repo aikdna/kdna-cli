@@ -47,6 +47,38 @@ test('kdna validate v1 source dir reports overall_valid=true', () => {
   assert.deepEqual(out.problems, []);
 });
 
+test('kdna validate --runtime exits 3 when LoadPlan cannot load now', () => {
+  if (typeof core.planLoad !== 'function') return;
+  const tmp = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'kdna-cli-validate-runtime-'));
+  const secret = 'CLI_VALIDATE_RUNTIME_SECRET_SHOULD_NOT_LEAK';
+  try {
+    for (const name of fs.readdirSync(fixture)) {
+      fs.copyFileSync(path.join(fixture, name), path.join(tmp, name));
+    }
+    const manifestPath = path.join(tmp, 'kdna.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.access = 'remote';
+    manifest.runtime = { endpoint: 'https://runtime.example.test/v1/project' };
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+    const payloadPath = path.join(tmp, 'payload.kdnab');
+    const payload = JSON.parse(fs.readFileSync(payloadPath, 'utf8'));
+    payload.core.axioms = [{ id: 'secret', one_sentence: secret }];
+    fs.writeFileSync(payloadPath, JSON.stringify(payload, null, 2));
+    fs.writeFileSync(path.join(tmp, 'checksums.json'), JSON.stringify(core.buildChecksumsV1(tmp), null, 2));
+
+    const r = runCli(['validate', tmp, '--runtime']);
+    assert.equal(r.status, 3, r.stderr);
+    const out = JSON.parse(r.stdout);
+    assert.equal(out.overall_valid, true);
+    assert.equal(out.runtime_load_plan.state, 'needs_runtime');
+    assert.equal(out.runtime_load_plan.can_load_now, false);
+    assert.ok(!r.stdout.includes(secret));
+    assert.ok(!r.stderr.includes(secret));
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('kdna plan-load uses the Core LoadPlan API when available', () => {
   const r = runCli(['plan-load', fixture, '--json']);
   if (typeof core.planLoad !== 'function') {
@@ -61,6 +93,39 @@ test('kdna plan-load uses the Core LoadPlan API when available', () => {
   assert.equal(out.state, 'ready');
   assert.equal(out.required_action, 'load');
   assert.equal(out.can_load_now, true);
+});
+
+test('kdna load refuses v1 assets when LoadPlan cannot load now', () => {
+  if (typeof core.planLoad !== 'function') return;
+  const tmp = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'kdna-cli-load-denied-'));
+  const secret = 'CLI_SECRET_PAYLOAD_SHOULD_NOT_LEAK';
+  try {
+    for (const name of fs.readdirSync(fixture)) {
+      fs.copyFileSync(path.join(fixture, name), path.join(tmp, name));
+    }
+    const manifestPath = path.join(tmp, 'kdna.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.access = 'remote';
+    manifest.runtime = { endpoint: 'https://runtime.example.test/v1/project' };
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+    const payloadPath = path.join(tmp, 'payload.kdnab');
+    const payload = JSON.parse(fs.readFileSync(payloadPath, 'utf8'));
+    payload.core.axioms = [{ id: 'secret', one_sentence: secret }];
+    fs.writeFileSync(payloadPath, JSON.stringify(payload, null, 2));
+    fs.writeFileSync(path.join(tmp, 'checksums.json'), JSON.stringify(core.buildChecksumsV1(tmp), null, 2));
+
+    const plan = runCli(['plan-load', tmp, '--json']);
+    assert.equal(plan.status, 3, plan.stderr);
+    assert.equal(JSON.parse(plan.stdout).can_load_now, false);
+
+    const loaded = runCli(['load', tmp, '--profile=compact', '--as=prompt']);
+    assert.notEqual(loaded.status, 0, 'load must be denied by LoadPlan');
+    assert.match(loaded.stderr, /LoadPlan denied loading/);
+    assert.ok(!loaded.stdout.includes(secret));
+    assert.ok(!loaded.stderr.includes(secret));
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 });
 
 test('kdna pack produces deterministic container', () => {
