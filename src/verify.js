@@ -20,6 +20,7 @@ const path = require('path');
 const { RegistryResolver, parseName, registryTrustIssues, isEntryRevoked } = require('./registry');
 const { EXIT, isYesNoSelfCheck } = require('./cmds/_common');
 const { licenseDecryptOptionsForManifest } = require('./cmds/license');
+const { validateAuthoringProvenance } = require('./publish');
 
 const {
   getInstalled,
@@ -515,71 +516,24 @@ function checkJudgment(input, options = {}) {
   };
   const badge = manifest?.quality_badge || 'untested';
   const highTrust = (badgeRank[badge] || 0) >= badgeRank.tested;
-  const authoring = manifest?.authoring;
-  const studioCompatible = new Set([
-    'kdna-studio',
-    'kdna-studio-cli',
-    'kdna-studio-sdk',
-    'third-party-studio-compatible',
-  ]);
   if (highTrust) {
-    if (!authoring) {
-      score.max += 2;
+    const provenanceIssues = validateAuthoringProvenance(manifest || {});
+    score.max += 1;
+    if (provenanceIssues.length) {
       issues.push({
         severity: 'error',
-        msg: `quality_badge ${badge} requires authoring provenance`,
+        msg: `quality_badge ${badge} authoring provenance gate failed: ${provenanceIssues.join('; ')}`,
       });
     } else {
-      const okSource = studioCompatible.has(authoring.created_by);
-      bump(1, okSource ? 1 : 0, `authoring.created_by: ${authoring.created_by || '?'}`);
-      if (!okSource) {
-        issues.push({
-          severity: 'error',
-          msg: 'trusted quality requires Studio-compatible authoring.created_by',
-        });
-      }
-      const hasCompiler = !!(
-        authoring.compiler &&
-        authoring.compiler_version &&
-        authoring.compiled_at
-      );
-      bump(1, hasCompiler ? 1 : 0, 'authoring compiler metadata present');
-      if (!hasCompiler) {
-        issues.push({
-          severity: 'error',
-          msg: 'trusted quality requires compiler, compiler_version, and compiled_at',
-        });
-      }
-      const hasIdentity = [
-        'asset_uid',
-        'project_uid',
-        'build_id',
-        'domain_id',
-        'content_digest',
-      ].every((field) => !!(authoring[field] || manifest[field]));
-      bump(1, hasIdentity ? 1 : 0, 'authoring asset identity present');
-      if (!hasIdentity) {
-        issues.push({
-          severity: 'error',
-          msg: 'trusted quality requires asset_uid, project_uid, build_id, domain_id, and content_digest',
-        });
-      }
-      const humanConfirmed =
-        authoring.human_confirmed === true && Number(authoring.human_lock_count) > 0;
-      bump(1, humanConfirmed ? 1 : 0, `Human Lock provenance (${authoring.human_lock_count || 0})`);
-      if (!humanConfirmed) {
-        issues.push({
-          severity: 'error',
-          msg: 'trusted quality requires human_confirmed=true and human_lock_count > 0',
-        });
-      }
+      score.total += 1;
+      passed.push('✓ authoring provenance satisfies trusted quality gate');
     }
-  } else if (!authoring) {
+  } else if (!manifest?.authoring) {
     issues.push({
       severity: 'warn',
       msg: 'authoring provenance missing; asset cannot be promoted above untested',
     });
-  } else if (authoring.created_by === 'manual-dev-source') {
+  } else if (manifest.authoring.created_by === 'manual-dev-source') {
     passed.push('authoring provenance: manual-dev-source (untested ceiling)');
   }
 

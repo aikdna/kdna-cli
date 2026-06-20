@@ -723,7 +723,9 @@ function validateAuthoringProvenance(manifest) {
   if (highTrust) {
     const conformance = authoring.conformance;
     if (!conformance || !conformance.passed) {
-      issues.push(`quality_badge "${badge}" requires conformance validation (authoring.conformance.passed = true)`);
+      issues.push(
+        `quality_badge "${badge}" requires conformance validation (authoring.conformance.passed = true)`,
+      );
     }
     if (!conformance || !conformance.spec_version) {
       issues.push('trusted assets require authoring.conformance.spec_version');
