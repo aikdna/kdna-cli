@@ -710,12 +710,6 @@ function validateAuthoringProvenance(manifest) {
   const badge = manifest.quality_badge || 'untested';
   const highTrust = (badgeRank[badge] || 0) >= badgeRank.tested;
   const authoring = manifest.authoring;
-  const studioCompatible = new Set([
-    'kdna-studio',
-    'kdna-studio-cli',
-    'kdna-studio-sdk',
-    'third-party-studio-compatible',
-  ]);
 
   if (!authoring) {
     if (highTrust) issues.push(`quality_badge "${badge}" requires authoring provenance`);
@@ -724,8 +718,16 @@ function validateAuthoringProvenance(manifest) {
   if (authoring.created_by === 'manual-dev-source' && highTrust) {
     issues.push('manual-dev-source assets cannot claim tested or higher quality');
   }
-  if (highTrust && !studioCompatible.has(authoring.created_by)) {
-    issues.push(`quality_badge "${badge}" requires Studio-compatible created_by`);
+  // Conformance-based check: any tool that passes the official validator is compatible.
+  // The authoring.conformance block records validator identity and pass status.
+  if (highTrust) {
+    const conformance = authoring.conformance;
+    if (!conformance || !conformance.passed) {
+      issues.push(`quality_badge "${badge}" requires conformance validation (authoring.conformance.passed = true)`);
+    }
+    if (!conformance || !conformance.spec_version) {
+      issues.push('trusted assets require authoring.conformance.spec_version');
+    }
   }
   if (highTrust && !authoring.compiler) issues.push('trusted assets require authoring.compiler');
   if (highTrust && !authoring.compiler_version) {
