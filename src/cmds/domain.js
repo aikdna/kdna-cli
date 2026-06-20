@@ -314,21 +314,9 @@ function cmdPack(dir, outputDir) {
   if (!core) error('KDNA_Core.json not found or invalid');
   if (!pat) error('KDNA_Patterns.json not found or invalid');
 
-  console.warn('Warning: kdna dev pack creates a dev-only non-trusted .kdna bundle.');
-  console.warn('Use KDNA Studio compile/export to create a trusted canonical .kdna asset.');
-
-  // Human Lock Gate — check judgment-class cards before packing
-  const { checkHumanLock } = require('../publish');
-  const hl = checkHumanLock(abs);
-  if (!hl.passed) {
-    console.error('Human Lock Gate: BLOCKED');
-    for (const issue of hl.issues) {
-      console.error(`  ✗ ${issue}`);
-    }
-    console.error('Judgment-class cards must be locked with valid Human Lock before packing.');
-    console.error('Use kdna publish --check for details.');
-    process.exit(EXIT.HUMAN_LOCK_REQUIRED);
-  }
+  console.warn('Warning: kdna dev pack creates a dev-only .kdna bundle.');
+  console.warn('Use KDNA Studio compile/export for release-grade authoring evidence.');
+  console.warn('Human Lock is optional provenance and is not required for format validity.');
 
   const domainName = core.meta?.domain || path.basename(abs);
 
