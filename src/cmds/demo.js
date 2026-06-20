@@ -49,9 +49,8 @@ function cmdDemo(args) {
   for (const f of copied) process.stdout.write(`  ${f}\n`);
   process.stdout.write(`\nMinimal KDNA Core v1 demo created at: ${outDir}\n\n`);
   process.stdout.write('Next:\n');
-  process.stdout.write(`  kdna inspect  ${dest}\n`);
-  process.stdout.write(`  kdna validate ${dest}\n`);
   process.stdout.write(`  kdna pack     ${dest} ${dest}.kdna\n`);
+  process.stdout.write(`  kdna inspect  ${dest}.kdna\n`);
   process.stdout.write(`  kdna validate ${dest}.kdna\n`);
   process.stdout.write(`  kdna plan-load ${dest}.kdna\n`);
   process.stdout.write(`  kdna load     ${dest}.kdna --profile=compact --as=prompt\n`);
