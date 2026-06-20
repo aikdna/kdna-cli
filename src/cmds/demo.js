@@ -52,6 +52,9 @@ function cmdDemo(args) {
   process.stdout.write(`  kdna inspect  ${dest}\n`);
   process.stdout.write(`  kdna validate ${dest}\n`);
   process.stdout.write(`  kdna pack     ${dest} ${dest}.kdna\n`);
+  process.stdout.write(`  kdna validate ${dest}.kdna\n`);
+  process.stdout.write(`  kdna plan-load ${dest}.kdna\n`);
+  process.stdout.write(`  kdna load     ${dest}.kdna --profile=compact --as=prompt\n`);
 }
 
 module.exports = { cmdDemo };

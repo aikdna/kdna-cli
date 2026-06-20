@@ -24,6 +24,8 @@ test('demo minimal creates fixture in empty dir', () => {
   assert.ok(fs.existsSync(path.join(target, 'checksums.json')));
   assert.match(r.stdout, /Next:/);
   assert.match(r.stdout, /kdna inspect/);
+  assert.match(r.stdout, /kdna plan-load/);
+  assert.match(r.stdout, /kdna load/);
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
