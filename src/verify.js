@@ -506,7 +506,7 @@ function checkJudgment(input, options = {}) {
     issues.push({ severity: 'error', msg: 'kdna.json missing required field: judgment_version' });
   }
 
-  // 7. Authoring provenance gate for trusted quality claims.
+  // 7. Authoring provenance gate for reviewed quality claims.
   const badgeRank = {
     untested: 0,
     tested: 1,
@@ -526,7 +526,7 @@ function checkJudgment(input, options = {}) {
       });
     } else {
       score.total += 1;
-      passed.push('✓ authoring provenance satisfies trusted quality gate');
+      passed.push('✓ authoring provenance satisfies reviewed quality gate');
     }
   } else if (!manifest?.authoring) {
     issues.push({
