@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.26.8 (2026-06-20)
+
+**Release wording cleanup**
+
+- Reword dev-pack and install output so local `.kdna` validity is not described
+  as "trusted" or "registry-trusted".
+- Describe signature/provenance checks as verification evidence rather than
+  content endorsement.
+
 ## v0.26.6 (2026-06-20)
 
 **First-run help cleanup**

@@ -561,16 +561,16 @@ function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false) 
     }
   }
 
-  // --trusted mode: signature must be present and verified
+  // Legacy --trusted mode: signature/provenance evidence must be present and verified.
   if (trusted && trustLevel.issues.length > 0) {
     const reasons = trustLevel.issues.map((i) => `  - ${i}`).join('\n');
     error(
-      `Trust verification failed for local .kdna asset:\n${reasons}\n\n` +
+      `Signature/provenance verification failed for local .kdna asset:\n${reasons}\n\n` +
         `Use 'kdna install <file.kdna>' without --trusted to install anyway (unverified local asset).`,
       EXIT.TRUST_FAILED,
     );
   }
-  // Signature is required for --trusted mode
+  // Signature is required for legacy --trusted mode.
   if (trusted && !manifest.signature) {
     error(
       '--trusted requires a signed .kdna asset. This asset has no signature.\n' +
@@ -578,7 +578,7 @@ function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false) 
       EXIT.TRUST_FAILED,
     );
   }
-  // For tested+ quality_badge, require Studio-compatible authoring provenance
+  // For tested+ quality_badge, require Studio-compatible authoring provenance.
   const highTrustBadges = new Set(['tested', 'validated', 'expert_reviewed', 'production_ready']);
   if (
     trusted &&
@@ -594,9 +594,9 @@ function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false) 
 
   if (!jsonMode) {
     if (trustLevel.label === 'local_signature_verified') {
-      console.log(`  Trust: ${trustLevel.label}`);
+      console.log(`  Verification: ${trustLevel.label}`);
     } else {
-      console.warn(`  Trust: ${trustLevel.label} — ${trustLevel.issues.join('; ')}`);
+      console.warn(`  Verification: ${trustLevel.label} — ${trustLevel.issues.join('; ')}`);
     }
   }
 

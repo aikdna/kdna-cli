@@ -431,7 +431,7 @@ with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
   console.log(`  Domain: ${domainName} v${manifest.version}`);
   console.log(`  Files: ${fileCount} KDNA JSONs`);
   console.log(`  Container: ZIP (DEFLATE)`);
-  console.log(`  Trust: dev-only bundle; not registry-trusted`);
+  console.log(`  Provenance: dev-only bundle; not release-reviewed`);
 }
 
 // #22: Node.js-native ZIP creator (zero dependencies, fallback when python3/zip unavailable)
