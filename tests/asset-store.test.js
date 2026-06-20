@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const { encryptLicensedEntry } = require('@aikdna/kdna-core');
 const { machineFingerprint } = require('../src/cmds/license');
+const { validateAuthoringProvenance } = require('../src/publish');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 
@@ -210,6 +211,50 @@ with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
   execFileSync('python3', ['-c', script], { stdio: 'pipe' });
   return { asset, licenseKey, fingerprint };
 }
+
+function trustedAuthoringManifest(overrides = {}) {
+  const { authoring: authoringOverrides = {}, ...manifestOverrides } = overrides;
+  return {
+    quality_badge: 'tested',
+    authoring: {
+      created_by: 'community-studio',
+      compiler: '@example/kdna-studio',
+      compiler_version: '1.0.0',
+      compiled_at: '2026-06-20T00:00:00.000Z',
+      conformance: {
+        passed: true,
+        spec_version: '1.0',
+      },
+      asset_uid: 'urn:uuid:00000000-0000-4000-8000-000000000001',
+      project_uid: 'project-001',
+      build_id: 'build-001',
+      domain_id: '@example/domain',
+      content_digest: `sha256:${'a'.repeat(64)}`,
+      human_confirmed: true,
+      human_lock_count: 1,
+      ...authoringOverrides,
+    },
+    ...manifestOverrides,
+  };
+}
+
+test('trusted authoring gate accepts conformance metadata instead of a created_by whitelist', () => {
+  const issues = validateAuthoringProvenance(trustedAuthoringManifest());
+  assert.deepEqual(issues, []);
+});
+
+test('trusted authoring gate rejects missing conformance metadata', () => {
+  const manifest = trustedAuthoringManifest({
+    authoring: {
+      conformance: undefined,
+    },
+  });
+  const issues = validateAuthoringProvenance(manifest);
+  assert.ok(
+    issues.some((issue) => issue.includes('authoring.conformance.passed')),
+    `expected conformance failure, got ${issues.join('; ')}`,
+  );
+});
 
 test('local .kdna install stores immutable asset and runtime loads from package index', () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-asset-store-'));
