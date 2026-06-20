@@ -64,11 +64,11 @@ function cmdInit(name, options = {}) {
   }
   console.log(`✓ Created non-canonical KDNA dev source workspace: ${targetDir}/`);
   console.log(`  Files: KDNA_Core.json, KDNA_Patterns.json, kdna.json, tests/before-after.json`);
-  console.log('  This workspace is not a trusted KDNA asset.');
-  console.log('  To create a trusted .kdna asset, use KDNA Studio compile/export.');
+  console.log('  This workspace is an authoring/editing view, not a public KDNA asset.');
+  console.log('  To create a runtime .kdna file, export through KDNA Studio or kdna dev pack.');
 
   // Run structural validation (lint + schema only). Content quality checks
-  // are for publish time, not scaffold time — the template contains placeholders
+  // are for release-evidence time, not scaffold time — the template contains placeholders
   // marked [TODO] that the author is expected to replace.
   try {
     const { execSync } = require('child_process');
@@ -100,8 +100,8 @@ function cmdInit(name, options = {}) {
   );
   console.log(`  3. Edit ${targetDir}/kdna.json — set author, description, repo`);
   console.log(`  4. Run: kdna dev validate ${name}           (structural check)`);
-  console.log(`  5. Run: kdna publish --check ${name}         (dev readiness check only)`);
-  console.log(`  6. Use KDNA Studio to Human Lock, compile, and export a trusted .kdna asset`);
+  console.log(`  5. Run: kdna dev pack ${name} --out dist/${name}.kdna`);
+  console.log(`  6. Run: kdna validate dist/${name}.kdna && kdna plan-load dist/${name}.kdna`);
 }
 
 /**

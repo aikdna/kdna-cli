@@ -175,17 +175,17 @@ function checkHumanLock(domainPath) {
   if (cards.length === 0) return { passed: true, issues: [] };
 
   for (const card of cards) {
-    // Rule 1: Must be locked
+    // Rule 1: Legacy publish evidence requires Studio approval.
     if (!card.status || !['locked', 'tested', 'published'].includes(card.status)) {
-      issues.push(`${card.type} "${card.id}" is not locked. Human Lock required before publish.`);
+      issues.push(`${card.type} "${card.id}" is not approved for legacy publish evidence.`);
       continue;
     }
-    // Rule 2: Must have human_lock record
+    // Rule 2: Legacy publish evidence requires a human_lock record.
     if (!card.human_lock || !card.human_lock.by || !card.human_lock.statement) {
       issues.push(`${card.type} "${card.id}" is locked but has no valid Human Lock record.`);
       continue;
     }
-    // Rule 3: Lock must confirm judgment fields were reviewed
+    // Rule 3: Legacy Human Lock evidence must confirm judgment fields were reviewed.
     const checked = card.human_lock.checked || {};
     if (!checked.applies_when) {
       issues.push(
@@ -218,32 +218,35 @@ function cmdPublishCheck(domainPath, args = []) {
   console.log('═'.repeat(60));
   console.log('');
 
-  // ─── Human Lock Gate (must pass before any other checks) ──────────
+  // ─── Legacy Human Lock evidence gate ──────────────────────────────
   const hl = checkHumanLock(abs);
   if (!hl.passed) {
     if (args.includes('--force')) {
-      console.warn('  ⚠  Human Lock Gate: OVERRIDDEN (--force). Proceeding with checks.');
-      console.warn(`     ${hl.issues.length} unresolved Human Lock issue(s):`);
+      console.warn('  ⚠  Legacy publish evidence gate: OVERRIDDEN (--force). Proceeding with checks.');
+      console.warn(`     ${hl.issues.length} unresolved publish-evidence issue(s):`);
       for (const issue of hl.issues) {
         console.warn(`       ${issue}`);
       }
       console.warn('');
     } else {
-      console.error('  Human Lock Gate: BLOCKED');
+      console.error('  Legacy publish evidence gate: BLOCKED');
       console.error(`  ${hl.issues.length} issue(s) found:`);
       for (const issue of hl.issues) {
         console.error(`    ✗ ${issue}`);
       }
       console.error('');
-      console.error('  Judgment-class cards (axiom, boundary, risk, aesthetic)');
-      console.error('  must be locked with a valid Human Lock record before publishing.');
-      console.error('  Use kdna-studio or manually add human_lock to each card.');
+      console.error('  This legacy publish check expects reviewed judgment-class cards');
+      console.error('  with Human Lock records as release evidence. This is not a');
+      console.error('  KDNA Core v1 format-validity requirement.');
+      console.error('  For current public consumption, export a .kdna file and run:');
+      console.error('    kdna validate <file.kdna>');
+      console.error('    kdna plan-load <file.kdna>');
       console.error('  Use --force for emergency override (audited).');
       console.error('');
       process.exit(EXIT.HUMAN_LOCK_REQUIRED);
     }
   } else {
-    console.log('  ✓ Human Lock Gate: passed');
+    console.log('  ✓ Legacy publish evidence gate: passed');
     console.log('');
   }
 
@@ -607,15 +610,15 @@ function publicKeyToScopeFormat(publicKeyPem) {
  * kdna publish <file.kdna> — Publish an existing Studio-compiled asset.
  *
  * Publishing no longer packs arbitrary source directories. Source directories
- * are non-canonical dev workspaces; trusted assets come from Studio-compatible
- * compile/export pipelines.
+ * are non-canonical dev workspaces; release-evidence assets come from
+ * Studio-compatible compile/export pipelines.
  */
 function cmdPublish(assetPath, args = []) {
   const abs = path.resolve(assetPath);
   if (!fs.existsSync(abs)) error(`Path not found: ${abs}`, EXIT.INPUT_ERROR);
   if (fs.statSync(abs).isDirectory()) {
     error(
-      'kdna publish only accepts existing .kdna assets. Source directories are non-canonical; use KDNA Studio compile/export, then run kdna publish <file.kdna>.',
+      'kdna publish only accepts existing .kdna assets. Source directories are non-canonical; use KDNA Studio compile/export, then run kdna publish <file.kdna> for legacy publish compatibility.',
       EXIT.INPUT_ERROR,
     );
   }
@@ -728,28 +731,28 @@ function validateAuthoringProvenance(manifest) {
       );
     }
     if (!conformance || !conformance.spec_version) {
-      issues.push('trusted assets require authoring.conformance.spec_version');
+      issues.push('release-evidence assets require authoring.conformance.spec_version');
     }
   }
-  if (highTrust && !authoring.compiler) issues.push('trusted assets require authoring.compiler');
+  if (highTrust && !authoring.compiler) issues.push('release-evidence assets require authoring.compiler');
   if (highTrust && !authoring.compiler_version) {
-    issues.push('trusted assets require authoring.compiler_version');
+    issues.push('release-evidence assets require authoring.compiler_version');
   }
   if (highTrust && !authoring.compiled_at)
-    issues.push('trusted assets require authoring.compiled_at');
+    issues.push('release-evidence assets require authoring.compiled_at');
   for (const field of ['asset_uid', 'project_uid', 'build_id', 'domain_id', 'content_digest']) {
     if (highTrust && !authoring[field] && !manifest[field]) {
-      issues.push(`trusted assets require ${field} in authoring provenance or manifest`);
+      issues.push(`release-evidence assets require ${field} in authoring provenance or manifest`);
     }
   }
   if (highTrust && authoring.human_confirmed !== true) {
-    issues.push('trusted assets require authoring.human_confirmed = true');
+    issues.push('release-evidence assets require authoring.human_confirmed = true');
   }
   if (highTrust && !Number.isInteger(authoring.human_lock_count)) {
-    issues.push('trusted assets require authoring.human_lock_count');
+    issues.push('release-evidence assets require authoring.human_lock_count');
   }
   if (highTrust && Number.isInteger(authoring.human_lock_count) && authoring.human_lock_count < 1) {
-    issues.push('trusted assets require at least one Human Lock');
+    issues.push('release-evidence assets require at least one Human Lock when that claim is made');
   }
   return issues;
 }
