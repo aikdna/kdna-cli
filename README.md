@@ -8,13 +8,8 @@ KDNA CLI inspects, validates, packs, unpacks, and loads `.kdna` files. It is
 the consumer/runtime side of the official KDNA toolchain. Formal authoring is
 handled by KDNA Studio CLI and Studio Core.
 
-KDNA Core v1 does not require a public registry, marketplace, quality badge, or
-signature system. The current first-run path uses local `.kdna` files.
-
-Authorization and runtime-load decisions are defined in `aikdna/kdna`, not in
-this repository. `kdna plan-load` is the CLI diagnostic surface for that
-contract and MUST call the LoadPlan API from `@aikdna/kdna-core` instead of
-deriving authorization state directly from manifest fields.
+Start with one local `.kdna` file: validate it, plan loading, and render
+agent-ready judgment context from your terminal.
 
 ## Install
 
@@ -28,10 +23,9 @@ npm install -g @aikdna/kdna-cli
 kdna demo minimal ./minimal
 kdna inspect ./minimal
 kdna validate ./minimal
-kdna plan-load ./minimal --json
 kdna pack ./minimal ./minimal.kdna
-kdna validate ./minimal.kdna --runtime
-kdna plan-load ./minimal.kdna --json
+kdna validate ./minimal.kdna
+kdna plan-load ./minimal.kdna
 kdna load ./minimal.kdna --profile=compact --as=prompt
 ```
 
@@ -115,6 +109,11 @@ The source of truth is `aikdna/kdna`:
 This CLI is a diagnostic control plane. It may display, validate, and transport
 LoadPlan results, but it must not define access modes, entitlement profiles,
 issue codes, crypto profiles, or fail-closed policy independently.
+
+The local packaged `.kdna` beta path is intentionally simple: validate the
+file, inspect the LoadPlan, and load only when the plan says it is loadable.
+Additional trust or distribution layers are handled outside this first-run
+path.
 
 Current local authorization path:
 
