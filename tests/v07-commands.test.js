@@ -128,13 +128,22 @@ function writeOldRegistryHome() {
 
 // ─── kdna help ─────────────────────────────────────────────────────────
 
-test('kdna help mentions v0.7+ commands', () => {
+test('kdna help keeps legacy commands out of the first-run surface', () => {
   const r = run(['help']);
   assert.ok(r.ok, `help failed: ${r.stderr}`);
-  assert.match(r.stdout, /^\s+verify /m);
-  assert.match(r.stdout, /^\s+compare /m);
-  assert.match(r.stdout, /^\s+diff /m);
-  assert.match(r.stdout, /^\s+search /m);
+  assert.doesNotMatch(r.stdout, /^\s+verify /m);
+  assert.doesNotMatch(r.stdout, /^\s+compare /m);
+  assert.doesNotMatch(r.stdout, /^\s+diff /m);
+  assert.doesNotMatch(r.stdout, /^\s+search /m);
+});
+
+test('kdna help legacy still documents compatibility commands', () => {
+  const r = run(['help', 'legacy']);
+  assert.ok(r.ok, `help legacy failed: ${r.stderr}`);
+  assert.match(r.stdout, /\bverify\b/);
+  assert.match(r.stdout, /\bcompare\b/);
+  assert.match(r.stdout, /\bdiff\b/);
+  assert.match(r.stdout, /\bsearch\b/);
 });
 
 test('kdna project reports it was removed (v0.9)', () => {
