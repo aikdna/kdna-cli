@@ -148,7 +148,7 @@ async function cmdSetup() {
       console.log('');
       warn(`Ignoring ${legacy.length} legacy domain director${legacy.length > 1 ? 'ies' : 'y'}.`);
       console.log('  Runtime assets now live under ~/.kdna/packages/ as .kdna files.');
-      console.log('  Re-install with: kdna install @aikdna/<name>');
+      console.log('  Start with a packaged local .kdna file and validate it before loading.');
       console.log('');
     }
   }
@@ -184,12 +184,12 @@ async function cmdSetup() {
   console.log('Setup complete. KDNA is ready.');
   console.log('');
   console.log('Next steps:');
-  console.log('  1. Install a domain:    kdna install @aikdna/writing');
-  console.log('  2. Verify it:           kdna verify @aikdna/writing');
-  console.log('  3. Browse the registry: kdna list --available');
-  console.log('  4. In your agent, ask any judgment-related question.');
-  console.log('     The kdna-loader skill will discover installed domains');
-  console.log('     and apply them silently when relevant.');
+  console.log('  1. Create a local demo: kdna demo minimal ./minimal');
+  console.log('  2. Package it:          kdna pack ./minimal ./minimal.kdna');
+  console.log('  3. Validate and plan:   kdna validate ./minimal.kdna && kdna plan-load ./minimal.kdna');
+  console.log('  4. Load context:        kdna load ./minimal.kdna --profile=compact --as=prompt');
+  console.log('  5. In your agent, ask a judgment-related question.');
+  console.log('     The kdna-loader skill should use local .kdna files only when relevant.');
   console.log('');
 }
 

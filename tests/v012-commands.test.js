@@ -68,24 +68,24 @@ function ensureIdentity(env) {
 
 // ─── kdna help — v0.12+ commands ──────────────────────────────────────
 
-test('help mentions doctor', () => {
-  const r = run(['help']);
+test('legacy help mentions doctor', () => {
+  const r = run(['help', 'legacy']);
   assert.ok(r.ok, `help failed: ${r.stderr}`);
   assert.match(r.stdout, /doctor/);
 });
 
-test('help mentions trace', () => {
-  const r = run(['help']);
+test('legacy help mentions trace', () => {
+  const r = run(['help', 'legacy']);
   assert.match(r.stdout, /trace/);
 });
 
-test('help mentions history', () => {
-  const r = run(['help']);
+test('legacy help mentions history', () => {
+  const r = run(['help', 'legacy']);
   assert.match(r.stdout, /history/);
 });
 
-test('help mentions license', () => {
-  const r = run(['help']);
+test('legacy help mentions license', () => {
+  const r = run(['help', 'legacy']);
   assert.match(r.stdout, /\blicense\b/);
 });
 

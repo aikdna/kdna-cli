@@ -54,8 +54,16 @@ Successful validation returns:
 | `kdna pack <input-dir> <output.kdna>`                      | Pack a local working folder into a `.kdna` file                |
 | `kdna unpack <input.kdna> <output-dir>`                    | Unpack a v1 container                                          |
 | `kdna load <path> --profile=<index\|compact\|scenario\|full> --as=<json\|prompt>` | Render judgment context for agents or tools |
-| `kdna setup`                                               | Install the `kdna-loader` skill for supported agents           |
-| `kdna doctor --agents`                                     | Check agent loader installation                                |
+
+## Agent Loader Commands
+
+These commands belong to the agent-adapter layer, not the local `.kdna`
+first-run path:
+
+| Command | Purpose |
+| --- | --- |
+| `kdna setup` | Install the `kdna-loader` skill for supported agents |
+| `kdna doctor --agents` | Check agent loader installation |
 
 ## Producer Path
 

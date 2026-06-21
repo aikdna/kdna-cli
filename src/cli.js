@@ -92,17 +92,14 @@ Core v1:
   validate <path> --runtime         Validate and require LoadPlan readiness
   plan-load <file.kdna>             Return a LoadPlan before runtime load
                                   Add --has-password or --entitlement-status for diagnostics
+  load     <file.kdna>              Render agent-ready judgment context
   pack     <dev-source> <out>       Deterministic creator/debug pack into .kdna
   unpack   <file.kdna> <out>        Extract .kdna into an editing/debug view
 
 More:
-  kdna help advanced                Agent runtime, setup, loading, comparison
-  kdna help legacy                  Pre-v1 compatibility commands
-  Advanced index: doctor, trace, history, license, verify, compare, diff, search
-  verify  <name|file>               Legacy asset verification
-  compare <name|file> --input "..." Legacy comparison report
-  diff    <left> <right>             Legacy asset diff
-  search  <query>                    Search installed/available legacy entries
+  Studio authoring: npm install -g @aikdna/kdna-studio-cli
+  Agent loader:     https://github.com/aikdna/kdna-skills
+  Compatibility:    kdna help legacy
 
 Flags:
   --json                            Structured JSON output
@@ -174,7 +171,9 @@ Legacy operations:
   license <subcommand> ...          License management
   protect / unlock / recover        Protected assets (RFC-0009)
   publish <file.kdna>               Publish to legacy registry
+  verify <name|file.kdna>           Legacy structure/trust/judgment verification
   identity <subcommand> ...         Ed25519 signing key management
+  doctor [--agents|--domains]       Compatibility health checks
   cluster <subcommand> ...          Cluster composition
   workpack <subcommand> ...         Work Pack (experimental)
   governance / proposal / review / evolution / regression
