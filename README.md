@@ -80,11 +80,11 @@ kdna plan-load ./my_domain.kdna --json
 kdna load ./my_domain.kdna --profile=compact --as=prompt
 ```
 
-## Legacy Compatibility
+## Compatibility Notes
 
-Older CLI commands for registry install, compare, trace, licensing, identity, or
-pre-v1 dev source workflows may still exist for backward compatibility. They
-are not the KDNA Core v1 launch path.
+Some older commands may still appear for existing users and migration tests.
+They are maintained as compatibility surfaces, not as the recommended public
+beta path.
 
 New integrations should use the v1 Core route:
 
@@ -112,8 +112,7 @@ issue codes, crypto profiles, or fail-closed policy independently.
 
 The local packaged `.kdna` beta path is intentionally simple: validate the
 file, inspect the LoadPlan, and load only when the plan says it is loadable.
-Additional trust or distribution layers are handled outside this first-run
-path.
+Additional publisher or hosting layers are handled outside this first-run path.
 
 Current local authorization path:
 
