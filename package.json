@@ -32,7 +32,8 @@
     "test:smoke": "npm run test:core-smoke",
     "test:legacy": "node --test tests/v07-commands.test.js tests/v012-commands.test.js tests/asset-store.test.js",
     "test:demo": "node --test tests/v1-demo-minimal.test.js",
-    "prepublishOnly": "npm test"
+    "prepublishOnly": "npm test",
+    "release:check": "node scripts/release-check.js"
   },
   "keywords": [
     "kdna",
