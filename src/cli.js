@@ -168,6 +168,18 @@ switch (cmd) {
         );
       }
     }
+    // Warn if checksums.json is stale (source files modified since last pack)
+    const csp = require('node:path').resolve(abs, 'checksums.json');
+    if (fs.existsSync(csp)) {
+      try {
+        const mf = JSON.parse(fs.readFileSync(require('node:path').resolve(abs, 'kdna.json'), 'utf8'));
+        const fresh = require('@aikdna/kdna-core').buildChecksumsV1(abs, mf);
+        const stored = JSON.parse(fs.readFileSync(csp, 'utf8'));
+        if (JSON.stringify(fresh) !== JSON.stringify(stored)) {
+          process.stderr.write('Warning: checksums.json is stale (source files changed). Rebuilding during pack.\n');
+        }
+      } catch { /* checksums check is best-effort */ }
+    }
     const r = packDir(v1Target, out);
     process.stdout.write(
       `Packed: ${r.outputPath}\nEntries: ${r.entries.length} (${r.entries.join(', ')})\n`,
