@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.27.5 (2026-06-22)
+- Fix: descriptive file errors for validate/inspect/load/unpack (missing file, non-v1 container)
+- Fix: kdna pack requires --force to overwrite existing output file
+
+# Changelog
+
 ## v0.27.4 (2026-06-21)
 
 ### Fixed
