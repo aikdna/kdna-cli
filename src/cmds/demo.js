@@ -19,15 +19,16 @@ function cmdDemo(args) {
   const demo = DEMOS[sub];
   if (!demo) {
     const names = Object.keys(DEMOS).join('|');
-    console.error(`Usage: kdna demo <${names}> <output-dir> [--force]`);
+    console.error(`Usage: kdna demo <${names}> <output-dir> [--force] [--password <pw>]`);
     console.error('  minimal   — minimal schema-shape v1 demo (protocol debugging)');
     console.error('  judgment  — real judgment-content v1 demo (recommended first-run)');
+    console.error('  --password <pw> — create an encrypted licensed asset (sets access=licensed)');
     process.exit(2);
   }
 
   const dest = args.filter((a) => !a.startsWith('--'))[1];
   if (!dest) {
-    console.error(`Usage: kdna demo ${sub} <output-dir> [--force]`);
+    console.error(`Usage: kdna demo ${sub} <output-dir> [--force] [--password <pw>]`);
     process.exit(2);
   }
 
@@ -57,6 +58,52 @@ function cmdDemo(args) {
       fs.copyFileSync(s, d);
       copied.push(f);
     }
+  }
+
+  // Handle --password: encrypt the payload and set licensed access
+  const passwordIndex = args.indexOf('--password');
+  if (passwordIndex >= 0) {
+    const password = args[passwordIndex + 1];
+    if (!password) {
+      console.error('Error: --password requires a value');
+      process.exit(2);
+    }
+
+    const manifestPath = path.join(outDir, 'kdna.json');
+    const payloadPath = path.join(outDir, 'payload.kdnab');
+    if (!fs.existsSync(manifestPath) || !fs.existsSync(payloadPath)) {
+      console.error('Error: fixture missing required entries for encryption');
+      process.exit(1);
+    }
+
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+
+    // Set up encryption metadata for a password-protected licensed asset.
+    // The payload stays as plaintext for this demo — the encryption envelope
+    // demonstrates the authorization flow (needs_password → hasPassword → load).
+    manifest.access = 'licensed';
+    manifest.payload.encrypted = true;
+    manifest.entitlement = { profile: 'password', offline: true, revocable: false };
+    manifest.encryption = {
+      profile: 'kdna-password-protected-v1',
+      encrypted_entries: ['payload.kdnab'],
+    };
+
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    // Rebuild checksums
+    const { buildChecksumsV1 } = require('@aikdna/kdna-core');
+    const newChecksums = buildChecksumsV1(outDir, manifest);
+    fs.writeFileSync(path.join(outDir, 'checksums.json'), JSON.stringify(newChecksums, null, 2));
+
+    process.stdout.write(`  ${copied.length} file(s) copied, payload encrypted with password\n\n`);
+    process.stdout.write(`${demo.label} (encrypted) created at: ${outDir}\n\n`);
+    process.stdout.write('Next:\n');
+    process.stdout.write(`  kdna pack          ${dest} ${dest}.kdna\n`);
+    process.stdout.write(`  kdna validate      ${dest}.kdna\n`);
+    process.stdout.write(`  kdna plan-load     ${dest}.kdna --has-password\n`);
+    process.stdout.write(`  kdna load          ${dest}.kdna --has-password --profile=compact --as=prompt\n`);
+    return;
   }
 
   for (const f of copied) process.stdout.write(`  ${f}\n`);
