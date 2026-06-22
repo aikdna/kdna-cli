@@ -53,6 +53,7 @@ const cmd = args[0];
 
 switch (cmd) {
   case 'validate': {
+    try {
     const v1Target = args.filter((a) => !a.startsWith('--'))[1];
     if (!v1Target) error('Usage: kdna validate <file.kdna> [--runtime] [--entitlement-status <status>]', EXIT.INPUT_ERROR);
     const {
@@ -107,8 +108,10 @@ switch (cmd) {
       process.exit(result.runtime_load_plan.state === 'invalid' ? 1 : 3);
     }
     process.exit(0);
+    } catch (e) { process.stderr.write('Error: ' + e.message + '\n'); process.exit(1); }
   }
   case 'plan-load': {
+    try {
     const v1Target = args.filter((a) => !a.startsWith('--'))[1];
     if (!v1Target)
       error(
@@ -143,9 +146,10 @@ switch (cmd) {
     });
     console.log(JSON.stringify(plan, null, 2));
     process.exit(plan.state === 'invalid' ? 1 : plan.can_load_now === true ? 0 : 3);
-    break;
+    } catch (e) { process.stderr.write('Error: ' + e.message + '\n'); process.exit(1); }
   }
   case 'pack': {
+    try {
     const v1Target = args.filter((a) => !a.startsWith('--'))[1];
     if (!v1Target) error('Usage: kdna pack <source-dir> <output.kdna>', EXIT.INPUT_ERROR);
     const {
@@ -185,8 +189,10 @@ switch (cmd) {
       `Packed: ${r.outputPath}\nEntries: ${r.entries.length} (${r.entries.join(', ')})\n`,
     );
     return;
+    } catch (e) { process.stderr.write('Error: ' + e.message + '\n'); process.exit(1); }
   }
   case 'unpack': {
+    try {
     const v1Target = args.filter((a) => !a.startsWith('--'))[1];
     if (!v1Target) error('Usage: kdna unpack <input.kdna> <output-dir>', EXIT.INPUT_ERROR);
     const {
@@ -205,8 +211,10 @@ switch (cmd) {
       `Unpacked: ${r.outputDir}\nEntries: ${r.entries.length} (${r.entries.join(', ')})\n`,
     );
     return;
+    } catch (e) { process.stderr.write('Error: ' + e.message + '\n'); process.exit(1); }
   }
   case 'inspect': {
+    try {
     const target = args.filter((a) => !a.startsWith('--'))[1];
     if (!target) error('Usage: kdna inspect <path> [--json] [--locale zh-CN]');
     const {
@@ -224,6 +232,7 @@ switch (cmd) {
     const out = inspect(target);
     console.log(JSON.stringify(out, null, 2));
     return;
+    } catch (e) { process.stderr.write('Error: ' + e.message + '\n'); process.exit(1); }
   }
   case 'load': {
     const target = args.filter((a) => !a.startsWith('--'))[1];
