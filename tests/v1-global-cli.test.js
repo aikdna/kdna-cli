@@ -238,3 +238,89 @@ test('kdna inspect on v1 container round-trips through pack', () => {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+// ── plan-load behavior tests (WP-1 P0-2) ────────────────────────────
+
+test('kdna plan-load default returns ready with structured input_fingerprint', () => {
+  const r = runCli(['plan-load', fixture, '--json']);
+  assert.equal(r.status, 0, r.stderr);
+  const plan = JSON.parse(r.stdout);
+  assert.equal(plan.state, 'ready');
+  assert.equal(plan.can_load_now, true);
+  assert.equal(typeof plan.input_fingerprint, 'object');
+  assert.equal(plan.input_fingerprint.has_password_input, false);
+  assert.equal(plan.input_fingerprint.entitlement_input, null);
+  assert.ok(plan.input_fingerprint.source_fingerprint);
+  assert.ok(plan.input_fingerprint.source_fingerprint.startsWith('sha256:'));
+});
+
+test('kdna plan-load --has-password reflects has_password_input', () => {
+  const r = runCli(['plan-load', fixture, '--json', '--has-password']);
+  assert.equal(r.status, 0, r.stderr);
+  const plan = JSON.parse(r.stdout);
+  assert.equal(plan.input_fingerprint.has_password_input, true);
+  assert.equal(plan.input_fingerprint.entitlement_input, null);
+  assert.equal(plan.state, 'ready');
+});
+
+test('kdna plan-load --entitlement-status active reflects active', () => {
+  const r = runCli(['plan-load', fixture, '--json', '--entitlement-status', 'active']);
+  assert.equal(r.status, 0, r.stderr);
+  const plan = JSON.parse(r.stdout);
+  assert.equal(plan.input_fingerprint.entitlement_input, 'active');
+  assert.equal(plan.state, 'ready');
+  assert.equal(plan.can_load_now, true);
+});
+
+test('kdna plan-load --entitlement-status expired returns expired_grace', () => {
+  const r = runCli(['plan-load', fixture, '--json', '--entitlement-status', 'expired']);
+  assert.equal(r.status, 3, 'exit 3 for can_load_now: false');
+  const plan = JSON.parse(r.stdout);
+  assert.equal(plan.input_fingerprint.entitlement_input, 'expired');
+  assert.equal(plan.state, 'expired_grace');
+  assert.equal(plan.can_load_now, false);
+  assert.equal(plan.required_action, 'renew_entitlement');
+});
+
+test('kdna plan-load --entitlement-status revoked returns denied', () => {
+  const r = runCli(['plan-load', fixture, '--json', '--entitlement-status', 'revoked']);
+  assert.equal(r.status, 3, 'exit 3 for can_load_now: false');
+  const plan = JSON.parse(r.stdout);
+  assert.equal(plan.input_fingerprint.entitlement_input, 'revoked');
+  assert.equal(plan.state, 'denied');
+  assert.equal(plan.can_load_now, false);
+  assert.equal(plan.required_action, 'contact_issuer');
+});
+
+test('kdna plan-load --entitlement-status offline_grace returns offline_grace', () => {
+  const r = runCli(['plan-load', fixture, '--json', '--entitlement-status', 'offline_grace']);
+  assert.equal(r.status, 0, r.stderr);
+  const plan = JSON.parse(r.stdout);
+  assert.equal(plan.input_fingerprint.entitlement_input, 'offline_grace');
+  assert.equal(plan.state, 'offline_grace');
+  assert.equal(plan.can_load_now, true);
+  assert.equal(plan.required_action, 'sync');
+});
+
+test('kdna validate --runtime produces consistent LoadPlan with plan-load', () => {
+  const r = runCli(['validate', fixture, '--runtime', '--json']);
+  const output = JSON.parse(r.stdout);
+  assert.ok(output.runtime_load_plan, 'runtime_load_plan must exist');
+  const runtimePlan = output.runtime_load_plan;
+  assert.equal(typeof runtimePlan.input_fingerprint, 'object');
+  assert.equal(runtimePlan.input_fingerprint.has_password_input, false);
+  assert.equal(runtimePlan.input_fingerprint.entitlement_input, null);
+  assert.ok(runtimePlan.input_fingerprint.source_fingerprint);
+  assert.equal(runtimePlan.state, 'ready');
+  assert.equal(runtimePlan.can_load_now, true);
+});
+
+test('kdna validate --runtime --entitlement-status expired produces consistent LoadPlan', () => {
+  const r = runCli(['validate', fixture, '--runtime', '--json', '--entitlement-status', 'expired']);
+  const output = JSON.parse(r.stdout);
+  const runtimePlan = output.runtime_load_plan;
+  assert.equal(runtimePlan.input_fingerprint.entitlement_input, 'expired');
+  assert.equal(runtimePlan.state, 'expired_grace');
+  assert.equal(runtimePlan.can_load_now, false);
+  assert.equal(runtimePlan.required_action, 'renew_entitlement');
+});

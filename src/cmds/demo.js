@@ -1,21 +1,37 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
+const DEMOS = {
+  minimal: {
+    fixture: 'v1-minimal',
+    label: 'Minimal KDNA Core v1 demo',
+  },
+  judgment: {
+    fixture: 'v1-judgment',
+    label: 'Content Review Judgment demo',
+  },
+};
+
 function cmdDemo(args) {
   const force = args.includes('--force');
   const sub = args.filter((a) => !a.startsWith('--'))[0];
-  if (sub !== 'minimal') {
-    console.error('Usage: kdna demo minimal <output-dir> [--force]');
-    console.error('  Copies the minimal v1 fixture to the target directory for first-run testing.');
-    process.exit(2);
-  }
-  const dest = args.filter((a) => !a.startsWith('--'))[1];
-  if (!dest) {
-    console.error('Usage: kdna demo minimal <output-dir> [--force]');
+
+  const demo = DEMOS[sub];
+  if (!demo) {
+    const names = Object.keys(DEMOS).join('|');
+    console.error(`Usage: kdna demo <${names}> <output-dir> [--force]`);
+    console.error('  minimal   — minimal schema-shape v1 demo (protocol debugging)');
+    console.error('  judgment  — real judgment-content v1 demo (recommended first-run)');
     process.exit(2);
   }
 
-  const srcDir = path.join(__dirname, '..', '..', 'fixtures', 'v1-minimal');
+  const dest = args.filter((a) => !a.startsWith('--'))[1];
+  if (!dest) {
+    console.error(`Usage: kdna demo ${sub} <output-dir> [--force]`);
+    process.exit(2);
+  }
+
+  const srcDir = path.join(__dirname, '..', '..', 'fixtures', demo.fixture);
   const outDir = path.resolve(dest);
 
   if (!fs.existsSync(srcDir)) {
@@ -29,9 +45,6 @@ function cmdDemo(args) {
       console.error(`Target already exists and is not empty: ${outDir}`);
       console.error('Use --force to overwrite.');
       process.exit(2);
-    }
-    if (!force) {
-      // empty dir — fine
     }
   }
 
@@ -47,10 +60,9 @@ function cmdDemo(args) {
   }
 
   for (const f of copied) process.stdout.write(`  ${f}\n`);
-  process.stdout.write(`\nMinimal KDNA Core v1 demo created at: ${outDir}\n\n`);
+  process.stdout.write(`\n${demo.label} created at: ${outDir}\n\n`);
   process.stdout.write('Next:\n');
   process.stdout.write(`  kdna pack     ${dest} ${dest}.kdna\n`);
-  process.stdout.write(`  kdna inspect  ${dest}.kdna\n`);
   process.stdout.write(`  kdna validate ${dest}.kdna\n`);
   process.stdout.write(`  kdna plan-load ${dest}.kdna\n`);
   process.stdout.write(`  kdna load     ${dest}.kdna --profile=compact --as=prompt\n`);

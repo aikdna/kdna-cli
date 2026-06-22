@@ -1,0 +1,43 @@
+{
+  "kdna_version": "1.0",
+  "asset_id": "kdna:example:content-review",
+  "asset_uid": "urn:uuid:00000000-0000-4000-8000-000000000002",
+  "asset_type": "domain",
+  "title": "Content Review Judgment",
+  "version": "1.0.0",
+  "judgment_version": "1.0.0",
+  "created_at": "2026-06-16T00:00:00Z",
+  "updated_at": "2026-06-16T00:00:00Z",
+  "creator": {
+    "name": "KDNA Demo",
+    "id": "kdna-demo"
+  },
+  "compatibility": {
+    "min_loader_version": "1.0.0",
+    "profile": "judgment-profile-v1"
+  },
+  "payload": {
+    "path": "payload.kdnab",
+    "encoding": "json",
+    "encrypted": false
+  },
+  "summary": "Real judgment demo for content review. Teaches AI to review content by identifying claims, evidence, audience stakes, failure modes, and structural issues — not just cosmetic polish.",
+  "description": "A demonstration KDNA judgment asset that shows how scoped principles, boundaries, and failure modes give AI a concrete review framework instead of generic feedback. This demo is the recommended first-run asset for new KDNA users.",
+  "language": "en",
+  "license": "Apache-2.0",
+  "keywords": ["demo", "judgment", "content-review", "real-example", "v1-core"],
+  "lineage": {
+    "type": "original",
+    "fork_of": null,
+    "derived_from": null
+  },
+  "load_contract": {
+    "default_profile": "compact",
+    "profiles": {
+      "index": { "requires_decryption": false, "max_tokens_hint": 500, "selection": "manifest metadata", "intended_for": ["discovery"] },
+      "compact": { "requires_decryption": false, "max_tokens_hint": 3000, "selection": "core judgment summary", "intended_for": ["agent prompt"] },
+      "scenario": { "requires_decryption": false, "max_tokens_hint": 4000, "selection": "scenario cards", "intended_for": ["situational loading"] },
+      "full": { "requires_decryption": false, "max_tokens_hint": 12000, "selection": "full manifest and payload", "intended_for": ["audit", "reference"] }
+    }
+  }
+}

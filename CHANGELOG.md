@@ -1,160 +1,224 @@
 # Changelog
 
-## v0.26.9 (2026-06-20)
+## v0.27.4 (2026-06-21)
 
-**Core boundary projection fix**
+### Fixed
+- Template documentation now references the packaged `.kdna` path instead of raw source directories.
+- README first-run narrative tightened so new users land directly on the `kdna demo` → `kdna inspect` → `kdna load` path.
+- Test fixture `checksums.json` updated for deterministic pack output.
 
-- Depend on `@aikdna/kdna-core@^0.12.2` so compact prompt loading preserves
-  axiom `applies_when`, `does_not_apply_when`, and `failure_risk` fields from
-  Studio-exported `.kdna` files.
+### Changed
+- CLI first-run surface cleaned: help text, demo output, and error messages use consistent v1 terminology.
+- ajv + ajv-formats auto-installed via kdna-core dependency; improved ajv-missing error message.
+
+---
+
+## v0.27.3 (2026-06-21)
+
+### Added
+- `kdna demo judgment` now creates a real content-review judgment demo with full KDNA payload.
+
+### Fixed
+- `kdna load` LoadPlan enforcement: the `loadAuthorized` shim now correctly delegates to `planLoad` before calling `loadV1`, preventing load of assets that fail checksum or schema validation.
+- Domain command and install wording updated to remove residual "trusted"/"registry-trusted" language in output strings.
+
+### Changed
+- Setup module and verify module wording aligned with the content-neutral v1 contract — no more "trusted" or "recommended" in CLI output.
+- Legacy v0.7 and v0.12 test assertions updated to match current wording.
+
+---
+
+## v0.27.2 (2026-06-21)
+
+### Added
+- `kdna validate --entitlement-status <status>` flag: accepts `active`, `expired`, `revoked`, or `offline_grace` and passes it through to the LoadPlan, enabling runtime authorization diagnostics before load.
+
+### Fixed
+- `kdna validate --runtime` now correctly delegates to `core.planLoad` and reports `can_load_now` as the exit signal (exit code 0 = ready, 1 = invalid, 3 = not authorized).
+- `kdna plan-load` exit codes now match the LoadPlan contract: 0 for `can_load_now`, 1 for invalid state, 3 for blocked/needs-auth.
+
+### Changed
+- `kdna load` rejects v2 containers immediately with a clear "Re-export with kdna-studio-cli@0.6.0" message, rather than falling through to an opaque error.
+- Scenario profile no longer silently falls back to compact/index when scenario content is unavailable; now reports explicit error.
+- `--has-password` flag is accepted by `validate --runtime` and `plan-load` as a diagnostic credential-presence signal (does not verify the password itself).
+
+---
+
+## v0.27.0 (2026-06-20)
+
+### Breaking
+- **Hard cutover to Core v1.** The CLI now speaks only the v1 `.kdna` container format. All legacy v2 ZIP containers, registry commands (`install`, `remove`, `update`, `publish`, `identity`), and v0.x compatibility paths are removed from the default help surface. Legacy commands remain accessible but surface a deprecation warning redirecting to `kdna-studio-cli` for authoring and the v1 path for runtime.
+- `kdna load` now enforces LoadPlan authorization. Assets that fail structural validation, checksums verification, or access control checks are blocked at load time with an explicit error code.
+- `kdna validate` output schema changed: the JSON report now includes `overall_valid`, per-gate booleans (`format_valid`, `schema_valid`, `payload_valid`, `checksums_valid`, `load_contract_valid`), and a `problems` array.
+
+### Added
+- **`kdna plan-load <file.kdna>`** — returns a structured LoadPlan before runtime load. Reports asset metadata, access model, entitlement requirements, validation gate results, and a `can_load_now` / `required_action` decision. Designed for product consumers (Chat, IDEs, agents) to render authorization UI from.
+- **Load profile support:** `kdna load --profile=index|compact|scenario|full` and `--as=json|prompt`. The `prompt` output mode renders a flat text prompt suitable for pasting into an agent context window.
+- **Entitlement status passthrough:** `kdna load` and `kdna plan-load` accept `--entitlement-status active|expired|revoked|offline_grace` to simulate or assert the entitlement state without mutating the local license store.
+- **`kdna demo minimal`** — creates a minimal v1 fixture directory with valid `mimetype`, `kdna.json`, and `payload.kdnab` for first-run testing. Accepts `--force` to overwrite.
+- **Checksums verification in validate:** when `checksums.json` is present, `kdna validate` computes actual SHA-256 digests for `kdna.json` and `payload.kdnab` and compares them against the declared values. Mismatch causes `checksums_valid: false`.
+- **Container security hardening:** ZIP entry names are normalized (NFC Unicode, no backslash separators, no path traversal), duplicate entries are rejected, and per-entry size / compression-ratio limits are enforced.
+- **Exit code 4** reserved for encrypted-payload errors (`requires_decryption`).
+
+### Changed
+- Help text restructured into a single flat listing of Core v1 commands: `inspect`, `validate`, `plan-load`, `load`, `pack`, `unpack`, `demo`.
+- `kdna pack` and `kdna unpack` described as "creator/debug views" rather than a second public asset model.
+- Pack output is deterministic: fixed DOS epoch timestamps, alphabetical entry order, mimetype always first (STORED, method 0). Same source → identical SHA-256 output.
+- `kdna inspect` output is always JSON and includes `kdna_version`, `asset_id`, `asset_uid`, `payload_encrypted`, `profile`, and `load_contract_default_profile` fields.
+
+### Removed
+- Legacy v2 container loading path. v2 containers (`application/vnd.aikdna.kdna+zip`) are rejected with a clear message directing users to re-export with `kdna-studio-cli@0.6.0`.
+- Registry-centric help surface (`available`, `match`, `select`, `install`, `remove`, `update`, `publish`, `identity`, `setup` hidden behind `kdna help --legacy`).
+- `kdna postvalidate` command superseded by `kdna validate --runtime`.
+- Hardcoded "trusted" / "recommended" / "high_quality" / "officially_approved" language banned from all CLI output paths.
+
+### Fixed
+- Container format detection is strict: must have mimetype as the first ZIP entry, STORED (method 0), with the exact v1 media type string. No fallthrough to v2 or generic ZIP parsing.
+- `kdna validate` no longer silently passes invalid containers that happen to have a `kdna.json` file — format gate checks all three required entries explicitly.
+
+---
+
+## v0.26.9 (2026-06-21)
+
+### Fixed
+- Depend on `@aikdna/kdna-core@^0.12.2` so compact prompt loading preserves axiom `applies_when`, `does_not_apply_when`, and `failure_risk` fields from Studio-exported `.kdna` files.
 
 ## v0.26.8 (2026-06-20)
 
-**Release wording cleanup**
-
-- Reword dev-pack and install output so local `.kdna` validity is not described
-  as "trusted" or "registry-trusted".
-- Describe signature/provenance checks as verification evidence rather than
-  content endorsement.
+### Changed
+- Reworded dev-pack and install output so local `.kdna` validity is not described as "trusted" or "registry-trusted".
+- Signature/provenance checks described as verification evidence rather than content endorsement.
 
 ## v0.26.6 (2026-06-20)
 
-**First-run help cleanup**
-
+### Changed
 - Center Core v1 help on local `.kdna` files.
 - Describe pack/unpack as creator/debug views instead of a second public asset model.
 
 ## v0.26.5 (2026-06-20)
 
-**Public CLI wording closure**
-
+### Changed
 - Move current help text to the local `.kdna` inspect/validate/plan-load/load path.
 - Reword `kdna init`, legacy publish checks, and removed Studio CLI guidance so they no longer present Human Lock, registry publishing, or "trusted" status as Core v1 format requirements.
 - Keep registry, install, publish, identity, and protected flows behind legacy / compatibility language.
 
 ## v0.26.4 (2026-06-20)
 
-**Public wording alignment**
-
+### Changed
 - Clarify npm/package description around the current local `.kdna` runtime path.
 - Replace dev-pack "non-trusted" help wording with "diagnostic" wording.
 - Reword legacy publish provenance messages to avoid treating trust as a format layer.
 
 ## v0.19.2 (2026-05-29)
 
-**Publish output option compatibility**
-
-- Added `--out` and `-o` aliases for `kdna publish` output directory selection.
-- Added `--out` support for `kdna dev pack`.
-- Added coverage that `kdna dev pack --out <dir>` emits an inspectable v1.0 `.kdna` container.
+### Added
+- `--out` and `-o` aliases for `kdna publish` output directory selection.
+- `--out` support for `kdna dev pack`.
+- Coverage that `kdna dev pack --out <dir>` emits an inspectable v1.0 `.kdna` container.
 
 ## v0.19.1 (2026-05-29)
 
-**Registry yank visibility**
-
+### Changed
 - Hide yanked registry entries from default `kdna list --available` output.
 - Hide yanked registry entries from default `kdna search` results.
 - Keep install fail-closed behavior for yanked assets with the registry-provided reason.
 
 ## v0.18.0 (2026-05-27)
 
-**Asset-first install/runtime + licensed `.kdna` lifecycle**
-
+### Added
 - `.kdna` is now the canonical installed, verified, and loaded asset.
-- Installs store immutable assets under `~/.kdna/packages/` with `index.json` and `receipt.json`; runtime commands no longer persist extracted domain directories.
-- Added direct `.kdna` runtime reads through `@aikdna/kdna-core@0.5.0`.
-- Added licensed `.kdna` encrypted-entry loading through `kdna-licensed-entry-v1`.
-- Added `kdna license activate` and `kdna license sync` for entitlement lifecycle, revocation, and offline grace checks.
-- Removed the old user-facing encrypted-extension install path. Licensed assets use the `.kdna` extension and activation metadata under `~/.kdna/licenses/`.
+- Installs store immutable assets under `~/.kdna/packages/` with `index.json` and `receipt.json`.
+- Direct `.kdna` runtime reads through `@aikdna/kdna-core@0.5.0`.
+- Licensed `.kdna` encrypted-entry loading through `kdna-licensed-entry-v1`.
+- `kdna license activate` and `kdna license sync` for entitlement lifecycle, revocation, and offline grace checks.
+
+### Removed
+- Old user-facing encrypted-extension install path. Licensed assets use the `.kdna` extension and activation metadata under `~/.kdna/licenses/`.
 
 ## v0.17.0 (2026-05-26)
 
-**kdna-core 0.4.0 upgrade + manifest conformance**
-
-- Upgraded `@aikdna/kdna-core` dependency from `^0.3.0` → `^0.4.0` (publish kdna-core 0.4.0 first)
-- Manifest validation: canonical manifest schema v1.0-rc conformance
-- All 43 tests pass, 0 lint errors
+### Changed
+- Upgraded `@aikdna/kdna-core` dependency from `^0.3.0` → `^0.4.0`.
+- Manifest validation: canonical manifest schema v1.0-rc conformance.
 
 ## v0.16.0 (2026-05-23)
 
-**Stabilization: tests, trace attribution, documentation**
+### Added
+- 25 smoke tests for v0.12+ commands (doctor, trace, history, license, compare report).
+- Trace agent attribution via `KDNA_AGENT` environment variable.
+- README with full v0.12–v0.16 command coverage and environment variables.
 
-- Added 25 smoke tests for v0.12+ commands (doctor, trace, history, license, compare report)
-- Added trace agent attribution via `KDNA_AGENT` environment variable (replaces hardcoded `agent: 'cli'`)
-- Updated README with full v0.12–v0.16 command coverage and environment variables
-- Fixed `license verify --json` flag parsing (was treating `--json` as license path)
-- Fixed `license bind` to re-sign after machine binding
-- Fixed `license verify` and `license bind` argument parsing for flags
-- Split integration tests from default test suite: `npm test` runs offline-only, `npm run test:integration` for registry-dependent tests
-- Added CHANGELOG.md with release notes from v0.9 through v0.15
+### Fixed
+- `license verify --json` flag parsing (was treating `--json` as license path).
+- `license bind` re-sign after machine binding.
+- `license verify` and `license bind` argument parsing for flags.
+- Split integration tests from default test suite: `npm test` runs offline-only, `npm run test:integration` for registry-dependent tests.
 
 ## v0.15.0 (2026-05-23)
 
-**Superseded encrypted-extension experiment**
+### Added
+- `kdna license install <file>`: register a license for automatic domain decryption.
+- `--save <path>` flag to `license generate`.
+- `findLicenseForDomain` for automatic license discovery.
 
-- Earlier experimental encrypted-extension install support has been superseded by v0.18.0 licensed `.kdna` encrypted entries.
-- `kdna license install <file>`: register a license for automatic domain decryption
-- Fixed `license verify --json` flag parsing
-- Fixed `license bind` to re-sign after machine binding
-- Fixed `license generate` to output JSON to stdout (info to stderr)
-- Added `--save <path>` flag to `license generate`
-- Modified `parseSource` during the experiment to recognize the encrypted extension for local install
-- Added legacy extract-and-decrypt helper during the prototype; this disk-extraction path was superseded by v0.18.0 in-memory encrypted-entry loading
-- Added `findLicenseForDomain` for automatic license discovery
+### Fixed
+- `license verify --json` flag parsing.
+- `license bind` to re-sign after machine binding.
+- `license generate` to output JSON to stdout (info to stderr).
 
 ## v0.14.0 (2026-05-23)
 
-**Superseded encrypted-extension prototype + License Management**
-
-- Prototype encrypted container format: AES-256-GCM encryption of KDNA JSON files (kdna.json stays plaintext)
-- Prototype dev pack encryption flag for encrypted containers
-- Prototype unpack support for encrypted files with a license file
-- `kdna license generate <domain> --to <email>`: generate Ed25519-signed licenses
-- `kdna license verify <license.json>`: verify signature, expiry, machine binding
-- `kdna license bind <license.json>`: bind license to machine fingerprint + re-sign
-- `kdna license show <license.json>`: display license details
-- PBKDF2 key derivation: license_id + machine fingerprint (600k iterations) → AES-256
-- Machine fingerprint: sha256(hostname + uid + platform + arch + hardware UUID)
+### Added
+- Prototype encrypted container format: AES-256-GCM encryption of KDNA JSON files.
+- `kdna license generate <domain> --to <email>`: generate Ed25519-signed licenses.
+- `kdna license verify <license.json>`: verify signature, expiry, machine binding.
+- `kdna license bind <license.json>`: bind license to machine fingerprint + re-sign.
+- `kdna license show <license.json>`: display license details.
+- PBKDF2 key derivation: license_id + machine fingerprint (600k iterations) → AES-256.
+- Machine fingerprint: sha256(hostname + uid + platform + arch + hardware UUID).
 
 ## v0.13.0 (2026-05-23)
 
-**Compare Report: structured scoring output**
-
-- `kdna compare --report-md`: Markdown report with Judgment Diff table and D1-D7 scoring
-- `kdna compare --report-json`: JSON report with parsed axes, scores, and metadata
-- `--output <file>` flag for saving reports
-- Trace recording integrated for compare runs
+### Added
+- `kdna compare --report-md`: Markdown report with Judgment Diff table and D1-D7 scoring.
+- `kdna compare --report-json`: JSON report with parsed axes, scores, and metadata.
+- `--output <file>` flag for saving reports.
+- Trace recording integrated for compare runs.
 
 ## v0.12.0 (2026-05-23)
 
-**Doctor + Trace + History: diagnostics and observability**
-
-- `kdna doctor --agents`: detect agent installations and verify kdna-loader skill status per agent (Codex, Claude Code, OpenCode, Cursor, Gemini)
-- `kdna doctor --domains`: domain-only health check
-- `kdna doctor --json`: machine-readable health report
-- `kdna trace`: JSON Lines logging to `~/.kdna/traces/YYYY-MM-DD.jsonl`
-- `kdna trace --json / --export / --clear / --since`: trace inspection and export
-- `kdna history`: recent domain usage viewer (last 20 by default)
-- `kdna history --stats`: aggregate by domain and agent
-- `kdna history --domain <name> / --agent <name>`: filtering
-- Automatic trace recording on `kdna load`, `kdna postvalidate`, and `kdna compare`
+### Added
+- `kdna doctor --agents`: detect agent installations and verify kdna-loader skill status per agent.
+- `kdna doctor --domains`: domain-only health check.
+- `kdna doctor --json`: machine-readable health report.
+- `kdna trace`: JSON Lines logging to `~/.kdna/traces/YYYY-MM-DD.jsonl`.
+- `kdna trace --json / --export / --clear / --since`: trace inspection and export.
+- `kdna history`: recent domain usage viewer (last 20 by default).
+- `kdna history --stats`: aggregate by domain and agent.
+- `kdna history --domain <name> / --agent <name>`: filtering.
+- Automatic trace recording on `kdna load`, `kdna postvalidate`, and `kdna compare`.
 
 ## v0.11.0 (2026-05-22)
 
-- Agent-facing commands: `available`, `match`, `load`, `select`, `postvalidate`
-- Load profiles: `--profile=index|compact|scenario|full`
-- v2.1 governance fields: `applies_when`, `does_not_apply_when`, `failure_risk`
+### Added
+- Agent-facing commands: `available`, `match`, `load`, `select`, `postvalidate`.
+- Load profiles: `--profile=index|compact|scenario|full`.
+- v2.1 governance fields: `applies_when`, `does_not_apply_when`, `failure_risk`.
 
 ## v0.10.0 (2026-05-21)
 
-- `kdna setup`: one-command agent skill installation
-- `kdna verify`: 3-layer verification (structure + trust + judgment)
-- `kdna info`: rich domain metadata display
+### Added
+- `kdna setup`: one-command agent skill installation.
+- `kdna verify`: 3-layer verification (structure + trust + judgment).
+- `kdna info`: rich domain metadata display.
 
 ## v0.9.0 (2026-05-20)
 
-- `kdna install`, `kdna remove`, `kdna update`: registry-based domain management
-- `.kdna` ZIP container format
-- `kdna dev pack`, `kdna dev unpack`
-- `kdna publish`, `kdna identity`
-- Breaking: removed legacy `project`, `eval`, `export`, `demo`, `preview` commands
+### Added
+- `kdna install`, `kdna remove`, `kdna update`: registry-based domain management.
+- `.kdna` ZIP container format.
+- `kdna dev pack`, `kdna dev unpack`.
+- `kdna publish`, `kdna identity`.
+
+### Breaking
+- Removed legacy `project`, `eval`, `export`, `demo`, `preview` commands.
