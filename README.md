@@ -57,13 +57,19 @@ Successful validation returns:
 
 ## Agent Loader Commands
 
-These commands belong to the agent-adapter layer, not the local `.kdna`
-first-run path:
+The `kdna-loader` skill provides automatic discovery of local `.kdna` assets
+for supported agents (OpenCode, Codex, Claude Code, Cursor). Install manually:
 
-| Command | Purpose |
+| Agent | Skill path |
 | --- | --- |
-| `kdna setup` | Install the `kdna-loader` skill for supported agents |
-| `kdna doctor --agents` | Check agent loader installation |
+| OpenCode | `~/.agents/skills/kdna-loader/SKILL.md` |
+| Codex | `~/.codex/skills/kdna-loader/SKILL.md` |
+| Claude Code | `~/.claude/skills/kdna-loader/SKILL.md` |
+| Cursor | `~/.cursor/skills/kdna-loader/SKILL.md` |
+
+See [kdna-skills](https://github.com/aikdna/kdna-skills) for the loader source and installer script.
+
+`kdna setup` and `kdna doctor` were removed in v1 Core 0.27.0. Use the manual install path above.
 
 ## Producer Path
 
