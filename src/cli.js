@@ -252,7 +252,20 @@ switch (cmd) {
           }
           return core.loadV1(input, options);
         });
-      const r = loadV1Authorized(target, { profile, as });
+      const hasPassword = args.includes('--has-password');
+      const entitlementStatusIndex = args.indexOf('--entitlement-status');
+      const entitlementStatus = entitlementStatusIndex >= 0 ? args[entitlementStatusIndex + 1] : null;
+      if (entitlementStatusIndex >= 0 && !allowedEntitlementStatuses?.has?.(entitlementStatus)) {
+        if (!['active','expired','revoked','offline_grace'].includes(entitlementStatus)) {
+          process.stderr.write('Warning: unknown --entitlement-status value, ignoring.\n');
+        }
+      }
+      const r = loadV1Authorized(target, {
+        profile,
+        as,
+        hasPassword,
+        entitlement: entitlementStatus ? { status: entitlementStatus } : undefined,
+      });
       if (as === 'prompt') {
         process.stdout.write(r.text + '\n');
       } else {
