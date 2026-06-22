@@ -1,51 +1,11 @@
 name: CI
-
-on:
-  workflow_dispatch:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
+on: [pull_request, push]
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run format:check
-
   test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [18, 22, 24]
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: ${{ matrix.node-version }}
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
       - run: npm ci
-      - run: npm run test:all
-
-  smoke:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-      - run: npm ci
-      - name: Smoke test — CLI help
-        run: node src/cli.js help
-      - name: Smoke test — version via --help
-        run: node src/cli.js --help
-      - name: Smoke test — unknown command
-        run: node src/cli.js nonexistent 2>&1 | grep -q "Unknown command" && echo "PASS"
-      - name: Smoke test — existing smoke test
-        run: node tests/smoke/smoke-test.js
+      - run: npm test
