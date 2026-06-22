@@ -10,6 +10,12 @@ const fs = require('node:fs');
 const { error, EXIT, setQuiet, setExitCodeOnly } = require('./cmds/_common');
 const { cmdDemo: cmdDemoMinimal } = require('./cmds/demo');
 
+// Strip stack traces from uncaught errors for clean user output
+process.on('uncaughtException', (err) => {
+  process.stderr.write(`Error: ${err.message}\n`);
+  process.exit(1);
+});
+
 const V2_UNSUPPORTED_MSG =
   'Unsupported legacy/registry container. KDNA v1 Core CLI supports local v1 packaged .kdna assets. Re-export with kdna-studio-cli@0.6.0 or create with kdna demo/pack.';
 
@@ -155,6 +161,21 @@ switch (cmd) {
     const abs = require('node:path').resolve(v1Target);
     if (!isV1SourceDir(abs)) {
       error(`Not a KDNA v1 source directory: ${v1Target}`, EXIT.INPUT_ERROR);
+    }
+
+    // Warn if checksums are stale (source modified since last pack)
+    const checksumsPath = path.resolve(abs, 'checksums.json');
+    if (fs.existsSync(checksumsPath)) {
+      try {
+        const { buildChecksumsV1 } = require('@aikdna/kdna-core');
+        const manifestPath = path.resolve(abs, 'kdna.json');
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+        const fresh = buildChecksumsV1(abs, manifest);
+        const stored = JSON.parse(fs.readFileSync(checksumsPath, 'utf8'));
+        if (JSON.stringify(fresh) !== JSON.stringify(stored)) {
+          process.stderr.write('Warning: checksums.json is stale (source files changed). Rebuilding during pack.\n');
+        }
+      } catch { /* checksums check is best-effort */ }
     }
     const out = args.filter((a) => !a.startsWith('--'))[2];
     if (!out) error('Usage: kdna pack <source-dir> <output.kdna>', EXIT.INPUT_ERROR);
