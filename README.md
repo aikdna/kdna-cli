@@ -2,7 +2,7 @@
 
 [![npm](https://img.shields.io/npm/v/@aikdna/kdna-cli)](https://www.npmjs.com/package/@aikdna/kdna-cli) [![CI](https://github.com/aikdna/kdna-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/aikdna/kdna-cli/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
-The official command-line runtime for KDNA Core v1 judgment assets.
+The official command-line runtime for Core GA judgment assets.
 
 KDNA CLI inspects, validates, packs, unpacks, and loads `.kdna` files. It is
 the consumer/runtime side of the official KDNA toolchain. Formal authoring is
@@ -46,13 +46,13 @@ Successful validation returns:
 | Command                                                    | Purpose                                                        |
 | ---------------------------------------------------------- | -------------------------------------------------------------- |
 | `kdna demo minimal <dir>`                                  | Create a minimal local demo folder                             |
-| `kdna inspect <path>`                                      | Inspect a v1 source dir or `.kdna` container                   |
+| `kdna inspect <path>`                                      | Inspect a source directory or `.kdna` container                   |
 | `kdna validate <path>`                                     | Validate format, schema, payload, checksums, and load contract |
 | `kdna plan-load <path> --json`                             | Return the Core LoadPlan before runtime load                   |
 | `kdna plan-load <path> --json --has-password`              | Diagnose password-authorized load state                        |
 | `kdna plan-load <path> --json --entitlement-status active` | Diagnose receipt/entitlement load state                        |
 | `kdna pack <input-dir> <output.kdna>`                      | Pack a local working folder into a `.kdna` file                |
-| `kdna unpack <input.kdna> <output-dir>`                    | Unpack a v1 container                                          |
+| `kdna unpack <input.kdna> <output-dir>`                    | Unpack a KDNA Asset Container                                          |
 | `kdna load <path> --profile=<index\|compact\|scenario\|full> --as=<json\|prompt>` | Render judgment context for agents or tools |
 
 ## Agent Loader Commands
@@ -69,11 +69,11 @@ for supported agents (OpenCode, Codex, Claude Code, Cursor). Install manually:
 
 See [kdna-skills](https://github.com/aikdna/kdna-skills) for the loader source and installer script.
 
-`kdna setup` and `kdna doctor` were removed in v1 Core 0.27.0. Use the manual install path above.
+`kdna setup` and `kdna doctor` were removed in Core CLI 0.27.0. Use the manual install path above.
 
 ## Producer Path
 
-Use Studio CLI to create formal v1 `.kdna` assets:
+Use Studio CLI to create formal `.kdna` assets:
 
 ```bash
 npm install -g @aikdna/kdna-studio-cli
@@ -98,7 +98,7 @@ Some older commands may still appear for existing users and migration tests.
 They are maintained as compatibility surfaces, not as the recommended public
 beta path.
 
-New integrations should use the v1 Core route:
+New integrations should use the Core GA route:
 
 ```text
 source or Studio project
@@ -137,7 +137,7 @@ kdna load ./asset.kdna --profile=compact --as=prompt
 ```
 
 `plan-load` requires a version of `@aikdna/kdna-core` that exports the LoadPlan
-v1 API. Until that dependency is released and installed, the command fails with
+Core GA API. Until that dependency is released and installed, the command fails with
 a version-gate error instead of falling back to duplicated CLI-side parsing.
 
 ## Development
