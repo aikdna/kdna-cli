@@ -7,6 +7,7 @@
  */
 
 const fs = require('node:fs');
+const path = require('node:path');
 const { error, EXIT, setQuiet, setExitCodeOnly } = require('./cmds/_common');
 const { cmdDemo: cmdDemoMinimal } = require('./cmds/demo');
 
