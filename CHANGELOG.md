@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.28.0 (2026-06-23)
+- Feat: kdna lint — Anti-Monolithic Domain check (RFC-0013 §4), supports --strict and --json.
+- Feat: kdna workpack — Work Pack operations (init, validate, inspect, explain, plan, run, report).
+
 ## v0.27.6 (2026-06-22)
 - Fix (P0): kdna load now forwards --has-password and --entitlement-status to planLoad
 
