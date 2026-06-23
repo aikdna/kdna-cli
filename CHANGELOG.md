@@ -1,6 +1,10 @@
 # Changelog
 
 ## v0.28.0 (2026-06-23)
+- Feat: kdna lint.
+- Feat: kdna workpack.
+
+## v0.28.0 (2026-06-23)
 - Feat: kdna lint — Anti-Monolithic Domain check (RFC-0013 §4), supports --strict and --json.
 - Feat: kdna workpack — Work Pack operations (init, validate, inspect, explain, plan, run, report).
 
