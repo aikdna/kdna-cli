@@ -10,6 +10,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { error, EXIT, setQuiet, setExitCodeOnly } = require('./cmds/_common');
 const { cmdDemo: cmdDemoMinimal } = require('./cmds/demo');
+const { runAntiMonolithicCheck, printAndExit: printAntiMonolithic } = require('./cmds/anti-monolithic');
+const { cmdWorkpack } = require('./cmds/workpack');
 
 // Strip stack traces from uncaught errors for clean user output
 process.on('uncaughtException', (err) => {
@@ -52,6 +54,11 @@ Core v1:
   pack      <dev-source> <out>       Pack into .kdna (--force to overwrite)
   unpack    <file.kdna> <out>        Extract .kdna into an editing/debug view
   demo      <minimal|judgment> <dir>  Create a v1 demo fixture
+  lint      <source-dir>             Anti-Monolithic Domain check (RFC-0013 §4)
+                                     --strict: upgrade warnings to errors
+                                     --json: machine-readable output
+  workpack  <subcommand> <path>      Work Pack operations (init/validate/inspect/
+                                     explain/plan/run/report)
 Flags: --version / --help / --json / --quiet
 `);
 }
@@ -302,6 +309,20 @@ switch (cmd) {
       process.stderr.write('Error: ' + e.message + '\n');
       process.exit(1);
     }
+  }
+  case 'lint': {
+    const lintTarget = args.filter((a) => !a.startsWith('--'))[1];
+    if (!lintTarget) error('Usage: kdna lint <source-dir> [--strict] [--json]', EXIT.INPUT_ERROR);
+    const abs = require('node:path').resolve(lintTarget);
+    if (!fs.existsSync(abs)) error(`Directory not found: ${lintTarget}`, EXIT.INPUT_ERROR);
+    if (!fs.statSync(abs).isDirectory()) error(`Not a directory: ${lintTarget}`, EXIT.INPUT_ERROR);
+    const result = runAntiMonolithicCheck(abs, { strict: args.includes('--strict') });
+    const code = printAntiMonolithic(result, { json: args.includes('--json') });
+    process.exit(code);
+  }
+  case 'workpack': {
+    cmdWorkpack(args);
+    break;
   }
   case 'demo': {
     cmdDemoMinimal(args.slice(1));
