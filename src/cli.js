@@ -311,6 +311,7 @@ switch (cmd) {
     }
   }
   case 'lint': {
+    try {
     const lintTarget = args.filter((a) => !a.startsWith('--'))[1];
     if (!lintTarget) error('Usage: kdna lint <source-dir> [--strict] [--json]', EXIT.INPUT_ERROR);
     const abs = require('node:path').resolve(lintTarget);
@@ -319,6 +320,7 @@ switch (cmd) {
     const result = runAntiMonolithicCheck(abs, { strict: args.includes('--strict') });
     const code = printAntiMonolithic(result, { json: args.includes('--json') });
     process.exit(code);
+    } catch (e) { process.stderr.write('Error: ' + e.message + '\n'); process.exit(1); }
   }
   case 'workpack': {
     cmdWorkpack(args);
