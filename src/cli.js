@@ -7,8 +7,17 @@
  */
 
 const fs = require('node:fs');
+const path = require('node:path');
 const { error, EXIT, setQuiet, setExitCodeOnly } = require('./cmds/_common');
 const { cmdDemo: cmdDemoMinimal } = require('./cmds/demo');
+const { runAntiMonolithicCheck, printAndExit: printAntiMonolithic } = require('./cmds/anti-monolithic');
+const { cmdWorkpack } = require('./cmds/workpack');
+
+// Strip stack traces from uncaught errors for clean user output
+process.on('uncaughtException', (err) => {
+  process.stderr.write(`Error: ${err.message}\n`);
+  process.exit(1);
+});
 
 const V2_UNSUPPORTED_MSG =
   'Unsupported legacy/registry container. KDNA v1 Core CLI supports local v1 packaged .kdna assets. Re-export with kdna-studio-cli@0.6.0 or create with kdna demo/pack.';
@@ -45,6 +54,11 @@ Core v1:
   pack      <dev-source> <out>       Pack into .kdna (--force to overwrite)
   unpack    <file.kdna> <out>        Extract .kdna into an editing/debug view
   demo      <minimal|judgment> <dir>  Create a v1 demo fixture
+  lint      <source-dir>             Anti-Monolithic Domain check (RFC-0013 §4)
+                                     --strict: upgrade warnings to errors
+                                     --json: machine-readable output
+  workpack  <subcommand> <path>      Work Pack operations (init/validate/inspect/
+                                     explain/plan/run/report)
 Flags: --version / --help / --json / --quiet
 `);
 }
@@ -159,6 +173,21 @@ switch (cmd) {
     const abs = require('node:path').resolve(v1Target);
     if (!isV1SourceDir(abs)) {
       error(`Not a KDNA v1 source directory: ${v1Target}`, EXIT.INPUT_ERROR);
+    }
+
+    // Warn if checksums are stale (source modified since last pack)
+    const checksumsPath = path.resolve(abs, 'checksums.json');
+    if (fs.existsSync(checksumsPath)) {
+      try {
+        const { buildChecksumsV1 } = require('@aikdna/kdna-core');
+        const manifestPath = path.resolve(abs, 'kdna.json');
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+        const fresh = buildChecksumsV1(abs, manifest);
+        const stored = JSON.parse(fs.readFileSync(checksumsPath, 'utf8'));
+        if (JSON.stringify(fresh) !== JSON.stringify(stored)) {
+          process.stderr.write('Warning: checksums.json is stale (source files changed). Rebuilding during pack.\n');
+        }
+      } catch { /* checksums check is best-effort */ }
     }
     const out = args.filter((a) => !a.startsWith('--'))[2];
     if (!out) error('Usage: kdna pack <source-dir> <output.kdna>', EXIT.INPUT_ERROR);
@@ -301,6 +330,22 @@ switch (cmd) {
       process.stderr.write('Error: ' + e.message + '\n');
       process.exit(1);
     }
+  }
+  case 'lint': {
+    try {
+    const lintTarget = args.filter((a) => !a.startsWith('--'))[1];
+    if (!lintTarget) error('Usage: kdna lint <source-dir> [--strict] [--json]', EXIT.INPUT_ERROR);
+    const abs = require('node:path').resolve(lintTarget);
+    if (!fs.existsSync(abs)) error(`Directory not found: ${lintTarget}`, EXIT.INPUT_ERROR);
+    if (!fs.statSync(abs).isDirectory()) error(`Not a directory: ${lintTarget}`, EXIT.INPUT_ERROR);
+    const result = runAntiMonolithicCheck(abs, { strict: args.includes('--strict') });
+    const code = printAntiMonolithic(result, { json: args.includes('--json') });
+    process.exit(code);
+    } catch (e) { process.stderr.write('Error: ' + e.message + '\n'); process.exit(1); }
+  }
+  case 'workpack': {
+    cmdWorkpack(args);
+    break;
   }
   case 'demo': {
     cmdDemoMinimal(args.slice(1));
