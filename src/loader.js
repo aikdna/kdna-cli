@@ -20,8 +20,12 @@ function readFile(sourceDir, filename) {
   if (!fs.existsSync(filePath)) return null;
   try {
     return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-  } catch {
-    return null;
+  } catch (e) {
+    if (e.code === 'ENOENT') return null;
+    throw Object.assign(
+      new Error(`Failed to read ${filename}: ${e.message}`),
+      { code: 'KDNA_LOADER_PARSE_ERROR', path: filePath },
+    );
   }
 }
 

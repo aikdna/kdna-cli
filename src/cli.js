@@ -265,16 +265,10 @@ switch (cmd) {
   }
   case 'load': {
     const target = args.filter((a) => !a.startsWith('--'))[1];
-    if (!target) error('Usage: kdna load <file.kdna> [--profile=<index|compact|scenario|full>] [--as=<json|prompt>]', EXIT.INPUT_ERROR);
+    if (!target) error('Usage: kdna load <file.kdna> [--profile=<index|compact|scenario|full>] [--as=<json|prompt>] [--password=<value>]', EXIT.INPUT_ERROR);
     const core = require('@aikdna/kdna-core');
-    const { isV1SourceDir, detectContainerFormat } = core;
     const abs = require('node:path').resolve(target);
     if (!fs.existsSync(abs)) error(`File not found: ${target}`, EXIT.INPUT_ERROR);
-    const containerFmt = detectContainerFormat(abs);
-    if (containerFmt === 'v2') error(V2_UNSUPPORTED_MSG, EXIT.INPUT_ERROR);
-    if (!isV1SourceDir(abs) && containerFmt !== 'v1') {
-      error(`Not a KDNA v1 container: ${target}`, EXIT.INPUT_ERROR);
-    }
     const getFlag = (name) => {
       const eq = args.find((a) => a.startsWith(name + '='));
       if (eq) return eq.split('=')[1];
@@ -283,45 +277,19 @@ switch (cmd) {
     };
     const profile = getFlag('--profile') || 'compact';
     const as = getFlag('--as') || 'json';
+    const passwordRaw = getFlag('--password');
+    const password = typeof passwordRaw === 'string' && passwordRaw.length > 0 ? passwordRaw : undefined;
     if (args.includes('--has-password')) {
-      error(
-        '--has-password is a plan-load diagnostic only; it does not decrypt. ' +
-          'Use `kdna plan-load --has-password` for dry-runs. ' +
-          'For `kdna load`, supply the real password via --password=<value>.',
-        EXIT.INPUT_ERROR,
-      );
+      process.stderr.write('Warning: --has-password is a plan-load diagnostic. Use --password=<value> for actual decryption.\n');
     }
     try {
-      const loadV1Authorized =
-        core.loadAuthorized ||
-        ((input, options) => {
-          if (typeof core.planLoad !== 'function') {
-            throw new Error('LoadPlan API is required before loading KDNA Core v1 assets');
-          }
-          const plan = core.planLoad(input, options);
-          if (plan.can_load_now !== true) {
-            const err = new Error(
-              `LoadPlan denied loading: state=${plan.state || 'invalid'} required_action=${plan.required_action || 'block'}`,
-            );
-            err.code =
-              (plan.issues && plan.issues[0] && plan.issues[0].code) ||
-              'KDNA_LOAD_NOT_AUTHORIZED';
-            throw err;
-          }
-          return core.loadV1(input, options);
-        });
-      const hasPassword = args.includes('--has-password');
       const entitlementStatusIndex = args.indexOf('--entitlement-status');
       const entitlementStatus = entitlementStatusIndex >= 0 ? args[entitlementStatusIndex + 1] : null;
-      if (entitlementStatusIndex >= 0 && !allowedEntitlementStatuses?.has?.(entitlementStatus)) {
-        if (!['active','expired','revoked','offline_grace'].includes(entitlementStatus)) {
-          process.stderr.write('Warning: unknown --entitlement-status value, ignoring.\n');
-        }
-      }
-      const r = loadV1Authorized(target, {
+      const r = core.loadAuthorized(target, {
         profile,
         as,
-        hasPassword,
+        password,
+        hasPassword: !!password || args.includes('--has-password'),
         entitlement: entitlementStatus ? { status: entitlementStatus } : undefined,
       });
       if (as === 'prompt') {
@@ -331,12 +299,16 @@ switch (cmd) {
       }
       return;
     } catch (e) {
-      if (e.code === 'requires_decryption') {
-        process.stderr.write('Error: payload requires decryption.\n');
-        process.exit(4);
+      if (e.code === 'KDNA_DECRYPT_FAILED') {
+        process.stderr.write('Error: decryption failed. Check your password.\n');
+        process.exit(EXIT.JUDGMENT_QUALITY_FAILED);
+      }
+      if (e.code === 'KDNA_AUTH_PASSWORD_REQUIRED' || e.code === 'requires_decryption') {
+        process.stderr.write('Error: payload requires a password. Use --password=<value>.\n');
+        process.exit(EXIT.JUDGMENT_QUALITY_FAILED);
       }
       process.stderr.write('Error: ' + e.message + '\n');
-      process.exit(1);
+      process.exit(EXIT.VALIDATION_FAILED);
     }
   }
   case 'lint': {

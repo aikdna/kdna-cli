@@ -1,7 +1,7 @@
 {
   "name": "@aikdna/kdna-cli",
   "version": "0.28.0",
-  "description": "KDNA CLI \u2014 runtime control plane for inspecting, validating, planning, packing, unpacking, and loading local .kdna assets.",
+  "description": "KDNA CLI — runtime control plane for inspecting, validating, planning, packing, unpacking, and loading local .kdna assets.",
   "type": "commonjs",
   "bin": {
     "kdna": "src/cli.js",
@@ -16,8 +16,7 @@
     "LICENSE",
     "NOTICE",
     "SECURITY.md",
-    "schema/",
-    "fixtures/"
+    "schema/"
   ],
   "scripts": {
     "lint": "eslint src/ validators/ tests/",
@@ -57,7 +56,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@aikdna/kdna-core": "^0.13.2"
+    "@aikdna/kdna-core": "file:../../../../../tmp/aikdna-kdna-core-0.13.3.tgz"
   },
   "optionalDependencies": {
     "ajv": "^8.20.0",
