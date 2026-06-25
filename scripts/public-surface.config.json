@@ -1,0 +1,19 @@
+{
+  "_doc": "public-surface for kdna-cli. kdna-cli has no bin/ dir — entry is src/cli.js (mapped via package.json bin). Help/usage strings live in src/cli.js and src/cmds/*.js. Both are part of the public CLI surface and must be clean.",
+  "publicDirs": [
+    "README.md",
+    "examples/",
+    "docs/",
+    ".github/",
+    "src/cli.js",
+    "src/cmds/"
+  ],
+  "publicFiles": ["package.json", "CHANGELOG.md"],
+  "allowedHistoricalPaths": ["docs/archive/"],
+  "forbiddenPatterns": [
+    "kdna-x",
+    "kdna-lab",
+    "/Users/AI/K/OPEN",
+    "A-agent-meta"
+  ]
+}
