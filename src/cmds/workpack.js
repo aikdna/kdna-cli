@@ -698,6 +698,19 @@ function cmdWorkpackInit(name, argsArr = []) {
   const dir = path.resolve(name);
   if (fs.existsSync(dir)) error(`Directory "${name}" already exists.`);
 
+  const safeName = path
+    .basename(name)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64);
+  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(safeName)) {
+    error(
+      `Cannot derive a valid Work Pack name from "${name}". ` +
+        'Name must be kebab-case (lowercase letters, digits, hyphens).',
+    );
+  }
+
   const dirs = [
     'kdna',
     'skills',
@@ -713,9 +726,9 @@ function cmdWorkpackInit(name, argsArr = []) {
   const manifest = {
     format: 'kdna-workpack',
     format_version: '0.1',
-    name,
+    name: safeName,
     version: '0.1.0',
-    description: `A KDNA Work Pack for ${name.replace(/-/g, ' ')}.`,
+    description: `A KDNA Work Pack for ${safeName.replace(/-/g, ' ')}.`,
     status: 'draft',
     access: 'open',
     license: 'Apache-2.0',

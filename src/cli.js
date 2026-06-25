@@ -283,6 +283,14 @@ switch (cmd) {
     };
     const profile = getFlag('--profile') || 'compact';
     const as = getFlag('--as') || 'json';
+    if (args.includes('--has-password')) {
+      error(
+        '--has-password is a plan-load diagnostic only; it does not decrypt. ' +
+          'Use `kdna plan-load --has-password` for dry-runs. ' +
+          'For `kdna load`, supply the real password via --password=<value>.',
+        EXIT.INPUT_ERROR,
+      );
+    }
     try {
       const loadV1Authorized =
         core.loadAuthorized ||
