@@ -342,28 +342,30 @@ function cmdLoad(input, args = []) {
     process.exit(2);
   }
 
-  const manifest = readContainerJson(asset.asset_path, 'kdna.json') || {};
-  const encryptedEntries = manifest.encryption?.encrypted_entries || [];
-  let decryptOptions = {};
-  let licenseActivation = null;
-  if (manifest.access === 'licensed' || encryptedEntries.length > 0) {
-    const activation = licenseDecryptOptionsForManifest(manifest);
-    if (!activation.ok) {
-      console.error(`KDNA license required for ${manifest.name || input}: ${activation.error}`);
-      console.error(`Install a license with: kdna license install <license.json>`);
-      process.exit(3);
-    }
-    decryptOptions = { decryptEntry: activation.decryptEntry };
-    licenseActivation = activation.license;
-  }
-
+  // B6: Route through Core's unified loadAuthorized instead of manual manifest/decrypt.
   let container;
   try {
-    container = readContainer(asset.asset_path, decryptOptions);
+    const core = require('@aikdna/kdna-core');
+    const result = core.loadAuthorized(asset.asset_path, {
+      profile: profile || 'compact',
+      as: format === 'json' ? 'json' : 'json',
+      password: undefined, // password can be added via --password flag in future
+    });
+    container = {
+      core: result.domain?.core || result.core || {},
+      patterns: result.domain?.patterns || result.patterns || {},
+      manifest: result.manifest || {},
+    };
   } catch (e) {
-    console.error(`Failed to load KDNA asset: ${e.message}`);
+    if (e.plan) {
+      console.error(`KDNA load denied: ${e.plan.state || 'invalid'} — ${e.message}`);
+    } else {
+      console.error(`Failed to load KDNA asset: ${e.message}`);
+    }
     process.exit(3);
   }
+
+  const manifest = container.manifest || {};
   const parsed = asset.parsed || parseName(manifest.name || '');
   const label = assetLabel(asset, input);
   if (manifest.yanked === true) {

@@ -79,29 +79,42 @@ function cmdDemo(args) {
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
     // Set up encryption metadata for a password-protected licensed asset.
-    // The payload stays as plaintext for this demo — the encryption envelope
-    // demonstrates the authorization flow (needs_password → hasPassword → load).
     manifest.access = 'licensed';
-    manifest.payload.encrypted = true;
     manifest.entitlement = { profile: 'password', offline: true, revocable: false };
     manifest.encryption = {
       profile: 'kdna-password-protected-v1',
       encrypted_entries: ['payload.kdnab'],
     };
+    manifest.payload = manifest.payload || {};
+    manifest.payload.encrypted = true;
+
+    // Actually encrypt the payload using kdna-password-protected-v1.
+    const { encryptProtectedEntry, generateRecoveryCode } = require('@aikdna/kdna-core');
+    const plaintext = fs.readFileSync(payloadPath, 'utf8');
+    const recoveryCode = generateRecoveryCode();
+    const envelope = encryptProtectedEntry(plaintext, {
+      entryName: 'payload.kdnab',
+      manifest,
+      password,
+      recoveryCode,
+    });
+    const envelopeJson = typeof envelope === 'string' ? envelope : JSON.stringify(envelope);
+    fs.writeFileSync(payloadPath, envelopeJson);
 
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 
-    // Rebuild checksums
+    // Rebuild checksums after encryption
     const { buildChecksumsV1 } = require('@aikdna/kdna-core');
-    const newChecksums = buildChecksumsV1(outDir, manifest);
+    const newChecksums = buildChecksumsV1(outDir);
     fs.writeFileSync(path.join(outDir, 'checksums.json'), JSON.stringify(newChecksums, null, 2));
 
     process.stdout.write(`  ${copied.length} file(s) copied, payload encrypted with password\n\n`);
-    process.stdout.write(`${demo.label} (encrypted) created at: ${outDir}\n\n`);
+    process.stdout.write(`${demo.label} (encrypted) created at: ${outDir}\n`);
+    const shortCode = recoveryCode ? recoveryCode.substring(0, 19) : '';
+    if (shortCode) process.stdout.write(`Recovery code: ${recoveryCode}\n\n`);
     process.stdout.write('Next:\n');
     process.stdout.write(`  kdna pack          ${dest} ${dest}.kdna\n`);
     process.stdout.write(`  kdna validate      ${dest}.kdna\n`);
-    process.stdout.write(`  kdna plan-load     ${dest}.kdna --has-password        # dry-run: presence signal only\n`);
     process.stdout.write(`  kdna load          ${dest}.kdna --password=<pw> --profile=compact --as=prompt\n`);
     return;
   }

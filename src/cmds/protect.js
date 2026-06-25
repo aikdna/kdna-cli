@@ -80,16 +80,25 @@ function cmdProtect(args) {
     }
   }
 
-  // Add mimetype if missing
+  // Add mimetype if missing — use v1 canonical format
   if (!zipEntries.mimetype) {
-    zipEntries.mimetype = 'application/vnd.aikdna.kdna+zip';
+    zipEntries.mimetype = 'application/vnd.kdna.asset';
   }
 
   // Recompute content digest and strip invalidated signature after encryption
   updateManifestDigest(zipEntries, reader);
 
-  const zipBuffer = buildZip(zipEntries);
-  fs.writeFileSync(outPath, zipBuffer);
+  // Use Core's canonical packer instead of custom buildZip (ADR-003, B1)
+  const { pack } = require('@aikdna/kdna-core');
+  const tmpDir = require('node:fs').mkdtempSync(require('node:path').join(require('node:os').tmpdir(), 'kdna-protect-'));
+  try {
+    for (const [name, data] of Object.entries(zipEntries)) {
+      require('node:fs').writeFileSync(require('node:path').join(tmpDir, name), data);
+    }
+    pack(tmpDir, outPath);
+  } finally {
+    require('node:fs').rmSync(tmpDir, { recursive: true, force: true });
+  }
 
   console.log(`Protected asset written to: ${outPath}`);
   console.log(`Encrypted entries: ${entriesToEncrypt.join(', ')}`);
