@@ -54,7 +54,7 @@ function cmdProtect(args) {
   // Update manifest
   const newManifest = {
     ...manifest,
-    access: 'protected',
+    access: 'licensed',
     encryption: { profile: 'kdna-password-protected-v1', encrypted_entries: entriesToEncrypt },
   };
 
@@ -201,7 +201,7 @@ function cmdRecover(args) {
   }
 
   if (!zipEntries.mimetype) {
-    zipEntries.mimetype = 'application/vnd.aikdna.kdna+zip';
+    zipEntries.mimetype = 'application/vnd.kdna.asset';
   }
 
   // Recompute content digest and strip invalidated signature after re-encryption

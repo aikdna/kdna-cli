@@ -335,7 +335,7 @@ function cmdPack(dir, outputDir) {
       judgment_version: core.meta?.version || '0.1.0',
       status: 'experimental',
       quality_badge: 'untested',
-      access: 'open',
+      access: 'public',
       languages: ['en'],
       default_language: 'en',
       author: { name: '', id: '' },

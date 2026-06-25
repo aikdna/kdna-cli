@@ -730,7 +730,7 @@ function cmdWorkpackInit(name, argsArr = []) {
     version: '0.1.0',
     description: `A KDNA Work Pack for ${safeName.replace(/-/g, ' ')}.`,
     status: 'draft',
-    access: 'open',
+    access: 'public',
     license: 'Apache-2.0',
     kdna: { mode: 'single', asset: { name: domain, version: '^1.0.0', role: 'primary' } },
     skills: [{ name: 'analyze_input', type: 'analysis', required: true }],
