@@ -12,6 +12,8 @@ const { error, EXIT, setQuiet, setExitCodeOnly } = require('./cmds/_common');
 const { cmdDemo: cmdDemoMinimal } = require('./cmds/demo');
 const { runAntiMonolithicCheck, printAndExit: printAntiMonolithic } = require('./cmds/anti-monolithic');
 const { cmdWorkpack } = require('./cmds/workpack');
+const { cmdLicenseInstall, cmdLicenseStatus, cmdLicenseGenerate } = require('./cmds/license');
+const { cmdIdentityInit, cmdIdentityShow } = require('./cmds/identity');
 
 // Strip stack traces from uncaught errors for clean user output
 process.on('uncaughtException', (err) => {
@@ -59,6 +61,13 @@ Core v1:
                                      --json: machine-readable output
   workpack  <subcommand> <path>      Work Pack operations (init/validate/inspect/
                                      explain/plan/run/report)
+Auth & Identity:
+  license  install <license.json>    Install a license for a domain
+  license  status [<domain>]         Show license status (all or one)
+  license  generate <domain>         Generate a signed license
+           --to <email> [--expires]
+  identity init                      Generate Ed25519 identity keypair
+  identity show                      Display identity fingerprint/paths
 Flags: --version / --help / --json / --quiet
 `);
 }
@@ -330,6 +339,21 @@ switch (cmd) {
   case 'demo': {
     cmdDemoMinimal(args.slice(1));
     break;
+  }
+  case 'license': {
+    // Wave 5: wire license subcommands (G8)
+    const sub = args[1];
+    if (sub === 'install') { cmdLicenseInstall(args.slice(2)); break; }
+    if (sub === 'status') { cmdLicenseStatus(args.slice(2)); break; }
+    if (sub === 'generate') { cmdLicenseGenerate(args.slice(2)); break; }
+    error(`Usage: kdna license <install|status|generate> [...]`, EXIT.INPUT_ERROR);
+  }
+  case 'identity': {
+    // Wave 5: wire identity subcommands (G9)
+    const sub = args[1];
+    if (sub === 'init') { cmdIdentityInit(args.slice(2)); break; }
+    if (sub === 'show') { cmdIdentityShow(args.slice(2)); break; }
+    error(`Usage: kdna identity <init|show>`, EXIT.INPUT_ERROR);
   }
   default:
     error(`Unknown command: ${cmd}\nRun: kdna help`);
