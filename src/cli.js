@@ -14,6 +14,9 @@ const { runAntiMonolithicCheck, printAndExit: printAntiMonolithic } = require('.
 const { cmdWorkpack } = require('./cmds/workpack');
 const { cmdLicenseInstall, cmdLicenseStatus, cmdLicenseGenerate } = require('./cmds/license');
 const { cmdIdentityInit, cmdIdentityShow } = require('./cmds/identity');
+const { cmdDoctor } = require('./cmds/doctor');
+const { cmdTrace, cmdHistory } = require('./cmds/trace');
+const { cmdCluster } = require('./cmds/cluster');
 
 // Strip stack traces from uncaught errors for clean user output
 process.on('uncaughtException', (err) => {
@@ -68,6 +71,11 @@ Auth & Identity:
            --to <email> [--expires]
   identity init                      Generate Ed25519 identity keypair
   identity show                      Display identity fingerprint/paths
+Diagnostics:
+  doctor   [--agents] [--domains]    System health check
+  trace    [--json] [--clear]        Observability trace logs
+  history  [--stats] [--json]        KDNA load history
+  cluster  <path>                    Validate a cluster manifest
 Flags: --version / --help / --json / --quiet
 `);
 }
@@ -349,11 +357,26 @@ switch (cmd) {
     error(`Usage: kdna license <install|status|generate> [...]`, EXIT.INPUT_ERROR);
   }
   case 'identity': {
-    // Wave 5: wire identity subcommands (G9)
     const sub = args[1];
     if (sub === 'init') { cmdIdentityInit(args.slice(2)); break; }
     if (sub === 'show') { cmdIdentityShow(args.slice(2)); break; }
     error(`Usage: kdna identity <init|show>`, EXIT.INPUT_ERROR);
+  }
+  case 'doctor': {
+    cmdDoctor(args.slice(1));
+    break;
+  }
+  case 'trace': {
+    cmdTrace(args.slice(1));
+    break;
+  }
+  case 'history': {
+    cmdHistory(args.slice(1));
+    break;
+  }
+  case 'cluster': {
+    cmdCluster(args.slice(1));
+    break;
   }
   default:
     error(`Unknown command: ${cmd}\nRun: kdna help`);
