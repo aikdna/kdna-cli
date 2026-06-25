@@ -136,6 +136,13 @@ kdna plan-load ./asset.kdna --json --entitlement-status active
 kdna load ./asset.kdna --profile=compact --as=prompt
 ```
 
+> ⚠️ `--has-password` is a **plan-load** diagnostic only. It tells the
+> planner "I would have a password if I had to provide one" so it can
+> skip the `needs_password` gate. It does **not** decrypt. To actually
+> load a protected asset, use `kdna load --password=<value>`. See
+> [`docs/asset-authorization.md`](docs/asset-authorization.md) for the
+> full distinction and end-to-end examples.
+
 `plan-load` requires a version of `@aikdna/kdna-core` that exports the LoadPlan
 Core GA API. Until that dependency is released and installed, the command fails with
 a version-gate error instead of falling back to duplicated CLI-side parsing.
