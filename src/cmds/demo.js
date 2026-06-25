@@ -101,8 +101,8 @@ function cmdDemo(args) {
     process.stdout.write('Next:\n');
     process.stdout.write(`  kdna pack          ${dest} ${dest}.kdna\n`);
     process.stdout.write(`  kdna validate      ${dest}.kdna\n`);
-    process.stdout.write(`  kdna plan-load     ${dest}.kdna --has-password\n`);
-    process.stdout.write(`  kdna load          ${dest}.kdna --has-password --profile=compact --as=prompt\n`);
+    process.stdout.write(`  kdna plan-load     ${dest}.kdna --has-password        # dry-run: presence signal only\n`);
+    process.stdout.write(`  kdna load          ${dest}.kdna --password=<pw> --profile=compact --as=prompt\n`);
     return;
   }
 
