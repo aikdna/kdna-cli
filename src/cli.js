@@ -21,6 +21,10 @@ const { cmdProtect, cmdUnlock, cmdRecover } = require('./cmds/protect');
 const { cmdAvailable, cmdMatch } = require('./agent');
 const { cmdInstallExtended } = require('./install');
 const { cmdPublish, cmdPublishCheck } = require('./publish');
+const { cmdChangelog } = require('./cmds/changelog');
+const { cmdExplain } = require('./cmds/explain');
+const { cmdProtocol } = require('./cmds/protocol');
+const { cmdTestRun, cmdTestImport } = require('./cmds/test');
 
 // Strip stack traces from uncaught errors for clean user output
 process.on('uncaughtException', (err) => {
@@ -396,6 +400,24 @@ switch (cmd) {
       break;
     }
     cmdPublish(args[1], args.slice(2));
+    break;
+  }
+  case 'changelog': {
+    cmdChangelog(args.slice(1));
+    break;
+  }
+  case 'explain': {
+    cmdExplain(args.slice(1));
+    break;
+  }
+  case 'protocol': {
+    cmdProtocol(args.slice(1));
+    break;
+  }
+  case 'test': {
+    const sub = args[1];
+    if (sub === 'import') { cmdTestImport(args.slice(2)); break; }
+    cmdTestRun(args.slice(1));
     break;
   }
  
