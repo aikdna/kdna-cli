@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.28.3 (2026-06-26)
+
+### Fixed
+- **C4 (partial): Connect 4 of 12 unconnected cmds to dispatcher.** `kdna changelog`, `kdna explain`, `kdna protocol`, and `kdna test` are now reachable from the CLI. Each was fully implemented in `src/cmds/<name>.js` but unreachable because `src/cli.js` had no `case` entry. 8 cmds (badge/domain/governance/legacy/quality/registry/setup/studio) remain as B14 long-term roadmap.
+
 ## v0.28.2 (2026-06-26)
 
 ### Fixed
