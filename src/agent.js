@@ -37,6 +37,7 @@ const {
   resolveAsset,
 } = require('./package-store');
 const { licenseDecryptOptionsForManifest } = require('./cmds/license');
+const { planLoad } = require('@aikdna/kdna-core');
 
 function detectAgent() {
   return process.env.KDNA_AGENT || 'cli';
@@ -1274,6 +1275,14 @@ function checkTrust(domainName) {
 
   const { manifest = {}, core = {}, evolution = {} } = readContainer(entry.asset_path);
 
+  let planAccess = manifest.access;
+  try {
+    const plan = planLoad(entry.asset_path);
+    planAccess = plan.access || manifest.access || 'public';
+  } catch {
+    planAccess = manifest.access || 'public';
+  }
+
   // 1. Yank check
   if (manifest.yanked === true) {
     failures.push('domain is yanked');
@@ -1289,7 +1298,7 @@ function checkTrust(domainName) {
   // 3. Signature check
   const signature = manifest.signature;
   const isPlaceholder = !signature || signature === '' || signature.includes('placeholder');
-  if (manifest.access === 'licensed' || manifest.access === 'runtime') {
+  if (planAccess === 'licensed' || planAccess === 'runtime') {
     if (isPlaceholder) {
       failures.push('commercial domain has no valid signature');
     }
@@ -1320,7 +1329,7 @@ function checkTrust(domainName) {
   }
 
   // 6. License validity (commercial domains)
-  if (manifest.access === 'licensed' || manifest.access === 'runtime') {
+  if (planAccess === 'licensed' || planAccess === 'runtime') {
     const licenseCheck = licenseDecryptOptionsForManifest({ ...manifest, name: domainName });
     if (!licenseCheck.ok) {
       warnings.push(
