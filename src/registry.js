@@ -7,7 +7,7 @@
  *   3. Cache registry metadata locally
  *   4. Surface scope trust info to install/publish
  *
- * Schema v3.0 — see kdna-registry/SCHEMA.md
+ * Schema v3.0 (historical reference; registry is out of scope for KDNA Core v1)
  */
 
 const fs = require('fs');
@@ -20,6 +20,8 @@ const REGISTRY_DIR = path.join(USER_KDNA_DIR, 'registry');
 const CONFIG_FILE = path.join(USER_KDNA_DIR, 'config.json');
 
 const DEFAULT_OFFICIAL_SCOPE = '@aikdna';
+// Registry URL is configurable via KDNA_REGISTRY_URL. Default points to the
+// historical location; production deployments should override this.
 const CANONICAL_REGISTRY_URL =
   process.env.KDNA_REGISTRY_URL ||
   'https://raw.githubusercontent.com/aikdna/kdna-registry/main/domains.json';
