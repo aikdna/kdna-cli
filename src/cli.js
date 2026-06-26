@@ -20,6 +20,7 @@ const { cmdCluster } = require('./cmds/cluster');
 const { cmdProtect, cmdUnlock, cmdRecover } = require('./cmds/protect');
 const { cmdAvailable, cmdMatch } = require('./agent');
 const { cmdInstallExtended } = require('./install');
+const { cmdPublish, cmdPublishCheck } = require('./publish');
 
 // Strip stack traces from uncaught errors for clean user output
 process.on('uncaughtException', (err) => {
@@ -385,6 +386,16 @@ switch (cmd) {
 // eslint-disable-next-line no-fallthrough
   case 'doctor': {
     cmdDoctor(args.slice(1));
+    break;
+  }
+// eslint-disable-next-line no-fallthrough
+  case 'publish': {
+    const sub = args[1];
+    if (sub === '--check' || sub === 'check') {
+      cmdPublishCheck(args[2], args.slice(3));
+      break;
+    }
+    cmdPublish(args[1], args.slice(2));
     break;
   }
 // eslint-disable-next-line no-fallthrough
