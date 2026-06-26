@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.28.4 (2026-06-26)
+
+### Fixed
+- **C4 (complete): All 12 previously unconnected cmds now reachable from the CLI.** `kdna badge`, `kdna domain`, `kdna governance`, `kdna legacy`, `kdna quality`, `kdna registry`, `kdna setup`, `kdna studio` are now connected via the dispatcher in `src/cli.js`. Each module had full implementation but no `case` entry. `showHelp()` updated to list all 19 case-routed commands across 4 sections.
+
 ## v0.28.3 (2026-06-26)
 
 ### Fixed
