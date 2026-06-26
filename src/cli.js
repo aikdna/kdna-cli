@@ -141,6 +141,7 @@ switch (cmd) {
     process.exit(0);
     } catch (e) { process.stderr.write('Error: ' + e.message + '\n'); process.exit(1); }
   }
+// eslint-disable-next-line no-fallthrough
   case 'plan-load': {
     try {
     const v1Target = args.filter((a) => !a.startsWith('--'))[1];
@@ -179,6 +180,7 @@ switch (cmd) {
     process.exit(plan.state === 'invalid' ? 1 : plan.can_load_now === true ? 0 : 3);
     } catch (e) { process.stderr.write('Error: ' + e.message + '\n'); process.exit(1); }
   }
+// eslint-disable-next-line no-fallthrough
   case 'pack': {
     try {
     const v1Target = args.filter((a) => !a.startsWith('--'))[1];
@@ -237,6 +239,7 @@ switch (cmd) {
     return;
     } catch (e) { process.stderr.write('Error: ' + e.message + '\n'); process.exit(1); }
   }
+// eslint-disable-next-line no-fallthrough
   case 'unpack': {
     try {
     const v1Target = args.filter((a) => !a.startsWith('--'))[1];
@@ -259,6 +262,7 @@ switch (cmd) {
     return;
     } catch (e) { process.stderr.write('Error: ' + e.message + '\n'); process.exit(1); }
   }
+// eslint-disable-next-line no-fallthrough
   case 'inspect': {
     try {
     const target = args.filter((a) => !a.startsWith('--'))[1];
@@ -280,6 +284,7 @@ switch (cmd) {
     return;
     } catch (e) { process.stderr.write('Error: ' + e.message + '\n'); process.exit(1); }
   }
+// eslint-disable-next-line no-fallthrough
   case 'load': {
     const target = args.filter((a) => !a.startsWith('--'))[1];
     if (!target) error('Usage: kdna load <file.kdna> [--profile=<index|compact|scenario|full>] [--as=<json|prompt>] [--password=<value>]', EXIT.INPUT_ERROR);
@@ -328,6 +333,7 @@ switch (cmd) {
       process.exit(EXIT.VALIDATION_FAILED);
     }
   }
+// eslint-disable-next-line no-fallthrough
   case 'lint': {
     try {
     const lintTarget = args.filter((a) => !a.startsWith('--'))[1];
@@ -340,6 +346,7 @@ switch (cmd) {
     process.exit(code);
     } catch (e) { process.stderr.write('Error: ' + e.message + '\n'); process.exit(1); }
   }
+// eslint-disable-next-line no-fallthrough
   case 'workpack': {
     cmdWorkpack(args);
     break;
@@ -356,12 +363,14 @@ switch (cmd) {
     if (sub === 'generate') { cmdLicenseGenerate(args.slice(2)); break; }
     error(`Usage: kdna license <install|status|generate> [...]`, EXIT.INPUT_ERROR);
   }
+// eslint-disable-next-line no-fallthrough
   case 'identity': {
     const sub = args[1];
     if (sub === 'init') { cmdIdentityInit(args.slice(2)); break; }
     if (sub === 'show') { cmdIdentityShow(args.slice(2)); break; }
     error(`Usage: kdna identity <init|show>`, EXIT.INPUT_ERROR);
   }
+// eslint-disable-next-line no-fallthrough
   case 'doctor': {
     cmdDoctor(args.slice(1));
     break;
