@@ -69,7 +69,7 @@ for supported agents (OpenCode, Codex, Claude Code, Cursor). Install manually:
 
 See [kdna-skills](https://github.com/aikdna/kdna-skills) for the loader source and installer script.
 
-`kdna setup` and `kdna doctor` were removed in Core CLI 0.27.0. Use the manual install path above.
+`kdna setup` and `kdna doctor` are still available in Core CLI 0.28.x. `kdna doctor [--agents] [--domains]` is the recommended first step after install; `kdna setup` is a first-time setup wizard.
 
 ## Producer Path
 
