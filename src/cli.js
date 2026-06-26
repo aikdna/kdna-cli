@@ -98,6 +98,30 @@ Diagnostics:
   available                            List available installed domains
   match     "<task>"                  Find the best-matching domain for a task
   install   <name|@scope/name|file>   Install a .kdna asset from local/registry
+Authoring & Publishing:
+  publish  <file.kdna>               Publish a .kdna asset (see also --check)
+  publish  --check <path>            Quality gate check before publish
+  changelog <domain> --from --to     Generate judgment changelog between versions
+  explain  <domain>                  Natural-language explanation of a domain
+  protocol <validate|inspect>        Validate or inspect protocol artifacts
+  test     run <domain>              Run test cases against a domain
+  test     import                    Import test results
+Asset & Domain Operations:
+  badge    <domain>                  Compute quality badge for a domain
+  badge    audit                      Audit registry for stale entries
+  badge    package <path>             Package a badge artifact
+  domain   validate <path>            Validate a domain source directory
+  domain   pack <src> <out>           Pack a domain source to .kdna
+  domain   unpack <file>              Unpack a .kdna file to a source dir
+  domain   inspect <path>             Inspect a domain source
+  domain   card <path>                Render a domain summary card
+  governance <proposal|review|...>   Human-governed self-improvement ops
+  legacy   <preview|project|eval>    Legacy domain migration commands
+  quality  <compare|diff|search>      Cross-version quality analysis
+  registry <list|refresh>            Registry operations (registry is out of scope
+                                     for Core v1; refresh is informational only)
+  setup                                First-time setup wizard
+  studio   <scaffold|cards|...>       Studio integration commands
 Flags: --version / --help / --json / --quiet
 `);
 }
