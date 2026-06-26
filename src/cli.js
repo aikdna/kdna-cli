@@ -25,6 +25,14 @@ const { cmdChangelog } = require('./cmds/changelog');
 const { cmdExplain } = require('./cmds/explain');
 const { cmdProtocol } = require('./cmds/protocol');
 const { cmdTestRun, cmdTestImport } = require('./cmds/test');
+const badge = require('./cmds/badge');
+const domain = require('./cmds/domain');
+const governance = require('./cmds/governance');
+const legacy = require('./cmds/legacy');
+const quality = require('./cmds/quality');
+const registry = require('./cmds/registry');
+const { cmdSetup } = require('./cmds/setup');
+const studio = require('./cmds/studio');
 
 // Strip stack traces from uncaught errors for clean user output
 process.on('uncaughtException', (err) => {
@@ -418,6 +426,97 @@ switch (cmd) {
     const sub = args[1];
     if (sub === 'import') { cmdTestImport(args.slice(2)); break; }
     cmdTestRun(args.slice(1));
+    break;
+  }
+  case 'badge': {
+    const sub = args[1];
+    if (sub === 'audit') { badge.cmdRegistryAudit(args.slice(2)); break; }
+    if (sub === 'package') { badge.cmdPackage(args[2], args.slice(3)); break; }
+    badge.cmdBadgeCompute(args[1], args.slice(2));
+    break;
+  }
+  case 'domain': {
+    const sub = args[1];
+    if (sub === 'pack') { domain.cmdPack(args[2], args[3]); break; }
+    if (sub === 'unpack') { domain.cmdUnpack(args.slice(2)); break; }
+    if (sub === 'inspect') { domain.cmdInspect(args.slice(2)); break; }
+    if (sub === 'validate') {
+      const json = args.includes('--json');
+      domain.cmdValidate(args[2], !args.includes('--no-schema'), json);
+      break;
+    }
+    if (sub === 'card') { domain.cmdCard(args.slice(2)); break; }
+    error('Usage: kdna domain <validate|pack|unpack|inspect|card> [args]');
+    break;
+  }
+ 
+  case 'governance': {
+    const sub = args[1];
+    if (sub === 'proposal') {
+      if (args[2] === 'create') { governance.cmdProposalCreate(args.slice(3)); break; }
+      if (args[2] === 'validate') { governance.cmdProposalValidate(args.slice(3)); break; }
+    }
+    if (sub === 'review') { governance.cmdReview(args.slice(2)); break; }
+    if (sub === 'lock') { governance.cmdLockCard(args.slice(2)); break; }
+    if (sub === 'evolution') { governance.cmdEvolution(args.slice(2)); break; }
+    if (sub === 'regression') { governance.cmdRegression(args.slice(2)); break; }
+    error('Usage: kdna governance <proposal|review|lock|evolution|regression>');
+    break;
+  }
+ 
+  case 'legacy': {
+    const sub = args[1];
+    if (sub === 'preview') { legacy.cmdPreview(); break; }
+    if (sub === 'project') { legacy.cmdProject(args.slice(2)); break; }
+    if (sub === 'eval') { legacy.cmdEval(args.slice(2)); break; }
+    if (sub === 'select') { legacy.cmdSelect(args.slice(2)); break; }
+    if (sub === 'export') { legacy.cmdExport(args.slice(2)); break; }
+    if (sub === 'demo') { legacy.cmdDemo(args.slice(2)); break; }
+    error('Usage: kdna legacy <preview|project|eval|select|export|demo>');
+    break;
+  }
+ 
+  case 'quality': {
+    const sub = args[1];
+    if (sub === 'compare') { quality.cmdCompare(args.slice(2)); break; }
+    if (sub === 'diff') { quality.cmdDiff(args.slice(2)); break; }
+    if (sub === 'search') { quality.cmdSearch(args.slice(2)); break; }
+    if (sub === 'available') { quality.cmdAvailable(args.slice(2)); break; }
+    if (sub === 'match') { quality.cmdMatch(args.slice(2)); break; }
+    if (sub === 'select') { quality.cmdSelect(args.slice(2)); break; }
+    if (sub === 'load') { quality.cmdLoad(args.slice(2)); break; }
+    if (sub === 'postvalidate') { quality.cmdPostvalidate(args.slice(2)); break; }
+    error('Usage: kdna quality <compare|diff|search|available|match|select|load|postvalidate>');
+    break;
+  }
+ 
+  case 'registry': {
+    const sub = args[1];
+    if (sub === 'refresh') { registry.cmdRegistry('refresh'); break; }
+    if (sub === 'list' || sub === undefined) {
+      registry.cmdList(sub === 'list', args.includes('--json'));
+      break;
+    }
+    error('Usage: kdna registry <list|refresh> [--json]');
+    break;
+  }
+ 
+  case 'setup': {
+    cmdSetup();
+    break;
+  }
+  case 'studio': {
+    const sub = args[1];
+    if (sub === 'scaffold') { studio.cmdStudioScaffold(args[2], args.slice(3)); break; }
+    if (sub === 'cards') {
+      if (args[2] === 'validate') { studio.cmdCardsValidate(args[3], args.slice(4)); break; }
+    }
+    if (sub === 'lock') {
+      if (args[2] === 'verify') { studio.cmdLockVerify(args[3], args.slice(4)); break; }
+    }
+    if (sub === 'compile') { studio.cmdStudioCompile(args[2], args.slice(3)); break; }
+    if (sub === 'readiness') { studio.cmdStudioReadiness(args.slice(2)); break; }
+    error('Usage: kdna studio <scaffold|cards|lock|compile|readiness>');
     break;
   }
  
