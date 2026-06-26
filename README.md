@@ -2,7 +2,7 @@
 
 [![npm](https://img.shields.io/npm/v/@aikdna/kdna-cli)](https://www.npmjs.com/package/@aikdna/kdna-cli) [![CI](https://github.com/aikdna/kdna-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/aikdna/kdna-cli/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
-The official command-line runtime for Core GA judgment assets.
+The official command-line runtime for KDNA Core v1 judgment assets.
 
 KDNA CLI inspects, validates, packs, unpacks, and loads `.kdna` files. It is
 the consumer/runtime side of the official KDNA toolchain. Formal authoring is
@@ -98,7 +98,7 @@ Some older commands may still appear for existing users and migration tests.
 They are maintained as compatibility surfaces, not as the recommended public
 beta path.
 
-New integrations should use the Core GA route:
+New integrations should use the KDNA Core v1 route:
 
 ```text
 source or Studio project
@@ -144,7 +144,7 @@ kdna load ./asset.kdna --profile=compact --as=prompt
 > full distinction and end-to-end examples.
 
 `plan-load` requires a version of `@aikdna/kdna-core` that exports the LoadPlan
-Core GA API. Until that dependency is released and installed, the command fails with
+KDNA Core v1 API. Until that dependency is released and installed, the command fails with
 a version-gate error instead of falling back to duplicated CLI-side parsing.
 
 ## Development
