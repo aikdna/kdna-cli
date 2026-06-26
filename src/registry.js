@@ -20,11 +20,11 @@ const REGISTRY_DIR = path.join(USER_KDNA_DIR, 'registry');
 const CONFIG_FILE = path.join(USER_KDNA_DIR, 'config.json');
 
 const DEFAULT_OFFICIAL_SCOPE = '@aikdna';
-// Registry URL is configurable via KDNA_REGISTRY_URL. Default points to the
-// historical location; production deployments should override this.
-const CANONICAL_REGISTRY_URL =
-  process.env.KDNA_REGISTRY_URL ||
-  'https://raw.githubusercontent.com/aikdna/kdna-registry/main/domains.json';
+// Registry is out of scope for KDNA Core v1 (see ADR-XXX / 00-current-truth.md).
+// Production users must set KDNA_REGISTRY_URL to a valid registry endpoint.
+// Default is intentionally empty to fail loudly rather than silently pointing
+// at a historical private repo.
+const CANONICAL_REGISTRY_URL = process.env.KDNA_REGISTRY_URL || '';
 const REQUIRED_SCHEMA_VERSION = '3.0';
 
 const NAME_RE = /^@([a-z][a-z0-9-]*)\/([a-z][a-z0-9_]*)$/;
@@ -85,6 +85,13 @@ function registryTrustIssues(registry, { now = new Date() } = {}) {
 }
 
 function verifyRegistrySignature(registry, rawPayload) {
+  if (!CANONICAL_REGISTRY_URL) {
+    return {
+      verified: false,
+      error:
+        'Registry URL not configured. Set KDNA_REGISTRY_URL to a valid registry endpoint (registry is out of scope for KDNA Core v1 by default).',
+    };
+  }
   const trust = registry?.trust;
   if (!trust) return { verified: false, error: 'No trust metadata in registry' };
 
