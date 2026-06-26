@@ -34,8 +34,6 @@ const {
   getInstalled,
   listInstalled: listInstalledAssets,
   readContainer,
-  readContainerEntry,
-  readContainerJson,
   resolveAsset,
 } = require('./package-store');
 const { licenseDecryptOptionsForManifest } = require('./cmds/license');
@@ -421,7 +419,10 @@ function cmdLoad(input, args = []) {
       agent: detectAgent(),
       domain: label,
       format: `profile:${profile}`,
-      asset: traceAssetFields(asset, manifest, licenseActivation),
+      // License activation is now resolved inside Core (B6/B4); the CLI
+      // trace call no longer has direct access. Pass null — license_id will
+      // simply be omitted from the trace fields.
+      asset: traceAssetFields(asset, manifest, null),
     });
     return;
   }
@@ -433,7 +434,7 @@ function cmdLoad(input, args = []) {
     agent: detectAgent(),
     domain: label,
     format: 'prompt',
-    asset: traceAssetFields(asset, manifest, licenseActivation),
+    asset: traceAssetFields(asset, manifest, null),
   });
 }
 

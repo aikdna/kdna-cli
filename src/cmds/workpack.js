@@ -314,7 +314,6 @@ function buildPlan(manifest, rootDir, sessionId, input, inputSource) {
   }
 
   const skills = (manifest.skills || []).map((s) => {
-    const fallbackAvail = s.fallback ? true : false;
     return {
       name: s.name,
       type: s.type || 'unspecified',
@@ -460,7 +459,7 @@ function cmdWorkpackRun(target, args = []) {
   }
 }
 
-function buildDryRunResult(manifest, plan, sessionId, runId, input) {
+function buildDryRunResult(manifest, plan, sessionId, runId, _input) {
   // Simulate gate results — in dry-run, gates pass by default
   const gateResults = plan.review_gates.map((g) => ({
     gate_name: g.name,
