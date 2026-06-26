@@ -10,7 +10,7 @@
  * Removed in v0.7 (breaking): github:user/repo, --from-git, cluster:github:...,
  * tarball/SSH fallbacks. Install is now strictly .kdna-driven from the registry.
  *
- * Schema v3.0 — see kdna-registry/SCHEMA.md
+ * Schema v3.0 (historical reference; registry is out of scope for KDNA Core v1)
  */
 
 const fs = require('fs');
@@ -368,7 +368,7 @@ function installFromRegistry(parsed, yes, jsonMode = false) {
       );
     }
   }
-  if (entry.access && entry.access !== 'open') {
+  if (entry.access && entry.access !== 'public') {
     error(
       `${entry.name} requires "${entry.access}" access. Not installable via CLI yet.`,
       EXIT.POLICY_VIOLATION,

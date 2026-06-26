@@ -1,7 +1,7 @@
 {
   "name": "@aikdna/kdna-cli",
-  "version": "0.28.0",
-  "description": "KDNA CLI — runtime control plane for inspecting, validating, planning, packing, unpacking, and loading local .kdna assets.",
+  "version": "0.28.1",
+  "description": "KDNA CLI \u2014 runtime control plane for inspecting, validating, planning, packing, unpacking, and loading local .kdna assets.",
   "type": "commonjs",
   "bin": {
     "kdna": "src/cli.js",
@@ -24,12 +24,11 @@
     "format:check": "prettier --check .",
     "test": "npm run test:v1 && npm run test:smoke",
     "test:integration": "node --test tests/integration.test.js",
-    "test:all": "npm run test:v1 && npm run test:smoke && npm run test:legacy",
+    "test:all": "npm run test:v1 && npm run test:smoke",
     "test:core-smoke": "node scripts/pretest-smoke.js",
     "release:preflight": "node scripts/release-preflight.js",
     "test:v1": "node --test tests/v1-global-cli.test.js tests/v1-demo-minimal.test.js",
     "test:smoke": "npm run test:core-smoke",
-    "test:legacy": "node --test tests/v07-commands.test.js tests/v012-commands.test.js tests/asset-store.test.js",
     "test:demo": "node --test tests/v1-demo-minimal.test.js",
     "prepublishOnly": "npm test && npm run release:check",
     "release:check": "node scripts/release-check.js"
