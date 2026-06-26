@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.28.6 (2026-06-26)
+
+### Added
+- **test(smoke): CLI smoke test covering all 32 case-routed commands.** `tests/cli-smoke.test.js` spawns each top-level command and asserts (a) the CLI does not respond with "Unknown command", (b) the CLI does not crash with a hard signal or stack trace, (c) `--help` exits 0 and shows the Core v1 section. This catches the class of bugs where a new `case` is added/removed from `src/cli.js` and a command silently becomes unreachable. The 32-command list is hard-coded; if you add a new `case 'foo': { ... }` block, add `'foo'` to the array.
+
 ## v0.28.5 (2026-06-26)
 
 ### Fixed
@@ -45,7 +50,7 @@
   hash matched.
 
 ### Fixed (PR #51)
-- **Docs: rewrite kdna-registry references as out-of-scope historical context.**
+- **Docs: rewrite the legacy registry references as out-of-scope historical context.**
   `src/registry.js` and `src/install.js` SCHEMA.md references marked as historical;
   added comment that the registry URL is configurable via `KDNA_REGISTRY_URL`.
 
