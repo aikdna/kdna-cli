@@ -1,8 +1,34 @@
 # Changelog
 
-## v0.28.0 (2026-06-23)
-- Feat: kdna lint.
-- Feat: kdna workpack.
+## v0.28.1 (2026-06-26)
+
+### Fixed (PR #48)
+- **Fix (P0): protect.js writer/reader alignment.** `kdna protect` now writes canonical
+  `access: "licensed"` (per ADR-001) and the comparator paths in `cmdProtect` / `cmdUnlock`
+  / `cmdRecover` check against `"licensed"` instead of the legacy alias `"protected"`.
+  Previously, a manifest with canonical `access: "licensed"` would fail `kdna protect`
+  with a misleading "expected 'protected'" error.
+- **Fix (P0): domain.js canonical access vocabulary.** Replaced 4 `access: ... || 'open'`
+  fallbacks (lines 643, 675, 771, 832) with `'public'`, aligning with the canonical
+  `public | licensed | remote` vocabulary per ADR-001.
+- **Fix: protect.js recover path mimetype.** The `recover` path now writes v1
+  mimetype `application/vnd.kdna.asset` (was: v2 `application/vnd.aikdna.kdna+zip`),
+  matching the canonical container format.
+
+### Fixed (PR #49)
+- **Fix: public-surface guardrail config real SHA-256 hashes.** Replaced 5 placeholder
+  hashes in `scripts/public-surface.config.json` with 7 real SHA-256 hashes (for
+  `aikdna/kdna-{x,lab,registry,releases,writing,prompt_diagnosis,agent_safety}`).
+  Previously, the guardrail silently passed for any input because no forbidden pattern
+  hash matched.
+
+### Fixed (PR #51)
+- **Docs: rewrite kdna-registry references as out-of-scope historical context.**
+  `src/registry.js` and `src/install.js` SCHEMA.md references marked as historical;
+  added comment that the registry URL is configurable via `KDNA_REGISTRY_URL`.
+
+### Maintenance
+- **Removed duplicate v0.28.0 entry** at top of changelog.
 
 ## v0.28.0 (2026-06-23)
 - Feat: kdna lint — Anti-Monolithic Domain check (RFC-0013 §4), supports --strict and --json.
