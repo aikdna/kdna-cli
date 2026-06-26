@@ -93,7 +93,7 @@ Flags: --version / --help / --json / --quiet
 const cmd = args[0];
 
 switch (cmd) {
-// eslint-disable-next-line no-fallthrough
+ 
   case 'validate': {
     try {
     const v1Target = args.filter((a) => !a.startsWith('--'))[1];
@@ -362,12 +362,12 @@ switch (cmd) {
     cmdWorkpack(args);
     break;
   }
-// eslint-disable-next-line no-fallthrough
+ 
   case 'demo': {
     cmdDemoMinimal(args.slice(1));
     break;
   }
-// eslint-disable-next-line no-fallthrough
+ 
   case 'license': {
     // Wave 5: wire license subcommands (G8)
     const sub = args[1];
@@ -388,7 +388,7 @@ switch (cmd) {
     cmdDoctor(args.slice(1));
     break;
   }
-// eslint-disable-next-line no-fallthrough
+ 
   case 'publish': {
     const sub = args[1];
     if (sub === '--check' || sub === 'check') {
@@ -398,22 +398,22 @@ switch (cmd) {
     cmdPublish(args[1], args.slice(2));
     break;
   }
-// eslint-disable-next-line no-fallthrough
+ 
   case 'trace': {
     cmdTrace(args.slice(1));
     break;
   }
-// eslint-disable-next-line no-fallthrough
+ 
   case 'history': {
     cmdHistory(args.slice(1));
     break;
   }
-// eslint-disable-next-line no-fallthrough
+ 
   case 'cluster': {
     cmdCluster(args.slice(1));
     break;
   }
-// eslint-disable-next-line no-fallthrough
+ 
   case 'protect': {
     // Subcommands: protect <file> --password <pw>, unlock <file> --password <pw>,
     // recover <file> --out <file> --code <code|stdin>
@@ -424,18 +424,18 @@ switch (cmd) {
     cmdProtect(args.slice(1));
     break;
   }
-// eslint-disable-next-line no-fallthrough
+ 
   case 'available': {
     cmdAvailable(args.slice(1));
     break;
   }
-// eslint-disable-next-line no-fallthrough
+ 
   case 'match': {
     const taskText = args.slice(1).find((a) => !a.startsWith('--')) || '';
     cmdMatch(taskText, args.slice(1));
     break;
   }
-// eslint-disable-next-line no-fallthrough
+ 
   case 'install': {
     // args.slice(1) is the array of args. cmdInstallExtended takes
     // (input, args) where input is the source string and args is the
