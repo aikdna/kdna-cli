@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.28.2 (2026-06-26)
+
+### Fixed
+- **C5: Wire `kdna publish` case to dispatcher.** The 767-line `src/publish.js` module was unreachable from the CLI. The `kdna publish --check <path>` quality gate and the `kdna publish <path>` registry upload are now reachable.
+- **C1: Registry default URL no longer points to private 404 repo.** `CANONICAL_REGISTRY_URL` is now empty by default. Production users with a real registry must set `KDNA_REGISTRY_URL` explicitly. Verification fails fast with a clear error message.
+- **C6: Remove 11 unused `eslint-disable no-fallthrough` directives.** After C5 was wired, several case blocks gained explicit `break` statements; the eslint-disable comments above them became redundant. ESLint `--fix` removed them automatically.
+
 ## v0.28.1 (2026-06-26)
 
 ### Fixed (PR #48)
