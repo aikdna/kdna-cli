@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.28.5 (2026-06-26)
+
+### Fixed
+- **Security: redact internal repo names from v0.28.1 CHANGELOG entry.** The v0.28.1 entry explicitly listed 7 private repo names in plain text. This entry has been reworded to refer to "the configured forbidden-pattern set" without naming the specific repos. Users who already installed v0.28.1 / v0.28.2 / v0.28.3 / v0.28.4 are still affected (the published tarball is immutable); upgrade to v0.28.5 to read the redacted CHANGELOG.
+
 ## v0.28.4 (2026-06-26)
 
 ### Fixed
