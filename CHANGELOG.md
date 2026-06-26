@@ -35,7 +35,7 @@
 ### Fixed (PR #49)
 - **Fix: public-surface guardrail config real SHA-256 hashes.** Replaced 5 placeholder
   hashes in `scripts/public-surface.config.json` with 7 real SHA-256 hashes (for
-  `aikdna/kdna-{x,lab,registry,releases,writing,prompt_diagnosis,agent_safety}`).
+  the configured forbidden-pattern set — see the config file for exact hash values).
   Previously, the guardrail silently passed for any input because no forbidden pattern
   hash matched.
 
