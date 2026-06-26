@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.28.7 (2026-06-26)
+
+### Added
+- **B7: SecretStore abstraction (src/secret-store.js).** Cross-platform secret storage with three backends: 'keychain' (macOS, via `security` CLI), 'file' (default on Linux/Windows, `~/.kdna/secrets/<name>` with 0600 mode), and 'env' (read-only, for CI). Selected via `KDNA_SECRET_STORE_BACKEND` env var. Interface: `get / set / delete / list` (Promise-based). 6 unit tests cover file-backend round-trip, env-backend read-only, backend selection, and Windows-safe name encoding.
+
 ## v0.28.6 (2026-06-26)
 
 ### Added
