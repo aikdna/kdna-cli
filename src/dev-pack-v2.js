@@ -29,7 +29,7 @@ const KDNA_FILES = [
   'KDNA_Evolution.json',
 ];
 
-function packV2(sourceDir, manifest, options = {}) {
+function packV2(sourceDir, manifest, _options = {}) {
   const abs = path.resolve(sourceDir);
 
   // 1. Read source files

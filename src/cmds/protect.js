@@ -8,7 +8,6 @@
  */
 
 const fs = require('fs');
-const path = require('path');
 const { EXIT, error, promptPassword } = require('./_common');
 const {
   createKdnaAssetReader,

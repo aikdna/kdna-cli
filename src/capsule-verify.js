@@ -1,9 +1,8 @@
 // KDNA Capsule Verification — trust chain validation for agent consumption
 // Ensures agents receive verified, tamper-proof context capsules.
-const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 
-function verifyCapsule(capsulePath, options = {}) {
+function verifyCapsule(capsulePath, _options = {}) {
   const raw = require('fs').readFileSync(capsulePath, 'utf8');
   let capsule;
   try {
@@ -29,13 +28,6 @@ function verifyCapsule(capsulePath, options = {}) {
   // 3. Digest integrity
   if (capsule.asset_digest && capsule.domain) {
     try {
-      const kdnaHome =
-        process.env.KDNA_HOME || require('path').join(require('os').homedir(), '.kdna');
-      const packagesDir = require('path').join(
-        kdnaHome,
-        'packages',
-        capsule.domain.replace('@', '').replace('/', '-'),
-      );
       // Check if the installed asset matches the capsule's claimed digest
       const result = execFileSync('kdna', ['verify', capsule.domain, '--structure'], {
         encoding: 'utf8',

@@ -34,8 +34,6 @@ const {
   getInstalled,
   listInstalled: listInstalledAssets,
   readContainer,
-  readContainerEntry,
-  readContainerJson,
   resolveAsset,
 } = require('./package-store');
 const { licenseDecryptOptionsForManifest } = require('./cmds/license');

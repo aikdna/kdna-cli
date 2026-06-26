@@ -12,7 +12,6 @@ const os = require('node:os');
 const {
   isV1SourceDir,
   detectContainerFormat,
-  MIMETYPE_V1,
   MIMETYPE_V2,
 } = require('@aikdna/kdna-core');
 const cliBin = path.join(__dirname, '..', 'src', 'cli.js');
