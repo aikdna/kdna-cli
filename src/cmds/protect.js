@@ -47,7 +47,7 @@ function cmdProtect(args) {
   const asset = reader.openSync(file);
   const manifest = reader.readManifestSync(asset);
 
-  if (manifest.access === 'protected') {
+  if (manifest.access === 'licensed') {
     error('Asset is already protected. Use recover to change password.', EXIT.INPUT_ERROR);
   }
 
@@ -124,8 +124,8 @@ function cmdUnlock(args) {
   const asset = reader.openSync(file);
   const manifest = reader.readManifestSync(asset);
 
-  if (manifest.access !== 'protected') {
-    error(`Asset access is "${manifest.access}", expected "protected"`, EXIT.INPUT_ERROR);
+  if (manifest.access !== 'licensed') {
+    error(`Asset access is "${manifest.access}", expected "licensed"`, EXIT.INPUT_ERROR);
   }
 
   const decryptEntry = createPasswordDecryptEntry({ password });
@@ -166,8 +166,8 @@ function cmdRecover(args) {
   const asset = reader.openSync(file);
   const manifest = reader.readManifestSync(asset);
 
-  if (manifest.access !== 'protected') {
-    error(`Asset access is "${manifest.access}", expected "protected"`, EXIT.INPUT_ERROR);
+  if (manifest.access !== 'licensed') {
+    error(`Asset access is "${manifest.access}", expected "licensed"`, EXIT.INPUT_ERROR);
   }
 
   const decryptEntry = createRecoveryDecryptEntry({ recoveryCode });

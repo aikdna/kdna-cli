@@ -640,7 +640,7 @@ function inspectKdnaFile(filePath, jsonMode = false) {
       spec: m.spec_version || null,
       version: m.version || null,
       status: m.status || 'experimental',
-      access: m.access || 'open',
+      access: m.access || 'public',
       author: m.author?.name || null,
       authoring: m.authoring || null,
       license: m.license?.type || null,
@@ -672,7 +672,7 @@ function inspectKdnaFile(filePath, jsonMode = false) {
   console.log(`  Spec:        ${m.spec_version || '?'}`);
   console.log(`  Version:     ${m.version || '?'}`);
   console.log(`  Status:      ${m.status || 'experimental'}`);
-  console.log(`  Access:      ${m.access || 'open'}`);
+  console.log(`  Access:      ${m.access || 'public'}`);
   console.log(`  Author:      ${m.author?.name || '?'}`);
   if (m.authoring) {
     console.log(
@@ -768,7 +768,7 @@ function cmdInspect(dir, jsonMode = false, locale = null, options = {}) {
       name: m.name || c.meta?.domain || path.basename(abs),
       version: m.version || c.meta?.version || null,
       status: m.status || 'experimental',
-      access: m.access || 'open',
+      access: m.access || 'public',
       language: m.language || c.meta?.language || null,
       author: m.author?.name || null,
       author_id: m.author?.id || null,
@@ -829,7 +829,7 @@ function cmdInspect(dir, jsonMode = false, locale = null, options = {}) {
   console.log('');
   console.log(`  Version:     ${m.version || c.meta?.version || '?'}`);
   console.log(`  Status:      ${m.status || 'experimental'}`);
-  console.log(`  Access:      ${m.access || 'open'}`);
+  console.log(`  Access:      ${m.access || 'public'}`);
   console.log(`  Language:    ${m.language || c.meta?.language || '?'}`);
   console.log(`  Author:      ${m.author?.name || '?'}`);
   if (m.author?.id) console.log(`               ${m.author.id}`);

@@ -368,7 +368,7 @@ function installFromRegistry(parsed, yes, jsonMode = false) {
       );
     }
   }
-  if (entry.access && entry.access !== 'open') {
+  if (entry.access && entry.access !== 'public') {
     error(
       `${entry.name} requires "${entry.access}" access. Not installable via CLI yet.`,
       EXIT.POLICY_VIOLATION,
