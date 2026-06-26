@@ -21,8 +21,11 @@ function loadInstalledDomain(domainId) {
 
 function cmdCluster(args) {
   const { cmdClusterLint } = require('../cluster');
-  const sub = args[1];
-  const target = args[2];
+  // args is the post-'cluster' subcommand array (e.g. ['init', 'my-name']).
+  // Previously off-by-one: was args[1] and args[2], but those would be
+  // 'my-name' and undefined for `kdna cluster init my-name`.
+  const sub = args[0];
+  const target = args[1];
 
   if (sub === 'lint') {
     if (!target) error('Usage: kdna cluster lint <path>');

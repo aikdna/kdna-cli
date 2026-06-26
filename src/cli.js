@@ -17,6 +17,9 @@ const { cmdIdentityInit, cmdIdentityShow } = require('./cmds/identity');
 const { cmdDoctor } = require('./cmds/doctor');
 const { cmdTrace, cmdHistory } = require('./cmds/trace');
 const { cmdCluster } = require('./cmds/cluster');
+const { cmdProtect, cmdUnlock, cmdRecover } = require('./cmds/protect');
+const { cmdAvailable, cmdMatch } = require('./agent');
+const { cmdInstallExtended } = require('./install');
 
 // Strip stack traces from uncaught errors for clean user output
 process.on('uncaughtException', (err) => {
@@ -76,6 +79,12 @@ Diagnostics:
   trace    [--json] [--clear]        Observability trace logs
   history  [--stats] [--json]        KDNA load history
   cluster  <path>                    Validate a cluster manifest
+  protect  <file> --password <pw>    Encrypt a .kdna asset with a password
+  protect  unlock <file> --password  Decrypt and re-pack an encrypted .kdna
+  protect  recover <file> --code <rc> Recover a .kdna using a recovery code
+  available                            List available installed domains
+  match     "<task>"                  Find the best-matching domain for a task
+  install   <name|@scope/name|file>   Install a .kdna asset from local/registry
 Flags: --version / --help / --json / --quiet
 `);
 }
@@ -83,6 +92,7 @@ Flags: --version / --help / --json / --quiet
 const cmd = args[0];
 
 switch (cmd) {
+// eslint-disable-next-line no-fallthrough
   case 'validate': {
     try {
     const v1Target = args.filter((a) => !a.startsWith('--'))[1];
@@ -351,10 +361,12 @@ switch (cmd) {
     cmdWorkpack(args);
     break;
   }
+// eslint-disable-next-line no-fallthrough
   case 'demo': {
     cmdDemoMinimal(args.slice(1));
     break;
   }
+// eslint-disable-next-line no-fallthrough
   case 'license': {
     // Wave 5: wire license subcommands (G8)
     const sub = args[1];
@@ -375,16 +387,51 @@ switch (cmd) {
     cmdDoctor(args.slice(1));
     break;
   }
+// eslint-disable-next-line no-fallthrough
   case 'trace': {
     cmdTrace(args.slice(1));
     break;
   }
+// eslint-disable-next-line no-fallthrough
   case 'history': {
     cmdHistory(args.slice(1));
     break;
   }
+// eslint-disable-next-line no-fallthrough
   case 'cluster': {
     cmdCluster(args.slice(1));
+    break;
+  }
+// eslint-disable-next-line no-fallthrough
+  case 'protect': {
+    // Subcommands: protect <file> --password <pw>, unlock <file> --password <pw>,
+    // recover <file> --out <file> --code <code|stdin>
+    const sub = args[1];
+    if (sub === 'unlock') { cmdUnlock(args.slice(2)); break; }
+    if (sub === 'recover') { cmdRecover(args.slice(2)); break; }
+    // Default: protect itself
+    cmdProtect(args.slice(1));
+    break;
+  }
+// eslint-disable-next-line no-fallthrough
+  case 'available': {
+    cmdAvailable(args.slice(1));
+    break;
+  }
+// eslint-disable-next-line no-fallthrough
+  case 'match': {
+    const taskText = args.slice(1).find((a) => !a.startsWith('--')) || '';
+    cmdMatch(taskText, args.slice(1));
+    break;
+  }
+// eslint-disable-next-line no-fallthrough
+  case 'install': {
+    // args.slice(1) is the array of args. cmdInstallExtended takes
+    // (input, args) where input is the source string and args is the
+    // remaining flag array. Pass the first non-flag arg as input.
+    const installArgs = args.slice(1);
+    const installInput = installArgs.find((a) => !a.startsWith('--')) || '';
+    cmdInstallExtended(installInput, installArgs);
     break;
   }
   default:
