@@ -32,18 +32,15 @@ function withEnv(name, value, fn) {
   const prev = process.env[name];
   process.env[name] = value;
   // The async fn() below needs to see the env var AFTER the test runner
-  // has set it. Using setImmediate forces a microtask boundary so the
-  // change is visible to subsequent code in the test.
-  return new Promise((resolve, reject) => {
-    setImmediate(async () => {
-      try {
-        resolve(await fn());
-      } catch (e) {
-        reject(e);
-      } finally {
-        if (prev === undefined) delete process.env[name]; else process.env[name] = prev;
-      }
-    });
+  // has set it. Using Promise.resolve().then() forces a microtask
+  // boundary so the change is visible to subsequent code in the test
+  // (and avoids the setImmediate ESLint no-undef issue).
+  return Promise.resolve().then(async () => {
+    try {
+      return await fn();
+    } finally {
+      if (prev === undefined) delete process.env[name]; else process.env[name] = prev;
+    }
   });
 }
 
