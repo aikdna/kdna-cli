@@ -193,7 +193,7 @@
       {
         "version": "1.0.0",
         "date": "2026-06-21",
-        "changes": "Initial v1 Core GA real-judgment demo. Content review framework with 4 axioms, 3 boundaries, 3 patterns, 2 scenarios, 2 cases, 3 failure modes, 6 self-checks."
+        "changes": "Initial v0.7-aligned real-judgment demo. Content review framework with 4 axioms, 3 boundaries, 3 patterns, 2 scenarios, 2 cases, 3 failure modes, 6 self-checks."
       }
     ],
     "stages": [
