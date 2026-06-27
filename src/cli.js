@@ -357,7 +357,7 @@ switch (cmd) {
 // eslint-disable-next-line no-fallthrough
   case 'load': {
     const target = args.filter((a) => !a.startsWith('--'))[1];
-    if (!target) error('Usage: kdna load <file.kdna> [--profile=<index|compact|scenario|full>] [--as=<json|prompt>] [--password=<value>]', EXIT.INPUT_ERROR);
+    if (!target) error('Usage: kdna load <file.kdna> [--profile=<index|compact|scenario|full>] [--as=<json|prompt>] [--password=<value>|--password-stdin]', EXIT.INPUT_ERROR);
     const core = require('@aikdna/kdna-core');
     const abs = require('node:path').resolve(target);
     if (!fs.existsSync(abs)) error(`File not found: ${target}`, EXIT.INPUT_ERROR);
@@ -369,8 +369,20 @@ switch (cmd) {
     };
     const profile = getFlag('--profile') || 'compact';
     const as = getFlag('--as') || 'json';
-    const passwordRaw = getFlag('--password');
-    const password = typeof passwordRaw === 'string' && passwordRaw.length > 0 ? passwordRaw : undefined;
+    // BUG-16 (2026-06-27): kdna load previously only accepted
+    // --password=<value>, forcing users to either type the password
+    // inline (shell history risk) or pipe nothing. Match the protect
+    // and plan-load paths: --password-stdin reads from stdin; if both
+    // are present, --password-stdin wins (explicit intent).
+    const useStdin = args.includes('--password-stdin');
+    let password;
+    if (useStdin) {
+      const stdinPw = fs.readFileSync(0, 'utf8').trim();
+      password = stdinPw.length > 0 ? stdinPw : undefined;
+    } else {
+      const passwordRaw = getFlag('--password');
+      password = typeof passwordRaw === 'string' && passwordRaw.length > 0 ? passwordRaw : undefined;
+    }
     if (args.includes('--has-password')) {
       process.stderr.write('Warning: --has-password is a plan-load diagnostic. Use --password=<value> for actual decryption.\n');
     }

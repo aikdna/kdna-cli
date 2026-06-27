@@ -12,10 +12,13 @@ const { EXIT, error, promptPassword } = require('./_common');
 const {
   createKdnaAssetReader,
   createPasswordDecryptEntry,
+  createPasswordDecryptEntryScrypt,
   createRecoveryDecryptEntry,
   encryptProtectedEntryScrypt,
   generateRecoveryCode,
   PASSWORD_PROTECTED_SCRYPT_PROFILE,
+  pack: packAsset,
+  buildChecksumsV1,
 } = require('@aikdna/kdna-core');
 
 function parseEntriesFlag(flag) {
@@ -159,15 +162,22 @@ function cmdProtect(args) {
 function cmdUnlock(args) {
   if (args.includes('--help') || args.includes('-h')) {
     console.log(
-      'Usage: kdna protect unlock <file.kdna> [--password <pw>|--password-stdin] [--profile compact|index|full]\n' +
+      'Usage: kdna protect unlock <file.kdna> [--password <pw>|--password-stdin] [--out <file.kdna>] [--profile compact|index|full]\n' +
         '\n' +
-        'Decrypt a protected .kdna asset and print its loaded profile.\n' +
+        'Decrypt a protected .kdna asset. With --out, write the decrypted asset\n' +
+        'to a new file (the original stays encrypted on disk). Without --out,\n' +
+        'print the loaded profile JSON to stdout (one-shot decryption view).\n' +
         '\n' +
         'Arguments:\n' +
         '  <file.kdna>             Protected .kdna asset\n' +
         '  --password <pw>         Password (insecure)\n' +
         '  --password-stdin        Read password from stdin\n' +
-        '  --profile <name>        compact | index | full (default: compact)\n',
+        '  --out <file.kdna>        Write decrypted asset to this path\n' +
+        '  --profile <name>        compact | index | full (default: compact)\n' +
+        '\n' +
+        'Examples:\n' +
+        '  echo "pw" | kdna protect unlock protected.kdna --password-stdin --out clear.kdna\n' +
+        '  kdna protect unlock protected.kdna --password pw > loaded.json\n',
     );
     return;
   }
@@ -175,12 +185,15 @@ function cmdUnlock(args) {
   const file = args[0];
   if (!file)
     error(
-      'Usage: kdna protect unlock <file.kdna> [--password <pw>|--password-stdin] [--profile compact|index|full]\nRun: kdna help protect',
+      'Usage: kdna protect unlock <file.kdna> [--password <pw>|--password-stdin] [--out <file.kdna>] [--profile compact|index|full]\nRun: kdna help protect',
       EXIT.INPUT_ERROR,
     );
 
   const profileIdx = args.indexOf('--profile');
   const profile = profileIdx >= 0 ? args[profileIdx + 1] : 'compact';
+  const outIdx = args.indexOf('--out');
+  const outPath = outIdx >= 0 ? args[outIdx + 1] : null;
+  if (outIdx >= 0 && !outPath) error('Missing value for --out. Run: kdna help protect', EXIT.INPUT_ERROR);
 
   if (!fs.existsSync(file)) error(`File not found: ${file}`, EXIT.INPUT_ERROR);
 
@@ -222,7 +235,87 @@ function cmdUnlock(args) {
   try {
     const core = require('@aikdna/kdna-core');
     const loaded = core.loadAuthorized(file, { profile, as: 'json', password });
-    console.log(JSON.stringify(loaded, null, 2));
+    if (outPath) {
+      // Write a decrypted, re-packed .kdna (same shape as the input but
+      // with manifest.access = public so subsequent kdna load does not
+      // require a password). This is the canonical "unlock" semantic:
+      // the original stays encrypted; the output is the unprotected copy.
+      //
+      // Implementation: walk the source asset entry-by-entry, decrypting
+      // each entry listed in encryption.encrypted_entries using the same
+      // scrypt envelope, and copy through the rest unchanged. Strip
+      // access/encryption from the manifest so the unlocked copy is a
+      // normal public asset. Re-pack with checksums.
+      const reader2 = createKdnaAssetReader();
+      const asset2 = reader2.openSync(file);
+      const origManifest = reader2.readManifestSync(asset2);
+      const decryptEntry = createPasswordDecryptEntryScrypt({ password });
+      const encryptedEntries = origManifest.encryption?.encrypted_entries || [];
+      const tmpDir = require('node:fs').mkdtempSync(
+        require('node:path').join(require('node:os').tmpdir(), 'kdna-unlock-'),
+      );
+      try {
+        // Strip access/encryption/entitlement from the manifest so the
+        // unlocked copy is a normal public asset. (entitlement.profile
+        // is inferred from encryption.profile in planLoad; without
+        // removing it the unlocked asset would still be expected to
+        // require a password.) Also flip payload.encrypted = false
+        // because the payload is now stored in plaintext; recompute
+        // payload.digest against the new (decrypted) bytes.
+        const kdnaJson = { ...origManifest, access: 'public' };
+        delete kdnaJson.encryption;
+        delete kdnaJson.entitlement;
+        if (kdnaJson.payload) {
+          kdnaJson.payload.encrypted = false;
+        }
+        require('node:fs').writeFileSync(
+          require('node:path').join(tmpDir, 'kdna.json'),
+          JSON.stringify(kdnaJson, null, 2),
+        );
+        for (const entryName of reader2.listEntriesSync(asset2)) {
+          if (entryName === 'kdna.json') continue;
+          const buf = reader2.readEntrySync(asset2, entryName);
+          if (encryptedEntries.includes(entryName)) {
+            const plain = decryptEntry({ entryName, ciphertext: buf, manifest: origManifest });
+            require('node:fs').writeFileSync(
+              require('node:path').join(tmpDir, entryName),
+              plain,
+            );
+            // Recompute payload digest against the decrypted plaintext
+            // so payload.digest matches what is now in the .kdna.
+            if (entryName === 'payload.kdnab' && kdnaJson.payload) {
+              const crypto = require('node:crypto');
+              const newDigest =
+                'sha256:' +
+                crypto.createHash('sha256').update(plain).digest('hex');
+              kdnaJson.payload.digest = newDigest;
+            }
+          } else {
+            require('node:fs').writeFileSync(
+              require('node:path').join(tmpDir, entryName),
+              buf,
+            );
+          }
+        }
+        // Re-write the (now-updated) kdna.json so payload.digest change is on disk.
+        require('node:fs').writeFileSync(
+          require('node:path').join(tmpDir, 'kdna.json'),
+          JSON.stringify(kdnaJson, null, 2),
+        );
+        // Compute checksums for the unlocked copy.
+        const checksums = buildChecksumsV1(tmpDir, kdnaJson);
+        require('node:fs').writeFileSync(
+          require('node:path').join(tmpDir, 'checksums.json'),
+          JSON.stringify(checksums, null, 2),
+        );
+        packAsset(tmpDir, outPath);
+        console.error(`Unlocked asset written to: ${outPath}`);
+      } finally {
+        require('node:fs').rmSync(tmpDir, { recursive: true, force: true });
+      }
+    } else {
+      console.log(JSON.stringify(loaded, null, 2));
+    }
   } catch (e) {
     error(`Unlock failed: ${e.message}`, EXIT.TRUST_FAILED);
   }

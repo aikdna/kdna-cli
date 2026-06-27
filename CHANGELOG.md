@@ -2,6 +2,14 @@
 
 > **Supersession note (2026-06-27)**: Pre-v0.7 entries below use "v1.0-rc" terminology. As of the v0.7 launch (2026-05-22), the @aikdna/* npm scope and registry v2.0 superseded the v1.0-rc label. The historical "v1.0-rc" references in older entries are kept for accuracy; new development uses the 0.7.x+ numbering.
 
+## v0.28.9 (2026-06-27)
+
+### Fixed
+- **Fresh-environ audit follow-ups** — small consumer-side fixes for issues surfaced by a clean-`npm install -g` audit on 2026-06-27:
+  - **fixtures in tarball**: `package.json` `files` array now includes `fixtures/`. The `kdna demo minimal` and `kdna demo judgment` commands now work for fresh `npm install -g @aikdna/kdna-cli` users (the README "5 minutes" path).
+  - **`kdna protect unlock --out <file>`**: previously the flag was silently ignored; the unlocked payload was printed to stdout. The command now writes a decrypted, re-packed `.kdna` to the given path. Without `--out` it still prints to stdout (backward compatible).
+  - **`kdna load --password-stdin`**: previously `load` only accepted `--password=<value>`, forcing users to either type the password inline (shell history) or pipe nothing. The command now matches `protect` and `plan-load` and accepts `--password-stdin` to read from stdin.
+
 ## v0.28.8 (2026-06-27)
 
 ### Fixed
