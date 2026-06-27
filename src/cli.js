@@ -46,6 +46,14 @@ const V2_UNSUPPORTED_MSG =
 // ─── Main ─────────────────────────────────────────────────────────────
 
 const args = process.argv.slice(2);
+// `kdna help <subcmd> [...]` translates to `kdna <subcmd> [...] --help` so the
+// router below routes to the real command handler. Each handler prints its own
+// Usage when --help is present.
+if (args[0] === 'help' && args.length > 1) {
+  process.argv = [process.argv[0], process.argv[1], args[1], ...args.slice(2), '--help'];
+  args.length = 0;
+  for (let i = 2; i < process.argv.length; i++) args.push(process.argv[i]);
+}
 if (!args.length || args[0] === '--help' || args[0] === '-h') {
   showHelp();
   process.exit(0);
@@ -92,9 +100,14 @@ Diagnostics:
   trace    [--json] [--clear]        Observability trace logs
   history  [--stats] [--json]        KDNA load history
   cluster  <path>                    Validate a cluster manifest
-  protect  <file> --password <pw>    Encrypt a .kdna asset with a password
-  protect  unlock <file> --password  Decrypt and re-pack an encrypted .kdna
-  protect  recover <file> --code <rc> Recover a .kdna using a recovery code
+  protect  <file> --out <file>       Encrypt a .kdna asset with a password
+           [--password <pw>|--password-stdin]
+           [--entries KDNA_Core.json,KDNA_Patterns.json]
+  protect  unlock <file>             Decrypt a protected .kdna
+           [--password <pw>|--password-stdin]
+           [--profile compact|index|full]
+  protect  recover <file>            Recover a .kdna using a recovery code
+           --out <file> --code <rc>|--code-stdin
   available                            List available installed domains
   match     "<task>"                  Find the best-matching domain for a task
   install   <name|@scope/name|file>   Install a .kdna asset from local/registry
@@ -194,7 +207,7 @@ switch (cmd) {
     const v1Target = args.filter((a) => !a.startsWith('--'))[1];
     if (!v1Target)
       error(
-        'Usage: kdna plan-load <path> [--json] [--has-password] [--entitlement-status <status>]',
+        'Usage: kdna plan-load <path> [--json] [--has-password | --password <value>] [--entitlement-status <status>]',
         EXIT.INPUT_ERROR,
       );
     const core = require('@aikdna/kdna-core');
@@ -219,8 +232,18 @@ switch (cmd) {
         EXIT.INPUT_ERROR,
       );
     }
+    // --password <value> is the credential-presence signal for plan-load.
+    // The LoadPlan does NOT verify the password (only `kdna load` does that),
+    // but presence of --password makes has_password_input: true and lets
+    // downstream callers skip the "enter_password" step.
+    const planLoadPwIdx = args.indexOf('--password');
+    const planLoadPassword =
+      planLoadPwIdx >= 0 && args[planLoadPwIdx + 1] && !args[planLoadPwIdx + 1].startsWith('--')
+        ? args[planLoadPwIdx + 1]
+        : null;
     const plan = core.planLoad(v1Target, {
-      hasPassword: args.includes('--has-password'),
+      hasPassword: !!planLoadPassword || args.includes('--has-password'),
+      password: planLoadPassword || undefined,
       entitlement: entitlementStatus ? { status: entitlementStatus } : undefined,
     });
     console.log(JSON.stringify(plan, null, 2));
@@ -588,6 +611,10 @@ switch (cmd) {
     const installArgs = args.slice(1);
     const installInput = installArgs.find((a) => !a.startsWith('--')) || '';
     cmdInstallExtended(installInput, installArgs);
+    break;
+  }
+  case 'version': {
+    console.log(require('../package.json').version);
     break;
   }
   default:

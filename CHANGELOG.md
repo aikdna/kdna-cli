@@ -2,6 +2,23 @@
 
 > **Supersession note (2026-06-27)**: Pre-v0.7 entries below use "v1.0-rc" terminology. As of the v0.7 launch (2026-05-22), the @aikdna/* npm scope and registry v2.0 superseded the v1.0-rc label. The historical "v1.0-rc" references in older entries are kept for accuracy; new development uses the 0.7.x+ numbering.
 
+## v0.28.8 (2026-06-27)
+
+### Fixed
+- **BUG-1 (A1): `kdna plan-load --password <value>` now threads the password to `kdna-core.planLoad`.** Previously, `planLoad` only honored the `--has-password` diagnostic flag, so a `kdna load --password <pw>` invocation could not satisfy the plan-load gate and was rejected with `state: needs_password`. `plan-load` now accepts `--password <value>` directly; the resulting plan reports `input_fingerprint.has_password_input: true`, `state: ready`, `can_load_now: true`. This makes the `load --password` round-trip fully end-to-end on the runtime side. The encryption envelope itself was already in place (kdna-studio 0.8.0 → B2 scrypt); this fix closes the consumer-side loop.
+
+### Fixed
+- **BUG-2/3 (B1): `kdna protect` migrates to `kdna-password-protected-v1-scrypt` and produces valid checksums.** The previous implementation used the legacy `kdna-password-protected-v1` (Argon2id) profile, encrypted `KDNA_Core.json` only (leaving the judgment payload readable), and rebuilt the asset without regenerating `checksums.json`. Result: `kdna validate` reported `manifest_digest mismatch` / `asset_digest mismatch`, and `kdna protect unlock` crashed with `JavaScript does not support arrays, maps, or strings with length over 4294967295` because `reader.loadProfileSync` (the old path) assumed the payload was CBOR-encoded while kdna-studio produces JSON. New behavior: `kdna protect` encrypts `payload.kdnab` under the scrypt profile (matching kdna-studio), calls `buildChecksumsV1` before `pack` to write a fresh `checksums.json`, and `kdna protect unlock` routes through `core.loadAuthorized` (the same path `kdna load` uses) to avoid the cbor-x 32-bit length path. Legacy Argon2id assets are still loadable but emit a deprecation warning. `kdna recover` also re-encrypts under the scrypt profile.
+
+### Fixed
+- **BUG-4/5/6 (D1/D2): CLI routing consistency.** `kdna version` is now a first-class command (previously returned `Unknown command: version`); `kdna help <subcmd> [...]` re-routes to `<subcmd> --help` so each subcommand prints its own Usage; `kdna protect` and `kdna protect unlock` accept `--help` / `-h`. Help text in `src/cli.js` and Usage in `src/cmds/protect.js` are aligned on the canonical flag set: `--out`, `--password <pw> | --password-stdin`, `--entries <list>`, `--profile <name>`.
+
+### Fixed
+- **D4: `@aikdna/kdna-core` dep floor raised to `^0.15.0`.** `kdna doctor` was reading the resolved version from `node_modules/@aikdna/kdna-core/package.json`, which had been pinned at 0.14.0; doctor is correct, the dep floor was stale. Bumping the floor and re-running `npm install` makes doctor report `v0.15.0` (the actual published version).
+
+### Changed
+- **C3 (SPEC alignment): `signature.kdsig` marked OPTIONAL until 2027-Q1.** SPEC.md §3.2, `specs/container.md` §3.1, and `specs/RFC-0013` previously listed `signature.kdsig` as REQUIRED for distribution assets, but the README and implementation flagged it as "not yet implemented". The normative deadline for REQUIRED is **2027-Q1** (end of March 2027). All currently distributed `.kdna` assets remain conformant without `signature.kdsig`; assets distributed on or after 2027-Q1 MUST include it. See `OPEN/kdna/SPEC.md` §3.2 and `OPEN/kdna/specs/container.md` §3.1.
+
 ## v0.28.7 (2026-06-26)
 
 ### Added

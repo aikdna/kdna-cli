@@ -25,7 +25,7 @@ function runCli(args) {
 }
 
 /**
- * The 19 case-routed commands. Keep in sync with src/cli.js.
+ * The case-routed commands. Keep in sync with src/cli.js.
  * If you add a new case 'foo': { ... } block, add 'foo' to this array.
  */
 const CASE_ROUTED_COMMANDS = [
@@ -61,6 +61,7 @@ const CASE_ROUTED_COMMANDS = [
   'registry',
   'setup',
   'studio',
+  'version',
 ];
 
 test('cli-smoke: every case-routed command is reachable (not "Unknown command")', () => {

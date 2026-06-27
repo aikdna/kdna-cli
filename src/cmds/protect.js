@@ -13,33 +13,68 @@ const {
   createKdnaAssetReader,
   createPasswordDecryptEntry,
   createRecoveryDecryptEntry,
-  encryptProtectedEntry,
+  encryptProtectedEntryScrypt,
   generateRecoveryCode,
+  PASSWORD_PROTECTED_SCRYPT_PROFILE,
 } = require('@aikdna/kdna-core');
 
 function parseEntriesFlag(flag) {
-  if (!flag) return ['KDNA_Core.json'];
+  // B1: align with kdna-studio -- the canonical encryption target for a
+  // password-protected asset is payload.kdnab, not KDNA_Core.json. Legacy
+  // KDNA_Core.json-only encryption left the judgment payload readable, which
+  // defeated the "protect" promise.
+  if (!flag) return ['payload.kdnab'];
   return flag.split(',').map((s) => s.trim());
 }
 
 function cmdProtect(args) {
+  if (args.includes('--help') || args.includes('-h')) {
+    console.log(
+      'Usage: kdna protect <file.kdna> --out <file.kdna> [--password <pw>|--password-stdin] [--entries KDNA_Core.json,KDNA_Patterns.json]\n' +
+        '\n' +
+        'Encrypt a .kdna asset with a password.\n' +
+        '\n' +
+        'Arguments:\n' +
+        '  <file.kdna>                       Input .kdna asset to protect\n' +
+        '  --out <file.kdna>                 Required. Output path for protected asset\n' +
+        '  --password <pw>                   Password (insecure — visible in shell history)\n' +
+        '  --password-stdin                  Read password from stdin (recommended)\n' +
+        '  --entries <list>                  Comma-separated entry names to encrypt\n' +
+        '                                    (default: KDNA_Core.json)\n' +
+        '\n' +
+        'Examples:\n' +
+        '  echo "mypass" | kdna protect asset.kdna --out protected.kdna --password-stdin\n' +
+        '  kdna protect asset.kdna --out protected.kdna --password mypass\n',
+    );
+    return;
+  }
+
   const file = args[0];
   if (!file)
     error(
-      'Usage: kdna protect <file.kdna> --out <file.kdna> [--entries KDNA_Core.json,KDNA_Patterns.json]',
+      'Usage: kdna protect <file.kdna> --out <file.kdna> [--password <pw>|--password-stdin] [--entries KDNA_Core.json,KDNA_Patterns.json]\nRun: kdna help protect',
       EXIT.INPUT_ERROR,
     );
 
   const outIdx = args.indexOf('--out');
   const outPath = outIdx >= 0 ? args[outIdx + 1] : null;
-  if (!outPath) error('Missing --out', EXIT.INPUT_ERROR);
+  if (!outPath) error('Missing --out. Run: kdna help protect', EXIT.INPUT_ERROR);
 
   const entriesIdx = args.indexOf('--entries');
   const entriesToEncrypt = parseEntriesFlag(entriesIdx >= 0 ? args[entriesIdx + 1] : null);
 
   if (!fs.existsSync(file)) error(`File not found: ${file}`, EXIT.INPUT_ERROR);
 
-  const password = promptPassword('Password: ');
+  // --password <pw> | --password-stdin | interactive prompt
+  let password = null;
+  const pwIdx = args.indexOf('--password');
+  if (pwIdx >= 0 && args[pwIdx + 1] && !args[pwIdx + 1].startsWith('--')) {
+    password = args[pwIdx + 1];
+  } else if (args.includes('--password-stdin')) {
+    password = require('fs').readFileSync(0, 'utf8').trim();
+  } else {
+    password = promptPassword('Password: ');
+  }
   if (!password) error('Password is required.', EXIT.INPUT_ERROR);
 
   const reader = createKdnaAssetReader();
@@ -50,11 +85,17 @@ function cmdProtect(args) {
     error('Asset is already protected. Use recover to change password.', EXIT.INPUT_ERROR);
   }
 
-  // Update manifest
+  // Update manifest — B1: migrate to scrypt profile (B2 scrypt is the canonical
+  // password-protected envelope as of kdna-core@0.15.0). The old
+  // kdna-password-protected-v1 (Argon2id) profile is deprecated; old assets
+  // are still loadable, but new protect operations use the scrypt envelope.
   const newManifest = {
     ...manifest,
     access: 'licensed',
-    encryption: { profile: 'kdna-password-protected-v1', encrypted_entries: entriesToEncrypt },
+    encryption: {
+      profile: PASSWORD_PROTECTED_SCRYPT_PROFILE,
+      encrypted_entries: entriesToEncrypt,
+    },
   };
 
   // Build new ZIP with encrypted entries
@@ -67,7 +108,7 @@ function cmdProtect(args) {
       zipEntries[entryName] = JSON.stringify(newManifest);
     } else if (entriesToEncrypt.includes(entryName)) {
       const plaintext = reader.readEntrySync(asset, entryName);
-      const encrypted = encryptProtectedEntry(plaintext, {
+      const encrypted = encryptProtectedEntryScrypt(plaintext, {
         entryName,
         manifest: newManifest,
         password,
@@ -87,13 +128,22 @@ function cmdProtect(args) {
   // Recompute content digest and strip invalidated signature after encryption
   updateManifestDigest(zipEntries, reader);
 
-  // Use Core's canonical packer instead of custom buildZip (ADR-003, B1)
-  const { pack } = require('@aikdna/kdna-core');
+  // Use Core's canonical packer instead of custom buildZip (ADR-003, B1).
+  // BUG-2 fix: also write a fresh checksums.json so the protected asset
+  // passes `kdna validate` (manifest_digest / asset_digest are recomputed
+  // against the encrypted payload).
+  const { pack, buildChecksumsV1 } = require('@aikdna/kdna-core');
   const tmpDir = require('node:fs').mkdtempSync(require('node:path').join(require('node:os').tmpdir(), 'kdna-protect-'));
   try {
     for (const [name, data] of Object.entries(zipEntries)) {
       require('node:fs').writeFileSync(require('node:path').join(tmpDir, name), data);
     }
+    const rebuiltManifest = JSON.parse(require('node:fs').readFileSync(require('node:path').join(tmpDir, 'kdna.json'), 'utf8'));
+    const checksums = buildChecksumsV1(tmpDir, rebuiltManifest);
+    require('node:fs').writeFileSync(
+      require('node:path').join(tmpDir, 'checksums.json'),
+      JSON.stringify(checksums, null, 2),
+    );
     pack(tmpDir, outPath);
   } finally {
     require('node:fs').rmSync(tmpDir, { recursive: true, force: true });
@@ -107,16 +157,42 @@ function cmdProtect(args) {
 }
 
 function cmdUnlock(args) {
+  if (args.includes('--help') || args.includes('-h')) {
+    console.log(
+      'Usage: kdna protect unlock <file.kdna> [--password <pw>|--password-stdin] [--profile compact|index|full]\n' +
+        '\n' +
+        'Decrypt a protected .kdna asset and print its loaded profile.\n' +
+        '\n' +
+        'Arguments:\n' +
+        '  <file.kdna>             Protected .kdna asset\n' +
+        '  --password <pw>         Password (insecure)\n' +
+        '  --password-stdin        Read password from stdin\n' +
+        '  --profile <name>        compact | index | full (default: compact)\n',
+    );
+    return;
+  }
+
   const file = args[0];
   if (!file)
-    error('Usage: kdna unlock <file.kdna> [--profile compact|index|full]', EXIT.INPUT_ERROR);
+    error(
+      'Usage: kdna protect unlock <file.kdna> [--password <pw>|--password-stdin] [--profile compact|index|full]\nRun: kdna help protect',
+      EXIT.INPUT_ERROR,
+    );
 
   const profileIdx = args.indexOf('--profile');
   const profile = profileIdx >= 0 ? args[profileIdx + 1] : 'compact';
 
   if (!fs.existsSync(file)) error(`File not found: ${file}`, EXIT.INPUT_ERROR);
 
-  const password = promptPassword('Password: ');
+  let password = null;
+  const pwIdx = args.indexOf('--password');
+  if (pwIdx >= 0 && args[pwIdx + 1] && !args[pwIdx + 1].startsWith('--')) {
+    password = args[pwIdx + 1];
+  } else if (args.includes('--password-stdin')) {
+    password = require('fs').readFileSync(0, 'utf8').trim();
+  } else {
+    password = promptPassword('Password: ');
+  }
   if (!password) error('Password is required.', EXIT.INPUT_ERROR);
 
   const reader = createKdnaAssetReader();
@@ -127,10 +203,25 @@ function cmdUnlock(args) {
     error(`Asset access is "${manifest.access}", expected "licensed"`, EXIT.INPUT_ERROR);
   }
 
-  const decryptEntry = createPasswordDecryptEntry({ password });
+  // B1: route through loadAuthorized (the same path `kdna load` uses).
+  // The previous implementation called reader.loadProfileSync, which assumes
+  // payload.kdnab is CBOR-encoded and triggered cbor-x's
+  // "JavaScript does not support arrays, maps, or strings with length over
+  // 4294967295" error (BUG-3) when the asset was authored by kdna-studio
+  // (JSON-encoded payload). loadAuthorized dispatches to the right decoder
+  // and accepts the password directly.
+  const profileName = manifest.encryption?.profile;
+  if (profileName === 'kdna-password-protected-v1') {
+    process.stderr.write(
+      'Warning: this asset uses the deprecated kdna-password-protected-v1 ' +
+        '(Argon2id) profile. Re-export through `kdna protect` (or kdna-studio ' +
+        'export --password) to migrate to the scrypt envelope.\n',
+    );
+  }
 
   try {
-    const loaded = reader.loadProfileSync(asset, profile, { decryptEntry });
+    const core = require('@aikdna/kdna-core');
+    const loaded = core.loadAuthorized(file, { profile, as: 'json', password });
     console.log(JSON.stringify(loaded, null, 2));
   } catch (e) {
     error(`Unlock failed: ${e.message}`, EXIT.TRUST_FAILED);
@@ -183,12 +274,16 @@ function cmdRecover(args) {
       const encryptedData = reader.readEntrySync(asset, entryName);
       const plaintext = decryptEntry({ entryName, ciphertext: encryptedData, manifest });
 
-      // Re-encrypt with new password and new recovery code
-      const encrypted = encryptProtectedEntry(plaintext, {
+      // B1: re-encrypt under the scrypt profile when migrating.
+      const encrypted = encryptProtectedEntryScrypt(plaintext, {
         entryName,
         manifest: {
           ...manifest,
-          encryption: { ...manifest.encryption, encrypted_entries: entriesToEncrypt },
+          encryption: {
+            ...(manifest.encryption || {}),
+            profile: PASSWORD_PROTECTED_SCRYPT_PROFILE,
+            encrypted_entries: entriesToEncrypt,
+          },
         },
         password: newPassword,
         recoveryCode: newRecoveryCode,
