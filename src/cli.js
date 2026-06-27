@@ -377,6 +377,17 @@ switch (cmd) {
     const useStdin = args.includes('--password-stdin');
     let password;
     if (useStdin) {
+      // Bug fix: refuse up front on a TTY rather than calling
+      // `fs.readFileSync(0)` and hanging indefinitely waiting for input
+      // the user never sends.
+      if (process.stdin.isTTY) {
+        error(
+          '--password-stdin requires the password to be piped in on stdin.\n' +
+          'Example:  echo "$KDNA_PASSWORD" | kdna load <file.kdna> --password-stdin\n' +
+          'If you are running interactively, omit --password-stdin and you will be prompted.',
+          EXIT.INPUT_ERROR,
+        );
+      }
       const stdinPw = fs.readFileSync(0, 'utf8').trim();
       password = stdinPw.length > 0 ? stdinPw : undefined;
     } else {

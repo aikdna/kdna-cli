@@ -2,6 +2,51 @@
 
 > **Supersession note (2026-06-27)**: Pre-v0.7 entries below use "v1.0-rc" terminology. As of the v0.7 launch (2026-05-22), the @aikdna/* npm scope and registry v2.0 superseded the v1.0-rc label. The historical "v1.0-rc" references in older entries are kept for accuracy; new development uses the 0.7.x+ numbering.
 
+## v0.28.10 (2026-06-28)
+
+This release closes 4 issues filed against the v0.28.x line on
+2026-06-28 (the capsule-verify security advisory plus three
+audit follow-ups). Bumps `@aikdna/kdna-core` from `^0.15.0` to
+`^0.15.4`; that release ships the `manifestForSignature` alignment
+that the `publish.js` signing path depends on.
+
+### Security
+- **capsule-verify.js no longer trusts `capsule.signature.verified`.**
+  The prior implementation read the boolean self-claim from the
+  capsule itself, which an attacker could trivially forge by writing
+  `{"signature": {"verified": true}}`. The fix replaces the trust-
+  on-first-use check with a mandatory call to
+  `@aikdna/kdna-core#verifySignatureSync(assetPath)`, plus an
+  optional allow-list of trusted pubkey fingerprints the caller can
+  pass via `{trustedPubkeys: [...]}`. Capsules without a verifiable
+  asset path are now rejected with an explicit error. **This is the
+  private advisory previously held for the security@aikdna.com
+  disclosure.**
+
+### Fixed
+- **`protect.js` help text + `recover` fallback** — help strings
+  and the recover fallback now reference `payload.kdnab` (the
+  canonical encryption target) instead of the obsolete
+  `KDNA_Core.json`. Matches the corresponding studio-cli fix and
+  RFC-0009.
+- **`protect.js` TTY-hang guards** — `--password-stdin` (in both
+  `protect` and `unlock`) and `--code-stdin` (in `recover`) now
+  refuse up front when stdin is a TTY instead of waiting forever
+  for input the user never sends. Matches the studio-cli fix.
+- **`publish.js#manifestForSigning` aligns with kdna-core** — now
+  strips `authoring.content_digest` recursively. Without this,
+  a publish that ran through the kdna-core verifier would report a
+  signature mismatch on manifests that contained an authoring
+  block.
+- **`publish.js#listPublishEntries` matches the canonical
+  exclusion set** — now skips `build-receipt.json` and the
+  `reports/` directory (previously included in the signed payload
+  even though `kdna-core#buildContentDigest` excludes them, which
+  caused a verifier-mismatch on every published asset that had
+  reports). Mirrors `docs/CANONICALIZATION.md`.
+- **`cli.js#cmdLoad` `--password-stdin` TTY guard** — refuses on
+  TTY instead of hanging.
+
 ## v0.28.9 (2026-06-27)
 
 ### Fixed

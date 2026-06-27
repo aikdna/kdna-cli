@@ -33,7 +33,7 @@ function parseEntriesFlag(flag) {
 function cmdProtect(args) {
   if (args.includes('--help') || args.includes('-h')) {
     console.log(
-      'Usage: kdna protect <file.kdna> --out <file.kdna> [--password <pw>|--password-stdin] [--entries KDNA_Core.json,KDNA_Patterns.json]\n' +
+      'Usage: kdna protect <file.kdna> --out <file.kdna> [--password <pw>|--password-stdin] [--entries payload.kdnab,...]\n' +
         '\n' +
         'Encrypt a .kdna asset with a password.\n' +
         '\n' +
@@ -43,7 +43,7 @@ function cmdProtect(args) {
         '  --password <pw>                   Password (insecure — visible in shell history)\n' +
         '  --password-stdin                  Read password from stdin (recommended)\n' +
         '  --entries <list>                  Comma-separated entry names to encrypt\n' +
-        '                                    (default: KDNA_Core.json)\n' +
+        '                                    (default: payload.kdnab)\n' +
         '\n' +
         'Examples:\n' +
         '  echo "mypass" | kdna protect asset.kdna --out protected.kdna --password-stdin\n' +
@@ -55,7 +55,7 @@ function cmdProtect(args) {
   const file = args[0];
   if (!file)
     error(
-      'Usage: kdna protect <file.kdna> --out <file.kdna> [--password <pw>|--password-stdin] [--entries KDNA_Core.json,KDNA_Patterns.json]\nRun: kdna help protect',
+      'Usage: kdna protect <file.kdna> --out <file.kdna> [--password <pw>|--password-stdin] [--entries payload.kdnab,...]\nRun: kdna help protect',
       EXIT.INPUT_ERROR,
     );
 
@@ -74,7 +74,23 @@ function cmdProtect(args) {
   if (pwIdx >= 0 && args[pwIdx + 1] && !args[pwIdx + 1].startsWith('--')) {
     password = args[pwIdx + 1];
   } else if (args.includes('--password-stdin')) {
-    password = require('fs').readFileSync(0, 'utf8').trim();
+    // Match the studio-cli guard: refuse up front on a TTY rather than
+    // waiting forever for stdin. Bug: prior code called
+    // `fs.readFileSync(0, 'utf8')` directly, which hangs indefinitely
+    // when the user runs the command interactively.
+    if (process.stdin.isTTY) {
+      error(
+        '--password-stdin requires the password to be piped in on stdin.\n' +
+        'Example:  echo "$KDNA_PASSWORD" | kdna <command> ... --password-stdin\n' +
+        'If you are running interactively, omit --password-stdin and you will be prompted.',
+        EXIT.INPUT_ERROR,
+      );
+    }
+    try {
+      password = require('fs').readFileSync(0, 'utf8').trim();
+    } catch (e) {
+      error(`Could not read password from stdin: ${e.message}`, EXIT.INPUT_ERROR);
+    }
   } else {
     password = promptPassword('Password: ');
   }
@@ -202,7 +218,23 @@ function cmdUnlock(args) {
   if (pwIdx >= 0 && args[pwIdx + 1] && !args[pwIdx + 1].startsWith('--')) {
     password = args[pwIdx + 1];
   } else if (args.includes('--password-stdin')) {
-    password = require('fs').readFileSync(0, 'utf8').trim();
+    // Match the studio-cli guard: refuse up front on a TTY rather than
+    // waiting forever for stdin. Bug: prior code called
+    // `fs.readFileSync(0, 'utf8')` directly, which hangs indefinitely
+    // when the user runs the command interactively.
+    if (process.stdin.isTTY) {
+      error(
+        '--password-stdin requires the password to be piped in on stdin.\n' +
+        'Example:  echo "$KDNA_PASSWORD" | kdna <command> ... --password-stdin\n' +
+        'If you are running interactively, omit --password-stdin and you will be prompted.',
+        EXIT.INPUT_ERROR,
+      );
+    }
+    try {
+      password = require('fs').readFileSync(0, 'utf8').trim();
+    } catch (e) {
+      error(`Could not read password from stdin: ${e.message}`, EXIT.INPUT_ERROR);
+    }
   } else {
     password = promptPassword('Password: ');
   }
@@ -334,6 +366,15 @@ function cmdRecover(args) {
 
   let recoveryCode;
   if (args.includes('--code-stdin')) {
+    // Same TTY-hang guard as --password-stdin: refuse up front rather
+    // than blocking on stdin in an interactive session.
+    if (process.stdin.isTTY) {
+      error(
+        '--code-stdin requires the recovery code to be piped in on stdin.\n' +
+        'Example:  echo "<recovery-code>" | kdna recover <file.kdna> --out <out.kdna> --code-stdin',
+        EXIT.INPUT_ERROR,
+      );
+    }
     const stdinData = fs.readFileSync(0, 'utf8').trim();
     if (!stdinData) error('No recovery code provided on stdin.', EXIT.INPUT_ERROR);
     recoveryCode = stdinData;
@@ -356,7 +397,7 @@ function cmdRecover(args) {
   const decryptEntry = createRecoveryDecryptEntry({ recoveryCode });
 
   // Decrypt all encrypted entries with recovery code, then re-encrypt with new password
-  const entriesToEncrypt = manifest.encryption?.encrypted_entries || ['KDNA_Core.json'];
+  const entriesToEncrypt = manifest.encryption?.encrypted_entries || ['payload.kdnab'];
   const allEntries = reader.listEntriesSync(asset);
   const zipEntries = {};
   const newRecoveryCode = generateRecoveryCode();

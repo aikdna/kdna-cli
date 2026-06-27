@@ -550,12 +550,27 @@ function canonicalPayload(srcDir, opts = {}) {
 }
 
 function manifestForSigning(manifest, opts = {}) {
+  // Mirrors packages/kdna-core/src/asset-reader.js#manifestForSignature /
+  // manifestForDigest. The two must agree on every field they strip,
+  // otherwise the signing path and the digest path will hash different
+  // representations of the same manifest and verifiers will report a
+  // mismatch on otherwise-valid assets.
+  //
+  // Bug: prior version omitted the recursive `authoring.content_digest`
+  // strip that both kdna-core and the studio-cli manifestForSigning
+  // perform. A manifest with that field produced a different signing
+  // payload here than anywhere else in the ecosystem.
   const copy = { ...(manifest || {}) };
   delete copy.signature;
   delete copy.asset_digest;
   delete copy.container_sha256;
   if (!opts.includeContentDigest) delete copy.content_digest;
   delete copy._source;
+  if (copy.authoring && typeof copy.authoring === 'object') {
+    const auth = { ...copy.authoring };
+    delete auth.content_digest;
+    copy.authoring = auth;
+  }
   return copy;
 }
 
@@ -572,11 +587,14 @@ function stableStringify(value) {
 
 function listPublishEntries(domainDir) {
   const entries = ['mimetype'];
-  const skipDirs = new Set(['.git', 'node_modules', 'dist']);
+  const skipDirs = new Set(['.git', 'node_modules', 'dist', 'reports']);
+  // Exclusions must match packages/kdna-core/src/asset-reader.js#buildContentDigest
+  // — see docs/CANONICALIZATION.md. If publish.js signs a different set of
+  // entries than the verifier digests, every signature will appear to fail.
   function walk(dir, prefix = '') {
     for (const name of fs.readdirSync(dir).sort()) {
       if (name === 'mimetype') continue;
-      if (name === '.DS_Store' || name === 'signature.json') continue;
+      if (name === '.DS_Store' || name === 'signature.json' || name === 'build-receipt.json') continue;
       const abs = path.join(dir, name);
       const rel = prefix ? `${prefix}/${name}` : name;
       const stat = fs.statSync(abs);
@@ -589,8 +607,7 @@ function listPublishEntries(domainDir) {
         rel === 'README.md' ||
         rel === 'LICENSE' ||
         rel.startsWith('evals/') ||
-        rel.startsWith('examples/') ||
-        rel.startsWith('reports/')
+        rel.startsWith('examples/')
       ) {
         entries.push(rel);
       }
