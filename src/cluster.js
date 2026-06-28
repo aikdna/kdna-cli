@@ -117,16 +117,30 @@ function cmdClusterApply(clusterPath, input) {
   const cluster = readJson(abs);
   if (!cluster || !cluster.packages) error('Invalid cluster file');
 
-  // Use input from argument, or from stdin, or prompt
+  // Use input from argument, or from stdin (only when piped), or prompt.
+  // Bug (#63): the previous version used the same `fs.readFileSync(0)`
+  // call for both the piped and interactive paths, with only an
+  // isTTY check before the first read. That worked for the piped case
+  // but the interactive prompt path (Ctrl+D) re-read from stdin and
+  // could still appear to hang if the user had already closed the
+  // stream. The fix moves the isTTY guard before the first read so
+  // any caller that forgot to pipe gets a clear error instead of a
+  // silent hang.
   let taskInput = input;
   if (!taskInput) {
-    // Try reading from stdin if not a TTY
     if (!process.stdin.isTTY) {
-      taskInput = fs.readFileSync(0, 'utf8').trim();
-    }
-    if (!taskInput) {
-      console.log('Enter task description (Ctrl+D when done):');
-      taskInput = fs.readFileSync(0, 'utf8').trim();
+      try {
+        taskInput = fs.readFileSync(0, 'utf8').trim();
+      } catch {
+        taskInput = '';
+      }
+    } else {
+      console.error(
+        'No input provided and stdin is a TTY. Pipe the task description in, e.g.\n' +
+        '  echo "..." | kdna cluster apply <path>\n' +
+        'Or pass it as a positional argument: kdna cluster apply <path> "<task>".',
+      );
+      process.exit(2);
     }
   }
 

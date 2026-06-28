@@ -335,10 +335,42 @@ function cmdLoad(input, args = []) {
     profileInput = args[inputIdx + 1] || null;
   }
 
+  // Resolve the asset first so we can fail early on a missing path
+  // before asking the user for a password.
   const asset = resolveAsset(input);
   if (!asset) {
     console.error(`KDNA asset not found: ${input}. Use an installed name or a .kdna file.`);
     process.exit(2);
+  }
+
+  // Resolve the password for password-protected assets. Sources
+  // (in priority order): --password <value> (legacy / insecure), the
+  // KDNA_PASSWORD environment variable, and --password-stdin (read on
+  // demand from fd 0). If none of these is set and the asset is
+  // encrypted, loadAuthorized will throw a clear "no password"
+  // error; we no longer silently pass `undefined` and let the user
+  // discover the failure downstream.
+  let password;
+  const passwordIdx = args.indexOf('--password');
+  if (passwordIdx >= 0 && args[passwordIdx + 1] && !args[passwordIdx + 1].startsWith('--')) {
+    password = args[passwordIdx + 1];
+  } else if (process.env.KDNA_PASSWORD) {
+    password = process.env.KDNA_PASSWORD;
+  } else if (args.includes('--password-stdin')) {
+    if (process.stdin.isTTY) {
+      console.error(
+        '--password-stdin requires the password to be piped in on stdin.\n' +
+        'Example:  echo "$KDNA_PASSWORD" | kdna load <asset> --password-stdin\n' +
+        'If you are running interactively, omit --password-stdin and you will be prompted.',
+      );
+      process.exit(2);
+    }
+    try {
+      password = require('fs').readFileSync(0, 'utf8').trim();
+    } catch (e) {
+      console.error(`Could not read password from stdin: ${e.message}`);
+      process.exit(2);
+    }
   }
 
   // B6: Route through Core's unified loadAuthorized instead of manual manifest/decrypt.
@@ -348,7 +380,7 @@ function cmdLoad(input, args = []) {
     const result = core.loadAuthorized(asset.asset_path, {
       profile: profile || 'compact',
       as: format === 'json' ? 'json' : 'json',
-      password: undefined, // password can be added via --password flag in future
+      password: password || undefined,
     });
     container = {
       core: result.domain?.core || result.core || {},
@@ -817,7 +849,18 @@ function cmdPostvalidate(args = []) {
       process.exit(2);
     }
   } else {
-    // Read from stdin
+    // Read from stdin. Bug (#64): prior version read fd 0 without a
+    // TTY check, so an interactive caller who forgot to pipe the
+    // output (or who hit this path by accident) would see the command
+    // hang forever. Refuse up front on a TTY with a clear error.
+    if (process.stdin.isTTY) {
+      console.error(
+        'Reading agent output from stdin requires the data to be piped in.\n' +
+        'Example:  kdna agent evaluate <domain> --input <task> < agent-output.txt\n' +
+        'Or pass --output <file> to read from a file.',
+      );
+      process.exit(2);
+    }
     try {
       agentOutput = fs.readFileSync(0, 'utf8'); // fd 0 = stdin
     } catch {

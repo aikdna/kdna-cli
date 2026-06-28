@@ -432,11 +432,34 @@ function cmdRecover(args) {
     zipEntries.mimetype = 'application/vnd.kdna.asset';
   }
 
-  // Recompute content digest and strip invalidated signature after re-encryption
-  updateManifestDigest(zipEntries, reader);
-
-  const zipBuffer = buildZip(zipEntries);
-  fs.writeFileSync(outPath, zipBuffer);
+  // Bug (#65): prior version used the custom buildZip helper and
+  // wrote no checksums.json, so the recovered asset failed
+  // `kdna validate` immediately after recovery (the verifier expects
+  // checksums.json next to the manifest). The fix uses Core's
+  // canonical packer (the same path `cmdProtect` already uses) and
+  // emits checksums.json for the re-encrypted manifest.
+  const tmpDir = require('node:fs').mkdtempSync(
+    require('node:path').join(require('node:os').tmpdir(), 'kdna-recover-'),
+  );
+  try {
+    for (const [name, data] of Object.entries(zipEntries)) {
+      require('node:fs').writeFileSync(require('node:path').join(tmpDir, name), data);
+    }
+    // Recompute the manifest's content_digest against the final ZIP
+    // and write checksums.json so validators accept the recovered
+    // asset.
+    const recoveredManifest = JSON.parse(
+      require('node:fs').readFileSync(require('node:path').join(tmpDir, 'kdna.json'), 'utf8'),
+    );
+    const checksums = buildChecksumsV1(tmpDir, recoveredManifest);
+    require('node:fs').writeFileSync(
+      require('node:path').join(tmpDir, 'checksums.json'),
+      JSON.stringify(checksums, null, 2),
+    );
+    packAsset(tmpDir, outPath);
+  } finally {
+    require('node:fs').rmSync(tmpDir, { recursive: true, force: true });
+  }
 
   console.log(`Recovered asset written to: ${outPath}`);
   console.log('Password has been reset.');

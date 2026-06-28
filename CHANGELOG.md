@@ -2,6 +2,39 @@
 
 > **Supersession note (2026-06-27)**: Pre-v0.7 entries below use "v1.0-rc" terminology. As of the v0.7 launch (2026-05-22), the @aikdna/* npm scope and registry v2.0 superseded the v1.0-rc label. The historical "v1.0-rc" references in older entries are kept for accuracy; new development uses the 0.7.x+ numbering.
 
+## v0.28.11 (2026-06-28)
+
+Phase 10 audit follow-up. Closes 5 issues filed against the
+kdna-studio-cli repo (#61, #62, #63, #64, #65) plus the cross-repo
+#52 (P0 — hardcoded `password: undefined` in `agent.js` cmdLoad
+that made kdna-loader unable to decrypt any password-protected
+asset).
+
+- **#52 `cmdLoad` now resolves the password for `loadAuthorized`.**
+  Sources (in priority order): `--password <value>`, the
+  `KDNA_PASSWORD` env var, and `--password-stdin` (with the same
+  TTY-hang guard as the rest of the CLI). The previous
+  `password: undefined` hard-code meant every password-protected
+  asset the agent tried to load was rejected downstream with a
+  confusing "decrypt failed" error. **P0 security/UX.**
+- **#61 `cli.js` top-level help text references `payload.kdnab`,
+  not `KDNA_Core.json`.** Matches the matching studio-cli fix
+  (#44) and RFC-0009.
+- **#62 `cli.js` help for `protect recover` now advertises
+  `--code-stdin` only** (the parser only ever accepted
+  `--code-stdin`; the help text claimed `--code <rc>` worked too).
+- **#63 `cluster.js` stdin read now TTY-guards up front.** Prior
+  version read from fd 0 in both piped and interactive modes; the
+  piped path had a `!isTTY` check but the interactive prompt
+  path silently hung if stdin was already closed. The fix rejects
+  with a clear error before any read.
+- **#64 `agent.js:854` (`agent evaluate` stdin read) now
+  TTY-guards.** Same pattern as #63.
+- **#65 `cmdRecover` now uses Core's canonical `pack` and
+  emits `checksums.json`.** Prior version used a custom `buildZip`
+  helper and wrote no checksums file, so every recovered asset
+  failed `kdna validate` immediately after recovery.
+
 ## v0.28.10 (2026-06-28)
 
 This release closes 4 issues filed against the v0.28.x line on

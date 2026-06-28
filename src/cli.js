@@ -102,12 +102,12 @@ Diagnostics:
   cluster  <path>                    Validate a cluster manifest
   protect  <file> --out <file>       Encrypt a .kdna asset with a password
            [--password <pw>|--password-stdin]
-           [--entries KDNA_Core.json,KDNA_Patterns.json]
+           [--entries payload.kdnab,...]
   protect  unlock <file>             Decrypt a protected .kdna
            [--password <pw>|--password-stdin]
            [--profile compact|index|full]
   protect  recover <file>            Recover a .kdna using a recovery code
-           --out <file> --code <rc>|--code-stdin
+           --out <file> --code-stdin
   available                            List available installed domains
   match     "<task>"                  Find the best-matching domain for a task
   install   <name|@scope/name|file>   Install a .kdna asset from local/registry
