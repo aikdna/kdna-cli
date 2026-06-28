@@ -2,6 +2,15 @@
 
 > **Supersession note (2026-06-27)**: Pre-v0.7 entries below use "v1.0-rc" terminology. As of the v0.7 launch (2026-05-22), the @aikdna/* npm scope and registry v2.0 superseded the v1.0-rc label. The historical "v1.0-rc" references in older entries are kept for accuracy; new development uses the 0.7.x+ numbering.
 
+## v0.28.19 (2026-06-28)
+
+Story 6 — dependencies runtime. Integrates two-tier package store resolution and topological loading for multi-domain composition.
+
+- **Dependencies Resolution Callback**: Passed a robust `resolveAssetCallback` from CLI to Core during validation, planning, and authorization loops.
+- **Topological Plan surfacing**: Surfaced resolved transitive dependencies list in the planning output of `kdna plan-load`.
+- **47 integration/smoke tests**: Fully verified all features, including circular reference detection and semver range mismatch assertions.
+
+
 ## v0.28.18 (2026-06-28)
 
 KDNA v2 Bundle payload type and V1 deprecation start — RFC #148 Story 5.

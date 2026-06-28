@@ -34,6 +34,19 @@ const registry = require('./cmds/registry');
 const { cmdSetup } = require('./cmds/setup');
 const { validateBundle } = require('./cmds/validate-bundle');
 const studio = require('./cmds/studio');
+const { resolveAsset, readAssetManifest } = require('./package-store');
+
+const resolveAssetCallback = (name) => {
+  const pkg = resolveAsset(name);
+  if (pkg && pkg.asset_path) {
+    return {
+      path: pkg.asset_path,
+      version: pkg.version,
+      manifest: readAssetManifest(pkg.asset_path)
+    };
+  }
+  return null;
+};
 
 // Strip stack traces from uncaught errors for clean user output
 process.on('uncaughtException', (err) => {
@@ -203,6 +216,7 @@ switch (cmd) {
       result.runtime_load_plan = core.planLoad(v1Target, {
         hasPassword: args.includes('--has-password'),
         entitlement: entitlementStatus ? { status: entitlementStatus } : undefined,
+        resolveAsset: resolveAssetCallback,
       });
     }
     console.log(JSON.stringify(result, null, 2));
@@ -265,6 +279,7 @@ switch (cmd) {
       hasPassword: !!planLoadPassword || args.includes('--has-password'),
       password: planLoadPassword || undefined,
       entitlement: entitlementStatus ? { status: entitlementStatus } : undefined,
+      resolveAsset: resolveAssetCallback,
     });
     console.log(JSON.stringify(plan, null, 2));
     process.exit(plan.state === 'invalid' ? 1 : plan.can_load_now === true ? 0 : 3);
@@ -439,6 +454,7 @@ switch (cmd) {
         password,
         hasPassword: !!password || args.includes('--has-password'),
         entitlement: entitlementStatus ? { status: entitlementStatus } : undefined,
+        resolveAsset: resolveAssetCallback,
       });
       if (as === 'prompt') {
         process.stdout.write(r.text + '\n');
