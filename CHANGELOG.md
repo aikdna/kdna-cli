@@ -2,6 +2,44 @@
 
 > **Supersession note (2026-06-27)**: Pre-v0.7 entries below use "v1.0-rc" terminology. As of the v0.7 launch (2026-05-22), the @aikdna/* npm scope and registry v2.0 superseded the v1.0-rc label. The historical "v1.0-rc" references in older entries are kept for accuracy; new development uses the 0.7.x+ numbering.
 
+## v0.28.13 (2026-06-28)
+
+Layer isolation regression test (roadmap-2026.md §13.1, Story
+14 of the Section 5.1 queue). This is a bug-class guard that
+catches future regressions where a new feature is added that
+emits a content-trust claim about an asset.
+
+- **New: `tests/layer-isolation.test.js`** — three regression
+  tests wired into `npm test`:
+  1. **Source structure** — scans `src/**/*.js` for string
+     literals containing the design-contract-forbidden tokens
+     (`recommended`, `officially_approved`, `high_quality`,
+     `endorsed`, `authoritative`, `certified`). An explicit
+     `ALLOWLIST` documents every known legitimate use (e.g.
+     `recommendedVersionBump` for semver calculation,
+     `--password-stdin (recommended)` for tool-usage help text,
+     `self-claim is NOT authoritative` as a negative assertion).
+  2. **Behavioral output** — runs six representative CLI commands
+     (`inspect`, `validate --json`, `plan-load --json`,
+     `load --as=json`, `version`, `doctor`) on the `v1-minimal`
+     fixture and asserts that neither the JSON string values nor
+     the raw text contain any forbidden token.
+  3. **Allowlist staleness** — every `ALLOWLIST` entry must still
+     point to a line that mentions a forbidden token; if the
+     underlying code moves or rewrites a line, the entry is
+     flagged as stale so it cannot silently rot.
+
+- **Discovered issue (do not fix in this story)** — the
+  `quality_badge: 'trusted'` level in `src/cmds/badge.js:69` is
+  itself a content-trust claim (the CLI asserts that an asset is
+  "trusted" based on axiom coverage + eval pass rate). The token
+  `trusted` is therefore intentionally excluded from the
+  forbidden list in this test, and the badge issue is tracked
+  separately. See `PRIVATE/STATUS/agent-guide.md` Section 5
+  (entry TBD by this story's done log) for follow-up.
+
+Refs roadmap-2026.md Section 5.1 Story 14 and Section 13.1.
+
 ## v0.28.12 (2026-06-28)
 
 Phase 11 audit follow-up. Closes 3 issues filed against the
