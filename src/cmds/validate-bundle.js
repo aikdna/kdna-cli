@@ -1,5 +1,5 @@
 /**
- * validate-bundle.js — Bundle validation (roadmap-2026.md Stories 3 + 9)
+ * validate-bundle.js — Bundle validation (roadmap-2026.md Stories 3 + 9 + 13)
  *
  * Validates a `kdna.bundle.json` manifest (RFC #148 Phase 1):
  *
@@ -10,6 +10,11 @@
  *     `validate()` pass from @aikdna/kdna-core.
  *   - Runs per-card-type conflict analysis across component pairs
  *     (Story 9, per docs/CONFLICT_RESOLUTION.md).
+ *   - Story 13: validates per-component `trust_level` and `deprecation`
+ *     fields, surfaces `low_trust_warnings` (WARNING-level conflicts
+ *     involving `community`-trust components), and surfaces bundle-level
+ *     deprecation signals when the current CLI version satisfies the
+ *     deprecation condition.
  *
  * Exit codes:
  *   0 — bundle_valid = true (all components pass, bundle shape valid)
@@ -17,7 +22,8 @@
  *       bundle manifest is malformed, or ERROR-severity conflicts found)
  *
  * Output: JSON to stdout, mirroring the shape documented in
- * docs/CONFLICT_RESOLUTION.md §Conflict Report Format.
+ * docs/CONFLICT_RESOLUTION.md §Conflict Report Format. Story 13 adds
+ * `low_trust_warnings` and `deprecation_warnings` top-level sections.
  */
 
 'use strict';
@@ -25,8 +31,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { analyseConflicts } = require('./conflict-analysis');
+const { evaluateDeprecation, formatDeprecationStderr } = require('./deprecation');
 
 const BUNDLE_FORMAT = 'kdna-bundle-v1';
+const VALID_TRUST_LEVELS = new Set(['community', 'verified', 'official']);
 
 /**
  * Validate a bundle manifest at `manifestPath`.
@@ -34,10 +42,17 @@ const BUNDLE_FORMAT = 'kdna-bundle-v1';
  * @param {string} manifestPath  Absolute or relative path to the manifest JSON.
  * @param {object} [opts]
  * @param {boolean} [opts.verbose]  Include full per-component validation detail.
+ * @param {string} [opts.currentVersion]  the running CLI version. Story 13
+ *   uses this to evaluate the `deprecation` blocks in the manifest. When
+ *   omitted, `deprecation_warnings` is emitted as an empty section.
  * @returns {BundleValidationResult}
  */
 function validateBundle(manifestPath, opts = {}) {
   const abs = path.resolve(manifestPath);
+  // Story 13: default the currentVersion to the CLI's own package.json
+  // version. Callers can override (e.g. tests) but the CLI case always
+  // gets a value here.
+  const currentVersion = opts.currentVersion || require('../../package.json').version;
 
   if (!fs.existsSync(abs)) {
     return {
@@ -127,6 +142,24 @@ function validateBundle(manifestPath, opts = {}) {
         field: 'id',
         note: `components[${i}] is missing the required "id" field.`,
       });
+    }
+
+    // Story 13 — trust_level validation. Optional field; when present
+    // it must be one of {community, verified, official}. Anything else
+    // is a hard schema error (rejected at validate time, not silently
+    // ignored), because a typo here would mask the trust signal.
+    if (comp.trust_level !== undefined && comp.trust_level !== null) {
+      if (typeof comp.trust_level !== 'string' || !VALID_TRUST_LEVELS.has(comp.trust_level)) {
+        errors.push({
+          conflict_type: 'schema',
+          severity: 'ERROR',
+          component: compId,
+          field: 'trust_level',
+          note:
+            `Component "${compId}" declares trust_level="${comp.trust_level}". ` +
+            `Valid values: ${Array.from(VALID_TRUST_LEVELS).join(', ')}.`,
+        });
+      }
     }
 
     if (!comp.path) {
@@ -233,6 +266,14 @@ function validateBundle(manifestPath, opts = {}) {
       priority: typeof comp.priority === 'number' ? comp.priority : null,
       valid: compValid,
       issues: compResult.issues || [],
+      // Story 13 — surface trust_level so conflict-analysis can tag
+      // entries with the trust_level of each side.
+      trust_level: VALID_TRUST_LEVELS.has(comp.trust_level) ? comp.trust_level : null,
+      // Story 13 — surface the raw deprecation block (validation does
+      // not require it to be well-formed here; the deprecation check
+      // happens in the deprecation.js module against the current CLI
+      // version). Stored as-is for the report to surface to the user.
+      deprecation: comp.deprecation || null,
     };
     if (opts.verbose) {
       entry._validation = compResult;
@@ -257,7 +298,7 @@ function validateBundle(manifestPath, opts = {}) {
     });
   }
 
-  return buildResult(manifest, componentResults, errors, warnings, info);
+  return buildResult(manifest, componentResults, errors, warnings, info, { currentVersion });
 }
 
 /**
@@ -266,10 +307,15 @@ function validateBundle(manifestPath, opts = {}) {
  * @param {Array}  errors
  * @param {Array}  warnings
  * @param {Array}  info
+ * @param {object} [opts]
+ * @param {string} [opts.currentVersion]  the running CLI version (Story 13).
+ *   When provided, the result also includes `deprecation_warnings` (entries
+ *   that the current CLI version satisfies) and `low_trust_warnings`
+ *   (WARNING-level conflicts involving community-trust components).
  * @returns {BundleValidationResult}
  */
-function buildResult(manifest, components, errors, warnings, info) {
-  return {
+function buildResult(manifest, components, errors, warnings, info, opts = {}) {
+  const result = {
     bundle_format: manifest.bundle_format || null,
     name: manifest.name || null,
     version: manifest.version || null,
@@ -284,6 +330,74 @@ function buildResult(manifest, components, errors, warnings, info) {
     warnings,
     info,
   };
+
+  // Story 13 — low_trust_warnings: filter WARNING-level entries where
+  // at least one side has trust_level === "community". The conflict
+  // entries are still in `warnings`; this section is a convenience
+  // summary that downstream consumers (and the CLI's stderr line)
+  // can surface without re-walking `warnings`.
+  const lowTrustWarnings = warnings.filter((w) => w.community_warning === true);
+  result.low_trust_warnings = {
+    count: lowTrustWarnings.length,
+    conflicts: lowTrustWarnings,
+    // Distinct set of community-trust component ids that participate
+    // in at least one community_warning. Lets the user ask "which of
+    // my community components are causing trouble?" without scanning
+    // the full conflict list.
+    affected_components: Array.from(
+      new Set(
+        lowTrustWarnings.flatMap((w) =>
+          [w.component_a, w.component_b].filter(
+            (id) => w.trust_level_a === 'community' || w.trust_level_b === 'community',
+          ),
+        ),
+      ),
+    ),
+  };
+
+  // Story 13 — deprecation_warnings: scan the manifest (top-level
+  // deprecation block + each component's deprecation block) against
+  // the current CLI version. The CLI version is passed via opts; when
+  // not provided (older callers, internal tests), this section is
+  // still emitted but empty.
+  if (opts.currentVersion) {
+    const depWarnings = [];
+    const topLevel = evaluateDeprecation(
+      manifest.deprecation,
+      manifest.name || manifest.asset_id || '(unnamed bundle)',
+      'bundle',
+      opts.currentVersion,
+    );
+    if (topLevel) depWarnings.push(topLevel);
+    for (const comp of components) {
+      if (!comp || !comp.deprecation) continue;
+      const w = evaluateDeprecation(
+        comp.deprecation,
+        comp.id || comp.path || '(unnamed component)',
+        'component',
+        opts.currentVersion,
+      );
+      if (w) depWarnings.push(w);
+    }
+    result.deprecation_warnings = {
+      count: depWarnings.length,
+      current_cli_version: opts.currentVersion,
+      warnings: depWarnings,
+      // Pre-formatted one-liner for stderr-style consumers. Empty
+      // string when there are no warnings so callers can append
+      // unconditionally.
+      stderr_text: formatDeprecationStderr(depWarnings),
+    };
+  } else {
+    result.deprecation_warnings = {
+      count: 0,
+      current_cli_version: null,
+      warnings: [],
+      stderr_text: '',
+    };
+  }
+
+  return result;
 }
 
 module.exports = { validateBundle, BUNDLE_FORMAT };

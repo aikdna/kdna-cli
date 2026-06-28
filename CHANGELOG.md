@@ -2,6 +2,60 @@
 
 > **Supersession note (2026-06-27)**: Pre-v0.7 entries below use "v1.0-rc" terminology. As of the v0.7 launch (2026-05-22), the @aikdna/* npm scope and registry v2.0 superseded the v1.0-rc label. The historical "v1.0-rc" references in older entries are kept for accuracy; new development uses the 0.7.x+ numbering.
 
+## v0.28.26 (2026-06-28)
+
+Story 13 — Trust levels + deprecation (RFC #148 v2.x Phase 3, last story
+in Phase 3).
+
+- **`trust_level` on bundle components** — each entry in a Bundle
+  manifest's `components[]` can now declare `trust_level: "community" |
+  "verified" | "official"`. `kdna validate --bundle` validates the
+  value (anything outside the three-level enum is a hard schema
+  ERROR) and threads the value into the per-component result and
+  into conflict analysis.
+- **`low_trust_warnings` in `validate --bundle` output** — new
+  top-level field in the Bundle Validation Report. Lists all
+  WARNING-level conflicts where at least one side is
+  `trust_level: "community"`, plus the distinct set of community
+  component ids that participate. ERROR-level conflicts stay in
+  `errors`; trust level never softens a true conflict into a pass.
+- **Conflict entries now carry `trust_level_a` / `trust_level_b` /
+  `community_warning`** — additive fields. `community_warning` is
+  set on WARNING-level entries when any side is `community`. The
+  `low_trust_warnings` section is computed from these flags.
+- **Semver-aware deprecation warnings** — bundle manifests can now
+  declare a `deprecation` block at the top level OR on each
+  component, with three accepted field-name aliases:
+  - `since` (preferred; bare version like `"0.28.0"` is treated as
+    shorthand for `">=0.28.0"`, comparator / range shapes also
+    accepted)
+  - `deprecated_in` (alias for `since`)
+  - `deprecated_at` (shorthand for `">=X"`)
+  Optional `remove_in: "X.Y.Z"` escalates the warning wording to
+  "REMOVAL" once the running CLI is at or past that version.
+  Optional `replacement` and `reason` are surfaced in the message.
+- **`kdna load` and `kdna plan-load` print soft deprecation
+  warnings to stderr** — when the asset is a Bundle and any of its
+  `deprecation` blocks are satisfied by the running CLI version, a
+  one-block Notice is printed to stderr (multi-line, exits with a
+  trailing newline). Never blocks, never changes exit code. The
+  same data is also embedded in the validate-bundle JSON report
+  under `deprecation_warnings` (with `current_cli_version`,
+  `warnings[]`, and a pre-formatted `stderr_text` field).
+- **New helpers** — `src/cmds/semver-util.js` (parseSemver /
+  compareSemver / satisfies / isDeprecatedAt) and
+  `src/cmds/deprecation.js` (readBundleComponents /
+  evaluateDeprecation / scanBundleDeprecations /
+  formatDeprecationStderr). No new npm dependencies.
+- **28 new tests** in `tests/story13-trust-deprecation.test.js`
+  covering semver parsing, deprecation shape handling, trust_level
+  validation, low_trust_warnings filtering, and the CLI
+  deprecation stderr path. Total: **121/121 pass**.
+- No breaking changes to existing load / plan-load / validate
+  output (additive fields only).
+
+
+
 ## v0.28.25 (2026-06-28)
 
 Story 12 — Asset inheritance (RFC #148 v2.x Phase 3).

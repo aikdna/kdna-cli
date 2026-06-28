@@ -1,5 +1,5 @@
 /**
- * conflict-analysis.js — Bundle conflict static analysis (Story 9)
+ * conflict-analysis.js — Bundle conflict static analysis (Story 9 + 13)
  *
  * Implements the per-card-type conflict detection rules defined in
  * docs/CONFLICT_RESOLUTION.md (Story 4). Replaces the INFO stub in
@@ -20,6 +20,14 @@
  *   WARNING — self_check (same question text)
  *   INFO    — scenario (same scoped id)
  *   INFO    — risk (same id after descoping)
+ *
+ * Story 13 — trust_level: each conflict entry now carries
+ * `trust_level_a` and `trust_level_b` (copied from the component
+ * result). A new `community_warning` boolean is set when at least one
+ * side is `trust_level: "community"` and the entry is WARNING-level.
+ * This lets validate-bundle.js surface a `low_trust_warnings` summary
+ * without re-walking all conflicts. The conflict entries themselves
+ * are unchanged in shape; the new fields are additive.
  */
 
 'use strict';
@@ -169,6 +177,12 @@ function makeEntry(opts) {
     resolution: opts.resolution || 'priority_wins',
     winning_component: null,
     note: opts.note,
+    // Story 13 — trust_level annotation. Optional: present only when
+    // analyseConflicts is called with a component-trust map. Set after
+    // creation by `analyseConflicts` itself.
+    trust_level_a: null,
+    trust_level_b: null,
+    community_warning: false,
   };
 }
 
@@ -390,7 +404,8 @@ function detectRiskConflicts(cardsA, cardsB, compA, compB) {
  * Analyse conflicts across all component pairs in a validated bundle.
  *
  * @param {Array}  componentResults  Array of component objects from validateBundle.
- *   Each must have: { id, path, valid }
+ *   Each must have: { id, path, valid }. Story 13: may also carry `trust_level`
+ *   (`"community" | "verified" | "official" | null`).
  * @param {object} core  The @aikdna/kdna-core module (for readV1Layout).
  * @returns {{ errors: Array, warnings: Array, info: Array }}
  */
@@ -404,6 +419,19 @@ function analyseConflicts(componentResults, core) {
 
   if (validComps.length < 2) {
     return { errors, warnings, info };
+  }
+
+  // Build a trust-level map for the annotation step (Story 13).
+  // Valid trust levels: "community" | "verified" | "official". Anything
+  // else is treated as null (unspecified) — validate-bundle.js is
+  // responsible for rejecting bad values up front.
+  const trustMap = new Map();
+  for (const c of validComps) {
+    const tl = c.trust_level;
+    trustMap.set(
+      c.id,
+      tl === 'community' || tl === 'verified' || tl === 'official' ? tl : null,
+    );
   }
 
   // Load payloads once
@@ -432,7 +460,22 @@ function analyseConflicts(componentResults, core) {
         ...detectRiskConflicts(a.cards, b.cards, compA, compB),
       ];
 
+      const tlA = trustMap.get(compA);
+      const tlB = trustMap.get(compB);
+
       for (const entry of pairConflicts) {
+        // Story 13: annotate each entry with the trust levels of the
+        // two components, and flag WARNING-level entries as
+        // community_warning when at least one side is community.
+        entry.trust_level_a = tlA || null;
+        entry.trust_level_b = tlB || null;
+        if (
+          entry.severity === 'WARNING' &&
+          (tlA === 'community' || tlB === 'community')
+        ) {
+          entry.community_warning = true;
+        }
+
         if (entry.severity === 'ERROR') errors.push(entry);
         else if (entry.severity === 'WARNING') warnings.push(entry);
         else info.push(entry);

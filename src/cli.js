@@ -35,6 +35,7 @@ const { cmdSetup } = require('./cmds/setup');
 const { validateBundle } = require('./cmds/validate-bundle');
 const { computeContextBudget } = require('./cmds/context-budget');
 const { appendAuditEntry } = require('./cmds/audit-log');
+const { scanBundleDeprecations, formatDeprecationStderr } = require('./cmds/deprecation');
 const studio = require('./cmds/studio');
 const { resolveAsset, readAssetManifest } = require('./package-store');
 
@@ -49,6 +50,31 @@ const resolveAssetCallback = (name) => {
   }
   return null;
 };
+
+/**
+ * Story 13 — soft deprecation scan.
+ *
+ * Reads a bundle asset's `kdna.json` + `payload.kdnab`, evaluates any
+ * `deprecation` blocks (top-level or per-component) against the
+ * current CLI version, and prints the result to stderr. Never blocks,
+ * never changes exit code. Returns the array of warnings in case the
+ * caller wants to do something else with them (the validate-bundle
+ * path does — it embeds them in the JSON report).
+ *
+ * Single-asset v1/v2 loads return [] (no components, no deprecation).
+ */
+function emitDeprecationStderr(abs) {
+  try {
+    const cliVersion = require('../package.json').version;
+    const warnings = scanBundleDeprecations(abs, cliVersion);
+    const text = formatDeprecationStderr(warnings);
+    if (text) process.stderr.write(text);
+    return warnings;
+  } catch (_) {
+    // best-effort — never block on a deprecation bug
+    return [];
+  }
+}
 
 // Strip stack traces from uncaught errors for clean user output
 process.on('uncaughtException', (err) => {
@@ -171,6 +197,12 @@ switch (cmd) {
       // Fatal errors (file not found, invalid JSON) are represented inside the result.
       if (result.fatal) delete result.fatal;
       console.log(JSON.stringify(result, null, 2));
+      // Story 13 — soft deprecation scan (stderr, non-blocking). The
+      // warnings are already inside result.deprecation_warnings; this
+      // is just the human-readable one-liner for terminal users.
+      if (result.deprecation_warnings && result.deprecation_warnings.stderr_text) {
+        process.stderr.write(result.deprecation_warnings.stderr_text);
+      }
       process.exit(result.bundle_valid ? 0 : 1);
     }
     const v1Target = args.filter((a) => !a.startsWith('--'))[1];
@@ -255,6 +287,11 @@ switch (cmd) {
     if (isV1) {
       process.stderr.write('Warning: KDNA v1 format is deprecated and will reach end-of-life in 9-12 months. Please migrate to KDNA v2.\n');
     }
+    // Story 13 — soft deprecation scan (bundle manifest-level +
+    // per-component). Non-blocking. Always emitted before the plan
+    // JSON so a `kdna plan-load <bundle> | jq` consumer still sees
+    // the warnings on its own stderr.
+    emitDeprecationStderr(abs);
     if (typeof core.planLoad !== 'function') {
       error(
         'kdna plan-load requires @aikdna/kdna-core with the LoadPlan v1 API. Update @aikdna/kdna-core before enabling runtime authorization diagnostics.',
@@ -468,6 +505,10 @@ switch (cmd) {
     if (isV1) {
       process.stderr.write('Warning: KDNA v1 format is deprecated and will reach end-of-life in 9-12 months. Please migrate to KDNA v2.\n');
     }
+    // Story 13 — soft deprecation scan (bundle manifest-level +
+    // per-component). Non-blocking. Emitted before the load result
+    // so terminal users see the notice above the JSON.
+    emitDeprecationStderr(abs);
     const getFlag = (name) => {
       const eq = args.find((a) => a.startsWith(name + '='));
       if (eq) return eq.split('=')[1];
