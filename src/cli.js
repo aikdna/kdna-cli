@@ -32,6 +32,7 @@ const legacy = require('./cmds/legacy');
 const quality = require('./cmds/quality');
 const registry = require('./cmds/registry');
 const { cmdSetup } = require('./cmds/setup');
+const { validateBundle } = require('./cmds/validate-bundle');
 const studio = require('./cmds/studio');
 
 // Strip stack traces from uncaught errors for clean user output
@@ -78,6 +79,8 @@ Core v1:
   inspect   <file.kdna>              Inspect a local v1 .kdna container
   validate  <file.kdna>              Validate a local v1 .kdna container
   validate  <path> --runtime         Validate and require LoadPlan readiness
+  validate  <bundle.json> --bundle   Validate a kdna.bundle.json manifest
+                                     (component resolution + stub; Story 3)
   plan-load <file.kdna>              Return a LoadPlan before runtime load
   load      <file.kdna>              Render agent-ready judgment context
   pack      <dev-source> <out>       Pack into .kdna (--force to overwrite)
@@ -145,6 +148,17 @@ switch (cmd) {
  
   case 'validate': {
     try {
+    // --bundle mode: validate a kdna.bundle.json manifest (RFC #148 Story 3)
+    if (args.includes('--bundle')) {
+      const bundleTarget = args.filter((a) => !a.startsWith('--'))[1];
+      if (!bundleTarget) error('Usage: kdna validate <bundle.json> --bundle [--verbose]', EXIT.INPUT_ERROR);
+      const result = validateBundle(bundleTarget, { verbose: args.includes('--verbose') });
+      // Always emit JSON output so callers can parse the result regardless of outcome.
+      // Fatal errors (file not found, invalid JSON) are represented inside the result.
+      if (result.fatal) delete result.fatal;
+      console.log(JSON.stringify(result, null, 2));
+      process.exit(result.bundle_valid ? 0 : 1);
+    }
     const v1Target = args.filter((a) => !a.startsWith('--'))[1];
     if (!v1Target) error('Usage: kdna validate <file.kdna> [--runtime] [--entitlement-status <status>]', EXIT.INPUT_ERROR);
     const {

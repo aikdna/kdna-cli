@@ -2,7 +2,32 @@
 
 > **Supersession note (2026-06-27)**: Pre-v0.7 entries below use "v1.0-rc" terminology. As of the v0.7 launch (2026-05-22), the @aikdna/* npm scope and registry v2.0 superseded the v1.0-rc label. The historical "v1.0-rc" references in older entries are kept for accuracy; new development uses the 0.7.x+ numbering.
 
-## v0.28.12 (2026-06-28)
+## v0.28.16 (2026-06-28)
+
+`validate <bundle.json> --bundle` stub — RFC #148 Story 3.
+
+- **New command**: `kdna validate <bundle.json> --bundle` validates a
+  `kdna.bundle.json` manifest. Checks `bundle_format`,
+  `components[]` shape, resolves each component path, and runs the
+  existing v1 `validate()` pass on each component.
+- **Exit codes**: 0 = all components valid; 1 = invalid component or
+  malformed manifest.
+- **Output**: JSON following the shape defined in
+  `docs/CONFLICT_RESOLUTION.md §Conflict Report Format` (the doc
+  shipped in v0 of kdna — PR #149).
+- **Conflict analysis stub**: returns `conflicts: { error_count: 0,
+  warning_count: 0, info_count: 1 }` with a single INFO entry
+  noting that Story 9 will fill in per-card-type conflict analysis.
+- **`--verbose` flag**: includes the full per-component `_validation`
+  object in the component entries.
+- **Help text**: `kdna help validate` now lists the `--bundle` form.
+- **10 new tests** in `tests/validate-bundle.test.js` covering valid
+  bundles, missing fields, non-existent component paths, invalid JSON
+  manifests, and the stub INFO note.
+- **No breaking changes** to existing `kdna validate <file.kdna>` or
+  `kdna validate <path> --runtime` paths.
+
+
 
 Phase 11 audit follow-up. Closes 3 issues filed against the
 kdna-cli repo (#66, #67) plus a documentation note for #68 (which
