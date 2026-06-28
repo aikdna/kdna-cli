@@ -2,6 +2,15 @@
 
 > **Supersession note (2026-06-27)**: Pre-v0.7 entries below use "v1.0-rc" terminology. As of the v0.7 launch (2026-05-22), the @aikdna/* npm scope and registry v2.0 superseded the v1.0-rc label. The historical "v1.0-rc" references in older entries are kept for accuracy; new development uses the 0.7.x+ numbering.
 
+## v0.28.17 (2026-06-28)
+
+KDNA v2 Bundle payload type and V1 deprecation start — RFC #148 Story 5.
+
+- **V2 Format Support**: Added support for KDNA v2 containers and manifest specifications (`kdna_version` `"2.0"` and `"bundle"` `asset_type`).
+- **V1 Deprecation Window**: Commenced 9-12 month deprecation window for KDNA v1 format, emitting soft deprecation warnings on standard error during validation, loading, inspection, and unpacking.
+- **Bundle component resolution**: Updated bundle validator to accept components package/container in both KDNA v1 and v2 formats.
+
+
 ## v0.28.16 (2026-06-28)
 
 `validate <bundle.json> --bundle` stub — RFC #148 Story 3.

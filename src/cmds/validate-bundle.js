@@ -112,7 +112,7 @@ function validateBundle(manifestPath, opts = {}) {
     return buildResult(manifest, [], errors, warnings, info);
   }
 
-  const { validate, detectContainerFormat, isV1SourceDir } = core;
+  const { validate, detectContainerFormat, isV1SourceDir, isV2SourceDir } = core;
   const baseDir = path.dirname(abs);
   const componentResults = [];
 
@@ -176,15 +176,15 @@ function validateBundle(manifestPath, opts = {}) {
       fmt = null;
     }
 
-    const isSourceDir = isV1SourceDir(compAbs);
+    const isSourceDir = isV1SourceDir(compAbs) || (isV2SourceDir && isV2SourceDir(compAbs));
 
-    if (!isSourceDir && fmt !== 'v1') {
+    if (!isSourceDir && fmt !== 'v1' && fmt !== 'v2') {
       errors.push({
         conflict_type: 'schema',
         severity: 'ERROR',
         component: compId,
         field: 'path',
-        note: `Component "${compId}" at "${comp.path}" is not a valid KDNA v1 container or source directory.`,
+        note: `Component "${compId}" at "${comp.path}" is not a valid KDNA v1/v2 container or source directory.`,
       });
       componentResults.push({
         id: compId,

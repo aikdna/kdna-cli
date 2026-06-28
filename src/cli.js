@@ -41,9 +41,6 @@ process.on('uncaughtException', (err) => {
   process.exit(1);
 });
 
-const V2_UNSUPPORTED_MSG =
-  'Unsupported legacy/registry container. KDNA v1 Core CLI supports local v1 packaged .kdna assets. Re-export with kdna-studio-cli@0.6.0 or create with kdna demo/pack.';
-
 // ─── Main ─────────────────────────────────────────────────────────────
 
 const args = process.argv.slice(2);
@@ -163,15 +160,20 @@ switch (cmd) {
     if (!v1Target) error('Usage: kdna validate <file.kdna> [--runtime] [--entitlement-status <status>]', EXIT.INPUT_ERROR);
     const {
       isV1SourceDir,
+      isV2SourceDir,
       detectContainerFormat,
       validate,
     } = require('@aikdna/kdna-core');
     const abs = require('node:path').resolve(v1Target);
     if (!fs.existsSync(abs)) error(`File not found: ${v1Target}`, EXIT.INPUT_ERROR);
     const containerFmt = detectContainerFormat(abs);
-    if (containerFmt === 'v2') error(V2_UNSUPPORTED_MSG, EXIT.INPUT_ERROR);
-    if (!isV1SourceDir(abs) && containerFmt !== 'v1') {
-      error(`Not a KDNA v1 container: ${v1Target}`, EXIT.INPUT_ERROR);
+    const isV1 = isV1SourceDir(abs) || containerFmt === 'v1';
+    const isV2 = (isV2SourceDir && isV2SourceDir(abs)) || containerFmt === 'v2';
+    if (!isV1 && !isV2) {
+      error(`Not a KDNA container or source directory: ${v1Target}`, EXIT.INPUT_ERROR);
+    }
+    if (isV1) {
+      process.stderr.write('Warning: KDNA v1 format is deprecated and will reach end-of-life in 9-12 months. Please migrate to KDNA v2.\n');
     }
     const runtimeMode = args.includes('--runtime');
     const result = validate(v1Target);
@@ -227,9 +229,13 @@ switch (cmd) {
     const core = require('@aikdna/kdna-core');
     const abs = require('node:path').resolve(v1Target);
     const containerFmt = core.detectContainerFormat(abs);
-    if (containerFmt === 'v2') error(V2_UNSUPPORTED_MSG, EXIT.INPUT_ERROR);
-    if (!(core.isV1SourceDir(abs) || containerFmt === 'v1')) {
-      error('plan-load requires a KDNA Core v1 source dir or .kdna container', EXIT.INPUT_ERROR);
+    const isV1 = core.isV1SourceDir(abs) || containerFmt === 'v1';
+    const isV2 = (core.isV2SourceDir && core.isV2SourceDir(abs)) || containerFmt === 'v2';
+    if (!isV1 && !isV2) {
+      error('plan-load requires a KDNA Core source dir or .kdna container', EXIT.INPUT_ERROR);
+    }
+    if (isV1) {
+      process.stderr.write('Warning: KDNA v1 format is deprecated and will reach end-of-life in 9-12 months. Please migrate to KDNA v2.\n');
     }
     if (typeof core.planLoad !== 'function') {
       error(
@@ -335,8 +341,12 @@ switch (cmd) {
     const abs = require('node:path').resolve(v1Target);
     if (!fs.existsSync(abs)) error(`File not found: ${v1Target}`, EXIT.INPUT_ERROR);
     const containerFmt = detectContainerFormat(abs);
-    if (containerFmt === 'v2') error(V2_UNSUPPORTED_MSG, EXIT.INPUT_ERROR);
-    if (containerFmt !== 'v1') error(`Not a KDNA v1 container: ${v1Target}`, EXIT.INPUT_ERROR);
+    if (containerFmt !== 'v1' && containerFmt !== 'v2') {
+      error(`Not a valid KDNA container: ${v1Target}`, EXIT.INPUT_ERROR);
+    }
+    if (containerFmt === 'v1') {
+      process.stderr.write('Warning: KDNA v1 format is deprecated and will reach end-of-life in 9-12 months. Please migrate to KDNA v2.\n');
+    }
     const out = args.filter((a) => !a.startsWith('--'))[2];
     if (!out) error('Usage: kdna unpack <input.kdna> <output-dir>', EXIT.INPUT_ERROR);
     const r = unpack(v1Target, out);
@@ -353,15 +363,20 @@ switch (cmd) {
     if (!target) error('Usage: kdna inspect <path> [--json] [--locale zh-CN]');
     const {
       isV1SourceDir,
+      isV2SourceDir,
       detectContainerFormat,
       inspect,
     } = require('@aikdna/kdna-core');
     const abs = require('node:path').resolve(target);
     if (!fs.existsSync(abs)) error(`File not found: ${target}`, EXIT.INPUT_ERROR);
     const containerFmt = detectContainerFormat(abs);
-    if (containerFmt === 'v2') error(V2_UNSUPPORTED_MSG, EXIT.INPUT_ERROR);
-    if (!isV1SourceDir(abs) && containerFmt !== 'v1') {
-      error(`Not a KDNA v1 container: ${target}`, EXIT.INPUT_ERROR);
+    const isV1 = isV1SourceDir(abs) || containerFmt === 'v1';
+    const isV2 = (isV2SourceDir && isV2SourceDir(abs)) || containerFmt === 'v2';
+    if (!isV1 && !isV2) {
+      error(`Not a valid KDNA container or source directory: ${target}`, EXIT.INPUT_ERROR);
+    }
+    if (isV1) {
+      process.stderr.write('Warning: KDNA v1 format is deprecated and will reach end-of-life in 9-12 months. Please migrate to KDNA v2.\n');
     }
     const out = inspect(target);
     console.log(JSON.stringify(out, null, 2));
@@ -375,6 +390,10 @@ switch (cmd) {
     const core = require('@aikdna/kdna-core');
     const abs = require('node:path').resolve(target);
     if (!fs.existsSync(abs)) error(`File not found: ${target}`, EXIT.INPUT_ERROR);
+    const isV1 = core.isV1SourceDir(abs) || core.detectContainerFormat(abs) === 'v1';
+    if (isV1) {
+      process.stderr.write('Warning: KDNA v1 format is deprecated and will reach end-of-life in 9-12 months. Please migrate to KDNA v2.\n');
+    }
     const getFlag = (name) => {
       const eq = args.find((a) => a.startsWith(name + '='));
       if (eq) return eq.split('=')[1];
