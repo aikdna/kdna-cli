@@ -2,6 +2,76 @@
 
 > **Supersession note (2026-06-27)**: Pre-v0.7 entries below use "v1.0-rc" terminology. As of the v0.7 launch (2026-05-22), the @aikdna/* npm scope and registry v2.0 superseded the v1.0-rc label. The historical "v1.0-rc" references in older entries are kept for accuracy; new development uses the 0.7.x+ numbering.
 
+## v0.28.28 (2026-06-28)
+
+Story 20 — Revocation state machine (Section 13
+encryption/authorization). The author can revoke their own
+signature; consumers see the revocation state on verify.
+
+- **`kdna revoke <asset>`** — author revokes their own
+  signature. Writes a signed JSON revocation record to
+  `signatures/revocation.ed25519.json` (or
+  `<asset>.signatures/revocation.ed25519.json` for a
+  .kdna container). The record references the specific
+  .ed25519.sig file by content hash, so re-signing after
+  revocation produces a fresh signature. The record is
+  signed with the same Ed25519 key that signed the asset.
+  Options: `--reason "..."` for an optional human-readable
+  reason, `--revocation <path>` to override the output path,
+  `--force` to overwrite an existing revocation.
+- **`kdna verify` recognises revocations** — when a valid
+  revocation by the same key exists and references the
+  current .ed25519.sig, `verify` returns `status: 'revoked'`
+  with **exit code 4** (new). The CLI prints the revocation
+  reason (if any), the revoked_at timestamp, and the
+  revocation file path. Same trust-language discipline as
+  Story 19: never says "official", "trusted", "verified", or
+  "recommended".
+- **`kdna verify` no-key path surfaces revocations** —
+  without `--key`, exit code stays at 2 (the
+  no-trust-claim signal) but the output now lists the
+  revocation record path and reason so the consumer has
+  the data to decide.
+- **Cross-key attack resistance** — a revocation signed by
+  a different key than the original signature does NOT
+  apply. Verify checks `record.public_key_hex ===
+  sigRecord.public_key_hex` and rejects cross-key
+  revocations. Tested in `story20-revocation.test.js`
+  test 7 (attacker scenario).
+- **`kdna revocation status <asset>`** — new subcommand
+  that reports the current revocation state for an asset:
+  `valid` (signature verifies), `absent` (no revocation
+  file), `error` (file present but malformed), or other
+  status. `--json` for machine-readable output.
+- **Cross-implementation revocation check** — revocation
+  uses the same 32-byte raw Ed25519 public key format as
+  Story 19 signature records. A future implementation in
+  any language can verify a revocation by importing the
+  raw 32 bytes, wrapping in SPKI DER, and calling its
+  Ed25519 verifier.
+- **Reuses Story 19 primitives** — `loadAssetForSigning`,
+  `rawPublicKey`, `fingerprint`, `crypto.sign`,
+  `crypto.verify`. No new npm dependencies. No modifications
+  to the encrypt/decrypt path.
+- **Exit code summary** (Story 19 + Story 20):
+  - `0` valid (signature verifies, no revocation)
+  - `1` invalid (signature wrong OR asset modified)
+  - `2` no key (informational; CLI just printed signer
+    pubkey + optional revocation note)
+  - `3` error (file not found, key unparseable, etc.)
+  - `4` revoked (Story 20: signature is valid but author
+    revoked it)
+- **9 new tests** in `tests/story20-revocation.test.js`
+  covering the 7 acceptance criteria (revoke, --reason,
+  no-sig, --force, exit 4 on verify, exit 2 on no-key,
+  cross-key resistance, status subcommand, status absent).
+  Total: **140/140 pass** (up from 131).
+- No breaking changes to existing CLI output. The new
+  exit code 4 is additive; the revocation record is
+  additive; the `revocation status` subcommand is additive.
+
+
+
 ## v0.28.27 (2026-06-28)
 
 Story 19 — kdna sign / verify + Ed25519 identity keys (Section 13

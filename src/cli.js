@@ -14,7 +14,7 @@ const { runAntiMonolithicCheck, printAndExit: printAntiMonolithic } = require('.
 const { cmdWorkpack } = require('./cmds/workpack');
 const { cmdLicenseInstall, cmdLicenseStatus, cmdLicenseGenerate } = require('./cmds/license');
 const { cmdIdentityInit, cmdIdentityShow } = require('./cmds/identity');
-const { cmdSign, cmdVerify } = require('./identity');
+const { cmdSign, cmdVerify, cmdRevoke, cmdRevocation } = require('./identity');
 const { cmdDoctor } = require('./cmds/doctor');
 const { cmdTrace, cmdHistory } = require('./cmds/trace');
 const { cmdCluster } = require('./cmds/cluster');
@@ -146,7 +146,17 @@ Auth & Identity:
                                      cryptographically. Without --key, prints
                                      the signer's public key + 'no key,
                                      cannot determine trust' (Story 19).
-                                     Exit codes: 0 valid, 1 invalid, 2 no key, 3 error
+                                     Exit codes: 0 valid, 1 invalid, 2 no key,
+                                     3 error, 4 revoked (Story 20)
+  revoke    <asset>                  Author revokes their own signature
+                                     (Story 20). Writes
+                                     <asset>.signatures/revocation.ed25519.json
+                                     signed by the same key that signed the asset
+                                     --reason "..." optional
+                                     --revocation <path> override output path
+                                     --force overwrite an existing revocation
+  revocation status <asset>          Show the current revocation record
+                                     (if any) for an asset
 Diagnostics:
   doctor   [--agents] [--domains]    System health check
   trace    [--json] [--clear]        Observability trace logs
@@ -731,6 +741,16 @@ switch (cmd) {
 // eslint-disable-next-line no-fallthrough
   case 'verify': {
     cmdVerify(args.slice(1));
+    break;
+  }
+// eslint-disable-next-line no-fallthrough
+  case 'revoke': {
+    cmdRevoke(args.slice(1));
+    break;
+  }
+// eslint-disable-next-line no-fallthrough
+  case 'revocation': {
+    cmdRevocation(args.slice(1));
     break;
   }
 // eslint-disable-next-line no-fallthrough
