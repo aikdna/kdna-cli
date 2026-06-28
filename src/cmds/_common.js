@@ -198,6 +198,44 @@ function promptPassword(question) {
   return password;
 }
 
+// Resolve a password from CLI flags, environment, or stdin.
+//
+// Bug (#60): prior version of protect.js had this same block
+// duplicated verbatim in cmdProtect and cmdUnlock. The fix extracts it
+// to a single helper so the two code paths can never drift.
+//
+// Sources (in priority order):
+//   1. --password-stdin (with TTY-hang guard, refuses up front on a TTY)
+//   2. KDNA_PASSWORD env var
+//   3. --password <value> (legacy / insecure; prints a warning)
+//   4. promptPassword() interactive fallback
+//
+// Throws via the project's `error` helper (process.exit on the
+// configured EXIT code) if stdin fails or no password is obtainable.
+function resolvePassword(args, { prompt = 'Password: ' } = {}) {
+  if (args.includes('--password-stdin')) {
+    if (process.stdin.isTTY) {
+      error(
+        '--password-stdin requires the password to be piped in on stdin.\n' +
+        'Example:  echo "$KDNA_PASSWORD" | kdna protect <file> --password-stdin\n' +
+        'If you are running interactively, omit --password-stdin and you will be prompted.',
+        EXIT.INPUT_ERROR,
+      );
+    }
+    try {
+      return fs.readFileSync(0, 'utf8').trim();
+    } catch (e) {
+      error(`Could not read password from stdin: ${e.message}`, EXIT.INPUT_ERROR);
+    }
+  }
+  if (process.env.KDNA_PASSWORD) return process.env.KDNA_PASSWORD;
+  const pwIdx = args.indexOf('--password');
+  if (pwIdx >= 0 && args[pwIdx + 1] && !args[pwIdx + 1].startsWith('--')) {
+    return args[pwIdx + 1];
+  }
+  return promptPassword(prompt);
+}
+
 module.exports = {
   EXIT,
   USER_KDNA_DIR,
@@ -216,4 +254,5 @@ module.exports = {
   isYesNoSelfCheck,
   loadRegistry,
   promptPassword,
+  resolvePassword,
 };

@@ -564,7 +564,20 @@ function manifestForSigning(manifest, opts = {}) {
   delete copy.signature;
   delete copy.asset_digest;
   delete copy.container_sha256;
-  if (!opts.includeContentDigest) delete copy.content_digest;
+  // Bug (#67): the previous `includeContentDigest` flag was the
+  // semantic inverse of kdna-core's `stripDigestFields` option. Same
+  // default value (omit the flag) produced the same behaviour, but a
+  // caller that read the docs and set `includeContentDigest: true`
+  // expecting "include" would actually be telling the signing path to
+  // skip the strip — the opposite of what the name suggested. The
+  // kdna-core convention (and the convention in
+  // packages/kdna-core/src/asset-reader.js#manifestForSignature) is
+  // `stripDigestFields: true`, so the fix accepts that name and
+  // keeps `includeContentDigest` as a deprecated alias for the old
+  // inverse behaviour.
+  const stripDigestFields = opts.stripDigestFields !== false
+    && opts.includeContentDigest !== true;
+  if (stripDigestFields) delete copy.content_digest;
   delete copy._source;
   if (copy.authoring && typeof copy.authoring === 'object') {
     const auth = { ...copy.authoring };

@@ -8,7 +8,7 @@
  */
 
 const fs = require('fs');
-const { EXIT, error, promptPassword } = require('./_common');
+const { EXIT, error, promptPassword, resolvePassword } = require('./_common');
 const {
   createKdnaAssetReader,
   createPasswordDecryptEntry,
@@ -68,32 +68,12 @@ function cmdProtect(args) {
 
   if (!fs.existsSync(file)) error(`File not found: ${file}`, EXIT.INPUT_ERROR);
 
-  // --password <pw> | --password-stdin | interactive prompt
-  let password = null;
-  const pwIdx = args.indexOf('--password');
-  if (pwIdx >= 0 && args[pwIdx + 1] && !args[pwIdx + 1].startsWith('--')) {
-    password = args[pwIdx + 1];
-  } else if (args.includes('--password-stdin')) {
-    // Match the studio-cli guard: refuse up front on a TTY rather than
-    // waiting forever for stdin. Bug: prior code called
-    // `fs.readFileSync(0, 'utf8')` directly, which hangs indefinitely
-    // when the user runs the command interactively.
-    if (process.stdin.isTTY) {
-      error(
-        '--password-stdin requires the password to be piped in on stdin.\n' +
-        'Example:  echo "$KDNA_PASSWORD" | kdna <command> ... --password-stdin\n' +
-        'If you are running interactively, omit --password-stdin and you will be prompted.',
-        EXIT.INPUT_ERROR,
-      );
-    }
-    try {
-      password = require('fs').readFileSync(0, 'utf8').trim();
-    } catch (e) {
-      error(`Could not read password from stdin: ${e.message}`, EXIT.INPUT_ERROR);
-    }
-  } else {
-    password = promptPassword('Password: ');
-  }
+  // Resolve the password via the shared helper (--password-stdin,
+  // KDNA_PASSWORD, --password, interactive prompt — in that order).
+  // Bug (#60): this block used to be duplicated in cmdUnlock below;
+  // the two paths could drift independently. The helper makes them
+  // share a single implementation.
+  const password = resolvePassword(args);
   if (!password) error('Password is required.', EXIT.INPUT_ERROR);
 
   const reader = createKdnaAssetReader();
@@ -213,31 +193,12 @@ function cmdUnlock(args) {
 
   if (!fs.existsSync(file)) error(`File not found: ${file}`, EXIT.INPUT_ERROR);
 
-  let password = null;
-  const pwIdx = args.indexOf('--password');
-  if (pwIdx >= 0 && args[pwIdx + 1] && !args[pwIdx + 1].startsWith('--')) {
-    password = args[pwIdx + 1];
-  } else if (args.includes('--password-stdin')) {
-    // Match the studio-cli guard: refuse up front on a TTY rather than
-    // waiting forever for stdin. Bug: prior code called
-    // `fs.readFileSync(0, 'utf8')` directly, which hangs indefinitely
-    // when the user runs the command interactively.
-    if (process.stdin.isTTY) {
-      error(
-        '--password-stdin requires the password to be piped in on stdin.\n' +
-        'Example:  echo "$KDNA_PASSWORD" | kdna <command> ... --password-stdin\n' +
-        'If you are running interactively, omit --password-stdin and you will be prompted.',
-        EXIT.INPUT_ERROR,
-      );
-    }
-    try {
-      password = require('fs').readFileSync(0, 'utf8').trim();
-    } catch (e) {
-      error(`Could not read password from stdin: ${e.message}`, EXIT.INPUT_ERROR);
-    }
-  } else {
-    password = promptPassword('Password: ');
-  }
+  // Resolve the password via the shared helper (--password-stdin,
+  // KDNA_PASSWORD, --password, interactive prompt — in that order).
+  // Bug (#60): this block used to be a verbatim copy of the
+  // cmdProtect block above. The helper makes the two paths share a
+  // single implementation so they can never drift.
+  const password = resolvePassword(args);
   if (!password) error('Password is required.', EXIT.INPUT_ERROR);
 
   const reader = createKdnaAssetReader();

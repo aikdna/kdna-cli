@@ -2,6 +2,24 @@
 
 > **Supersession note (2026-06-27)**: Pre-v0.7 entries below use "v1.0-rc" terminology. As of the v0.7 launch (2026-05-22), the @aikdna/* npm scope and registry v2.0 superseded the v1.0-rc label. The historical "v1.0-rc" references in older entries are kept for accuracy; new development uses the 0.7.x+ numbering.
 
+## v0.28.12 (2026-06-28)
+
+Phase 11 audit follow-up. Closes 3 issues filed against the
+kdna-cli repo (#66, #67) plus a documentation note for #68 (which
+was already fixed in the prior 0.8.3 release on the studio-cli
+side).
+
+- **#66** `cli.js` top-level help text for `kdna load` now
+  advertises `--as=json|prompt|raw` (the parser accepted `raw`
+  all along; the help string was inconsistent with the
+  `_common.js` reference). Same fix applied to the `error()`
+  message at the load command itself.
+- **#67** `publish.js#manifestForSigning` option renamed from
+  `includeContentDigest` (inverse semantics) to `stripDigestFields`
+  (matches kdna-core's `manifestForSignature`). The old name is
+  accepted as a deprecated alias for callers that depended on
+  the inverse behaviour.
+
 ## v0.28.11 (2026-06-28)
 
 Phase 10 audit follow-up. Closes 5 issues filed against the

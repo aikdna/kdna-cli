@@ -357,7 +357,7 @@ switch (cmd) {
 // eslint-disable-next-line no-fallthrough
   case 'load': {
     const target = args.filter((a) => !a.startsWith('--'))[1];
-    if (!target) error('Usage: kdna load <file.kdna> [--profile=<index|compact|scenario|full>] [--as=<json|prompt>] [--password=<value>|--password-stdin]', EXIT.INPUT_ERROR);
+    if (!target) error('Usage: kdna load <file.kdna> [--profile=<index|compact|scenario|full>] [--as=<json|prompt|raw>] [--password=<value>|--password-stdin]', EXIT.INPUT_ERROR);
     const core = require('@aikdna/kdna-core');
     const abs = require('node:path').resolve(target);
     if (!fs.existsSync(abs)) error(`File not found: ${target}`, EXIT.INPUT_ERROR);
