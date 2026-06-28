@@ -30,16 +30,55 @@ function writeJsonFile(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n');
 }
 
-function readIndex() {
-  const data = readJsonFile(PATHS.packageIndex);
+// ─── Two-tier store helpers (Story 2) ──────────────────────────────────
+//
+// `tier` is one of:
+//   - 'global' — the user-global root at ~/.kdna/packages/ + index.json
+//   - 'project' — the project-local root at ./.kdna/packages/ + index.json
+//
+// All index read/write operations take an explicit tier. The public
+// `getInstalled` / `listInstalled` / `removeInstalled` functions
+// implement the "project wins on conflict" merge over both tiers.
+
+function indexPathFor(tier) {
+  return tier === 'project' ? PATHS.projectIndex : PATHS.packageIndex;
+}
+
+function packagesDirFor(tier) {
+  return tier === 'project' ? PATHS.projectPackages : PATHS.packages;
+}
+
+function readIndexFor(tier) {
+  const data = readJsonFile(indexPathFor(tier));
   if (data?.packages && typeof data.packages === 'object') return data;
   return { version: INDEX_VERSION, packages: {} };
 }
 
-function writeIndex(index) {
+function writeIndexFor(tier, index) {
   index.version = INDEX_VERSION;
-  writeJsonFile(PATHS.packageIndex, index);
+  writeJsonFile(indexPathFor(tier), index);
 }
+
+function assetDirFor(tier, scope, ident, version) {
+  return path.join(packagesDirFor(tier), scope, ident, version || 'unknown');
+}
+
+function readIndex() {
+  // Backward-compat alias. Reads the global index. New code should
+  // pass an explicit tier to readIndexFor().
+  return readIndexFor('global');
+}
+
+function writeIndex(index) {
+  // Backward-compat alias. Writes the global index.
+  writeIndexFor('global', index);
+}
+
+// `assetDir(scope, ident, version)` was the original (global-only)
+// helper. It has been replaced by `assetDirFor(tier, scope, ident,
+// version)`. Kept documented here for historical reference; the
+// function is no longer exported — callers should use
+// `assetDirFor` directly with an explicit tier.
 
 function sha256File(filePath) {
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
@@ -51,10 +90,6 @@ function assetDigest(filePath) {
 
 function contentDigest(kdnaPath) {
   return assetReader.contentDigestSync(assetReader.openSync(kdnaPath));
-}
-
-function assetDir(scope, ident, version) {
-  return path.join(PATHS.packages, scope, ident, version || 'unknown');
 }
 
 function assetFileName(ident, version) {
@@ -133,18 +168,40 @@ function verifyAsset(kdnaPath, options = {}) {
 function getInstalled(input) {
   const parsed = parseName(input);
   if (!parsed) return null;
-  const index = readIndex();
-  const entry = index.packages[parsed.full];
-  if (!entry?.asset_path || !fs.existsSync(entry.asset_path)) return null;
-  return { ...entry, parsed };
+  // Project-local wins on conflict (roadmap-2026.md §5.1 Story 2).
+  // Check project index first, then global.
+  const projectIndex = readIndexFor('project');
+  const projectEntry = projectIndex.packages[parsed.full];
+  if (projectEntry?.asset_path && fs.existsSync(projectEntry.asset_path)) {
+    return { ...projectEntry, parsed, tier: 'project' };
+  }
+  const globalIndex = readIndexFor('global');
+  const globalEntry = globalIndex.packages[parsed.full];
+  if (globalEntry?.asset_path && fs.existsSync(globalEntry.asset_path)) {
+    return { ...globalEntry, parsed, tier: 'global' };
+  }
+  return null;
 }
 
 function listInstalled() {
-  const index = readIndex();
-  return Object.entries(index.packages)
-    .map(([full, entry]) => ({ full, ...entry }))
-    .filter((entry) => entry.asset_path && fs.existsSync(entry.asset_path))
-    .sort((a, b) => a.full.localeCompare(b.full));
+  // Merge: project entries override global entries on name conflict.
+  // Each entry gets a `tier` field ('project' | 'global') so callers
+  // can show the user where each package lives.
+  const projectIndex = readIndexFor('project');
+  const globalIndex = readIndexFor('global');
+  const merged = new Map();
+  // Global first so the project map can override.
+  for (const [full, entry] of Object.entries(globalIndex.packages)) {
+    if (entry?.asset_path && fs.existsSync(entry.asset_path)) {
+      merged.set(full, { full, ...entry, tier: 'global' });
+    }
+  }
+  for (const [full, entry] of Object.entries(projectIndex.packages)) {
+    if (entry?.asset_path && fs.existsSync(entry.asset_path)) {
+      merged.set(full, { full, ...entry, tier: 'project' });
+    }
+  }
+  return [...merged.values()].sort((a, b) => a.full.localeCompare(b.full));
 }
 
 function readAssetManifest(assetPath) {
@@ -155,11 +212,12 @@ function receiptPathForAsset(assetPath) {
   return path.join(path.dirname(assetPath), 'receipt.json');
 }
 
-function installAsset({ sourcePath, name, version, source = {} }) {
+function installAsset({ sourcePath, name, version, source = {}, local = false }) {
   const parsed = parseName(name);
   if (!parsed) throw new Error(`Invalid scoped domain name: ${name}`);
   const finalVersion = version || 'unknown';
-  const destDir = assetDir(parsed.scope, parsed.ident, finalVersion);
+  const tier = local ? 'project' : 'global';
+  const destDir = assetDirFor(tier, parsed.scope, parsed.ident, finalVersion);
   const dest = path.join(destDir, assetFileName(parsed.ident, finalVersion));
   ensureDir(destDir);
   fs.copyFileSync(sourcePath, dest);
@@ -172,6 +230,7 @@ function installAsset({ sourcePath, name, version, source = {} }) {
   const receipt = {
     version: 1,
     name: parsed.full,
+    tier,
     asset_path: dest,
     asset_digest: computedAssetDigest,
     content_digest: computedContentDigest,
@@ -184,10 +243,11 @@ function installAsset({ sourcePath, name, version, source = {} }) {
   };
   writeJsonFile(receiptPath, receipt);
 
-  const index = readIndex();
+  const index = readIndexFor(tier);
   index.packages[parsed.full] = {
     name: parsed.full,
     version: finalVersion,
+    tier,
     asset_path: dest,
     receipt_path: receiptPath,
     asset_digest: computedAssetDigest,
@@ -198,7 +258,7 @@ function installAsset({ sourcePath, name, version, source = {} }) {
     installed_at: installedAt,
     source,
   };
-  writeIndex(index);
+  writeIndexFor(tier, index);
   return index.packages[parsed.full];
 }
 
@@ -236,16 +296,21 @@ function resolveAsset(input) {
 function removeInstalled(input) {
   const parsed = parseName(input);
   if (!parsed) return false;
-  const index = readIndex();
-  const entry = index.packages[parsed.full];
-  if (!entry) return false;
-  delete index.packages[parsed.full];
-  writeIndex(index);
-  if (entry.asset_path) {
-    const versionDir = path.dirname(entry.asset_path);
-    fs.rmSync(versionDir, { recursive: true, force: true });
+  // Project wins on conflict — try project first, fall back to global.
+  for (const tier of ['project', 'global']) {
+    const index = readIndexFor(tier);
+    const entry = index.packages[parsed.full];
+    if (entry) {
+      delete index.packages[parsed.full];
+      writeIndexFor(tier, index);
+      if (entry.asset_path) {
+        const versionDir = path.dirname(entry.asset_path);
+        fs.rmSync(versionDir, { recursive: true, force: true });
+      }
+      return true;
+    }
   }
-  return true;
+  return false;
 }
 
 module.exports = {

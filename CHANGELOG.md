@@ -78,6 +78,48 @@ CLI dispatcher.
 Refs roadmap-2026.md Section 5.1 Story 1 and Section 3.2 (RFC
 #148 v1.x Phase 1: install + discover).
 
+## v0.28.15 (2026-06-28)
+
+Story 2 (roadmap-2026.md §5.1): two-tier package store
+(`~/.kdna/packages/` + `./.kdna/packages/`). Makes the
+project-local root a valid install target; project-local wins
+on conflict for reads. This is the substrate that Story 5
+(Bundle payload type) and Story 6 (`dependencies` runtime)
+will need in the v2.0 phase.
+
+- **New: `--local` flag on `kdna install`** — installs to the
+  project-local root (`./.kdna/packages/`) instead of the
+  user-global root. Default is still global (no behaviour
+  change for users who don't pass `--local`).
+- **Project paths** — `src/paths.js` now exposes
+  `PATHS.projectRoot`, `PATHS.projectPackages`, and
+  `PATHS.projectIndex` as live getters (resolved at access
+  time, not at module load). Honour `KDNA_PROJECT_ROOT` env
+  var for CI / monorepo setups.
+- **Tier-aware package store** — `src/package-store.js`:
+  - `getInstalled(input)` checks project first, then global.
+    Returns a `tier` field (`'project'` or `'global'`).
+  - `listInstalled()` merges both indexes; project entries
+    shadow global entries on name conflict. Each entry gets
+    a `tier` field.
+  - `removeInstalled(input)` removes from whichever tier
+    holds the entry (project wins on conflict, so the project
+    copy is removed first).
+  - `installAsset({...})` accepts a `local: true` flag and
+    writes to the project root; otherwise global.
+- **`src/install.js`** — `--local` threaded through
+  `cmdInstallExtended` → `installFromRegistry` →
+  `installSingleFromUrl` → `installFromLocalFile` →
+  `installAsset`.
+- **New: `tests/two-tier-store.test.js`** — 9 tests covering
+  global-only install, project-only install, conflict with
+  project winning on read, per-tier removal, and the empty
+  state. Wired into `test:v1` so it runs in `npm test`.
+
+Refs roadmap-2026.md Section 5.1 Story 2, Section 3.2 (RFC
+#148 v1.x Phase 1), and Section 6 (this story is the
+substrate for Story 5 Bundle type).
+
 ## v0.28.12 (2026-06-28)
 
 Phase 11 audit follow-up. Closes 3 issues filed against the
