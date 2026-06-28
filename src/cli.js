@@ -95,6 +95,7 @@ Core v1:
                                      (component resolution + stub; Story 3)
   plan-load <file.kdna>              Return a LoadPlan before runtime load
   load      <file.kdna>              Render agent-ready judgment context
+                                     --namespace=<id> limit to one RAG namespace
   pack      <dev-source> <out>       Pack into .kdna (--force to overwrite)
   unpack    <file.kdna> <out>        Extract .kdna into an editing/debug view
   demo      <minimal|judgment> <dir>  Create a v1 demo fixture
@@ -459,7 +460,7 @@ switch (cmd) {
 // eslint-disable-next-line no-fallthrough
   case 'load': {
     const target = args.filter((a) => !a.startsWith('--'))[1];
-    if (!target) error('Usage: kdna load <file.kdna> [--profile=<index|compact|scenario|full>] [--as=<json|prompt|raw>] [--password=<value>|--password-stdin]', EXIT.INPUT_ERROR);
+    if (!target) error('Usage: kdna load <file.kdna> [--profile=<index|compact|scenario|full>] [--as=<json|prompt|raw>] [--namespace=<component-id>] [--password=<value>|--password-stdin]', EXIT.INPUT_ERROR);
     const core = require('@aikdna/kdna-core');
     const abs = require('node:path').resolve(target);
     if (!fs.existsSync(abs)) error(`File not found: ${target}`, EXIT.INPUT_ERROR);
@@ -475,6 +476,10 @@ switch (cmd) {
     };
     const profile = getFlag('--profile') || 'compact';
     const as = getFlag('--as') || 'json';
+    // --namespace <id>: filter load output to a single RAG namespace (Story 11).
+    // Only the component whose rag_namespace contains <id> is returned.
+    // Useful for querying one component of a Bundle without loading all content.
+    const namespaceFilter = getFlag('--namespace') || null;
     // BUG-16 (2026-06-27): kdna load previously only accepted
     // --password=<value>, forcing users to either type the password
     // inline (shell history risk) or pipe nothing. Match the protect
@@ -541,6 +546,45 @@ switch (cmd) {
         error_code: null,
         duration_ms: Date.now() - loadStart,
       });
+
+      // --namespace filter (Story 11): if requested, reduce output to a
+      // single component's content from resolved_dependencies.
+      if (namespaceFilter) {
+        if (!r || !r.resolved_dependencies || r.resolved_dependencies.length === 0) {
+          process.stderr.write(
+            `Warning: --namespace="${namespaceFilter}" has no effect on single-asset loads ` +
+            `(no resolved_dependencies). Load a Bundle to use namespace filtering.\n`,
+          );
+        } else {
+          const match = r.resolved_dependencies.find(
+            (d) => d.rag_namespace && d.rag_namespace.includes(namespaceFilter),
+          );
+          if (!match) {
+            process.stderr.write(
+              `Warning: namespace "${namespaceFilter}" not found in resolved_dependencies. ` +
+              `Available: ${r.resolved_dependencies.map((d) => d.rag_namespace).join(', ')}\n`,
+            );
+          } else {
+            // Return only the matched component's content
+            const filtered = {
+              ...r,
+              rag_namespace_filter: namespaceFilter,
+              resolved_dependencies: [match],
+              content: match.content,
+            };
+            if (as === 'prompt') {
+              process.stdout.write(
+                `[NAMESPACE: ${match.rag_namespace}]\n` +
+                (match.content ? JSON.stringify(match.content, null, 2) : '(no content)') + '\n',
+              );
+            } else {
+              console.log(JSON.stringify(filtered, null, 2));
+            }
+            return;
+          }
+        }
+      }
+
       if (as === 'prompt') {
         process.stdout.write(r.text + '\n');
       } else {

@@ -2,7 +2,24 @@
 
 > **Supersession note (2026-06-27)**: Pre-v0.7 entries below use "v1.0-rc" terminology. As of the v0.7 launch (2026-05-22), the @aikdna/* npm scope and registry v2.0 superseded the v1.0-rc label. The historical "v1.0-rc" references in older entries are kept for accuracy; new development uses the 0.7.x+ numbering.
 
-## v0.28.23 (2026-06-28)
+## v0.28.24 (2026-06-28)
+
+Story 11 — RAG namespace isolation (RFC #148 v2.x Phase 3).
+
+- **Updated to `@aikdna/kdna-core@0.15.8`** which adds `rag_namespace` to
+  each entry in `resolved_dependencies` and `rag_isolation_policy` to Bundle
+  load output (`{ default: "fenced", cross_namespace_blocked: true, namespaces: [...] }`).
+- **`--as=prompt` namespace headers**: each component section in multi-asset
+  prompt output is now prefixed with `[NAMESPACE: name@version]` (per SPEC §13.8
+  source attribution).
+- **`kdna load --namespace=<id>`**: new flag that filters the load output to
+  the single component whose `rag_namespace` contains `<id>`. Returns only that
+  component's content. Emits a warning if the namespace is not found or if the
+  asset has no `resolved_dependencies`.
+- **5 new tests** in `tests/story11-rag-namespace.test.js`. Total: **87/87 pass**.
+- No breaking changes to existing load output (additive fields only).
+
+
 
 Story 10 — audit log (RFC #148 v2.x Phase 3).
 
