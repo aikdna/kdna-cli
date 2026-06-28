@@ -10,11 +10,9 @@
  *   - Rejects a bundle manifest with invalid JSON
  *   - Rejects a missing manifest file
  *   - Accepts two components pointing at the same fixture (valid duplicate)
- *   - Emits the conflict-analysis stub INFO note in all valid runs
+ *   - Emits no conflict entries for a single-component bundle (nothing to compare)
  *
- * The conflict analysis itself is NOT tested here (that is Story 9).
- * The test at the bottom of this file verifies that the stub INFO
- * note is present so callers can detect that Story 9 is pending.
+ * The full conflict analysis is tested in story9-conflict-analysis.test.js.
  *
  * Run: node --test tests/validate-bundle.test.js
  */
@@ -195,7 +193,7 @@ test('validate --bundle: missing manifest argument exits non-zero with usage mes
   assert.match(r.stderr, /Usage/i);
 });
 
-test('validate --bundle: valid run includes Story 9 conflict-analysis stub INFO note', () => {
+test('validate --bundle: valid run with Story 9 — no stub INFO note, conflict counts present', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-bundle-'));
   try {
     const bundlePath = writeBundle(tmp, {
@@ -209,13 +207,15 @@ test('validate --bundle: valid run includes Story 9 conflict-analysis stub INFO 
     const r = run(['validate', bundlePath, '--bundle']);
     assert.equal(r.status, 0);
     const out = JSON.parse(r.stdout);
-    // The stub must emit exactly one INFO entry pointing to Story 9
-    assert.equal(out.info.length, 1, 'expected exactly one INFO stub entry');
-    assert.ok(
-      out.info[0].note.includes('Story 9') || out.info[0].note.includes('CONFLICT_RESOLUTION'),
-      'INFO entry should reference Story 9 or CONFLICT_RESOLUTION.md',
+    // Story 9 replaced the stub — no stub INFO note about "Story 9 pending"
+    const stubNote = out.info.find(
+      (i) => i.note && i.note.includes('Story 9'),
     );
-    assert.equal(out.conflicts.info_count, 1);
+    assert.ok(!stubNote, 'stub INFO note should be absent after Story 9 ships');
+    // conflicts summary object must always be present
+    assert.ok(typeof out.conflicts.error_count === 'number');
+    assert.ok(typeof out.conflicts.warning_count === 'number');
+    assert.ok(typeof out.conflicts.info_count === 'number');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

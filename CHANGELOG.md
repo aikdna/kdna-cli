@@ -2,7 +2,31 @@
 
 > **Supersession note (2026-06-27)**: Pre-v0.7 entries below use "v1.0-rc" terminology. As of the v0.7 launch (2026-05-22), the @aikdna/* npm scope and registry v2.0 superseded the v1.0-rc label. The historical "v1.0-rc" references in older entries are kept for accuracy; new development uses the 0.7.x+ numbering.
 
-## v0.28.21 (2026-06-28)
+## v0.28.22 (2026-06-28)
+
+Story 9 — validate conflict warnings (RFC #148 v2.0).
+
+- **`kdna validate <bundle.json> --bundle`** now runs per-card-type conflict
+  static analysis as defined in `docs/CONFLICT_RESOLUTION.md` (Story 4).
+  Replaces the Story 3 INFO stub with real analysis.
+- **New module**: `src/cmds/conflict-analysis.js` — `analyseConflicts()`,
+  `extractCards()`, `loadPayload()`.
+- **Covered card types**: term (ERROR on same-term/different-definition),
+  axiom id clash (WARNING), banned_term replace_with (WARNING),
+  misunderstanding wrong/correct (WARNING), stance same-text (WARNING),
+  framework name/steps (WARNING), self_check same-question (WARNING),
+  scenario id (INFO), risk mitigation (INFO).
+- **Conflict report shape** unchanged from Story 3: `{ conflict_type,
+  severity, component_a, component_b, card_type, card_id_a, card_id_b,
+  conflicting_field, resolution, winning_component, note }`.
+- **Exit code**: 0 when `bundle_valid=true`; 1 when `errors[]` is non-empty
+  (term conflict or component validation failure).
+- **10 new tests** in `tests/story9-conflict-analysis.test.js` (6 unit + 2
+  CLI integration). `tests/validate-bundle.test.js` stub assertion updated.
+  Total suite: **75/75 pass**.
+- **No breaking changes** to existing `validate --bundle` output shape.
+
+
 
 Story 8 — context budget reporting (RFC #148 v2.0).
 

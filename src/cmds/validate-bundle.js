@@ -1,22 +1,20 @@
 /**
- * validate-bundle.js — Bundle validation stub (roadmap-2026.md Story 3)
+ * validate-bundle.js — Bundle validation (roadmap-2026.md Stories 3 + 9)
  *
  * Validates a `kdna.bundle.json` manifest (RFC #148 Phase 1):
  *
  *   - Checks `bundle_format === "kdna-bundle-v1"`
  *   - Checks `components[]` is a non-empty array
  *   - For each component: resolves `path`, checks the file exists,
- *     detects it as a KDNA v1 container, and runs the existing
+ *     detects it as a KDNA v1/v2 container, and runs the existing
  *     `validate()` pass from @aikdna/kdna-core.
- *
- * Conflict analysis (per-card-type union/priority rules defined in
- * docs/CONFLICT_RESOLUTION.md) is NOT implemented in this stub.
- * Story 9 adds that analysis on top of this foundation.
+ *   - Runs per-card-type conflict analysis across component pairs
+ *     (Story 9, per docs/CONFLICT_RESOLUTION.md).
  *
  * Exit codes:
  *   0 — bundle_valid = true (all components pass, bundle shape valid)
  *   1 — bundle_valid = false (one or more components failed, or
- *       bundle manifest is malformed)
+ *       bundle manifest is malformed, or ERROR-severity conflicts found)
  *
  * Output: JSON to stdout, mirroring the shape documented in
  * docs/CONFLICT_RESOLUTION.md §Conflict Report Format.
@@ -26,6 +24,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { analyseConflicts } = require('./conflict-analysis');
 
 const BUNDLE_FORMAT = 'kdna-bundle-v1';
 
@@ -241,13 +240,22 @@ function validateBundle(manifestPath, opts = {}) {
     componentResults.push(entry);
   }
 
-  // 4. Conflict analysis stub — Story 9 fills this in.
-  //    Emit a single INFO note so callers can tell the stub is running.
-  info.push({
-    conflict_type: 'info',
-    severity: 'INFO',
-    note: 'Conflict analysis pending (Story 9). See docs/CONFLICT_RESOLUTION.md for the design contract.',
-  });
+  // 4. Conflict analysis (Story 9) — per-card-type static analysis across
+  //    all component pairs, per docs/CONFLICT_RESOLUTION.md.
+  try {
+    const { errors: cErr, warnings: cWarn, info: cInfo } =
+      analyseConflicts(componentResults, core);
+    for (const e of cErr) errors.push(e);
+    for (const w of cWarn) warnings.push(w);
+    for (const i of cInfo) info.push(i);
+  } catch (_) {
+    // Conflict analysis is non-blocking — a bug here must not break validate
+    info.push({
+      conflict_type: 'info',
+      severity: 'INFO',
+      note: 'Conflict analysis could not complete. See docs/CONFLICT_RESOLUTION.md.',
+    });
+  }
 
   return buildResult(manifest, componentResults, errors, warnings, info);
 }
