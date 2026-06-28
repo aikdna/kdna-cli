@@ -2,6 +2,12 @@
 
 > **Supersession note (2026-06-27)**: Pre-v0.7 entries below use "v1.0-rc" terminology. As of the v0.7 launch (2026-05-22), the @aikdna/* npm scope and registry v2.0 superseded the v1.0-rc label. The historical "v1.0-rc" references in older entries are kept for accuracy; new development uses the 0.7.x+ numbering.
 
+## v0.28.20 (2026-06-28)
+
+Registration of bundle validation tests in the default test harness.
+
+- **Test suite expansion**: Added `tests/validate-bundle.test.js` to `test:v1` script, ensuring all 57 tests run automatically under `npm test`.
+
 ## v0.28.19 (2026-06-28)
 
 Story 6 — dependencies runtime. Integrates two-tier package store resolution and topological loading for multi-domain composition.
