@@ -2,7 +2,24 @@
 
 > **Supersession note (2026-06-27)**: Pre-v0.7 entries below use "v1.0-rc" terminology. As of the v0.7 launch (2026-05-22), the @aikdna/* npm scope and registry v2.0 superseded the v1.0-rc label. The historical "v1.0-rc" references in older entries are kept for accuracy; new development uses the 0.7.x+ numbering.
 
-## v0.28.24 (2026-06-28)
+## v0.28.25 (2026-06-28)
+
+Story 12 — Asset inheritance (RFC #148 v2.x Phase 3).
+
+- **Updated to `@aikdna/kdna-core@0.15.9`** which adds:
+  - `extends` field to `manifest.schema.json` (string or `{name, version}` object)
+  - `planLoad` resolves base asset, records `extends_chain` in plan output
+  - `loadAuthorized` passes `extends_chain` to `loadV1Unsafe` so inheritance
+    is applied at load time
+  - `loadV1Unsafe` merges base content: child axioms override parent axioms
+    with the same `id`; unoverridden parent axioms are inherited; same for
+    boundaries; `highest_question` falls back to parent when child omits it
+  - `result.extends_chain` + `result.inheritance_applied` in load output
+  - All extends failures are non-blocking (WARNING, not ERROR)
+- **6 new tests** in `tests/story12-asset-inheritance.test.js`. Total: **93/93 pass**.
+- No breaking changes.
+
+
 
 Story 11 — RAG namespace isolation (RFC #148 v2.x Phase 3).
 
