@@ -40,6 +40,44 @@ emits a content-trust claim about an asset.
 
 Refs roadmap-2026.md Section 5.1 Story 14 and Section 13.1.
 
+## v0.28.14 (2026-06-28)
+
+Story 1 (roadmap-2026.md §5.1): `kdna remove` + `kdna list`
+CLI commands. Closes the largest gap between RFC #148's claim
+("no `kdna remove` / `kdna list` commands") and reality. The
+package-store API already had `removeInstalled()` and
+`listInstalled()`; this story wires them into the top-level
+CLI dispatcher.
+
+- **New: `kdna remove <@scope/name>`** — uninstalls a package
+  from `~/.kdna/packages/`, removes the entry from `index.json`,
+  and the version directory. Uses the existing `cmdRemove()`
+  in `src/install.js:637`. Prints `✓ Removed <name>` on
+  success; `<name> is not installed.` when no entry exists.
+- **New: `kdna list [--json]`** — lists installed packages.
+  Human format: name, version, access, judgment_version, asset
+  path, installed_at. JSON format: same fields as a
+  machine-readable array. Distinct from `kdna available` (which
+  is agent-facing and includes `applies_when` /
+  `does_not_apply_when` for matching). New `cmdList()` in
+  `src/install.js`.
+- **New: `tests/remove-list-cli.test.js`** — 8 tests covering
+  empty list (human + JSON), populated list (human + JSON),
+  remove usage error, remove of uninstalled package, remove of
+  installed package (verifies the index entry is gone AND the
+  asset file is removed AND `kdna list` is empty afterwards),
+  and the re-install regression (the index must be writable
+  after a remove, and a subsequent install must not collide).
+  Wired into `test:v1` so it runs in `npm test`.
+- **`tests/cli-smoke.test.js`** — `remove` and `list` added to
+  the case-routed commands array; the smoke test now covers all
+  35 case-routed commands.
+- **Help text** — `kdna help` now lists `remove` and `list`
+  under the install/available/match group.
+
+Refs roadmap-2026.md Section 5.1 Story 1 and Section 3.2 (RFC
+#148 v1.x Phase 1: install + discover).
+
 ## v0.28.12 (2026-06-28)
 
 Phase 11 audit follow-up. Closes 3 issues filed against the

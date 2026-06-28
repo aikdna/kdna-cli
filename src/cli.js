@@ -19,7 +19,7 @@ const { cmdTrace, cmdHistory } = require('./cmds/trace');
 const { cmdCluster } = require('./cmds/cluster');
 const { cmdProtect, cmdUnlock, cmdRecover } = require('./cmds/protect');
 const { cmdAvailable, cmdMatch } = require('./agent');
-const { cmdInstallExtended } = require('./install');
+const { cmdInstallExtended, cmdRemove, cmdList } = require('./install');
 const { cmdPublish, cmdPublishCheck } = require('./publish');
 const { cmdChangelog } = require('./cmds/changelog');
 const { cmdExplain } = require('./cmds/explain');
@@ -111,6 +111,8 @@ Diagnostics:
   available                            List available installed domains
   match     "<task>"                  Find the best-matching domain for a task
   install   <name|@scope/name|file>   Install a .kdna asset from local/registry
+  remove    <@scope/name>             Uninstall a package and remove it from the index
+  list      [--json]                  List installed packages (human or JSON)
 Authoring & Publishing:
   publish  <file.kdna>               Publish a .kdna asset (see also --check)
   publish  --check <path>            Quality gate check before publish
@@ -634,6 +636,22 @@ switch (cmd) {
     const installArgs = args.slice(1);
     const installInput = installArgs.find((a) => !a.startsWith('--')) || '';
     cmdInstallExtended(installInput, installArgs);
+    break;
+  }
+  case 'remove': {
+    // kdna remove <@scope/name> — uninstall a package from
+    // ~/.kdna/packages/ and remove the entry from index.json.
+    const removeInput = args.slice(1).find((a) => !a.startsWith('--')) || '';
+    if (!removeInput) error('Usage: kdna remove <@scope/name>', EXIT.INPUT_ERROR);
+    cmdRemove(removeInput);
+    break;
+  }
+  case 'list': {
+    // kdna list [--json] — show installed packages. Distinct from
+    // `kdna available` (which is agent-facing and includes
+    // applies_when / does_not_apply_when for matching). This is the
+    // human-facing list of what is installed on this machine.
+    cmdList(args.slice(1));
     break;
   }
   case 'version': {
