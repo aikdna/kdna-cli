@@ -34,6 +34,7 @@ const registry = require('./cmds/registry');
 const { cmdSetup } = require('./cmds/setup');
 const { validateBundle } = require('./cmds/validate-bundle');
 const { computeContextBudget } = require('./cmds/context-budget');
+const { appendAuditEntry } = require('./cmds/audit-log');
 const studio = require('./cmds/studio');
 const { resolveAsset, readAssetManifest } = require('./package-store');
 
@@ -112,7 +113,8 @@ Auth & Identity:
 Diagnostics:
   doctor   [--agents] [--domains]    System health check
   trace    [--json] [--clear]        Observability trace logs
-  history  [--stats] [--json]        KDNA load history
+  history  [--stats] [--json]        KDNA load history (agent trace)
+  history  --audit [--stats] [--json] CLI load audit log (~/.kdna/audit.jsonl)
   cluster  <path>                    Validate a cluster manifest
   protect  <file> --out <file>       Encrypt a .kdna asset with a password
            [--password <pw>|--password-stdin]
@@ -501,6 +503,22 @@ switch (cmd) {
     if (args.includes('--has-password')) {
       process.stderr.write('Warning: --has-password is a plan-load diagnostic. Use --password=<value> for actual decryption.\n');
     }
+
+    // Read asset_id + version for audit log (best-effort)
+    let auditAssetId = null;
+    let auditVersion = null;
+    let auditAccessMode = null;
+    try {
+      const manifestPath = require('node:path').join(abs, 'kdna.json');
+      if (fs.existsSync(manifestPath)) {
+        const m = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+        auditAssetId = m.asset_id || null;
+        auditVersion = m.version || null;
+        auditAccessMode = m.access || null;
+      }
+    } catch (_) {}
+
+    const loadStart = Date.now();
     try {
       const entitlementStatusIndex = args.indexOf('--entitlement-status');
       const entitlementStatus = entitlementStatusIndex >= 0 ? args[entitlementStatusIndex + 1] : null;
@@ -512,6 +530,17 @@ switch (cmd) {
         entitlement: entitlementStatus ? { status: entitlementStatus } : undefined,
         resolveAsset: resolveAssetCallback,
       });
+      appendAuditEntry({
+        asset_path: abs,
+        asset_id: auditAssetId,
+        version: auditVersion,
+        profile,
+        as,
+        access_mode: auditAccessMode,
+        result: 'success',
+        error_code: null,
+        duration_ms: Date.now() - loadStart,
+      });
       if (as === 'prompt') {
         process.stdout.write(r.text + '\n');
       } else {
@@ -519,6 +548,17 @@ switch (cmd) {
       }
       return;
     } catch (e) {
+      appendAuditEntry({
+        asset_path: abs,
+        asset_id: auditAssetId,
+        version: auditVersion,
+        profile,
+        as,
+        access_mode: auditAccessMode,
+        result: 'error',
+        error_code: e.code || null,
+        duration_ms: Date.now() - loadStart,
+      });
       if (e.code === 'KDNA_DECRYPT_FAILED') {
         process.stderr.write('Error: decryption failed. Check your password.\n');
         process.exit(EXIT.JUDGMENT_QUALITY_FAILED);

@@ -31,6 +31,7 @@ const PATHS = {
   registry: path.join(KDNA_HOME, 'registry'),
   registryCache: path.join(KDNA_HOME, 'registry', 'cache.json'),
   traces: path.join(KDNA_HOME, 'traces'),
+  audit: path.join(KDNA_HOME, 'audit.jsonl'),
   feedback: path.join(KDNA_HOME, 'feedback'),
   evals: path.join(KDNA_HOME, 'evals'),
   cache: path.join(KDNA_HOME, 'cache'),

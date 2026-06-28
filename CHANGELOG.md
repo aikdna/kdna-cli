@@ -2,7 +2,30 @@
 
 > **Supersession note (2026-06-27)**: Pre-v0.7 entries below use "v1.0-rc" terminology. As of the v0.7 launch (2026-05-22), the @aikdna/* npm scope and registry v2.0 superseded the v1.0-rc label. The historical "v1.0-rc" references in older entries are kept for accuracy; new development uses the 0.7.x+ numbering.
 
-## v0.28.22 (2026-06-28)
+## v0.28.23 (2026-06-28)
+
+Story 10 — audit log (RFC #148 v2.x Phase 3).
+
+- **`~/.kdna/audit.jsonl`**: every `kdna load` invocation now appends a
+  structured JSON line recording `event_type`, `asset_path`, `asset_id`,
+  `version`, `profile`, `as`, `access_mode`, `result` (success/error),
+  `error_code`, and `duration_ms`.
+- **`kdna load`**: writes audit entry on both success and error paths.
+  Audit write failure is non-blocking and never surfaces to the user.
+- **`kdna history --audit`**: new flag reads from `audit.jsonl` instead of
+  daily trace files. Supports `--json`, `--stats`, `--errors`, `-n <n>`.
+- **`kdna history --audit --stats`**: total/success/error counts,
+  error rate, by-asset breakdown, by-error-code breakdown.
+- **New module**: `src/cmds/audit-log.js` — `appendAuditEntry()`,
+  `readAuditLog()`, `auditStats()`.
+- **`src/paths.js`**: added `audit` path (`~/.kdna/audit.jsonl`).
+- **Help text** updated: `kdna help history` now shows `--audit` variant.
+- **7 new tests** in `tests/story10-audit-log.test.js` (3 unit + 4 CLI).
+  Total suite: **82/82 pass**.
+- **No breaking changes** to existing `kdna history` (without `--audit`)
+  or daily trace file behavior.
+
+
 
 Story 9 — validate conflict warnings (RFC #148 v2.0).
 

@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { EXIT } = require('./_common');
 const PATHS = require('../paths');
+const { readAuditLog, auditStats } = require('./audit-log');
 
 const TRACES_DIR = PATHS.traces;
 
@@ -155,6 +156,11 @@ function cmdTrace(args) {
 }
 
 function cmdHistory(args) {
+  // --audit mode: read from ~/.kdna/audit.jsonl (Story 10)
+  if (args.includes('--audit')) {
+    return cmdHistoryAudit(args);
+  }
+
   const json = args.includes('--json');
   const stats = args.includes('--stats');
   const agentFilter = args.includes('--agent') ? args[args.indexOf('--agent') + 1] : null;
@@ -247,6 +253,87 @@ function cmdHistory(args) {
   console.log(
     `Showing ${recent.length} of ${entries.length} total entries. --stats for summary. --domain <name> to filter.`,
   );
+}
+
+/**
+ * cmdHistoryAudit — `kdna history --audit [--stats] [--json] [-n <n>]`
+ *
+ * Reads ~/.kdna/audit.jsonl and displays CLI load audit entries.
+ * Distinct from the daily trace files (which record agent-level events).
+ */
+function cmdHistoryAudit(args) {
+  const json = args.includes('--json');
+  const stats = args.includes('--stats');
+  const count = parseInt(
+    args.includes('-n') ? args[args.indexOf('-n') + 1] : '20',
+    10,
+  );
+  const resultFilter = args.includes('--errors') ? 'error' : null;
+
+  const entries = readAuditLog({ result: resultFilter });
+
+  if (stats) {
+    const s = auditStats(entries);
+    if (json) {
+      console.log(JSON.stringify(s, null, 2));
+    } else {
+      console.log(`Total load events: ${s.total}`);
+      console.log(`  Successful: ${s.success}`);
+      console.log(`  Errors:     ${s.error} (${s.error_rate}%)`);
+      if (Object.keys(s.by_error_code).length > 0) {
+        console.log('');
+        console.log('Error codes:');
+        for (const [code, c] of Object.entries(s.by_error_code)) {
+          console.log(`  ${code}: ${c}`);
+        }
+      }
+      if (Object.keys(s.by_asset).length > 0) {
+        console.log('');
+        console.log('By asset:');
+        const sorted = Object.entries(s.by_asset).sort(
+          (a, b) => (b[1].success + b[1].error) - (a[1].success + a[1].error),
+        );
+        for (const [asset, counts] of sorted.slice(0, 10)) {
+          console.log(`  ${asset}: ${counts.success} ok / ${counts.error} err`);
+        }
+      }
+    }
+    process.exit(EXIT.OK);
+  }
+
+  const recent = entries.slice(-count).reverse();
+
+  if (json) {
+    console.log(JSON.stringify({ entries: recent, total: entries.length }, null, 2));
+    process.exit(EXIT.OK);
+  }
+
+  if (recent.length === 0) {
+    console.log('No audit log entries found.');
+    console.log('Audit entries are written on every kdna load call.');
+    process.exit(EXIT.OK);
+  }
+
+  console.log(
+    `${'Timestamp'.padEnd(20)} ${'Result'.padEnd(8)} ${'Profile'.padEnd(10)} ${'Asset'}`,
+  );
+  console.log('-'.repeat(80));
+  for (const e of recent) {
+    const ts = e.timestamp
+      ? new Date(e.timestamp).toISOString().replace('T', ' ').slice(0, 19)
+      : 'unknown';
+    const result = (e.result || '?').padEnd(8);
+    const profile = (e.profile || '-').padEnd(10);
+    const asset = e.asset_id || e.asset_path || '(unknown)';
+    const errorNote = e.result === 'error' && e.error_code ? ` [${e.error_code}]` : '';
+    console.log(`${ts} ${result} ${profile} ${asset}${errorNote}`);
+  }
+  console.log('');
+  console.log(
+    `Showing ${recent.length} of ${entries.length} total audit entries. ` +
+    '--stats for summary. --errors to filter failures.',
+  );
+  process.exit(EXIT.OK);
 }
 
 module.exports = { cmdTrace, cmdHistory, recordTrace, readAllTraces };
