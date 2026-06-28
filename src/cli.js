@@ -33,6 +33,7 @@ const quality = require('./cmds/quality');
 const registry = require('./cmds/registry');
 const { cmdSetup } = require('./cmds/setup');
 const { validateBundle } = require('./cmds/validate-bundle');
+const { computeContextBudget } = require('./cmds/context-budget');
 const studio = require('./cmds/studio');
 const { resolveAsset, readAssetManifest } = require('./package-store');
 
@@ -281,6 +282,61 @@ switch (cmd) {
       entitlement: entitlementStatus ? { status: entitlementStatus } : undefined,
       resolveAsset: resolveAssetCallback,
     });
+
+    // Context budget reporting (Story 8) — non-blocking, best-effort.
+    // If the Bundle manifest declares context_budget.max_tokens, compute
+    // a per-component token cost estimate and attach it to the plan output.
+    if (
+      plan.resolved_dependencies &&
+      plan.resolved_dependencies.length > 0
+    ) {
+      try {
+        const manifestPath = require('node:path').join(abs, 'kdna.json');
+        if (fs.existsSync(manifestPath)) {
+          const bundleManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+          const budgetDecl = bundleManifest.context_budget ||
+            (bundleManifest.context_budget_strategy
+              ? { max_tokens: null, strategy: bundleManifest.context_budget_strategy }
+              : null);
+          if (budgetDecl && budgetDecl.max_tokens) {
+            plan.context_budget_report = computeContextBudget(
+              budgetDecl,
+              plan.resolved_dependencies,
+            );
+            // If strategy is 'error' and over budget, escalate plan state.
+            if (
+              plan.context_budget_report.over_budget &&
+              plan.context_budget_report.strategy === 'error'
+            ) {
+              plan.state = 'invalid';
+              plan.can_load_now = false;
+              plan.required_action = 'reduce_bundle_components';
+              if (!plan.issues) plan.issues = [];
+              plan.issues.push({
+                code: 'KDNA_CONTEXT_BUDGET_EXCEEDED',
+                severity: 'blocking',
+                message:
+                  `Bundle context budget exceeded: estimated ${plan.context_budget_report.total_estimated_tokens} tokens ` +
+                  `exceeds declared maximum of ${plan.context_budget_report.declared_max_tokens} tokens. ` +
+                  `Strategy is "error" — loading blocked.`,
+              });
+            } else if (
+              plan.context_budget_report.over_budget &&
+              plan.context_budget_report.strategy === 'warn'
+            ) {
+              process.stderr.write(
+                `Warning: Bundle context budget exceeded: estimated ` +
+                `${plan.context_budget_report.total_estimated_tokens} tokens ` +
+                `exceeds declared maximum of ${plan.context_budget_report.declared_max_tokens} tokens.\n`,
+              );
+            }
+          }
+        }
+      } catch (_) {
+        // context_budget is optional — never fail plan-load because of it
+      }
+    }
+
     console.log(JSON.stringify(plan, null, 2));
     process.exit(plan.state === 'invalid' ? 1 : plan.can_load_now === true ? 0 : 3);
     } catch (e) { process.stderr.write('Error: ' + e.message + '\n'); process.exit(1); }

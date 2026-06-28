@@ -2,7 +2,29 @@
 
 > **Supersession note (2026-06-27)**: Pre-v0.7 entries below use "v1.0-rc" terminology. As of the v0.7 launch (2026-05-22), the @aikdna/* npm scope and registry v2.0 superseded the v1.0-rc label. The historical "v1.0-rc" references in older entries are kept for accuracy; new development uses the 0.7.x+ numbering.
 
-## v0.28.20 (2026-06-28)
+## v0.28.21 (2026-06-28)
+
+Story 8 — context budget reporting (RFC #148 v2.0).
+
+- **`context_budget` field in `bundle-profile-v1` schema**: Bundle manifests may
+  now declare `context_budget.max_tokens`, `context_budget.strategy`
+  (`warn`|`truncate_lowest_priority`|`error`), and
+  `context_budget.per_component_estimate_tokens`.
+- **`kdna plan-load <bundle> --json`** now attaches a `context_budget_report`
+  object when the Bundle manifest declares `context_budget.max_tokens` and
+  the plan has resolved dependencies. The report includes:
+  `declared_max_tokens`, `strategy`, `total_estimated_tokens`, `over_budget`,
+  `budget_action`, per-component breakdown, and an `estimation_note`.
+- **Strategy enforcement**: when `strategy: "error"` and over budget, the plan
+  state is set to `invalid` with issue code `KDNA_CONTEXT_BUDGET_EXCEEDED`,
+  blocking the load. When `strategy: "warn"`, a warning is emitted to stderr
+  and loading proceeds. When under budget, `budget_action: "none"`.
+- **New module**: `src/cmds/context-budget.js` — `computeContextBudget()`.
+- **8 new tests** in `tests/story8-context-budget.test.js` (5 unit + 2 CLI
+  integration). Total suite: 65/65 pass.
+- **No breaking changes** to existing `plan-load` output when no
+  `context_budget` is declared (backward compatible).
+
 
 Registration of bundle validation tests in the default test harness.
 
