@@ -60,7 +60,8 @@ function makeIsolatedEnv(prefix = 'kdna-test-home-') {
 }
 
 function ensureIdentity(env) {
-  const keyPath = path.join(env.KDNA_HOME, 'identity', 'kdna.key');
+  // Story 19 path migration: ~/.kdna/identity/ → ~/.kdna/keys/ed25519.key
+  const keyPath = path.join(env.KDNA_HOME, 'keys', 'ed25519.key');
   if (fs.existsSync(keyPath)) return;
   const r = run(['identity', 'init'], { env });
   assert.ok(r.ok, `identity init failed: ${r.stderr || r.stdout}`);

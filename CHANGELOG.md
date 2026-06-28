@@ -2,6 +2,61 @@
 
 > **Supersession note (2026-06-27)**: Pre-v0.7 entries below use "v1.0-rc" terminology. As of the v0.7 launch (2026-05-22), the @aikdna/* npm scope and registry v2.0 superseded the v1.0-rc label. The historical "v1.0-rc" references in older entries are kept for accuracy; new development uses the 0.7.x+ numbering.
 
+## v0.28.27 (2026-06-28)
+
+Story 19 — kdna sign / verify + Ed25519 identity keys (Section 13
+encryption/authorization, identity layer). **This is the complete
+identity layer — no further centralization steps after this.**
+
+- **Identity path migration** — the canonical identity path is now
+  `~/.kdna/keys/ed25519.{key,pub}` (mode 0600 on the private key).
+  The pre-Story-19 path `~/.kdna/identity/kdna.{key,pub}` still
+  works through the legacy `signature.js` helper for backward
+  compat (Story 20+ consumers should use the new path).
+- **`kdna identity show`** now prints the public key in **three
+  encodings**: PEM (file path), hex (32-byte raw), and base64
+  (32-byte raw). The raw 32-byte form is what consumers compare
+  against a published key.
+- **`kdna sign <asset>`** — detached Ed25519 signature over the
+  asset digest. The asset digest is `SHA-256(SHA-256(kdna.json) ||
+  SHA-256(payload.kdnab) || SHA-256(checksums.json))`. The
+  signature file is written to `<asset>.ed25519.sig` by default;
+  `--sig <path>` overrides. The signature record is JSON
+  containing version, algorithm, asset_digest, per-input
+  SHA-256 digests, the signer's public key (hex + base64), the
+  signer's key fingerprint, the signed_at timestamp, and the
+  Ed25519 signature bytes (base64). Detached — the .kdna
+  container is not modified in place.
+- **`kdna verify <asset>`** — verifies the signature. With
+  `--key <pubkey>`, cryptographically verifies against the
+  provided public key. Without `--key`, prints the signer's
+  public key (hex + base64) plus the message
+  `No key provided; cannot determine trust` — trust is the
+  consumer's decision, not the CLI's. Exit codes: 0 valid,
+  1 invalid (signature is wrong or asset is modified), 2 no key
+  provided (informational), 3 error (file not found, key
+  unparseable).
+- **Trust language discipline** — the CLI never says "official",
+  "trusted", "verified", or "recommended" about a signed asset.
+  It only says "signature is cryptographically valid against
+  key X" — what to do with that fact is the consumer's call.
+  This is the same non-collapse shape as RFC-0018 R4.3 (the
+  profile non-collapse invariant).
+- **No centralization** — each author generates their own key
+  pair. KDNA Inc. holds NO private keys. There is no registry
+  lookup, no key discovery, no key escrow.
+- **No new npm dependencies** — uses Node.js built-in
+  `crypto.sign` / `crypto.verify` / `crypto.generateKeyPairSync`
+  for Ed25519.
+- **10 new tests** in `tests/story19-sign-verify-identity.test.js`
+  covering the 7 acceptance criteria (path, mode, format, sign,
+  verify, no-key, tamper). Total: **131/131 pass**.
+- No breaking changes to existing CLI output (additive commands;
+  identity path migration is gated by `KDNA_IDENTITY_DIR` for
+  test isolation; legacy `~/.kdna/identity/` still loads).
+
+
+
 ## v0.28.26 (2026-06-28)
 
 Story 13 — Trust levels + deprecation (RFC #148 v2.x Phase 3, last story

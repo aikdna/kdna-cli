@@ -14,6 +14,7 @@ const { runAntiMonolithicCheck, printAndExit: printAntiMonolithic } = require('.
 const { cmdWorkpack } = require('./cmds/workpack');
 const { cmdLicenseInstall, cmdLicenseStatus, cmdLicenseGenerate } = require('./cmds/license');
 const { cmdIdentityInit, cmdIdentityShow } = require('./cmds/identity');
+const { cmdSign, cmdVerify } = require('./identity');
 const { cmdDoctor } = require('./cmds/doctor');
 const { cmdTrace, cmdHistory } = require('./cmds/trace');
 const { cmdCluster } = require('./cmds/cluster');
@@ -137,6 +138,15 @@ Auth & Identity:
            --to <email> [--expires]
   identity init                      Generate Ed25519 identity keypair
   identity show                      Display identity fingerprint/paths
+                                     (PEM, hex, base64)
+  sign      <asset>                  Detached Ed25519 signature over the
+                                     asset digest (kdna.json + payload.kdnab
+                                     + checksums.json). Writes <asset>.ed25519.sig
+  verify    <asset>                  Verify a signature. With --key, checks
+                                     cryptographically. Without --key, prints
+                                     the signer's public key + 'no key,
+                                     cannot determine trust' (Story 19).
+                                     Exit codes: 0 valid, 1 invalid, 2 no key, 3 error
 Diagnostics:
   doctor   [--agents] [--domains]    System health check
   trace    [--json] [--clear]        Observability trace logs
@@ -691,9 +701,37 @@ switch (cmd) {
 // eslint-disable-next-line no-fallthrough
   case 'identity': {
     const sub = args[1];
-    if (sub === 'init') { cmdIdentityInit(args.slice(2)); break; }
-    if (sub === 'show') { cmdIdentityShow(args.slice(2)); break; }
-    error(`Usage: kdna identity <init|show>`, EXIT.INPUT_ERROR);
+    if (sub === 'init') { cmdIdentityInit(); break; }
+    if (sub === 'show') { cmdIdentityShow(args.includes('--json')); break; }
+    if (sub === 'export') {
+      const outIdx = args.indexOf('--out');
+      cmdIdentityExport(outIdx >= 0 ? args[outIdx + 1] : null);
+      break;
+    }
+    if (sub === 'import') {
+      const target = args[2];
+      if (!target) error('Usage: kdna identity import <file>', EXIT.INPUT_ERROR);
+      cmdIdentityImport(target);
+      break;
+    }
+    error(
+      `Usage: kdna identity <init|show|export|import>\n` +
+        `  kdna identity init\n` +
+        `  kdna identity show [--json]\n` +
+        `  kdna identity export [--out <file>]\n` +
+        `  kdna identity import <file>`,
+      EXIT.INPUT_ERROR,
+    );
+  }
+// eslint-disable-next-line no-fallthrough
+  case 'sign': {
+    cmdSign(args.slice(1));
+    break;
+  }
+// eslint-disable-next-line no-fallthrough
+  case 'verify': {
+    cmdVerify(args.slice(1));
+    break;
   }
 // eslint-disable-next-line no-fallthrough
   case 'doctor': {
