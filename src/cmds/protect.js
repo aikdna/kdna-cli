@@ -145,10 +145,9 @@ function cmdProtect(args) {
     );
     pack(tmpDir, outPath);
   } finally {
-    require('node:fs').rmSync(tmpDir, { recursive: true, force: true });
+    try { require('node:fs').rmSync(tmpDir, { recursive: true, force: true }); }
+    catch (e) { process.stderr.write(`Warning: failed to clean up temp directory ${tmpDir}: ${e.message}\n`); }
   }
-
-  console.log(`Protected asset written to: ${outPath}`);
   console.log(`Encrypted entries: ${entriesToEncrypt.join(', ')}`);
   console.log('Recovery code: (displayed once — save it)');
   console.log(`  ${recoveryCode}`);
@@ -304,10 +303,9 @@ function cmdUnlock(args) {
         packAsset(tmpDir, outPath);
         console.error(`Unlocked asset written to: ${outPath}`);
       } finally {
-        require('node:fs').rmSync(tmpDir, { recursive: true, force: true });
+        try { require('node:fs').rmSync(tmpDir, { recursive: true, force: true }); }
+        catch (e) { process.stderr.write(`Warning: failed to clean up temp directory ${tmpDir}: ${e.message}\n`); }
       }
-    } else {
-      console.log(JSON.stringify(loaded, null, 2));
     }
   } catch (e) {
     error(`Unlock failed: ${e.message}`, EXIT.TRUST_FAILED);
@@ -419,7 +417,8 @@ function cmdRecover(args) {
     );
     packAsset(tmpDir, outPath);
   } finally {
-    require('node:fs').rmSync(tmpDir, { recursive: true, force: true });
+    try { require('node:fs').rmSync(tmpDir, { recursive: true, force: true }); }
+    catch (e) { process.stderr.write(`Warning: failed to clean up temp directory ${tmpDir}: ${e.message}\n`); }
   }
 
   console.log(`Recovered asset written to: ${outPath}`);
