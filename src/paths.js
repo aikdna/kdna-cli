@@ -2,6 +2,13 @@
 // Spec: docs/local-kdna-home-spec.md
 // NOTE: domains/ is NOT part of the runtime model (see local-kdna-home-spec.md §Invariants).
 // The domains field below is retained ONLY for legacy migration. New code MUST use packages/.
+//
+// Two-tier store (roadmap-2026.md §5.1 Story 2, RFC #148 v1.x):
+// The package store now supports two roots — the user-global root
+// (~/.kdna/packages/) and a project-local root (./.kdna/packages/).
+// Project-local wins on conflict for reads; the user-global root
+// is the default for writes (a `--local` flag opts in to the
+// project-local root). See package-store.js for the merge logic.
 
 const path = require('path');
 
@@ -41,6 +48,41 @@ const PATHS = {
 // Runtime asset store aliases
 PATHS.USER_KDNA_DIR = KDNA_HOME;
 PATHS.INSTALL_DIR = PATHS.packages;
+
+// ─── Project-local paths (Story 2) ─────────────────────────────────────
+//
+// Resolved at access time, not at module load. The project root is
+// determined by KDNA_PROJECT_ROOT (if set) or process.cwd() (if not).
+// This is important because tests can change KDNA_PROJECT_ROOT after
+// the module is first loaded.
+//
+// Use these properties as live getters, not snapshot values:
+//   - PATHS.projectRoot     — absolute path to the project's .kdna
+//   - PATHS.projectPackages — absolute path to project's packages dir
+//   - PATHS.projectIndex    — absolute path to project's index.json
+Object.defineProperties(PATHS, {
+  projectRoot: {
+    enumerable: true,
+    get() {
+      const root = process.env.KDNA_PROJECT_ROOT
+        ? path.resolve(process.env.KDNA_PROJECT_ROOT)
+        : process.cwd();
+      return path.join(root, '.kdna');
+    },
+  },
+  projectPackages: {
+    enumerable: true,
+    get() {
+      return path.join(PATHS.projectRoot, 'packages');
+    },
+  },
+  projectIndex: {
+    enumerable: true,
+    get() {
+      return path.join(PATHS.projectRoot, 'index.json');
+    },
+  },
+});
 
 module.exports = PATHS;
 module.exports.KDNA_HOME = KDNA_HOME;

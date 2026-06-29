@@ -326,13 +326,14 @@ function cmdInstallExtended(input, args = []) {
   const yes = args.includes('--yes');
   const jsonMode = args.includes('--json');
   const trusted = args.includes('--trusted');
+  const local = args.includes('--local');
   const source = parseSource(input);
 
   switch (source.type) {
     case 'registry':
-      return installFromRegistry(source.parsed, yes, jsonMode);
+      return installFromRegistry(source.parsed, yes, jsonMode, local);
     case 'local-file':
-      return installFromLocalFile(source.path, yes, jsonMode, trusted);
+      return installFromLocalFile(source.path, yes, jsonMode, trusted, local);
   }
 }
 
@@ -348,7 +349,7 @@ function scopedNameError(sourceLabel, declared) {
   );
 }
 
-function installFromRegistry(parsed, yes, jsonMode = false) {
+function installFromRegistry(parsed, yes, jsonMode = false, local = false) {
   const resolver = new RegistryResolver({ allowNetwork: true });
   let scope, entry;
   try {
@@ -396,10 +397,10 @@ function installFromRegistry(parsed, yes, jsonMode = false) {
     process.exit(0);
   }
 
-  installSingleFromUrl({ entry, scope }, jsonMode);
+  installSingleFromUrl({ entry, scope }, jsonMode, local);
 }
 
-function installSingleFromUrl({ entry, scope }, jsonMode = false) {
+function installSingleFromUrl({ entry, scope }, jsonMode = false, local = false) {
   const ident = entry.name.split('/')[1];
   const tmpDir = path.join(USER_KDNA_DIR, 'cache', 'downloads');
   const tmpFile = path.join(tmpDir, `.${ident}-${Date.now()}.kdna.tmp`);
@@ -436,6 +437,7 @@ function installSingleFromUrl({ entry, scope }, jsonMode = false) {
     sourcePath: tmpFile,
     name: entry.name,
     version: entry.version,
+    local,
     source: {
       type: 'registry',
       name: entry.name,
@@ -504,7 +506,7 @@ function installCluster(clusterEntry, resolver, _yes, jsonMode = false) {
   }
 }
 
-function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false) {
+function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false, local = false) {
   const abs = path.resolve(filePath);
   if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) error(`Not a file: ${abs}`);
   if (!abs.endsWith('.kdna')) error(`Not a .kdna asset: ${abs}`, EXIT.INPUT_ERROR);
@@ -610,6 +612,7 @@ function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false) 
     sourcePath: abs,
     name: declared,
     version: manifest.version,
+    local,
     source: { type: 'local-file', path: abs },
   });
 
