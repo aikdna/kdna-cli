@@ -645,6 +645,53 @@ function cmdRemove(input) {
   console.log(`✓ Removed ${parsed.full}`);
 }
 
+// ─── List ───────────────────────────────────────────────────────────────
+
+// Human-facing list of installed KDNA packages. Distinct from
+// `kdna available` (which is agent-facing and includes applies_when
+// / does_not_apply_when for matching). This command answers the
+// "what is installed on this machine" question.
+function cmdList(args = []) {
+  const jsonMode = args.includes('--json');
+  const installed = listInstalled();
+
+  if (jsonMode) {
+    const out = installed.map((entry) => ({
+      name: entry.full,
+      version: entry.version || null,
+      judgment_version: entry.judgment_version || null,
+      access: entry.access || 'public',
+      asset_path: entry.asset_path,
+      asset_digest: entry.asset_digest || null,
+      content_digest: entry.content_digest || null,
+      installed_at: entry.installed_at || null,
+    }));
+    process.stdout.write(JSON.stringify(out, null, 2) + '\n');
+    return;
+  }
+
+  if (!installed.length) {
+    console.log('No KDNA packages installed.');
+    console.log('Install with: kdna install <name>');
+    return;
+  }
+  console.log(`${installed.length} installed KDNA package(s):`);
+  for (const entry of installed) {
+    const access = entry.access || 'public';
+    console.log('');
+    console.log(`  ${entry.full}  v${entry.version || '?'}  [${access}]`);
+    if (entry.judgment_version) {
+      console.log(`    judgment_version: ${entry.judgment_version}`);
+    }
+    if (entry.asset_path) {
+      console.log(`    asset: ${entry.asset_path}`);
+    }
+    if (entry.installed_at) {
+      console.log(`    installed_at: ${entry.installed_at}`);
+    }
+  }
+}
+
 // ─── Info ───────────────────────────────────────────────────────────────
 
 function cmdInfo(input, jsonMode = false) {
@@ -862,6 +909,7 @@ function cmdUpdateAll() {
 module.exports = {
   cmdInstallExtended,
   cmdRemove,
+  cmdList,
   cmdInfo,
   cmdUpdate,
   cmdUpdateAll,

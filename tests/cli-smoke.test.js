@@ -48,6 +48,8 @@ const CASE_ROUTED_COMMANDS = [
   'available',
   'match',
   'install',
+  'remove',
+  'list',
   'publish',
   'changelog',
   'explain',
