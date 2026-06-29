@@ -2,6 +2,32 @@
 
 > **Supersession note (2026-06-27)**: Pre-v0.7 entries below use "v1.0-rc" terminology. As of the v0.7 launch (2026-05-22), the @aikdna/* npm scope and registry v2.0 superseded the v1.0-rc label. The historical "v1.0-rc" references in older entries are kept for accuracy; new development uses the 0.7.x+ numbering.
 
+## v0.28.30 (2026-06-29)
+
+CRITICAL fixes (2026-06-29 user-flagged gap list):
+
+- **CRITICAL-2: CLI client for `kdna-remote-server`.** `kdna load`
+  now correctly handles `access: "remote"` assets by routing
+  to a configured `kdna-remote-server` instead of failing with
+  `KDNA_AUTH_REMOTE_RUNTIME_REQUIRED`. Previously, the entire
+  remote-mode stack (kdna-core plan signal + remote-server
+  reference impl) was built but the CLI had no client path to
+  consume it.
+
+  - New flag `--remote-server <url>` (or env var `KDNA_REMOTE_SERVER`).
+  - New flags `--task <name>`, `--mode <m>`, `--context "..."` for the projection request body.
+  - The remote path is taken **only** when the asset is `access: "remote"`. For public/private assets, the `--remote-server` flag is ignored with a hint to stderr.
+  - `--as=json` returns `{remote_server, request, response}`.
+  - `--as=prompt` returns a readable markdown-style projection with sections for each field of the response.
+  - Server errors (non-2xx) are mapped to CLI errors with the server `error.code` and `error.message`.
+  - URL normalization: `--remote-server https://example.com` and `--remote-server https://example.com/v1/project` both work; the CLI appends `/v1/project` if missing.
+
+- **9 new tests** in `tests/critical-2-remote-mode-client.test.js` covering all 8 acceptance criteria (flag, env var, error message, request body shape, JSON output, prompt output, server error mapping, URL normalization, public asset bypass). Total: **49/49 pass** (up from 40, +9).
+- No breaking changes. The previous `kdna load` behavior on public/private assets is unchanged.
+- **CRITICAL-1 (out of scope for this CLI release, fixed in a separate commit on `OPEN/kdna`):** `docs/CONFLICT_RESOLUTION.md` was missing on main. Restored from commit 8a6b152 (the original Story 4 commit) in commit 01d196d. 246 lines. This is the design contract for `kdna validate --bundle` and the Swift/Rust port reference for conflict logic.
+
+
+
 ## v0.28.12 (2026-06-28)
 
 Phase 11 audit follow-up. Closes 3 issues filed against the

@@ -80,6 +80,19 @@ Core v1:
   validate  <path> --runtime         Validate and require LoadPlan readiness
   plan-load <file.kdna>              Return a LoadPlan before runtime load
   load      <file.kdna>              Render agent-ready judgment context
+                                     --profile=<index|compact|scenario|full>
+                                     --as=<json|prompt|raw>
+                                     --namespace=<component-id>
+                                     --remote-server <url>   Use a
+                                       kdna-remote-server for
+                                       access: "remote" assets.
+                                       Equivalent to the
+                                       KDNA_REMOTE_SERVER env var.
+                                     --task <name>           Task verb
+                                       for remote projection
+                                       (default: review)
+                                     --context "..."         Context
+                                       for the projection
   pack      <dev-source> <out>       Pack into .kdna (--force to overwrite)
   unpack    <file.kdna> <out>        Extract .kdna into an editing/debug view
   demo      <minimal|judgment> <dir>  Create a v1 demo fixture
@@ -397,6 +410,43 @@ switch (cmd) {
     if (args.includes('--has-password')) {
       process.stderr.write('Warning: --has-password is a plan-load diagnostic. Use --password=<value> for actual decryption.\n');
     }
+    // Story 16+18+CRITICAL-2: detect access: "remote" before the
+    // loadAuthorized path. For remote assets the kdna-core load
+    // path returns state: "needs_runtime" (can_load_now: false);
+    // we route to the configured kdna-remote-server instead. This
+    // is the missing client integration that the previous Stories
+    // 16/18 left as a follow-up.
+    //
+    // The remote path is taken only when the asset is actually
+    // access: "remote" — not merely when --remote-server is set.
+    // For public assets, --remote-server is ignored (just like
+    // --password on a public asset is ignored).
+    const remoteServer =
+      getFlag('--remote-server') ||
+      process.env.KDNA_REMOTE_SERVER ||
+      null;
+    if (isAccessRemote(abs)) {
+      // The case-block isn't async. Kick off the async remote
+      // load and have it call process.exit() on its own. The
+      // main event loop stays alive because the in-flight fetch
+      // holds the loop open until the request resolves.
+      runRemoteLoad({ abs, remoteServer, getFlag, args })
+        .catch((e) => {
+          process.stderr.write(`Error: ${e.message || e}\n`);
+          process.exit(EXIT.VALIDATION_FAILED);
+        });
+      // Return immediately; the async work above will call
+      // process.exit() before the process can exit.
+      return;
+    } else if (remoteServer !== null) {
+      // Public/private asset but the user passed --remote-server.
+      // Ignore — the flag is only meaningful for access: "remote"
+      // assets. Print a hint to stderr.
+      process.stderr.write(
+        'Note: --remote-server is ignored for non-remote assets.\n' +
+        'The flag only applies to assets declared access: "remote" in kdna.json.\n',
+      );
+    }
     try {
       const entitlementStatusIndex = args.indexOf('--entitlement-status');
       const entitlementStatus = entitlementStatusIndex >= 0 ? args[entitlementStatusIndex + 1] : null;
@@ -420,6 +470,17 @@ switch (cmd) {
       }
       if (e.code === 'KDNA_AUTH_PASSWORD_REQUIRED' || e.code === 'requires_decryption') {
         process.stderr.write('Error: payload requires a password. Use --password=<value>.\n');
+        process.exit(EXIT.JUDGMENT_QUALITY_FAILED);
+      }
+      if (e.code === 'KDNA_AUTH_REMOTE_RUNTIME_REQUIRED') {
+        // Defensive: the access check above should have caught
+        // this case, but if it slips through (e.g. if the access
+        // check is wrong), at least give a clear error rather
+        // than a generic "LoadPlan denied loading".
+        process.stderr.write(
+          'Error: this asset is access: "remote" and requires a kdna-remote-server.\n' +
+          'Pass --remote-server <url> or set KDNA_REMOTE_SERVER=<url>.\n',
+        );
         process.exit(EXIT.JUDGMENT_QUALITY_FAILED);
       }
       process.stderr.write('Error: ' + e.message + '\n');
@@ -642,4 +703,191 @@ switch (cmd) {
   }
   default:
     error(`Unknown command: ${cmd}\nRun: kdna help`);
+  }
+
+/**
+ * Read the kdna.json manifest and return its `access` field, or
+ * null. Used to short-circuit remote assets before the
+ * loadAuthorized path throws KDNA_AUTH_REMOTE_RUNTIME_REQUIRED.
+ */
+function readAccessField(abs) {
+  try {
+    const stat = fs.statSync(abs);
+    const manifestPath = stat.isDirectory() ? path.join(abs, 'kdna.json') : abs;
+    if (!fs.existsSync(manifestPath)) return null;
+    const raw = fs.readFileSync(manifestPath, 'utf8');
+    const m = JSON.parse(raw);
+    return m.access || null;
+  } catch (_) {
+    return null;
+  }
 }
+
+function isAccessRemote(abs) {
+  return readAccessField(abs) === 'remote';
+}
+
+/**
+ * Story 16+18+CRITICAL-2: client integration for access: "remote"
+ * assets. Posts a projection request to the configured
+ * kdna-remote-server and prints the result.
+ *
+ * The remote-server URL is taken from:
+ *   1. --remote-server <url> flag
+ *   2. KDNA_REMOTE_SERVER environment variable
+ * If neither is set, we fail with a clear error.
+ */
+async function runRemoteLoad(opts) {
+  const { abs, remoteServer, getFlag, args } = opts;
+  const task = getFlag('--task') || 'review';
+  const context = getFlag('--context') || '';
+  const mode = getFlag('--mode') || 'judge';
+  const as = getFlag('--as') || 'json';
+
+  if (!remoteServer) {
+    process.stderr.write(
+      'Error: this asset is access: "remote" and requires a kdna-remote-server.\n' +
+      'Pass --remote-server <url> or set KDNA_REMOTE_SERVER=<url>.\n' +
+      'Get a projection server at https://github.com/aikdna/kdna-remote-server\n',
+    );
+    process.exit(EXIT.JUDGMENT_QUALITY_FAILED);
+  }
+
+  // Read the asset_uid from kdna.json. The remote server uses
+  // kdna_id for the projection request; matching it to the
+  // asset_uid is the natural choice.
+  const access = readAccessField(abs);
+  let assetUid = null;
+  try {
+    const stat = fs.statSync(abs);
+    const manifestPath = stat.isDirectory() ? path.join(abs, 'kdna.json') : abs;
+    const m = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    assetUid = m.asset_uid || m.asset_id || null;
+  } catch (_) {
+    // fall through
+  }
+
+  // Build the projection request body. Matches the
+  // kdna-remote-server /v1/project contract (see
+  // @aikdna/kdna-remote-server README §HTTP API).
+  const reqBody = JSON.stringify({
+    kdna_id: assetUid,
+    task,
+    context,
+    mode,
+  });
+
+  // Compute the projection endpoint. Accept both
+  //   --remote-server https://example.com
+  //   --remote-server https://example.com/
+  //   --remote-server https://example.com/v1/project
+  let url = remoteServer.replace(/\/+$/, '');
+  if (!/\/v1\/(project|projection)/.test(url)) {
+    url = url + '/v1/project';
+  }
+
+  let response;
+  try {
+    // Defer to the next tick so the case-block's caller (the
+    // main switch) has a chance to return synchronously. This
+    // keeps the event loop alive and lets the fetch actually
+    // dispatch.
+    await new Promise((resolve) => setImmediate(resolve));
+    response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: reqBody,
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) {
+      let body;
+      try {
+        body = await response.json();
+      } catch (_) {
+        body = null;
+      }
+      const code = body && body.error && body.error.code;
+      const msg = body && body.error && body.error.message;
+      process.stderr.write(
+        `Error: remote server returned HTTP ${response.status}` +
+        (code ? ` (${code})` : '') +
+        (msg ? `: ${msg}` : '') +
+        '\n',
+      );
+      process.exit(EXIT.PROVIDER_ERROR);
+    }
+
+    const projection = await response.json();
+    // CRITICAL-2 (2026-06-29): hand off to the formatter and
+    // explicit-exit helper. The async IIFE that called us
+    // doesn't await; the explicit process.exit() inside the
+    // helper keeps node from closing in-flight fetch handles
+    // before stdout has fully flushed.
+    finishRemoteLoad(projection, url, assetUid, task, context, mode, as);
+  } catch (e) {
+    process.stderr.write(
+      `Error: remote server unreachable at ${url}: ${e.message}\n` +
+      'Check the URL or that kdna-remote-server is running.\n',
+    );
+    process.exit(EXIT.PROVIDER_ERROR);
+  }
+}
+
+/**
+ * Print the projection result and exit. Pulled out so the
+ * async runner can call it at the end of its try block.
+ */
+function finishRemoteLoad(projection, url, assetUid, task, context, mode, as) {
+  if (as === 'prompt') {
+    // Render the projection as a readable prompt. Include the
+    // task_projection fields as bullet points; the consumer
+    // typically forwards this to a model.
+    const lines = [];
+    lines.push(`# kdna-remote projection (${task})`);
+    lines.push(`# asset: ${projection.asset_id || assetUid || '?'}@${projection.asset_version || '?'}`);
+    lines.push(`# trace: ${projection.trace_id || '(none)'}`);
+    lines.push(`# server: ${url}`);
+    lines.push('');
+    const tp = projection.task_projection || {};
+    if (tp.highest_question) {
+      lines.push('## Highest question');
+      lines.push(tp.highest_question);
+      lines.push('');
+    }
+    if (Array.isArray(tp.diagnosis_focus) && tp.diagnosis_focus.length > 0) {
+      lines.push('## Diagnosis focus');
+      for (const a of tp.diagnosis_focus) lines.push('- ' + a);
+      lines.push('');
+    }
+    if (Array.isArray(tp.constraints) && tp.constraints.length > 0) {
+      lines.push('## Constraints');
+      for (const a of tp.constraints) lines.push('- ' + a);
+      lines.push('');
+    }
+    if (Array.isArray(tp.self_check) && tp.self_check.length > 0) {
+      lines.push('## Self-check');
+      for (const a of tp.self_check) lines.push('- ' + a);
+      lines.push('');
+    }
+    if (Array.isArray(tp.failure_modes) && tp.failure_modes.length > 0) {
+      lines.push('## Failure modes');
+      for (const a of tp.failure_modes) lines.push('- ' + a);
+      lines.push('');
+    }
+    process.stdout.write(lines.join('\n'));
+  } else {
+    // JSON output: include the request metadata alongside the
+    // projection response so the consumer can audit.
+    console.log(JSON.stringify({
+      remote_server: url,
+      request: { kdna_id: assetUid, task, context, mode },
+      response: projection,
+    }, null, 2));
+  }
+  // CRITICAL-2 (2026-06-29): explicit exit. Without this, the
+  // node process may close the in-flight fetch handles before
+  // stdout has fully flushed (observed in spawnSync tests).
+  process.exit(EXIT.OK);
+}
+

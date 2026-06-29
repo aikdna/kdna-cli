@@ -130,9 +130,18 @@ test('kdna load refuses v1 assets when LoadPlan cannot load now', () => {
     assert.equal(plan.status, 3, plan.stderr);
     assert.equal(JSON.parse(plan.stdout).can_load_now, false);
 
+    // CRITICAL-2 (2026-06-29): access: "remote" assets are now
+    // caught by the client-side access check before the loadAuthorized
+    // path. The CLI emits a clear "remote-server required" error
+    // instead of a generic "LoadPlan denied loading". Either error
+    // is a valid "load is denied" signal — the test accepts the new
+    // form (and verifies the secret is still not leaked).
     const loaded = runCli(['load', tmp, '--profile=compact', '--as=prompt']);
-    assert.notEqual(loaded.status, 0, 'load must be denied by LoadPlan');
-    assert.match(loaded.stderr, /LoadPlan denied loading/);
+    assert.notEqual(loaded.status, 0, 'load must be denied');
+    assert.match(
+      loaded.stderr,
+      /LoadPlan denied loading|access: "remote"/,
+    );
     assert.ok(!loaded.stdout.includes(secret));
     assert.ok(!loaded.stderr.includes(secret));
   } finally {
