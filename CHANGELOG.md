@@ -2,6 +2,66 @@
 
 > **Supersession note (2026-06-27)**: Pre-v0.7 entries below use "v1.0-rc" terminology. As of the v0.7 launch (2026-05-22), the @aikdna/* npm scope and registry v2.0 superseded the v1.0-rc label. The historical "v1.0-rc" references in older entries are kept for accuracy; new development uses the 0.7.x+ numbering.
 
+## v0.28.29 (2026-06-28)
+
+Story 21 — Watermarking (Section 13.8 encryption/authorization
+sprint plan, the last story in the 8-sprint plan). **This
+closes Section 13** — the encryption/authorization layer is
+now fully delivered.
+
+- **Payload-level watermarking** — `licensed` and `remote`
+  assets now carry a watermark that binds the projection to
+  the consumer. `public` assets are NOT watermarked.
+- **`kdna plan-load`** — output now includes a `watermark_policy`
+  field for `access: "licensed"` or `access: "remote"`. The
+  policy describes the watermark shape (fields, algorithm) but
+  does NOT contain the HMAC key or any precomputed hmac — those
+  are generated at `kdna load` time.
+- **`kdna load`** — output now includes a `watermark` field on
+  the result (JSON output) and a `[WATERMARK ...]` header line
+  in `--as=prompt` and `--as=compact` output. The watermark is
+  carried in the consumer's context so the model echoes it
+  back, enabling post-hoc traceability.
+- **Watermark content** — `asset_uid`, `consumer_id` (the
+  consumer's identity fingerprint, when `kdna identity init`
+  has been run; null otherwise), `timestamp` (ISO), `session_nonce`
+  (16 random bytes hex), `algorithm` (`hmac-sha256`), and `hmac`
+  (HMAC-SHA256 over the canonical JSON of the other fields).
+- **HMAC key is process-local** — generated fresh per CLI
+  invocation via `crypto.randomBytes(32)` and never persisted.
+  Different CLI invocations produce different HMACs for the same
+  consumer/asset. A leaked HMAC cannot be replayed because the
+  verifier needs the same key. This is the same trust model as
+  Story 19 (per-author key, no central authority) and the
+  brief's "不将水印密钥提交到仓库" requirement.
+- **Content-neutral** — the watermark never claims "official",
+  "trusted", "verified", or "recommended". It is a
+  traceability primitive, not a trust claim.
+- **Non-blocking** — watermarks are post-hoc traceability,
+  not access control. Loading a `licensed` asset without a
+  watermark is allowed; the watermark just makes leaks
+  traceable.
+- **`src/cmds/watermark.js`** — new module with `buildWatermark`,
+  `watermarkPolicy`, `verifyWatermark`, `renderWatermarkHeader`,
+  `shouldWatermark`, `newHmacKey`, `resolveConsumerId`. Public
+  API exportable for embedders (the kdna-studio or kdna-vscode
+  could call it directly).
+- **16 new tests** in `tests/story21-watermarking.test.js`
+  covering: shouldWatermark (mode gating), buildWatermark (field
+  shape, public-mode returns null), verifyWatermark (HMAC
+  round-trip + tamper detection), renderWatermarkHeader
+  (content-neutral one-liner), watermarkPolicy (no secret
+  material in policy), plan-load (watermark_policy present for
+  licensed/remote, absent for public), load (watermark field
+  in JSON, [WATERMARK] header in prompt/compact, no watermark
+  for public, consumer_id from kdna identity when set up,
+  consumer_id null otherwise).
+- Total: **156/156 pass** (up from 140, +16).
+- No new npm dependencies. No breaking changes to existing
+  CLI output (the watermark is additive on a new field).
+
+
+
 ## v0.28.28 (2026-06-28)
 
 Story 20 — Revocation state machine (Section 13

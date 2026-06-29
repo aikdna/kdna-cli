@@ -36,6 +36,13 @@ const { cmdSetup } = require('./cmds/setup');
 const { validateBundle } = require('./cmds/validate-bundle');
 const { computeContextBudget } = require('./cmds/context-budget');
 const { appendAuditEntry } = require('./cmds/audit-log');
+const {
+  shouldWatermark,
+  watermarkPolicy,
+  buildWatermark,
+  renderWatermarkHeader,
+  newHmacKey,
+} = require('./cmds/watermark');
 const { scanBundleDeprecations, formatDeprecationStderr } = require('./cmds/deprecation');
 const studio = require('./cmds/studio');
 const { resolveAsset, readAssetManifest } = require('./package-store');
@@ -397,6 +404,28 @@ switch (cmd) {
       }
     }
 
+    // Story 21 — payload-level watermark policy. Attached to the
+    // plan when the access mode is `licensed` or `remote`. The
+    // full watermark record (with HMAC) is built at `kdna load`
+    // time; the plan only carries the policy metadata so the
+    // consumer knows what to expect.
+    try {
+      const access = plan.access;
+      const assetUid = plan.asset && plan.asset.asset_uid;
+      if (shouldWatermark(access) && assetUid) {
+        plan.watermark_policy = watermarkPolicy({
+          access,
+          assetUid,
+        });
+      }
+    } catch (_) {
+      // watermark policy is optional — never fail plan-load because of it
+    }
+    // The plan_load output already carries plan.asset.asset_uid
+    // and plan.access. The watermark_policy is a brief
+    // pointer; consumers who want the full watermark get it
+    // from `kdna load` (which has the consumer_id context).
+
     console.log(JSON.stringify(plan, null, 2));
     process.exit(plan.state === 'invalid' ? 1 : plan.can_load_now === true ? 0 : 3);
     } catch (e) { process.stderr.write('Error: ' + e.message + '\n'); process.exit(1); }
@@ -572,6 +601,7 @@ switch (cmd) {
 
     // Read asset_id + version for audit log (best-effort)
     let auditAssetId = null;
+    let auditAssetUid = null;
     let auditVersion = null;
     let auditAccessMode = null;
     try {
@@ -579,6 +609,7 @@ switch (cmd) {
       if (fs.existsSync(manifestPath)) {
         const m = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
         auditAssetId = m.asset_id || null;
+        auditAssetUid = m.asset_uid || null;
         auditVersion = m.version || null;
         auditAccessMode = m.access || null;
       }
@@ -610,6 +641,28 @@ switch (cmd) {
 
       // --namespace filter (Story 11): if requested, reduce output to a
       // single component's content from resolved_dependencies.
+      // Story 21: if the access mode is `licensed` or `remote`, the
+      // watermark is attached to the load result BEFORE the
+      // namespace filter so it applies regardless of whether the
+      // consumer asked for the full content or a single namespace.
+      if (auditAccessMode && shouldWatermark(auditAccessMode)) {
+        try {
+          const wm = buildWatermark({
+            access: auditAccessMode,
+            // Prefer asset_uid (the URN — globally unique). Fall
+            // back to asset_id (which may be a human-readable name
+            // like "kdna:test:foo"). This is the same fallback
+            // the plan-load uses for the watermark_policy.
+            assetUid: auditAssetUid || auditAssetId || 'urn:unknown',
+          });
+          if (wm) {
+            r.watermark = wm;
+          }
+        } catch (_) {
+          // watermark generation is optional — never fail load because of it
+        }
+      }
+
       if (namespaceFilter) {
         if (!r || !r.resolved_dependencies || r.resolved_dependencies.length === 0) {
           process.stderr.write(
@@ -647,7 +700,12 @@ switch (cmd) {
       }
 
       if (as === 'prompt') {
-        process.stdout.write(r.text + '\n');
+        // Story 21: prepend the watermark header so the consumer
+        // is expected to include it in the prompt they send to
+        // the model. The header is one line, machine-parseable,
+        // and content-neutral.
+        const wmHeader = r.watermark ? renderWatermarkHeader(r.watermark) + '\n' : '';
+        process.stdout.write(wmHeader + r.text + '\n');
       } else {
         console.log(JSON.stringify(r, null, 2));
       }
