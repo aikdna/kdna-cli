@@ -625,7 +625,15 @@ switch (cmd) {
         auditVersion = m.version || null;
         auditAccessMode = m.access || null;
       }
-    } catch (_) {}
+    } catch (e) {
+      // Non-fatal: audit log metadata extraction is best-effort.
+      // A malformed kdna.json means the audit entry will have null
+      // asset_id/version/access_mode, but the load still proceeds.
+      if (process.env.KDNA_DEBUG) {
+        process.stderr.write(`audit metadata read failed: ${e.message}
+`);
+      }
+    }
 
     // Story 16+18+CRITICAL-2: detect access: "remote" before the
     // loadAuthorized path. For remote assets the kdna-core load
