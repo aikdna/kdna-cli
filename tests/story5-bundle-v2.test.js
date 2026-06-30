@@ -20,22 +20,25 @@ function run(args, opts = {}) {
   });
 }
 
-test('Story 5: validate v1 triggers deprecation warning', () => {
+test('Story 5: validate v1 exits 0 with no spurious deprecation warning', () => {
+  // The v1 format is stable — there is no KDNA v2 product to migrate to.
+  // The earlier deprecation warning was a false claim introduced in ac82ab6
+  // and has been removed. v1 assets must validate cleanly with no stderr noise.
   const r = run(['validate', FIXTURE_V1]);
   assert.equal(r.status, 0, `expected exit 0, got ${r.status}:\n${r.stderr}`);
-  assert.match(r.stderr, /KDNA v1 format is deprecated/i);
+  assert.doesNotMatch(r.stderr, /KDNA v1 format is deprecated/i);
 });
 
-test('Story 5: load v1 triggers deprecation warning', () => {
+test('Story 5: load v1 exits 0 with no spurious deprecation warning', () => {
   const r = run(['load', FIXTURE_V1]);
   assert.equal(r.status, 0, `expected exit 0, got ${r.status}:\n${r.stderr}`);
-  assert.match(r.stderr, /KDNA v1 format is deprecated/i);
+  assert.doesNotMatch(r.stderr, /KDNA v1 format is deprecated/i);
 });
 
-test('Story 5: inspect v1 triggers deprecation warning', () => {
+test('Story 5: inspect v1 exits 0 with no spurious deprecation warning', () => {
   const r = run(['inspect', FIXTURE_V1]);
   assert.equal(r.status, 0, `expected exit 0, got ${r.status}:\n${r.stderr}`);
-  assert.match(r.stderr, /KDNA v1 format is deprecated/i);
+  assert.doesNotMatch(r.stderr, /KDNA v1 format is deprecated/i);
 });
 
 test('Story 5: validate v2 bundle manifest and payload successfully', () => {
@@ -89,8 +92,7 @@ test('Story 5: validate v2 bundle manifest and payload successfully', () => {
 
     const r = run(['validate', tmp]);
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}:\n${r.stderr}`);
-    // Should NOT print the v1 deprecation warning
-    assert.doesNotMatch(r.stderr, /KDNA v1 format is deprecated/i);
+    // v2 Bundle containers have never triggered the (now-removed) v1 deprecation warning.
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

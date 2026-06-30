@@ -262,9 +262,6 @@ switch (cmd) {
     if (!isV1 && !isV2) {
       error(`Not a KDNA container or source directory: ${v1Target}`, EXIT.INPUT_ERROR);
     }
-    if (isV1) {
-      process.stderr.write('Warning: KDNA v1 format is deprecated and will reach end-of-life in 9-12 months. Please migrate to KDNA v2.\n');
-    }
     const runtimeMode = args.includes('--runtime');
     const result = validate(v1Target);
     if (runtimeMode) {
@@ -324,9 +321,6 @@ switch (cmd) {
     const isV2 = (core.isV2SourceDir && core.isV2SourceDir(abs)) || containerFmt === 'v2';
     if (!isV1 && !isV2) {
       error('plan-load requires a KDNA Core source dir or .kdna container', EXIT.INPUT_ERROR);
-    }
-    if (isV1) {
-      process.stderr.write('Warning: KDNA v1 format is deprecated and will reach end-of-life in 9-12 months. Please migrate to KDNA v2.\n');
     }
     // Story 13 — soft deprecation scan (bundle manifest-level +
     // per-component). Non-blocking. Always emitted before the plan
@@ -518,9 +512,6 @@ switch (cmd) {
     if (containerFmt !== 'v1' && containerFmt !== 'v2') {
       error(`Not a valid KDNA container: ${v1Target}`, EXIT.INPUT_ERROR);
     }
-    if (containerFmt === 'v1') {
-      process.stderr.write('Warning: KDNA v1 format is deprecated and will reach end-of-life in 9-12 months. Please migrate to KDNA v2.\n');
-    }
     const out = args.filter((a) => !a.startsWith('--'))[2];
     if (!out) error('Usage: kdna unpack <input.kdna> <output-dir>', EXIT.INPUT_ERROR);
     const r = unpack(v1Target, out);
@@ -549,9 +540,6 @@ switch (cmd) {
     if (!isV1 && !isV2) {
       error(`Not a valid KDNA container or source directory: ${target}`, EXIT.INPUT_ERROR);
     }
-    if (isV1) {
-      process.stderr.write('Warning: KDNA v1 format is deprecated and will reach end-of-life in 9-12 months. Please migrate to KDNA v2.\n');
-    }
     const out = inspect(target);
     console.log(JSON.stringify(out, null, 2));
     return;
@@ -565,9 +553,6 @@ switch (cmd) {
     const abs = require('node:path').resolve(target);
     if (!fs.existsSync(abs)) error(`File not found: ${target}`, EXIT.INPUT_ERROR);
     const isV1 = core.isV1SourceDir(abs) || core.detectContainerFormat(abs) === 'v1';
-    if (isV1) {
-      process.stderr.write('Warning: KDNA v1 format is deprecated and will reach end-of-life in 9-12 months. Please migrate to KDNA v2.\n');
-    }
     // Story 13 — soft deprecation scan (bundle manifest-level +
     // per-component). Non-blocking. Emitted before the load result
     // so terminal users see the notice above the JSON.
