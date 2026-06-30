@@ -145,7 +145,10 @@ test('Story 13 semver: satisfies handles caret/tilde/comparators/ranges', () => 
   assert.equal(satisfies('0.28.25', '>=0.29.0 <0.30.0'), false, 'AND — out of range');
   assert.equal(satisfies('0.28.25', '*'), true, '* matches everything');
   assert.equal(satisfies('0.28.25', ''), true, 'empty matches everything');
-  assert.equal(satisfies('0.28.25', null), false, 'null range → false');
+  // kdna-core semantics: null range = "no constraint" = any version satisfies.
+  // (The old standalone implementation returned false for null.)
+  // Deprecation logic uses isDeprecatedAt(), which guards null separately.
+  assert.equal(satisfies('0.28.25', null), true, 'null range → unconstrained → true');
   assert.equal(satisfies('0.28.25', 'garbage'), false, 'unknown range shape');
 });
 
