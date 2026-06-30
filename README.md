@@ -4,12 +4,9 @@
 
 The official command-line runtime for KDNA Core v1 judgment assets.
 
-KDNA CLI inspects, validates, packs, unpacks, and loads `.kdna` files. It is
+KDNA CLI inspects, validates, packs, unpacks, loads, signs, and manages `.kdna` files. It is
 the consumer/runtime side of the official KDNA toolchain. Formal authoring is
 handled by KDNA Studio CLI and Studio Core.
-
-Start with one local `.kdna` file: validate it, plan loading, and render
-agent-ready judgment context from your terminal.
 
 ## Install
 
@@ -17,12 +14,17 @@ agent-ready judgment context from your terminal.
 npm install -g @aikdna/kdna-cli
 ```
 
-## 5-Minute Path
+## Quick start — load a real judgment asset
 
 ```bash
-kdna demo minimal ./minimal
-kdna pack ./minimal ./minimal.kdna
-kdna validate ./minimal.kdna
+# Download an official judgment asset
+curl -LO https://github.com/aikdna/kdna-assets/releases/download/agent-project-context-v0.1.2/agent-project-context-v0.1.2.kdna
+
+# Validate, plan, load
+kdna validate agent-project-context-v0.1.2.kdna
+kdna plan-load agent-project-context-v0.1.2.kdna
+kdna load    agent-project-context-v0.1.2.kdna --profile=compact --as=prompt
+```
 kdna plan-load ./minimal.kdna
 kdna load ./minimal.kdna --profile=compact --as=prompt
 ```
@@ -43,17 +45,34 @@ Successful validation returns:
 
 ## Core Commands
 
-| Command                                                    | Purpose                                                        |
-| ---------------------------------------------------------- | -------------------------------------------------------------- |
-| `kdna demo minimal <dir>`                                  | Create a minimal local demo folder                             |
-| `kdna inspect <path>`                                      | Inspect a source directory or `.kdna` container                   |
-| `kdna validate <path>`                                     | Validate format, schema, payload, checksums, and load contract |
-| `kdna plan-load <path> --json`                             | Return the Core LoadPlan before runtime load                   |
-| `kdna plan-load <path> --json --has-password`              | Diagnose password-authorized load state                        |
-| `kdna plan-load <path> --json --entitlement-status active` | Diagnose receipt/entitlement load state                        |
-| `kdna pack <input-dir> <output.kdna>`                      | Pack a local working folder into a `.kdna` file                |
-| `kdna unpack <input.kdna> <output-dir>`                    | Unpack a KDNA Asset Container                                          |
+| Command | Purpose |
+| --- | --- |
+| `kdna demo minimal <dir>` | Create a minimal local demo folder |
+| `kdna inspect <path>` | Inspect a source directory or `.kdna` container |
+| `kdna validate <path>` | Validate format, schema, payload, checksums, and load contract |
+| `kdna plan-load <path> --json` | Return the Core LoadPlan before runtime load |
+| `kdna pack <input-dir> <output.kdna>` | Pack a local working folder into a `.kdna` file |
+| `kdna unpack <input.kdna> <output-dir>` | Unpack a KDNA Asset Container |
 | `kdna load <path> --profile=<index\|compact\|scenario\|full> --as=<json\|prompt>` | Render judgment context for agents or tools |
+
+## Asset Management
+
+| Command | Purpose |
+| --- | --- |
+| `kdna install <file.kdna>` | Install to local asset store (`~/.kdna/packages/`) |
+| `kdna list` | List installed assets |
+| `kdna remove <name>[@version]` | Remove an installed asset |
+
+## Identity, Signing & Revocation
+
+| Command | Purpose |
+| --- | --- |
+| `kdna identity init [--name <n>]` | Create Ed25519 signing key |
+| `kdna identity show` | Show public key (PEM / hex / base64) |
+| `kdna sign <file.kdna>` | Sign an asset with your identity key |
+| `kdna verify <file.kdna> [--key <pub>]` | Verify a signature |
+| `kdna revoke <sig.kdsig> [--reason]` | Issue a signed revocation record |
+| `kdna revocation-status <sig.kdsig>` | Check revocation status |
 
 ## Agent Loader Commands
 
