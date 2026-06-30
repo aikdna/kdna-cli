@@ -75,8 +75,9 @@ function cmdDoctor(args) {
       const domains = listInstalled().length;
       checks.push({
         name: 'Installed assets',
-        status: domains > 0 ? 'ok' : 'warn',
-        detail: `${domains} .kdna asset${domains !== 1 ? 's' : ''} installed`,
+        status: domains > 0 ? 'ok' : 'info',
+        detail: `${domains} .kdna asset${domains !== 1 ? 's' : ''} installed` +
+          (domains === 0 ? ' (run: kdna install <asset> to get started)' : ''),
       });
     } else {
       checks.push({
@@ -131,8 +132,8 @@ function cmdDoctor(args) {
       (fs.existsSync(identityDirOfficial) && fs.readdirSync(identityDirOfficial).length > 0);
     checks.push({
       name: 'Signing identity',
-      status: hasIdentity ? 'ok' : 'warn',
-      detail: hasIdentity ? 'key available' : 'no identity (run: kdna identity init)',
+      status: hasIdentity ? 'ok' : 'info',
+      detail: hasIdentity ? 'key available' : 'no identity (run: kdna identity init to enable signing)',
     });
 
     // 7. Registry cache
@@ -154,8 +155,8 @@ function cmdDoctor(args) {
     } else {
       checks.push({
         name: 'Registry cache',
-        status: 'warn',
-        detail: 'not cached (run: kdna registry refresh)',
+        status: 'info',
+        detail: 'not cached (registry is optional for single-asset use)',
       });
     }
 
@@ -183,8 +184,8 @@ function cmdDoctor(args) {
     } else {
       checks.push({
         name: 'Project config',
-        status: 'warn',
-        detail: 'No .kdna/config.json in current project',
+        status: 'info',
+        detail: 'No .kdna/config.json in current project (not required for basic use)',
       });
     }
   }
@@ -204,6 +205,7 @@ function cmdDoctor(args) {
         }),
       })),
       ok: checks.filter((c) => c.status === 'ok').length,
+      info: checks.filter((c) => c.status === 'info').length,
       warnings: checks.filter((c) => c.status === 'warn').length,
       failures: checks.filter((c) => c.status === 'fail').length,
       healthy: checks.every((c) => c.status !== 'fail'),
@@ -214,11 +216,12 @@ function cmdDoctor(args) {
 
   if (!quiet) {
     for (const c of checks) {
-      const mark = c.status === 'ok' ? '✓' : c.status === 'warn' ? '⚠' : '✗';
+      const mark = c.status === 'ok' ? '✓' : c.status === 'warn' ? '⚠' : c.status === 'info' ? 'ℹ' : '✗';
       console.log(`${mark} ${c.name}: ${c.detail}`);
     }
 
     const ok = checks.filter((c) => c.status === 'ok').length;
+    const infos = checks.filter((c) => c.status === 'info').length;
     const warns = checks.filter((c) => c.status === 'warn').length;
     const fails = checks.filter((c) => c.status === 'fail').length;
     console.log('');
@@ -228,10 +231,16 @@ function cmdDoctor(args) {
       );
     } else if (warns > 0) {
       console.log(
-        `${ok}/${checks.length} checks passed (${warns} warning${warns !== 1 ? 's' : ''})`,
+        `${ok}/${checks.length} checks passed (${warns} warning${warns !== 1 ? 's' : ''}${
+          infos > 0 ? `, ${infos} info item${infos !== 1 ? 's' : ''}` : ''
+        })`,
       );
     } else {
-      console.log(`${ok}/${checks.length} checks passed`);
+      console.log(
+        `${ok}/${checks.length} checks passed${
+          infos > 0 ? ` (${infos} info item${infos !== 1 ? 's' : ''} — all normal for a fresh install)` : ''
+        }`,
+      );
     }
   }
 
