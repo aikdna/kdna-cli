@@ -2,6 +2,22 @@
 
 > **Supersession note (2026-06-27)**: Pre-v0.7 entries below use "v1.0-rc" terminology. As of the v0.7 launch (2026-05-22), the @aikdna/* npm scope and registry v2.0 superseded the v1.0-rc label. The historical "v1.0-rc" references in older entries are kept for accuracy; new development uses the 0.7.x+ numbering.
 
+## v0.28.31 (2026-06-30)
+
+**Bug fix: remove fabricated v1 deprecation warning.**
+
+The v1 CLI was emitting a "KDNA v1 format is deprecated and will reach
+end-of-life in 9-12 months. Please migrate to KDNA v2." warning on every
+`validate`, `plan-load`, `load`, `inspect`, and `unpack` call against any
+v1 asset. There is no KDNA v2 product. The v1 format is stable. The warning
+was introduced in v0.28.17 (Story 5) without any basis and has been removed.
+
+- **`kdna validate`** — no longer emits spurious v1 deprecation warning
+- **`kdna plan-load`** — no longer emits spurious v1 deprecation warning
+- **`kdna load`** — no longer emits spurious v1 deprecation warning
+- **`kdna inspect`** — no longer emits spurious v1 deprecation warning
+- **`kdna unpack`** — no longer emits spurious v1 deprecation warning
+
 ## v0.28.29 (2026-06-28)
 
 Story 21 — Watermarking (Section 13.8 encryption/authorization
