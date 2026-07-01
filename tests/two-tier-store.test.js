@@ -282,6 +282,24 @@ test('kdna install accepts v1 assets that declare asset_id instead of legacy nam
   assert.ok(fs.existsSync(projectAsset), 'hyphenated v1 asset file should exist');
 });
 
+test('kdna plan-load accepts an installed v1 asset name', () => {
+  const { proj, env, root } = makeEnv();
+  const asset = path.join(root, 'atomspeak-core.kdna');
+  const pack = run(['pack', V1_FIXTURE, asset], { env, cwd: proj });
+  assert.ok(pack.ok, `kdna pack failed: ${pack.stderr}`);
+
+  const installed = run(['install', asset, '--yes', '--local'], { env, cwd: proj });
+  assert.ok(installed.ok, `kdna install failed: ${installed.stderr}\n${installed.stdout}`);
+
+  const otherCwd = path.join(root, 'other-project');
+  fs.mkdirSync(otherCwd, { recursive: true });
+  const planned = run(['plan-load', '@example/atomspeak-core', '--json'], { env, cwd: otherCwd });
+  assert.ok(planned.ok, `kdna plan-load by installed name failed: ${planned.stderr}\n${planned.stdout}`);
+  const plan = JSON.parse(planned.stdout);
+  assert.equal(plan.state, 'ready');
+  assert.equal(plan.can_load_now, true);
+});
+
 test('agent discovery normalizes string routing fields from installed assets', () => {
   const { proj, env, root } = makeEnv();
   const asset = buildStringRoutedAsset(root);

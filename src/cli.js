@@ -329,12 +329,23 @@ switch (cmd) {
         EXIT.INPUT_ERROR,
       );
     const core = require('@aikdna/kdna-core');
-    const abs = require('node:path').resolve(v1Target);
+    let planTarget = v1Target;
+    let abs = require('node:path').resolve(planTarget);
     const containerFmt = core.detectContainerFormat(abs);
-    const isV1 = core.isV1SourceDir(abs) || containerFmt === 'v1';
-    const isV2 = (core.isV2SourceDir && core.isV2SourceDir(abs)) || containerFmt === 'v2';
+    let isV1 = core.isV1SourceDir(abs) || containerFmt === 'v1';
+    let isV2 = (core.isV2SourceDir && core.isV2SourceDir(abs)) || containerFmt === 'v2';
     if (!isV1 && !isV2) {
-      error('plan-load requires a KDNA Core source dir or .kdna container', EXIT.INPUT_ERROR);
+      const installed = resolveAsset(v1Target);
+      if (installed?.asset_path) {
+        planTarget = installed.asset_path;
+        abs = require('node:path').resolve(planTarget);
+        const installedFmt = core.detectContainerFormat(abs);
+        isV1 = core.isV1SourceDir(abs) || installedFmt === 'v1';
+        isV2 = (core.isV2SourceDir && core.isV2SourceDir(abs)) || installedFmt === 'v2';
+      }
+    }
+    if (!isV1 && !isV2) {
+      error('plan-load requires a KDNA Core source dir, .kdna container, or installed package name', EXIT.INPUT_ERROR);
     }
     // Story 13 — soft deprecation scan (bundle manifest-level +
     // per-component). Non-blocking. Always emitted before the plan
@@ -365,7 +376,7 @@ switch (cmd) {
       planLoadPwIdx >= 0 && args[planLoadPwIdx + 1] && !args[planLoadPwIdx + 1].startsWith('--')
         ? args[planLoadPwIdx + 1]
         : null;
-    const plan = core.planLoad(v1Target, {
+    const plan = core.planLoad(planTarget, {
       hasPassword: !!planLoadPassword || args.includes('--has-password'),
       password: planLoadPassword || undefined,
       entitlement: entitlementStatus ? { status: entitlementStatus } : undefined,
