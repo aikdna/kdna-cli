@@ -116,6 +116,57 @@ with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
   return asset;
 }
 
+function buildStringRoutedAsset(tmpRoot) {
+  const source = path.join(tmpRoot, 'src-string-routed');
+  fs.mkdirSync(source, { recursive: true });
+  writeJson(path.join(source, 'kdna.json'), {
+    format: 'kdna',
+    format_version: '1.0',
+    spec_version: '1.0-rc',
+    name: '@aikdna/string_routed',
+    version: '0.1.0',
+    judgment_version: '2026.05',
+    status: 'experimental',
+    access: 'public',
+    languages: ['en'],
+    default_language: 'en',
+    description: 'String routed judgment test asset.',
+    core_insight: 'Routing fields may arrive as strings from older authoring tools.',
+    keywords: ['routing', 'lifecycle'],
+    quality_badge: 'untested',
+    author: { name: 'Test', id: 'test', pubkey: 'ed25519:test' },
+    license: { type: 'CC-BY-4.0' },
+    file_count: 1,
+    files: ['KDNA_Core.json'],
+  });
+  writeJson(path.join(source, 'KDNA_Core.json'), {
+    meta: { domain: 'string_routed', version: '0.1.0', purpose: 'Test string routing fields.' },
+    axioms: [
+      {
+        id: 'axiom_string_routed',
+        one_sentence: 'String route fields should still be discoverable.',
+        applies_when: 'review structural routing lifecycle behavior',
+        does_not_apply_when: 'only fix grammar',
+        failure_risk: 'Installed assets may be invisible to agents.',
+      },
+    ],
+    ontology: [],
+    stances: [],
+  });
+
+  const asset = path.join(tmpRoot, 'string-routed.kdna');
+  const script = `import zipfile, os
+src = ${JSON.stringify(source)}
+out = ${JSON.stringify(asset)}
+with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
+    zf.writestr(zipfile.ZipInfo('mimetype'), 'application/vnd.aikdna.kdna+zip', compress_type=zipfile.ZIP_STORED)
+    for name in sorted(os.listdir(src)):
+        zf.write(os.path.join(src, name), name)
+`;
+  execFileSync('python3', ['-c', script], { stdio: 'pipe' });
+  return asset;
+}
+
 /**
  * Isolated environment with:
  *   - HOME = root/home  (so the global root is root/home/.kdna)
@@ -229,6 +280,27 @@ test('kdna install accepts v1 assets that declare asset_id instead of legacy nam
     'atomspeak-core-1.0.0.kdna',
   );
   assert.ok(fs.existsSync(projectAsset), 'hyphenated v1 asset file should exist');
+});
+
+test('agent discovery normalizes string routing fields from installed assets', () => {
+  const { proj, env, root } = makeEnv();
+  const asset = buildStringRoutedAsset(root);
+
+  const installed = run(['install', asset, '--yes', '--local'], { env, cwd: proj });
+  assert.ok(installed.ok, `kdna install failed: ${installed.stderr}\n${installed.stdout}`);
+
+  const available = run(['available', '--json'], { env, cwd: proj });
+  assert.ok(available.ok, `available failed: ${available.stderr}`);
+  const domains = JSON.parse(available.stdout);
+  assert.deepEqual(domains[0].applies_when, ['review structural routing lifecycle behavior']);
+  assert.deepEqual(domains[0].does_not_apply_when, ['only fix grammar']);
+
+  const match = run(['match', 'review structural routing lifecycle behavior', '--json'], { env, cwd: proj });
+  assert.ok(match.ok, `match failed: ${match.stderr}`);
+  const matched = JSON.parse(match.stdout);
+  assert.equal(matched.no_strong_matches, false);
+  assert.equal(matched.hints[0].name, '@aikdna/string_routed');
+  assert.ok(matched.hints[0].top_signals.length > 0, 'string applies_when should produce hint signals');
 });
 
 // ─── getInstalled / listInstalled: project wins on conflict ───────────
