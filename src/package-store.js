@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const PATHS = require('./paths');
-const { parseName } = require('./registry');
+const { nameFromAssetId, parseName } = require('./registry');
 const core = require('@aikdna/kdna-core');
 
 if (typeof core.createKdnaAssetReader !== 'function') {
@@ -137,8 +137,26 @@ function readContainer(kdnaPath, options = {}) {
 
 function readDataMapCompatSync(asset, options = {}) {
   try {
-    return assetReader.readDataMapSync(asset, undefined, options);
+    return assetReader.readDataMapSync(asset, options);
   } catch (e) {
+    if (asset.entries.has('payload.kdnab')) {
+      try {
+        const payload = JSON.parse(assetReader.readEntrySync(asset, 'payload.kdnab').toString('utf8'));
+        if (payload && typeof payload === 'object') {
+          const judgment = payload.judgment || payload;
+          return {
+            ...(judgment.core ? { 'KDNA_Core.json': judgment.core } : {}),
+            ...(judgment.patterns ? { 'KDNA_Patterns.json': judgment.patterns } : {}),
+            ...(judgment.scenarios ? { 'KDNA_Scenarios.json': judgment.scenarios } : {}),
+            ...(judgment.cases ? { 'KDNA_Cases.json': judgment.cases } : {}),
+            ...(judgment.reasoning ? { 'KDNA_Reasoning.json': judgment.reasoning } : {}),
+            ...(judgment.evolution ? { 'KDNA_Evolution.json': judgment.evolution } : {}),
+          };
+        }
+      } catch {
+        /* Preserve the original reader error below. */
+      }
+    }
     if (!String(e?.message || '').includes('missing payload.kdnab')) {
       throw e;
     }
@@ -208,6 +226,10 @@ function readAssetManifest(assetPath) {
   return readContainerJson(assetPath, 'kdna.json') || {};
 }
 
+function installNameFromManifest(manifest) {
+  return manifest.name || nameFromAssetId(manifest.asset_id) || null;
+}
+
 function receiptPathForAsset(assetPath) {
   return path.join(path.dirname(assetPath), 'receipt.json');
 }
@@ -274,7 +296,7 @@ function resolveAsset(input) {
     const abs = path.resolve(expanded);
     if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) return null;
     const manifest = readAssetManifest(abs);
-    const full = manifest.name;
+    const full = installNameFromManifest(manifest);
     const parsed = full ? parseName(full) : null;
     return {
       name: full || path.basename(abs, '.kdna'),

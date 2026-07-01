@@ -27,8 +27,9 @@ const DEFAULT_OFFICIAL_SCOPE = '@aikdna';
 const CANONICAL_REGISTRY_URL = process.env.KDNA_REGISTRY_URL || '';
 const REQUIRED_SCHEMA_VERSION = '3.0';
 
-const NAME_RE = /^@([a-z][a-z0-9-]*)\/([a-z][a-z0-9_]*)$/;
-const BARE_NAME_RE = /^[a-z][a-z0-9_]*$/;
+const NAME_RE = /^@([a-z][a-z0-9-]*)\/([a-z][a-z0-9_-]*)$/;
+const BARE_NAME_RE = /^[a-z][a-z0-9_-]*$/;
+const ASSET_ID_RE = /^kdna:([a-z][a-z0-9-]*):([a-z][a-z0-9_-]*)$/;
 
 function readJson(file) {
   try {
@@ -203,6 +204,13 @@ function parseName(input) {
   }
 
   return null;
+}
+
+function nameFromAssetId(assetId) {
+  if (typeof assetId !== 'string') return null;
+  const match = assetId.trim().match(ASSET_ID_RE);
+  if (!match) return null;
+  return `@${match[1]}/${match[2]}`;
 }
 
 // ─── Config (multi-registry routing) ────────────────────────────────────
@@ -398,6 +406,7 @@ function fetchRegistry() {
 module.exports = {
   RegistryResolver,
   parseName,
+  nameFromAssetId,
   REQUIRED_SCHEMA_VERSION,
   registryTrustIssues,
   isEntryRevoked,

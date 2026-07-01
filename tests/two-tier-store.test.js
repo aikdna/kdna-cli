@@ -27,6 +27,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
+const V1_FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
 
 function run(args, opts = {}) {
   try {
@@ -202,6 +203,32 @@ test('kdna install (no flag) defaults to the user-global root', () => {
 
   // Project root is untouched
   assert.ok(!fs.existsSync(path.join(proj, '.kdna')), 'project root should NOT exist');
+});
+
+test('kdna install accepts v1 assets that declare asset_id instead of legacy name', () => {
+  const { proj, env, root } = makeEnv();
+  const asset = path.join(root, 'atomspeak-core.kdna');
+  const pack = run(['pack', V1_FIXTURE, asset], { env, cwd: proj });
+  assert.ok(pack.ok, `kdna pack failed: ${pack.stderr}`);
+
+  const installed = run(['install', asset, '--yes', '--local'], { env, cwd: proj });
+  assert.ok(installed.ok, `kdna install failed: ${installed.stderr}\n${installed.stdout}`);
+
+  const projectIndex = readProjectIndex(proj);
+  const entry = projectIndex.packages['@example/atomspeak-core'];
+  assert.ok(entry, 'project index should derive @example/atomspeak-core from asset_id');
+  assert.equal(entry.tier, 'project');
+
+  const projectAsset = path.join(
+    proj,
+    '.kdna',
+    'packages',
+    '@example',
+    'atomspeak-core',
+    '1.0.0',
+    'atomspeak-core-1.0.0.kdna',
+  );
+  assert.ok(fs.existsSync(projectAsset), 'hyphenated v1 asset file should exist');
 });
 
 // ─── getInstalled / listInstalled: project wins on conflict ───────────

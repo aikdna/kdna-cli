@@ -16,7 +16,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync, execFileSync } = require('child_process');
-const { RegistryResolver, parseName } = require('./registry');
+const { RegistryResolver, nameFromAssetId, parseName } = require('./registry');
 const { EXIT, error } = require('./cmds/_common');
 const PATHS = require('./paths');
 const {
@@ -349,6 +349,10 @@ function scopedNameError(sourceLabel, declared) {
   );
 }
 
+function installNameFromManifest(manifest) {
+  return manifest.name || nameFromAssetId(manifest.asset_id) || null;
+}
+
 function installFromRegistry(parsed, yes, jsonMode = false, local = false) {
   const resolver = new RegistryResolver({ allowNetwork: true });
   let scope, entry;
@@ -512,8 +516,8 @@ function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false, 
   if (!abs.endsWith('.kdna')) error(`Not a .kdna asset: ${abs}`, EXIT.INPUT_ERROR);
 
   const manifest = readContainerJson(abs, 'kdna.json');
-  const declared = manifest?.name;
-  if (!declared || !/^@[a-z][a-z0-9-]*\/[a-z][a-z0-9_]*$/.test(declared)) {
+  const declared = installNameFromManifest(manifest || {});
+  if (!declared || !parseName(declared)) {
     error(scopedNameError('package kdna.json.name', declared), EXIT.INPUT_ERROR);
   }
 
