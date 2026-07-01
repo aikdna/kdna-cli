@@ -59,6 +59,20 @@ const resolveAssetCallback = (name) => {
   return null;
 };
 
+function readManifestForPath(absPath) {
+  try {
+    if (fs.existsSync(absPath) && fs.statSync(absPath).isDirectory()) {
+      const manifestPath = path.join(absPath, 'kdna.json');
+      return fs.existsSync(manifestPath)
+        ? JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+        : null;
+    }
+    return readAssetManifest(absPath);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Story 13 — soft deprecation scan.
  *
@@ -550,7 +564,8 @@ switch (cmd) {
     const target = args.filter((a) => !a.startsWith('--'))[1];
     if (!target) error('Usage: kdna load <file.kdna> [--profile=<index|compact|scenario|full>] [--as=<json|prompt|raw>] [--namespace=<component-id>] [--password=<value>|--password-stdin]', EXIT.INPUT_ERROR);
     const core = require('@aikdna/kdna-core');
-    const abs = require('node:path').resolve(target);
+    const resolvedAsset = resolveAsset(target);
+    const abs = resolvedAsset?.asset_path || require('node:path').resolve(target);
     if (!fs.existsSync(abs)) error(`File not found: ${target}`, EXIT.INPUT_ERROR);
     const isV1 = core.isV1SourceDir(abs) || core.detectContainerFormat(abs) === 'v1';
     // Story 13 — soft deprecation scan (bundle manifest-level +
@@ -604,9 +619,8 @@ switch (cmd) {
     let auditVersion = null;
     let auditAccessMode = null;
     try {
-      const manifestPath = require('node:path').join(abs, 'kdna.json');
-      if (fs.existsSync(manifestPath)) {
-        const m = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+      const m = readManifestForPath(abs);
+      if (m) {
         auditAssetId = m.asset_id || null;
         auditAssetUid = m.asset_uid || null;
         auditVersion = m.version || null;
@@ -648,7 +662,7 @@ switch (cmd) {
     try {
       const entitlementStatusIndex = args.indexOf('--entitlement-status');
       const entitlementStatus = entitlementStatusIndex >= 0 ? args[entitlementStatusIndex + 1] : null;
-      const r = core.loadAuthorized(target, {
+      const r = core.loadAuthorized(abs, {
         profile,
         as,
         password,
@@ -1231,4 +1245,3 @@ function finishRemoteLoad(projection, url, assetUid, task, context, mode, as) {
   // stdout has fully flushed (observed in spawnSync tests).
   process.exit(EXIT.OK);
 }
-
