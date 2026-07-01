@@ -13,7 +13,7 @@ const path = require('path');
 const os   = require('os');
 
 let hasCbor = false;
-try { require('cbor-x'); hasCbor = true; } catch {}
+try { require('cbor-x'); hasCbor = true; } catch (_) { /* ignore */ }
 
 const devPack = require('../src/dev-pack-v2');
 

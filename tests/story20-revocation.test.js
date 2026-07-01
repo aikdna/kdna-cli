@@ -156,7 +156,7 @@ test('Story 20 verify: returns exit 4 (revoked) when same-key revocation exists'
     run(['revoke', asset], { env });
 
     const pubPath = path.join(env.KDNA_IDENTITY_DIR, 'ed25519.pub');
-    const verify = run(['verify', asset, , '--key', pubPath], { env });
+    const verify = run(['verify', asset, '--key', pubPath], { env });
     assert.equal(
       verify.status,
       4,
@@ -290,7 +290,7 @@ test('Story 20 verify: a different key cannot revoke another signers signature',
     // Now verify with the author's key — the malicious revocation
     // should NOT count because it was signed by a different key.
     const authorPub = path.join(env.KDNA_IDENTITY_DIR, 'ed25519.pub');
-    const verify = run(['verify', asset, , '--key', authorPub], { env });
+    const verify = run(['verify', asset, '--key', authorPub], { env });
     // The signature itself is valid (author's sig is intact) and
     // there is no valid same-key revocation, so verify should
     // return status: 'valid' (exit 0).
@@ -314,7 +314,7 @@ test('Story 20 revocation status: reports the current revocation record', () => 
   try {
     run(['identity', 'init'], { env });
     run(['sign', asset], { env });
-    run(['revoke', asset, , '--reason', 'testing revocation'], { env });
+    run(['revoke', asset, '--reason', 'testing revocation'], { env });
 
     const r = run(['revocation', 'status', asset, '--json'], { env });
     assert.equal(r.status, 0, `status failed: ${r.stderr}`);

@@ -95,7 +95,7 @@ async function startFakeRemoteServer(opts = {}) {
           fs.writeFileSync(lastRequestPath, JSON.stringify({
             url: req.url, method: req.method, body: body ? JSON.parse(body) : null,
           }));
-        } catch (_) {}
+        } catch (_) { /* ignore */ }
         res.writeHead(statusCode, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(response));
       });
@@ -130,7 +130,7 @@ async function startFakeRemoteServer(opts = {}) {
     throw new Error('fake server did not become ready within 5s');
   }
   // Clean up the ready marker so it doesn't accumulate.
-  try { fs.unlinkSync(readyPath); } catch (_) {}
+  try { fs.unlinkSync(readyPath); } catch (_) { /* ignore */ }
 
   return {
     proc,

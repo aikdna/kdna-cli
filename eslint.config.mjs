@@ -24,6 +24,11 @@ export default [
         URLSearchParams: 'readonly',
         TextEncoder: 'readonly',
         TextDecoder: 'readonly',
+        setImmediate: 'readonly',
+        clearImmediate: 'readonly',
+        AbortSignal: 'readonly',
+        AbortController: 'readonly',
+        crypto: 'readonly',
       },
     },
     rules: {

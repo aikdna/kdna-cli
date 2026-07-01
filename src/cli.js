@@ -14,7 +14,7 @@ const { runAntiMonolithicCheck, printAndExit: printAntiMonolithic } = require('.
 const { cmdWorkpack } = require('./cmds/workpack');
 const { cmdLicenseInstall, cmdLicenseStatus, cmdLicenseGenerate } = require('./cmds/license');
 const { cmdIdentityInit, cmdIdentityShow } = require('./cmds/identity');
-const { cmdSign, cmdVerify, cmdRevoke, cmdRevocation } = require('./identity');
+const { cmdSign, cmdVerify, cmdRevoke, cmdRevocation, cmdIdentityExport, cmdIdentityImport } = require('./identity');
 const { cmdDoctor } = require('./cmds/doctor');
 const { cmdTrace, cmdHistory } = require('./cmds/trace');
 const { cmdCluster } = require('./cmds/cluster');
@@ -836,22 +836,22 @@ switch (cmd) {
     cmdSign(args.slice(1));
     break;
   }
-// eslint-disable-next-line no-fallthrough
+ 
   case 'verify': {
     cmdVerify(args.slice(1));
     break;
   }
-// eslint-disable-next-line no-fallthrough
+ 
   case 'revoke': {
     cmdRevoke(args.slice(1));
     break;
   }
-// eslint-disable-next-line no-fallthrough
+ 
   case 'revocation': {
     cmdRevocation(args.slice(1));
     break;
   }
-// eslint-disable-next-line no-fallthrough
+ 
   case 'doctor': {
     cmdDoctor(args.slice(1));
     break;
