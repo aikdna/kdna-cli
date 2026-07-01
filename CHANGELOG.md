@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.28.33 (2026-07-01)
+
+Fix v1 asset install and routing discovery — derive install name from asset_id when legacy kdna.json.name is missing, allow hyphens in registry identifiers, normalize string routing fields for agent discovery (#90, #91).
+
+
 > **Supersession note (2026-06-27)**: Pre-v0.7 entries below use "v1.0-rc" terminology. As of the v0.7 launch (2026-05-22), the @aikdna/* npm scope and registry v2.0 superseded the v1.0-rc label. The historical "v1.0-rc" references in older entries are kept for accuracy; new development uses the 0.7.x+ numbering.
 
 ## v0.28.32 (2026-06-30)

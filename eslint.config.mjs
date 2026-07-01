@@ -36,6 +36,8 @@ export default [
       'no-console': 'off',
       'prefer-const': 'error',
       'no-var': 'error',
+      'no-useless-assignment': 'off',
+      'preserve-caught-error': 'off',
     },
   },
   {
