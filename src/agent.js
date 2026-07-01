@@ -54,6 +54,12 @@ function assetLabel(asset, fallback) {
   return asset.name || asset.parsed?.full || fallback;
 }
 
+function stringList(value) {
+  if (Array.isArray(value)) return value.filter((item) => item !== undefined && item !== null && item !== '');
+  if (typeof value === 'string' && value.trim()) return [value.trim()];
+  return [];
+}
+
 function traceAssetFields(asset, manifest = {}, license = null) {
   const fields = {
     asset_path: asset.asset_path,
@@ -85,8 +91,8 @@ function cmdAvailable(args = []) {
     const does_not_apply_when = [];
     const failure_risks = [];
     for (const a of core.axioms || []) {
-      if (Array.isArray(a.applies_when)) applies_when.push(...a.applies_when);
-      if (Array.isArray(a.does_not_apply_when)) does_not_apply_when.push(...a.does_not_apply_when);
+      applies_when.push(...stringList(a.applies_when));
+      does_not_apply_when.push(...stringList(a.does_not_apply_when));
       if (a.failure_risk) failure_risks.push(a.failure_risk);
     }
 
@@ -192,7 +198,7 @@ function cmdMatch(taskText, args = []) {
     // does_not_apply_when disqualification (HARD signal)
     let disqualified = null;
     for (const a of core.axioms || []) {
-      for (const d of a.does_not_apply_when || []) {
+      for (const d of stringList(a.does_not_apply_when)) {
         const score = overlapScore(taskTokens, d);
         if (score.hits >= 2) {
           disqualified = { axiom: a.id, text: d };
@@ -213,7 +219,7 @@ function cmdMatch(taskText, args = []) {
     // applies_when hint signals (WEAK — for context only, not a decision)
     const signals = [];
     for (const a of core.axioms || []) {
-      for (const ap of a.applies_when || []) {
+      for (const ap of stringList(a.applies_when)) {
         const score = overlapScore(taskTokens, ap);
         if (score.hits >= MIN_HITS || score.coverage >= MIN_COVERAGE) {
           signals.push({
