@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.28.34 (2026-07-01)
+
+Support plan-load for installed package names (#92).
+
+
 ## 0.28.33 (2026-07-01)
 
 Fix v1 asset install and routing discovery — derive install name from asset_id when legacy kdna.json.name is missing, allow hyphens in registry identifiers, normalize string routing fields for agent discovery (#90, #91).
