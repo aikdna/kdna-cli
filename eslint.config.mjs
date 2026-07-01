@@ -37,6 +37,7 @@ export default [
       'prefer-const': 'error',
       'no-var': 'error',
       'no-useless-assignment': 'off',
+      'no-regex-spaces': 'off',
       'preserve-caught-error': 'off',
     },
   },
