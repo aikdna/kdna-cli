@@ -41,6 +41,7 @@ function run(args, opts = {}) {
         cwd: opts.cwd || process.cwd(),
         stdio: ['ignore', 'pipe', 'pipe'],
       }),
+      stderr: '',
     };
   } catch (e) {
     return {
@@ -264,6 +265,8 @@ test('kdna install accepts v1 assets that declare asset_id instead of legacy nam
 
   const installed = run(['install', asset, '--yes', '--local'], { env, cwd: proj });
   assert.ok(installed.ok, `kdna install failed: ${installed.stderr}\n${installed.stdout}`);
+  assert.match(installed.stdout, /Verification: local_format_valid/);
+  assert.doesNotMatch(installed.stderr, /local_unverified/);
 
   const projectIndex = readProjectIndex(proj);
   const entry = projectIndex.packages['@example/atomspeak-core'];
