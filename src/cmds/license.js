@@ -188,6 +188,12 @@ function licenseKey(license) {
   return license?.license_key || license?.activation_key || license?.key || null;
 }
 
+function redactLicenseKey(text, key) {
+  if (typeof text !== 'string') return text;
+  if (!key) return text;
+  return text.split(key).join('[redacted-license-key]');
+}
+
 function licenseDecryptOptionsForManifest(manifest) {
   const domain = manifest?.name || manifest?.asset_id;
   if (!domain) {
@@ -558,7 +564,7 @@ async function cmdLicenseActivate(args = []) {
   try {
     activation = await requestActivation(domain, key, server);
   } catch (e) {
-    error(`License activation failed: ${e.message}`, EXIT.TRUST_FAILED);
+    error(`License activation failed: ${redactLicenseKey(e.message, key)}`, EXIT.TRUST_FAILED);
   }
   const dest = writeInstalledLicense(activation);
   recordLicenseTrace('activate', activation, { server });
@@ -599,11 +605,12 @@ async function syncOneLicense(entry, serverOverride = null) {
     recordLicenseTrace('sync', merged, { server, synced: true });
     return { ...licenseStatusRecord(merged, entry.file), synced: true };
   } catch (e) {
-    recordLicenseTrace('sync', license, { server, synced: false, sync_error: e.message });
+    const syncError = redactLicenseKey(e.message, key);
+    recordLicenseTrace('sync', license, { server, synced: false, sync_error: syncError });
     return {
       ...licenseStatusRecord(license, entry.file),
       synced: false,
-      sync_error: e.message,
+      sync_error: syncError,
     };
   }
 }
@@ -698,5 +705,6 @@ module.exports = {
   licenseDecryptOptionsForManifest,
   licensePathForDomain,
   machineFingerprint,
+  redactLicenseKey,
   verifyLicense,
 };
