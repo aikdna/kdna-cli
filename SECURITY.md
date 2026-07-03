@@ -17,7 +17,8 @@ and registry trust.
 If you discover a security vulnerability:
 
 1. **Do not** open a public issue.
-2. Report by email to security@aikdna.com or via GitHub private vulnerability reporting.
+2. Report by email to security@aikdna.com or via
+   [GitHub Private Vulnerability Reporting](https://github.com/aikdna/kdna-cli/security/advisories/new).
 3. Include: affected version, steps to reproduce, potential impact.
 
 We will acknowledge within 5 business days and provide a timeline for a fix.
@@ -28,6 +29,10 @@ We will acknowledge within 5 business days and provide a timeline for a fix.
 - `kdna identity init/export/import`: key generation and backup encryption
 - `kdna install`: registry trust chain and SHA-256 verification
 - `kdna publish`: signing and key material handling
+- `kdna license activate/sync/verify/show`: license-key and entitlement
+  handling, including redaction of activation errors and sync traces
+- `kdna load --remote-server`: remote projection client behavior and
+  avoidance of plaintext payload exposure
 
 ## Out of Scope
 

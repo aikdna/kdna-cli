@@ -12,7 +12,16 @@ const { error, EXIT, setQuiet, setExitCodeOnly } = require('./cmds/_common');
 const { cmdDemo: cmdDemoMinimal } = require('./cmds/demo');
 const { runAntiMonolithicCheck, printAndExit: printAntiMonolithic } = require('./cmds/anti-monolithic');
 const { cmdWorkpack } = require('./cmds/workpack');
-const { cmdLicenseInstall, cmdLicenseStatus, cmdLicenseGenerate } = require('./cmds/license');
+const {
+  cmdLicenseActivate,
+  cmdLicenseBind,
+  cmdLicenseGenerate,
+  cmdLicenseInstall,
+  cmdLicenseShow,
+  cmdLicenseStatus,
+  cmdLicenseSync,
+  cmdLicenseVerify,
+} = require('./cmds/license');
 const { cmdIdentityInit, cmdIdentityShow } = require('./cmds/identity');
 const { cmdSign, cmdVerify, cmdRevoke, cmdRevocation, cmdIdentityExport, cmdIdentityImport } = require('./identity');
 const { cmdDoctor } = require('./cmds/doctor');
@@ -169,6 +178,11 @@ Auth & Identity:
   license  status [<domain>]         Show license status (all or one)
   license  generate <domain>         Generate a signed license
            --to <email> [--expires]
+  license  activate <domain>         Activate with --key and --server
+  license  sync [<domain>]           Refresh installed entitlement state
+  license  verify <license.json>     Verify a license file
+  license  bind <license.json>       Bind a license to this machine
+  license  show <license.json>       Display license status
   identity init                      Generate Ed25519 identity keypair
   identity show                      Display identity fingerprint/paths
                                      (PEM, hex, base64)
@@ -829,7 +843,27 @@ switch (cmd) {
     if (sub === 'install') { cmdLicenseInstall(args.slice(2)); break; }
     if (sub === 'status') { cmdLicenseStatus(args.slice(2)); break; }
     if (sub === 'generate') { cmdLicenseGenerate(args.slice(2)); break; }
-    error(`Usage: kdna license <install|status|generate> [...]`, EXIT.INPUT_ERROR);
+    if (sub === 'activate') {
+      cmdLicenseActivate(args.slice(2)).catch((e) => {
+        process.stderr.write(`Error: ${e.message || e}\n`);
+        process.exit(EXIT.TRUST_FAILED);
+      });
+      break;
+    }
+    if (sub === 'sync') {
+      cmdLicenseSync(args.slice(2)).catch((e) => {
+        process.stderr.write(`Error: ${e.message || e}\n`);
+        process.exit(EXIT.TRUST_FAILED);
+      });
+      break;
+    }
+    if (sub === 'verify') { cmdLicenseVerify(args.slice(2)); break; }
+    if (sub === 'bind') { cmdLicenseBind(args.slice(2)); break; }
+    if (sub === 'show') { cmdLicenseShow(args.slice(2)); break; }
+    error(
+      `Usage: kdna license <install|status|generate|activate|sync|verify|bind|show> [...]`,
+      EXIT.INPUT_ERROR,
+    );
   }
 // eslint-disable-next-line no-fallthrough
   case 'identity': {
