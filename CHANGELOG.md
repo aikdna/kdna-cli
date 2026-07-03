@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.28.35 (2026-07-03)
+
+- Replace legacy v0 local install verification with `@aikdna/kdna-core.validate()` (#93)
+- Redact license keys from activation server errors and sync trace payloads (#94)
+- Wire up `license activate/sync/verify/bind/show` subcommands in CLI dispatcher
+- Expand SECURITY.md with license/remote security scope and private reporting link
+
+
 ## 0.28.34 (2026-07-01)
 
 Support plan-load for installed package names (#92).
