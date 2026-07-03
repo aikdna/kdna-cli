@@ -16,6 +16,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync, execFileSync } = require('child_process');
+const core = require('@aikdna/kdna-core');
 const { RegistryResolver, nameFromAssetId, parseName } = require('./registry');
 const { EXIT, error } = require('./cmds/_common');
 const PATHS = require('./paths');
@@ -27,7 +28,6 @@ const {
   sha256File,
   readContainer,
   readContainerJson,
-  readContainerEntry,
   verifyAsset,
 } = require('./package-store');
 
@@ -353,6 +353,38 @@ function installNameFromManifest(manifest) {
   return manifest.name || nameFromAssetId(manifest.asset_id) || null;
 }
 
+function validationIssues(result) {
+  if (!result || result.overall_valid === true) return [];
+  if (Array.isArray(result.problems) && result.problems.length > 0) {
+    return result.problems.map((problem) => String(problem));
+  }
+  return [
+    'format_valid',
+    'schema_valid',
+    'payload_valid',
+    'checksums_valid',
+    'load_contract_valid',
+  ]
+    .filter((field) => result[field] === false)
+    .map((field) => `${field}=false`);
+}
+
+function assessLocalFormat(assetPath) {
+  if (typeof core.validate !== 'function') {
+    return { label: 'local_unverified', issues: ['core validate API unavailable'] };
+  }
+  try {
+    const result = core.validate(assetPath);
+    const issues = validationIssues(result);
+    if (issues.length === 0) {
+      return { label: 'local_format_valid', issues: [] };
+    }
+    return { label: 'local_unverified', issues };
+  } catch (e) {
+    return { label: 'local_unverified', issues: [`format validation failed: ${e.message}`] };
+  }
+}
+
 function installFromRegistry(parsed, yes, jsonMode = false, local = false) {
   const resolver = new RegistryResolver({ allowNetwork: true });
   let scope, entry;
@@ -521,36 +553,8 @@ function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false, 
     error(scopedNameError('package kdna.json.name', declared), EXIT.INPUT_ERROR);
   }
 
-  // ── Trust checks for local install ──────────────────────────
-  const trustLevel = { label: 'local_unverified', issues: [] };
-
-  // Check mimetype (plain text, not JSON)
-  try {
-    const mimeEntry = readContainerEntry(abs, 'mimetype');
-    const hasMimetype =
-      mimeEntry && mimeEntry.toString().trim() === 'application/vnd.aikdna.kdna+zip';
-    if (!hasMimetype) trustLevel.issues.push('missing or incorrect mimetype');
-  } catch {
-    trustLevel.issues.push('no mimetype entry');
-  }
-
-  // Check for KDNA_Core.json (may be encrypted — skip if unreadable)
-  try {
-    const hasCore = readContainerJson(abs, 'KDNA_Core.json');
-    if (!hasCore) trustLevel.issues.push('missing KDNA_Core.json');
-  } catch {
-    trustLevel.issues.push('KDNA_Core.json unreadable (may be encrypted)');
-  }
-
-  // Check content_digest
-  if (!manifest.content_digest) trustLevel.issues.push('no content_digest');
-
-  // Check authoring provenance
-  if (!manifest.authoring?.created_by) {
-    trustLevel.issues.push('no authoring provenance (not Studio-compiled)');
-  } else if (manifest.authoring.created_by === 'manual-dev-source') {
-    trustLevel.issues.push('created by manual dev source (not Studio-compiled)');
-  }
+  // ── Local install verification ──────────────────────────────
+  const trustLevel = assessLocalFormat(abs);
 
   // Try signature verification if present
   if (manifest.signature) {
@@ -558,11 +562,13 @@ function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false, 
       const sigResult = verifyAsset(abs, { requireSignature: true });
       if (sigResult.signature_valid) {
         trustLevel.label = 'local_signature_verified';
-        trustLevel.issues = trustLevel.issues.filter((i) => !i.includes('not Studio-compiled'));
+        trustLevel.issues = [];
       } else {
+        trustLevel.label = 'local_unverified';
         trustLevel.issues.push('signature present but failed verification');
       }
     } catch {
+      trustLevel.label = 'local_unverified';
       trustLevel.issues.push('signature verification failed');
     }
   }
@@ -600,6 +606,8 @@ function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false, 
 
   if (!jsonMode) {
     if (trustLevel.label === 'local_signature_verified') {
+      console.log(`  Verification: ${trustLevel.label}`);
+    } else if (trustLevel.issues.length === 0) {
       console.log(`  Verification: ${trustLevel.label}`);
     } else {
       console.warn(`  Verification: ${trustLevel.label} — ${trustLevel.issues.join('; ')}`);
