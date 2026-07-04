@@ -64,12 +64,12 @@ function loadLlmConfig() {
 
   if (!apiKey) {
     error(
-      `LLM API key not found. Set ${envName} in your environment, or edit ~/.kdna/config.json:\n` +
+      `LLM API key not found. Set the configured API key environment variable, or edit ~/.kdna/config.json:\n` +
         `  {\n` +
         `    "llm": {\n` +
         `      "provider": "anthropic" | "openai",\n` +
         `      "model": "<model-id>",\n` +
-        `      "api_key_env": "${envName}",\n` +
+        `      "api_key_env": "ANTHROPIC_API_KEY",\n` +
         `      "base_url": "https://...   (optional, for OpenAI-compatible endpoints)"\n` +
         `    }\n` +
         `  }`,
