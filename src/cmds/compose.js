@@ -1,15 +1,15 @@
-const fs = require("node:fs");
-const path = require("node:path");
-const crypto = require("node:crypto");
-const { error, EXIT } = require("./_common");
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
+const { error, EXIT } = require('./_common');
 
 function loadKdnaEval() {
   try {
-    return require("@aikdna/kdna-eval");
+    return require('@aikdna/kdna-eval');
   } catch (e) {
     const altPaths = [
       process.env.KDNA_EVAL_PATH,
-      path.resolve(__dirname, "..", "..", "..", "kdna", "packages", "kdna-eval"),
+      path.resolve(__dirname, '..', '..', '..', 'kdna', 'packages', 'kdna-eval'),
     ];
     for (const p of altPaths) {
       if (p) {
@@ -19,8 +19,8 @@ function loadKdnaEval() {
       }
     }
     process.stderr.write(
-      "Error: @aikdna/kdna-eval is required for kdna compose.\n" +
-        "Install it with: npm install @aikdna/kdna-eval@^0.2.0\n"
+      'Error: @aikdna/kdna-eval is required for kdna compose.\n' +
+        'Install it with: npm install @aikdna/kdna-eval@^0.2.0\n',
     );
     process.exit(EXIT.DEPENDENCY_ERROR || 6);
   }
@@ -30,11 +30,11 @@ function loadManifest(absPath) {
   try {
     const stat = fs.statSync(absPath);
     if (stat.isDirectory()) {
-      const p = path.join(absPath, "kdna.json");
-      if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, "utf8"));
+      const p = path.join(absPath, 'kdna.json');
+      if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf8'));
     } else if (stat.isFile()) {
       try {
-        const core = require("@aikdna/kdna-core");
+        const core = require('@aikdna/kdna-core');
         const m = core.inspect(absPath);
         if (m) return m;
       } catch (_) {}
@@ -45,56 +45,56 @@ function loadManifest(absPath) {
 
 function buildTraceId(assetPath, task, policyHash, timestamp) {
   return crypto
-    .createHash("sha256")
+    .createHash('sha256')
     .update(`${assetPath}:${task}:${policyHash}:${timestamp}`)
-    .digest("hex")
+    .digest('hex')
     .slice(0, 32);
 }
 
 function cmdCompose(args) {
   const getFlag = (name) => {
-    const eq = args.find((a) => a.startsWith(name + "="));
+    const eq = args.find((a) => a.startsWith(name + '='));
     if (eq) return eq.slice(name.length + 1);
     const idx = args.indexOf(name);
     return idx >= 0 ? args[idx + 1] : null;
   };
 
-  const posArgs = args.filter((a) => !a.startsWith("--"));
+  const posArgs = args.filter((a) => !a.startsWith('--'));
   const assetPath = posArgs[0];
 
-  if (!assetPath || args.includes("--help") || args.includes("-h")) {
+  if (!assetPath || args.includes('--help') || args.includes('-h')) {
     process.stderr.write(
-      "Usage: kdna compose <asset-path> [options]\n" +
-        "\n" +
-        "Options:\n" +
-        "  --task=<task>          Task verb (default: review)\n" +
-        "  --primary=<domain>     Force primary domain\n" +
-        "  --advisors=<list>      Advisor domain IDs, comma-separated\n" +
-        "  --policy=<path>        Route policy JSON\n" +
-        "  --consumer-index=<path> Consumer index for trust verification\n" +
-        "  --budget=<profile>     interactive|code-review|offline-audit\n" +
-        "  --source-hardmax=<n>   Max total assets from source (default: 3)\n" +
-        "  --as=<format>          json|trace|prompt (default: prompt)\n" +
-        "  --trace=<path>         Write trace to file\n"
+      'Usage: kdna compose <asset-path> [options]\n' +
+        '\n' +
+        'Options:\n' +
+        '  --task=<task>          Task verb (default: review)\n' +
+        '  --primary=<domain>     Force primary domain\n' +
+        '  --advisors=<list>      Advisor domain IDs, comma-separated\n' +
+        '  --policy=<path>        Route policy JSON\n' +
+        '  --consumer-index=<path> Consumer index for trust verification\n' +
+        '  --budget=<profile>     interactive|code-review|offline-audit\n' +
+        '  --source-hardmax=<n>   Max total assets from source (default: 3)\n' +
+        '  --as=<format>          json|trace|prompt (default: prompt)\n' +
+        '  --trace=<path>         Write trace to file\n',
     );
-    if (args.includes("--help") || args.includes("-h")) {
+    if (args.includes('--help') || args.includes('-h')) {
       process.exit(0);
     }
     process.exit(EXIT.INPUT_ERROR);
   }
 
-  const task = getFlag("--task") || "review";
-  const primaryFlag = getFlag("--primary");
-  const advisorsRaw = getFlag("--advisors") || "";
-  const policyPath = getFlag("--policy");
-  const budget = getFlag("--budget") || "interactive";
-  const sourceHardmax = parseInt(getFlag("--source-hardmax") || "3", 10);
-  const as = getFlag("--as") || "prompt";
-  const tracePath = getFlag("--trace");
-  const consumerIndexPath = getFlag("--consumer-index");
+  const task = getFlag('--task') || 'review';
+  const primaryFlag = getFlag('--primary');
+  const advisorsRaw = getFlag('--advisors') || '';
+  const policyPath = getFlag('--policy');
+  const budget = getFlag('--budget') || 'interactive';
+  const sourceHardmax = parseInt(getFlag('--source-hardmax') || '3', 10);
+  const as = getFlag('--as') || 'prompt';
+  const tracePath = getFlag('--trace');
+  const consumerIndexPath = getFlag('--consumer-index');
 
   const requestedAdvisors = advisorsRaw
-    .split(",")
+    .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
 
@@ -104,7 +104,7 @@ function cmdCompose(args) {
   let policies = null;
   if (policyPath) {
     try {
-      policies = JSON.parse(fs.readFileSync(policyPath, "utf8"));
+      policies = JSON.parse(fs.readFileSync(policyPath, 'utf8'));
     } catch (e) {
       error(`Cannot read policy file: ${policyPath} — ${e.message}`, EXIT.INPUT_ERROR);
     }
@@ -118,7 +118,7 @@ function cmdCompose(args) {
     const { loadConsumerIndex, resolveConsumerIndex } = loadKdnaEval();
     const idxResult = loadConsumerIndex(consumerIndexPath);
     if (!idxResult.valid) {
-      error(`Invalid consumer index: ${idxResult.errors.join("; ")}`, EXIT.INPUT_ERROR);
+      error(`Invalid consumer index: ${idxResult.errors.join('; ')}`, EXIT.INPUT_ERROR);
     }
     consumerIndexLoaded = idxResult.index;
   }
@@ -138,10 +138,10 @@ function cmdCompose(args) {
 
   if (!primary) {
     error(
-      "Cannot determine primary domain for compose.\n" +
-        "Provide --primary=<domain-id> or ensure a policy with a matching route is loaded.\n" +
-        "Compose does not fall back to all-assets loading.",
-      EXIT.INPUT_ERROR
+      'Cannot determine primary domain for compose.\n' +
+        'Provide --primary=<domain-id> or ensure a policy with a matching route is loaded.\n' +
+        'Compose does not fall back to all-assets loading.',
+      EXIT.INPUT_ERROR,
     );
   }
 
@@ -192,13 +192,13 @@ function cmdCompose(args) {
 
   const ts = new Date().toISOString();
   const policyHash = policies
-    ? crypto.createHash("sha256").update(JSON.stringify(policies)).digest("hex").slice(0, 12)
-    : "no-policy";
+    ? crypto.createHash('sha256').update(JSON.stringify(policies)).digest('hex').slice(0, 12)
+    : 'no-policy';
 
   const traceId = buildTraceId(assetPath, task, policyHash, ts);
 
   const trace = {
-    kdna_trace: "1.0.0",
+    kdna_trace: '1.0.0',
     trace_id: traceId,
     timestamp: ts,
     operation: task,
@@ -206,20 +206,20 @@ function cmdCompose(args) {
       primary: composeResult.details.primary || {
         domain_id: null,
         weight: 0,
-        reason: "none",
+        reason: 'none',
       },
       advisors: (composeResult.details.advisors || []).map((a) => ({
         domain_id: a.domain_id,
         weight: a.weight,
-        role: a.role || "advisor",
+        role: a.role || 'advisor',
       })),
       rejected: (composeResult.details.rejected_advisors || []).map((r) => ({
         domain_id: r.domain_id,
         reason: r.reason,
       })),
       budget_profile: budget,
-      confidence: composeResult.pass ? "medium" : "low",
-      abstain_reason: composeResult.pass ? null : "compose gate failed",
+      confidence: composeResult.pass ? 'medium' : 'low',
+      abstain_reason: composeResult.pass ? null : 'compose gate failed',
     },
     cost: {
       tokens_consumed: costResult.details.consumed.tokens,
@@ -228,29 +228,31 @@ function cmdCompose(args) {
       over_budget: costResult.details.over_budget,
     },
     projection: {
-      shape: "compact",
+      shape: 'compact',
     },
     provenance: {
       route_card_version: null,
-      consumer_index_version: consumerIndexLoaded?.consumer_index || "0.2.0",
+      consumer_index_version: consumerIndexLoaded?.consumer_index || '0.2.0',
       consumer_index_path: consumerIndexPath || null,
       policy_input_hash: policyHash,
     },
   };
 
-  if (as === "trace") {
-    const { validateTrace } = require(path.join(__dirname, "..", "..", "schema", "trace-validator"));
+  if (as === 'trace') {
+    const { validateTrace } = require(
+      path.join(__dirname, '..', '..', 'schema', 'trace-validator'),
+    );
     const validation = validateTrace(trace);
     const out = { ...trace, _validation: { valid: validation.valid, errors: validation.errors } };
     console.log(JSON.stringify(out, null, 2));
-  } else if (as === "json") {
+  } else if (as === 'json') {
     console.log(JSON.stringify(trace, null, 2));
   } else {
     console.log(formatComposePrompt(trace, composeResult, costResult));
   }
 
   if (tracePath) {
-    fs.writeFileSync(path.resolve(tracePath), JSON.stringify(trace, null, 2) + "\n");
+    fs.writeFileSync(path.resolve(tracePath), JSON.stringify(trace, null, 2) + '\n');
   }
 }
 
@@ -261,54 +263,54 @@ function formatComposePrompt(trace, composeResult, costResult) {
   lines.push(`# kdna compose — ${trace.operation}`);
   lines.push(`# trace: ${trace.trace_id}`);
   lines.push(`# budget: ${d.budget_profile}`);
-  lines.push("");
+  lines.push('');
 
-  lines.push("## Primary");
+  lines.push('## Primary');
   if (d.primary.domain_id) {
     lines.push(`- **Domain:** ${d.primary.domain_id}`);
   } else {
-    lines.push("- **None**");
+    lines.push('- **None**');
   }
-  lines.push("");
+  lines.push('');
 
   if (d.advisors.length > 0) {
-    lines.push("## Advisors");
+    lines.push('## Advisors');
     for (const a of d.advisors) {
-      lines.push(`- ${a.domain_id} (${a.role || "advisor"}, weight: ${a.weight})`);
+      lines.push(`- ${a.domain_id} (${a.role || 'advisor'}, weight: ${a.weight})`);
     }
-    lines.push("");
+    lines.push('');
   }
 
   if (d.rejected.length > 0) {
-    lines.push("## Rejected");
+    lines.push('## Rejected');
     for (const r of d.rejected) {
       lines.push(`- ${r.domain_id}: ${r.reason}`);
     }
-    lines.push("");
+    lines.push('');
   }
 
   const conflicts = composeResult.details.conflicts || [];
   if (conflicts.length > 0) {
-    lines.push("## Conflicts");
+    lines.push('## Conflicts');
     for (const c of conflicts) {
       lines.push(`- ${c.domain_a} vs ${c.domain_b}: ${c.description}`);
     }
-    lines.push("");
+    lines.push('');
   }
 
-  lines.push("## Cost");
+  lines.push('## Cost');
   lines.push(`- Tokens: ${trace.cost.tokens_consumed} / ${costResult.details.limits.maxTokens}`);
   lines.push(`- Chars: ${trace.cost.chars_consumed} / ${costResult.details.limits.maxChars}`);
   lines.push(`- Assets: ${trace.cost.assets_loaded} / ${costResult.details.limits.maxAssets}`);
-  lines.push(`- Over budget: ${trace.cost.over_budget ? "YES" : "no"}`);
-  lines.push("");
+  lines.push(`- Over budget: ${trace.cost.over_budget ? 'YES' : 'no'}`);
+  lines.push('');
 
-  lines.push("## Attribution");
+  lines.push('## Attribution');
   lines.push(`- Source hardmax: ${composeResult.details.source_hardmax}`);
   lines.push(`- Sources used: ${composeResult.details.sources_used}`);
   lines.push(`- Confidence: ${d.confidence}`);
 
-  return lines.join("\n");
+  return lines.join('\n');
 }
 
 module.exports = { cmdCompose };

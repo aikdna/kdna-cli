@@ -1,48 +1,46 @@
-const fs = require("node:fs");
-const path = require("node:path");
-const crypto = require("node:crypto");
-const { error, EXIT } = require("./_common");
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
+const { error, EXIT } = require('./_common');
 
 function cmdAssetEvidence(args) {
   const getFlag = (name) => {
-    const eq = args.find((a) => a.startsWith(name + "="));
+    const eq = args.find((a) => a.startsWith(name + '='));
     if (eq) return eq.slice(name.length + 1);
     const idx = args.indexOf(name);
     return idx >= 0 ? args[idx + 1] : null;
   };
 
-  const posArgs = args.filter((a) => !a.startsWith("--"));
+  const posArgs = args.filter((a) => !a.startsWith('--'));
   const assetPath = posArgs[0];
 
-  if (!assetPath || args.includes("--help") || args.includes("-h")) {
+  if (!assetPath || args.includes('--help') || args.includes('-h')) {
     process.stderr.write(
-      "Usage: kdna asset-evidence <asset-path> [options]\n" +
-        "\n" +
-        "Options:\n" +
-        "  --out=<path>           Output evidence manifest path\n" +
-        "  --as=<json|md>         Format (default: json)\n"
+      'Usage: kdna asset-evidence <asset-path> [options]\n' +
+        '\n' +
+        'Options:\n' +
+        '  --out=<path>           Output evidence manifest path\n' +
+        '  --as=<json|md>         Format (default: json)\n',
     );
-    if (args.includes("--help") || args.includes("-h")) {
+    if (args.includes('--help') || args.includes('-h')) {
       process.exit(0);
     }
     process.exit(EXIT.INPUT_ERROR);
   }
 
-  const outPath = getFlag("--out");
-  const as = getFlag("--as") || "json";
+  const outPath = getFlag('--out');
+  const as = getFlag('--as') || 'json';
 
   const abs = path.resolve(assetPath);
   const evidence = buildEvidence(abs);
 
   const output =
-    as === "json"
-      ? JSON.stringify(evidence, null, 2)
-      : formatEvidenceMarkdown(evidence);
+    as === 'json' ? JSON.stringify(evidence, null, 2) : formatEvidenceMarkdown(evidence);
 
   if (outPath) {
-    fs.writeFileSync(path.resolve(outPath), output + "\n");
+    fs.writeFileSync(path.resolve(outPath), output + '\n');
   } else {
-    process.stdout.write(output + "\n");
+    process.stdout.write(output + '\n');
   }
 }
 
@@ -58,10 +56,10 @@ function buildEvidence(abs) {
   } catch (_) {}
 
   if (isDir) {
-    const mfPath = path.join(abs, "kdna.json");
+    const mfPath = path.join(abs, 'kdna.json');
     if (fs.existsSync(mfPath)) {
       try {
-        manifest = JSON.parse(fs.readFileSync(mfPath, "utf8"));
+        manifest = JSON.parse(fs.readFileSync(mfPath, 'utf8'));
       } catch (_) {}
     }
 
@@ -70,20 +68,20 @@ function buildEvidence(abs) {
         sidecarFiles.push(entry);
         try {
           const content = fs.readFileSync(path.join(abs, entry));
-          const hash = crypto.createHash("sha256").update(content).digest("hex");
+          const hash = crypto.createHash('sha256').update(content).digest('hex');
           checksums[entry] = `sha256:${hash}`;
         } catch (_) {}
       }
     }
   } else {
     try {
-      const core = require("@aikdna/kdna-core");
+      const core = require('@aikdna/kdna-core');
       const m = core.inspect(abs);
       if (m) manifest = m;
       sidecarFiles.push(path.basename(abs));
       try {
         const content = fs.readFileSync(abs);
-        const hash = crypto.createHash("sha256").update(content).digest("hex");
+        const hash = crypto.createHash('sha256').update(content).digest('hex');
         checksums[path.basename(abs)] = `sha256:${hash}`;
       } catch (_) {}
     } catch (_) {
@@ -92,27 +90,27 @@ function buildEvidence(abs) {
   }
 
   return {
-    kdna_asset_evidence: "0.1.0",
+    kdna_asset_evidence: '0.1.0',
     asset: {
       id: manifest?.asset_id || manifest?.asset_uid || path.basename(abs),
-      version: manifest?.version || "unknown",
-      access: manifest?.access || "public",
+      version: manifest?.version || 'unknown',
+      access: manifest?.access || 'public',
     },
     integrity: {
       checksums,
       sidecar_files: sidecarFiles,
     },
     compatibility: {
-      kdna_core_version: ">=0.15.0",
+      kdna_core_version: '>=0.15.0',
       kdna_cli_version: getCliVersion(),
     },
     regression_fixtures: {
       available: false,
-      note: "Public-safe fixtures are not yet available for this asset.",
+      note: 'Public-safe fixtures are not yet available for this asset.',
     },
     evidence: {
       generated_at: new Date().toISOString(),
-      generated_by: "kdna-cli asset-evidence",
+      generated_by: 'kdna-cli asset-evidence',
       tool_version: getCliVersion(),
     },
   };
@@ -120,9 +118,9 @@ function buildEvidence(abs) {
 
 function getCliVersion() {
   try {
-    return require(path.join(__dirname, "..", "..", "package.json")).version;
+    return require(path.join(__dirname, '..', '..', 'package.json')).version;
   } catch (_) {
-    return "unknown";
+    return 'unknown';
   }
 }
 
@@ -130,41 +128,41 @@ function formatEvidenceMarkdown(evidence) {
   const lines = [];
   const a = evidence.asset;
 
-  lines.push("# KDNA Asset Evidence");
+  lines.push('# KDNA Asset Evidence');
   lines.push(`- **Asset ID:** ${a.id}`);
   lines.push(`- **Version:** ${a.version}`);
   lines.push(`- **Access:** ${a.access}`);
   lines.push(`- **Generated:** ${evidence.evidence.generated_at}`);
   lines.push(`- **Tool:** ${evidence.evidence.tool_version}`);
-  lines.push("");
+  lines.push('');
 
-  lines.push("## Integrity");
+  lines.push('## Integrity');
   lines.push(`- **Sidecar files:** ${evidence.integrity.sidecar_files.length}`);
   for (const f of evidence.integrity.sidecar_files) {
     lines.push(`  - ${f}`);
   }
-  lines.push("");
+  lines.push('');
 
-  lines.push("## Compatibility");
+  lines.push('## Compatibility');
   lines.push(`- **kdna-core:** ${evidence.compatibility.kdna_core_version}`);
   lines.push(`- **kdna-cli:** ${evidence.compatibility.kdna_cli_version}`);
-  lines.push("");
+  lines.push('');
 
-  lines.push("## Regression Fixtures");
-  lines.push(`- **Available:** ${evidence.regression_fixtures.available ? "yes" : "no"}`);
+  lines.push('## Regression Fixtures');
+  lines.push(`- **Available:** ${evidence.regression_fixtures.available ? 'yes' : 'no'}`);
   lines.push(`- **Note:** ${evidence.regression_fixtures.note}`);
-  lines.push("");
+  lines.push('');
 
-  lines.push("## Checksums");
+  lines.push('## Checksums');
   if (Object.keys(evidence.integrity.checksums).length > 0) {
     for (const [file, hash] of Object.entries(evidence.integrity.checksums)) {
       lines.push(`- **${file}:** ${hash}`);
     }
   } else {
-    lines.push("- No checksums computed");
+    lines.push('- No checksums computed');
   }
 
-  return lines.join("\n");
+  return lines.join('\n');
 }
 
 module.exports = { cmdAssetEvidence };

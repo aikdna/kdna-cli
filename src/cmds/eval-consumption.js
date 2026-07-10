@@ -1,14 +1,14 @@
-const fs = require("node:fs");
-const path = require("node:path");
-const { error, EXIT } = require("./_common");
+const fs = require('node:fs');
+const path = require('node:path');
+const { error, EXIT } = require('./_common');
 
 function loadKdnaEval() {
   try {
-    return require("@aikdna/kdna-eval");
+    return require('@aikdna/kdna-eval');
   } catch (e) {
     const altPaths = [
       process.env.KDNA_EVAL_PATH,
-      path.resolve(__dirname, "..", "..", "..", "kdna", "packages", "kdna-eval"),
+      path.resolve(__dirname, '..', '..', '..', 'kdna', 'packages', 'kdna-eval'),
     ];
     for (const p of altPaths) {
       if (p) {
@@ -18,8 +18,8 @@ function loadKdnaEval() {
       }
     }
     process.stderr.write(
-      "Error: @aikdna/kdna-eval is required for eval-consumption.\n" +
-        "Install it with: npm install @aikdna/kdna-eval@^0.2.0\n"
+      'Error: @aikdna/kdna-eval is required for eval-consumption.\n' +
+        'Install it with: npm install @aikdna/kdna-eval@^0.2.0\n',
     );
     process.exit(EXIT.DEPENDENCY_ERROR || 6);
   }
@@ -27,58 +27,57 @@ function loadKdnaEval() {
 
 function cmdEvalConsumption(args) {
   const getFlag = (name) => {
-    const eq = args.find((a) => a.startsWith(name + "="));
+    const eq = args.find((a) => a.startsWith(name + '='));
     if (eq) return eq.slice(name.length + 1);
     const idx = args.indexOf(name);
     return idx >= 0 ? args[idx + 1] : null;
   };
 
-  const posArgs = args.filter((a) => !a.startsWith("--"));
+  const posArgs = args.filter((a) => !a.startsWith('--'));
   const assetPath = posArgs[0];
 
-  if (posArgs.length === 0 || args.includes("--help") || args.includes("-h")) {
+  if (posArgs.length === 0 || args.includes('--help') || args.includes('-h')) {
     process.stderr.write(
-      "Usage: kdna eval-consumption <asset-path> [options]\n" +
-        "\n" +
-        "Options:\n" +
-        "  --policy=<path>        Consumption route policy JSON file\n" +
+      'Usage: kdna eval-consumption <asset-path> [options]\n' +
+        '\n' +
+        'Options:\n' +
+        '  --policy=<path>        Consumption route policy JSON file\n' +
         '  --fixtures=<path>      Replay fixture directory\n' +
-        "  --gates=<list>         Gates to run, comma-separated (default: all)\n" +
-        "  --mode=<list>          Replay modes, comma-separated (default: repair,holdout,fresh)\n" +
-        "  --budget=<profile>     Budget profile: interactive|code-review|offline-audit\n" +
-        "  --as=<format>          Output format: json|markdown (default: markdown)\n" +
-        "  --out=<path>           Output file path (default: stdout)\n"
+        '  --gates=<list>         Gates to run, comma-separated (default: all)\n' +
+        '  --mode=<list>          Replay modes, comma-separated (default: repair,holdout,fresh)\n' +
+        '  --budget=<profile>     Budget profile: interactive|code-review|offline-audit\n' +
+        '  --as=<format>          Output format: json|markdown (default: markdown)\n' +
+        '  --out=<path>           Output file path (default: stdout)\n',
     );
-    if (args.includes("--help") || args.includes("-h")) {
+    if (args.includes('--help') || args.includes('-h')) {
       process.exit(0);
     }
     process.exit(EXIT.INPUT_ERROR);
   }
 
-  const policyPath = getFlag("--policy");
-  const fixturesDir = getFlag("--fixtures");
-  const gatesRaw = getFlag("--gates") || "route,compose,projection,cost,quality,promotion";
-  const modesRaw = getFlag("--mode") || "repair,holdout,fresh";
-  const budget = getFlag("--budget") || "interactive";
-  const as = getFlag("--as") || "markdown";
-  const outPath = getFlag("--out");
+  const policyPath = getFlag('--policy');
+  const fixturesDir = getFlag('--fixtures');
+  const gatesRaw = getFlag('--gates') || 'route,compose,projection,cost,quality,promotion';
+  const modesRaw = getFlag('--mode') || 'repair,holdout,fresh';
+  const budget = getFlag('--budget') || 'interactive';
+  const as = getFlag('--as') || 'markdown';
+  const outPath = getFlag('--out');
 
   const requestedGates = gatesRaw
-    .split(",")
+    .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
   const modes = modesRaw
-    .split(",")
+    .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
 
-  const { createMultiGateRunner, createConsumptionRunner, createReplayEngine } =
-    loadKdnaEval();
+  const { createMultiGateRunner, createConsumptionRunner, createReplayEngine } = loadKdnaEval();
 
   let policies = null;
   if (policyPath) {
     try {
-      policies = JSON.parse(fs.readFileSync(policyPath, "utf8"));
+      policies = JSON.parse(fs.readFileSync(policyPath, 'utf8'));
     } catch (e) {
       error(`Cannot read policy file: ${policyPath} — ${e.message}`, EXIT.INPUT_ERROR);
     }
@@ -87,13 +86,11 @@ function cmdEvalConsumption(args) {
   let fixtures = [];
   if (fixturesDir) {
     try {
-      const files = fs
-        .readdirSync(fixturesDir)
-        .filter((f) => f.endsWith(".json"));
+      const files = fs.readdirSync(fixturesDir).filter((f) => f.endsWith('.json'));
       for (const f of files) {
         const p = path.join(fixturesDir, f);
         try {
-          const data = JSON.parse(fs.readFileSync(p, "utf8"));
+          const data = JSON.parse(fs.readFileSync(p, 'utf8'));
           if (Array.isArray(data)) {
             fixtures.push(...data);
           } else {
@@ -102,10 +99,7 @@ function cmdEvalConsumption(args) {
         } catch (_) {}
       }
     } catch (e) {
-      error(
-        `Cannot read fixture directory: ${fixturesDir} — ${e.message}`,
-        EXIT.INPUT_ERROR
-      );
+      error(`Cannot read fixture directory: ${fixturesDir} — ${e.message}`, EXIT.INPUT_ERROR);
     }
   }
 
@@ -126,13 +120,11 @@ function cmdEvalConsumption(args) {
   ];
 
   const selectedGates = allGateDefs.filter((g) => {
-    const name = typeof g === "function" ? g.name : g;
+    const name = typeof g === 'function' ? g.name : g;
     return requestedGates.includes(name);
   });
 
-  const runner = createMultiGateRunner(
-    selectedGates.length > 0 ? selectedGates : allGateDefs
-  );
+  const runner = createMultiGateRunner(selectedGates.length > 0 ? selectedGates : allGateDefs);
 
   // Build asset object for the consumption runner.
   const asset = {
@@ -155,18 +147,18 @@ function cmdEvalConsumption(args) {
     const replayResults = {};
     for (const [m, data] of Object.entries(modeResults)) {
       replayResults[m] = {
-        pass: data.aggregated ? data.aggregated.overall === "pass" : null,
+        pass: data.aggregated ? data.aggregated.overall === 'pass' : null,
       };
     }
 
     const context = {
-      task: "review",
+      task: 'review',
       mode,
       budget,
       assetPath,
       fixtures,
-      source: "experiment-derived",
-      reviewStatus: "eval_candidate",
+      source: 'experiment-derived',
+      reviewStatus: 'eval_candidate',
       replayResults,
     };
 
@@ -178,14 +170,7 @@ function cmdEvalConsumption(args) {
       mode,
       results: gateResults.map((g) => ({
         id: g.gate,
-        score:
-          g.score != null
-            ? g.score
-            : g.pass === true
-              ? 1.0
-              : g.pass === false
-                ? 0.0
-                : 0.5,
+        score: g.score != null ? g.score : g.pass === true ? 1.0 : g.pass === false ? 0.0 : 0.5,
         pass: g.pass === true,
         dimensions: g.details || {},
       })),
@@ -196,14 +181,15 @@ function cmdEvalConsumption(args) {
       ? { scoreDelta: 0, regressions: null }
       : engine.compareRuns(
           { results: modeResults[baselineMode]?._rawRun?.results || [] },
-          currentRun
+          currentRun,
         );
 
-    const regressionEntries = comparison.regressions || comparison.diff
-      ? (comparison.diff || []).filter(
-          (d) => d.kind === "pass-change" && d.b && d.b.pass !== true
-        )
-      : null;
+    const regressionEntries =
+      comparison.regressions || comparison.diff
+        ? (comparison.diff || []).filter(
+            (d) => d.kind === 'pass-change' && d.b && d.b.pass !== true,
+          )
+        : null;
 
     modeResults[mode] = {
       gates: gateResults.map((r, i) => ({
@@ -212,8 +198,7 @@ function cmdEvalConsumption(args) {
         score: r.score,
         details: r.details || {},
         errors: r.errors || [],
-        regression:
-          regressionEntries && regressionEntries.some((re) => re.index === i),
+        regression: regressionEntries && regressionEntries.some((re) => re.index === i),
       })),
       aggregated: aggregated
         ? {
@@ -235,7 +220,7 @@ function cmdEvalConsumption(args) {
   let costReport = null;
   const firstModeResults = Object.values(modeResults)[0];
   if (firstModeResults) {
-    const costGate = firstModeResults.gates.find((g) => g.gate === "cost");
+    const costGate = firstModeResults.gates.find((g) => g.gate === 'cost');
     if (costGate && costGate.details && costGate.details.consumed) {
       costReport = costGate.details;
     }
@@ -247,7 +232,7 @@ function cmdEvalConsumption(args) {
   }
 
   const output = {
-    kdna_eval_consumption: "0.1.0",
+    kdna_eval_consumption: '0.1.0',
     asset: {
       path: assetPath || null,
       version: policies?.version || null,
@@ -259,30 +244,25 @@ function cmdEvalConsumption(args) {
       fixtures_loaded: fixtures.length,
       fixture_ids: fixtures.map((f) => f.id || f.domain_id || f.task).filter(Boolean),
     },
-    fixture_summary: fixtures.length > 0
-      ? buildFixtureSummary(fixtures, modeResults)
-      : undefined,
+    fixture_summary: fixtures.length > 0 ? buildFixtureSummary(fixtures, modeResults) : undefined,
     results: modeResults,
     verdict: computeVerdict(modeResults),
     budget: costReport,
   };
 
-  const formatted =
-    as === "json"
-      ? JSON.stringify(output, null, 2)
-      : formatMarkdown(output);
+  const formatted = as === 'json' ? JSON.stringify(output, null, 2) : formatMarkdown(output);
 
   if (outPath) {
-    fs.writeFileSync(outPath, formatted + "\n");
+    fs.writeFileSync(outPath, formatted + '\n');
   } else {
-    process.stdout.write(formatted + "\n");
+    process.stdout.write(formatted + '\n');
   }
 }
 
 function buildFixtureSummary(fixtures, modeResults) {
   const summary = { total: fixtures.length, routed: 0, failed_routing: 0 };
   for (const [mode, data] of Object.entries(modeResults || {})) {
-    const routeGate = data.gates?.find((g) => g.gate === "route");
+    const routeGate = data.gates?.find((g) => g.gate === 'route');
     if (routeGate) {
       if (routeGate.pass === true) summary.routed++;
       else if (routeGate.pass === false) summary.failed_routing++;
@@ -317,11 +297,9 @@ function computeVerdict(modeResults) {
 
   return {
     overall:
-      uniqueFailed.length === 0 &&
-      uniqueBlocked.length === 0 &&
-      regressionFlags.length === 0
-        ? "pass"
-        : "fail",
+      uniqueFailed.length === 0 && uniqueBlocked.length === 0 && regressionFlags.length === 0
+        ? 'pass'
+        : 'fail',
     blocked_gates: uniqueBlocked,
     failed_gates: uniqueFailed,
     regression_flags: regressionFlags,
@@ -330,65 +308,56 @@ function computeVerdict(modeResults) {
 
 function formatMarkdown(output) {
   const lines = [];
-  lines.push("# KDNA Eval-Consumption Report");
-  lines.push("");
+  lines.push('# KDNA Eval-Consumption Report');
+  lines.push('');
 
-  lines.push("## Asset");
+  lines.push('## Asset');
   if (output.asset.path) lines.push(`- **Path:** ${output.asset.path}`);
   if (output.asset.version) lines.push(`- **Version:** ${output.asset.version}`);
-  lines.push("");
+  lines.push('');
 
-  lines.push("## Run");
+  lines.push('## Run');
   lines.push(`- **Timestamp:** ${output.run.timestamp}`);
-  lines.push(`- **Modes:** ${output.run.modes.join(", ")}`);
-  lines.push(`- **Gates:** ${output.run.gates.join(", ")}`);
-  lines.push("");
+  lines.push(`- **Modes:** ${output.run.modes.join(', ')}`);
+  lines.push(`- **Gates:** ${output.run.gates.join(', ')}`);
+  lines.push('');
 
   for (const [mode, data] of Object.entries(output.results)) {
     lines.push(`## Mode: ${mode}`);
-    lines.push("");
-    lines.push("| Gate | Pass | Score | Errors |");
-    lines.push("|------|------|-------|--------|");
+    lines.push('');
+    lines.push('| Gate | Pass | Score | Errors |');
+    lines.push('|------|------|-------|--------|');
 
     for (const g of data.gates || []) {
-      const passIcon =
-        g.pass === true ? "PASS" : g.pass === false ? "FAIL" : "BLOCKED";
-      const score = g.score != null ? g.score.toString() : "-";
-      const errors = (g.errors || []).join("; ") || "-";
+      const passIcon = g.pass === true ? 'PASS' : g.pass === false ? 'FAIL' : 'BLOCKED';
+      const score = g.score != null ? g.score.toString() : '-';
+      const errors = (g.errors || []).join('; ') || '-';
       lines.push(`| ${g.gate} | ${passIcon} | ${score} | ${errors} |`);
     }
-    lines.push("");
+    lines.push('');
 
     if (data.aggregated) {
       lines.push(`**Aggregate:** ${data.aggregated.overall}`);
       if (data.aggregated.failed_gates.length > 0) {
-        lines.push(
-          `**Failed gates:** ${data.aggregated.failed_gates.join(", ")}`
-        );
+        lines.push(`**Failed gates:** ${data.aggregated.failed_gates.join(', ')}`);
       }
-      lines.push("");
+      lines.push('');
     }
 
     if (data.comparison && data.comparison.regressions?.length > 0) {
-      lines.push(
-        `**Regressions:** ${data.comparison.regressions.length} detected`
-      );
+      lines.push(`**Regressions:** ${data.comparison.regressions.length} detected`);
       lines.push(`**Score Delta:** ${data.comparison.scoreDelta}`);
-      lines.push("");
+      lines.push('');
     }
   }
 
-  lines.push("## Verdict");
+  lines.push('## Verdict');
   lines.push(`- **Overall:** ${output.verdict.overall}`);
   if (output.verdict.failed_gates.length > 0) {
-    lines.push(
-      `- **Failed gates:** ${output.verdict.failed_gates.join(", ")}`
-    );
+    lines.push(`- **Failed gates:** ${output.verdict.failed_gates.join(', ')}`);
   }
   if (output.verdict.blocked_gates.length > 0) {
-    lines.push(
-      `- **Blocked gates:** ${output.verdict.blocked_gates.join(", ")}`
-    );
+    lines.push(`- **Blocked gates:** ${output.verdict.blocked_gates.join(', ')}`);
   }
   if (output.verdict.regression_flags.length > 0) {
     lines.push(`- **Regressions:** ${output.verdict.regression_flags.length} mode(s)`);
@@ -396,24 +365,16 @@ function formatMarkdown(output) {
       lines.push(`  - Mode ${rf.mode}: ${rf.regressions.length} regression(s)`);
     }
   }
-  lines.push("");
+  lines.push('');
 
-  lines.push("## Budget");
+  lines.push('## Budget');
   lines.push(`- **Profile:** ${output.budget.profile}`);
-  lines.push(
-    `- **Tokens:** ${output.budget.consumed.tokens} / ${output.budget.limits.maxTokens}`
-  );
-  lines.push(
-    `- **Chars:** ${output.budget.consumed.chars} / ${output.budget.limits.maxChars}`
-  );
-  lines.push(
-    `- **Assets:** ${output.budget.consumed.assets} / ${output.budget.limits.maxAssets}`
-  );
-  lines.push(
-    `- **Over Budget:** ${output.budget.over_budget ? "YES" : "no"}`
-  );
+  lines.push(`- **Tokens:** ${output.budget.consumed.tokens} / ${output.budget.limits.maxTokens}`);
+  lines.push(`- **Chars:** ${output.budget.consumed.chars} / ${output.budget.limits.maxChars}`);
+  lines.push(`- **Assets:** ${output.budget.consumed.assets} / ${output.budget.limits.maxAssets}`);
+  lines.push(`- **Over Budget:** ${output.budget.over_budget ? 'YES' : 'no'}`);
 
-  return lines.join("\n");
+  return lines.join('\n');
 }
 
 module.exports = { cmdEvalConsumption };

@@ -1,13 +1,13 @@
-const { test } = require("node:test");
-const assert = require("node:assert/strict");
-const { spawnSync } = require("node:child_process");
-const fs = require("node:fs");
-const path = require("node:path");
-const os = require("node:os");
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
+const os = require('node:os');
 
-const CLI = path.resolve(__dirname, "..", "src", "cli.js");
-const FIXTURE = path.resolve(__dirname, "..", "fixtures", "v1-minimal");
-const EVAL_PATH = path.resolve(__dirname, "..", "..", "kdna", "packages", "kdna-eval");
+const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
+const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
+const EVAL_PATH = path.resolve(__dirname, '..', '..', 'kdna', 'packages', 'kdna-eval');
 
 function runCli(args, opts = {}) {
   const env = {
@@ -16,8 +16,8 @@ function runCli(args, opts = {}) {
     ...(opts.env || {}),
   };
   return spawnSync(process.execPath, [CLI, ...args], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
     cwd: opts.cwd || process.cwd(),
     env,
     timeout: 30_000,
@@ -25,26 +25,26 @@ function runCli(args, opts = {}) {
 }
 
 function makePoliciesFile(dir) {
-  const p = path.join(dir, "policy.json");
+  const p = path.join(dir, 'policy.json');
   fs.writeFileSync(
     p,
     JSON.stringify({
       review: {
-        operation: "review",
-        loadProfile: "compact",
+        operation: 'review',
+        loadProfile: 'compact',
         domains: [
-          { id: "atomspeak-core", weight: 1 },
-          { id: "content-review", weight: 0.5 },
-          { id: "style-advisor", weight: 0.3 },
+          { id: 'atomspeak-core', weight: 1 },
+          { id: 'content-review', weight: 0.5 },
+          { id: 'style-advisor', weight: 0.3 },
         ],
       },
-    }) + "\n"
+    }) + '\n',
   );
   return p;
 }
 
-test("kdna compose --help shows usage", () => {
-  const r = runCli(["compose", "--help"]);
+test('kdna compose --help shows usage', () => {
+  const r = runCli(['compose', '--help']);
   assert.equal(r.status, 0);
   assert.match(r.stderr, /Usage:/);
   assert.match(r.stderr, /--primary/);
@@ -52,72 +52,61 @@ test("kdna compose --help shows usage", () => {
   assert.match(r.stderr, /--source-hardmax/);
 });
 
-test("kdna compose with no args shows usage error", () => {
-  const r = runCli(["compose"]);
+test('kdna compose with no args shows usage error', () => {
+  const r = runCli(['compose']);
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /Usage:/);
 });
 
-test("kdna compose with --primary uses specified primary", () => {
-  const r = runCli([
-    "compose",
-    FIXTURE,
-    "--as=json",
-    "--primary=my-domain",
-  ]);
+test('kdna compose with --primary uses specified primary', () => {
+  const r = runCli(['compose', FIXTURE, '--as=json', '--primary=my-domain']);
   assert.equal(r.status, 0, `compose failed: ${r.stderr}`);
   const out = JSON.parse(r.stdout);
-  assert.equal(out.decision.primary.domain_id, "my-domain");
+  assert.equal(out.decision.primary.domain_id, 'my-domain');
 });
 
-test("kdna compose without --primary and no policy fails", () => {
-  const r = runCli(["compose", FIXTURE, "--as=json"]);
+test('kdna compose without --primary and no policy fails', () => {
+  const r = runCli(['compose', FIXTURE, '--as=json']);
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /Cannot determine primary/);
 });
 
-test("kdna compose with policy auto-selects primary", () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "kdna-comp-"));
+test('kdna compose with policy auto-selects primary', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-comp-'));
   const policyFile = makePoliciesFile(tmp);
   try {
-    const r = runCli([
-      "compose",
-      FIXTURE,
-      "--as=json",
-      "--policy",
-      policyFile,
-    ]);
+    const r = runCli(['compose', FIXTURE, '--as=json', '--policy', policyFile]);
     assert.equal(r.status, 0, `compose failed: ${r.stderr}`);
     const out = JSON.parse(r.stdout);
-    assert.equal(out.decision.primary.domain_id, "atomspeak-core");
+    assert.equal(out.decision.primary.domain_id, 'atomspeak-core');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
 
-test("kdna compose with --advisors assigns advisors", () => {
+test('kdna compose with --advisors assigns advisors', () => {
   const r = runCli([
-    "compose",
+    'compose',
     FIXTURE,
-    "--as=json",
-    "--primary=my-domain",
-    "--advisors=adv-a,adv-b",
+    '--as=json',
+    '--primary=my-domain',
+    '--advisors=adv-a,adv-b',
   ]);
   assert.equal(r.status, 0, `compose failed: ${r.stderr}`);
   const out = JSON.parse(r.stdout);
   assert.equal(out.decision.advisors.length, 2);
-  assert.equal(out.decision.advisors[0].domain_id, "adv-a");
-  assert.equal(out.decision.advisors[1].domain_id, "adv-b");
+  assert.equal(out.decision.advisors[0].domain_id, 'adv-a');
+  assert.equal(out.decision.advisors[1].domain_id, 'adv-b');
 });
 
-test("kdna compose with --source-hardmax limits advisors", () => {
+test('kdna compose with --source-hardmax limits advisors', () => {
   const r = runCli([
-    "compose",
+    'compose',
     FIXTURE,
-    "--as=json",
-    "--primary=my-domain",
-    "--advisors=adv-a,adv-b,adv-c",
-    "--source-hardmax=2",
+    '--as=json',
+    '--primary=my-domain',
+    '--advisors=adv-a,adv-b,adv-c',
+    '--source-hardmax=2',
   ]);
   assert.equal(r.status, 0);
   const out = JSON.parse(r.stdout);
@@ -127,55 +116,44 @@ test("kdna compose with --source-hardmax limits advisors", () => {
   assert.ok(rejected.length > 0);
 });
 
-test("kdna compose --as=trace includes validation", () => {
-  const r = runCli([
-    "compose",
-    FIXTURE,
-    "--as=trace",
-    "--primary=test-domain",
-  ]);
+test('kdna compose --as=trace includes validation', () => {
+  const r = runCli(['compose', FIXTURE, '--as=trace', '--primary=test-domain']);
   assert.equal(r.status, 0, `compose failed: ${r.stderr}`);
   const out = JSON.parse(r.stdout);
   assert.ok(out._validation);
-  assert.equal(typeof out._validation.valid, "boolean");
+  assert.equal(typeof out._validation.valid, 'boolean');
 });
 
-test("kdna compose JSON output includes attribution fields", () => {
-  const r = runCli([
-    "compose",
-    FIXTURE,
-    "--as=json",
-    "--primary=test-domain",
-    "--advisors=adv-a",
-  ]);
+test('kdna compose JSON output includes attribution fields', () => {
+  const r = runCli(['compose', FIXTURE, '--as=json', '--primary=test-domain', '--advisors=adv-a']);
   assert.equal(r.status, 0);
   const out = JSON.parse(r.stdout);
   assert.ok(out.decision.confidence);
   assert.ok(Array.isArray(out.decision.rejected));
 });
 
-test("kdna compose JSON output includes cost fields", () => {
+test('kdna compose JSON output includes cost fields', () => {
   const r = runCli([
-    "compose",
+    'compose',
     FIXTURE,
-    "--as=json",
-    "--primary=test-domain",
-    "--budget=code-review",
+    '--as=json',
+    '--primary=test-domain',
+    '--budget=code-review',
   ]);
   assert.equal(r.status, 0);
   const out = JSON.parse(r.stdout);
   assert.ok(out.cost);
-  assert.ok("over_budget" in out.cost);
-  assert.equal(out.decision.budget_profile, "code-review");
+  assert.ok('over_budget' in out.cost);
+  assert.equal(out.decision.budget_profile, 'code-review');
 });
 
-test("kdna compose --as=prompt produces human-readable output", () => {
+test('kdna compose --as=prompt produces human-readable output', () => {
   const r = runCli([
-    "compose",
+    'compose',
     FIXTURE,
-    "--as=prompt",
-    "--primary=test-domain",
-    "--advisors=adv-a",
+    '--as=prompt',
+    '--primary=test-domain',
+    '--advisors=adv-a',
   ]);
   assert.equal(r.status, 0);
   assert.match(r.stdout, /# kdna compose/);
@@ -184,67 +162,62 @@ test("kdna compose --as=prompt produces human-readable output", () => {
   assert.match(r.stdout, /## Attribution/);
 });
 
-test("kdna compose --trace writes trace file", () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "kdna-comp-"));
-  const traceFile = path.join(tmp, "compose-trace.json");
+test('kdna compose --trace writes trace file', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-comp-'));
+  const traceFile = path.join(tmp, 'compose-trace.json');
   try {
     const r = runCli([
-      "compose",
+      'compose',
       FIXTURE,
-      "--as=json",
-      "--primary=test-domain",
-      "--trace",
+      '--as=json',
+      '--primary=test-domain',
+      '--trace',
       traceFile,
     ]);
     assert.equal(r.status, 0);
     assert.ok(fs.existsSync(traceFile));
-    const content = JSON.parse(fs.readFileSync(traceFile, "utf8"));
-    assert.equal(content.kdna_trace, "1.0.0");
+    const content = JSON.parse(fs.readFileSync(traceFile, 'utf8'));
+    assert.equal(content.kdna_trace, '1.0.0');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
 
-test("kdna compose trace_id is 32-char hex", () => {
-  const r = runCli([
-    "compose",
-    FIXTURE,
-    "--as=json",
-    "--primary=test-domain",
-  ]);
+test('kdna compose trace_id is 32-char hex', () => {
+  const r = runCli(['compose', FIXTURE, '--as=json', '--primary=test-domain']);
   assert.equal(r.status, 0);
   const out = JSON.parse(r.stdout);
   assert.match(out.trace_id, /^[0-9a-f]{32}$/);
 });
 
-test("kdna compose with --consumer-index filters untrusted advisors", () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "kdna-comp-"));
-  const ciFile = path.join(tmp, "ci.json");
+test('kdna compose with --consumer-index filters untrusted advisors', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-comp-'));
+  const ciFile = path.join(tmp, 'ci.json');
   fs.writeFileSync(
     ciFile,
     JSON.stringify({
-      consumer_index: "0.1.0",
+      consumer_index: '0.1.0',
       entries: [
-        { domain_id: "trusted-advisor", status: "trusted_runtime", enabled: true },
-        { domain_id: "untrusted-advisor", status: "draft_generated", enabled: false },
+        { domain_id: 'trusted-advisor', status: 'trusted_runtime', enabled: true },
+        { domain_id: 'untrusted-advisor', status: 'draft_generated', enabled: false },
       ],
-    }) + "\n"
+    }) + '\n',
   );
   try {
     const r = runCli([
-      "compose",
+      'compose',
       FIXTURE,
-      "--as=json",
-      "--primary=my-domain",
-      "--advisors=trusted-advisor,untrusted-advisor",
-      "--consumer-index",
+      '--as=json',
+      '--primary=my-domain',
+      '--advisors=trusted-advisor,untrusted-advisor',
+      '--consumer-index',
       ciFile,
     ]);
     assert.equal(r.status, 0, `compose failed: ${r.stderr}`);
     const out = JSON.parse(r.stdout);
     const advisorIds = out.decision.advisors.map((a) => a.domain_id);
-    assert.ok(advisorIds.includes("trusted-advisor"));
-    assert.ok(!advisorIds.includes("untrusted-advisor"));
+    assert.ok(advisorIds.includes('trusted-advisor'));
+    assert.ok(!advisorIds.includes('untrusted-advisor'));
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

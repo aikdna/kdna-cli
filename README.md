@@ -29,10 +29,7 @@ kdna plan-load agent-project-context-v0.1.2.kdna
 kdna load    agent-project-context-v0.1.2.kdna --profile=compact --as=prompt
 ```
 
-kdna plan-load ./minimal.kdna
-kdna load ./minimal.kdna --profile=compact --as=prompt
-
-````
+Successful validation returns:
 
 Successful validation returns:
 
@@ -46,7 +43,7 @@ Successful validation returns:
   "overall_valid": true,
   "problems": []
 }
-````
+```
 
 ## Core Commands
 
@@ -80,16 +77,16 @@ kdna project <asset-path>.kdna --shape=answer-pattern --as=prompt
 kdna eval-consumption <asset-path> --fixtures=./fixtures --budget=interactive --as=markdown
 ```
 
-| Command | Purpose |
-| --- | --- |
-| `kdna route` | Select a primary framework or report no match. |
-| `kdna compose` | Build a bounded primary/advisor set and trace it. |
-| `kdna project` | Render a packaged asset as a task-safe projection. |
-| `kdna eval-consumption` | Run replay and multi-gate consumption evaluation. |
-| `kdna compose-review-workbook` | Create a review workbook from diagnostics. |
-| `kdna validate-compose-decisions` | Validate a decision ledger with replay evidence. |
+| Command                                 | Purpose                                                             |
+| --------------------------------------- | ------------------------------------------------------------------- |
+| `kdna route`                            | Select a primary framework or report no match.                      |
+| `kdna compose`                          | Build a bounded primary/advisor set and trace it.                   |
+| `kdna project`                          | Render a packaged asset as a task-safe projection.                  |
+| `kdna eval-consumption`                 | Run replay and multi-gate consumption evaluation.                   |
+| `kdna compose-review-workbook`          | Create a review workbook from diagnostics.                          |
+| `kdna validate-compose-decisions`       | Validate a decision ledger with replay evidence.                    |
 | `kdna apply-reviewed-compose-decisions` | Create disabled candidate sidecar entries from validated decisions. |
-| `kdna asset-evidence` | Generate a public asset evidence manifest. |
+| `kdna asset-evidence`                   | Generate a public asset evidence manifest.                          |
 
 Generated sidecars are disabled by default. They are not an endorsement of an
 asset or a replacement for independent review.

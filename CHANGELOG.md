@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.29.0 (2026-07-10)
+
+feat: add consumption runtime pipeline — task-aware selection, composition, projection, evaluation, and review commands that keep runtime metadata outside the `.kdna` asset format.
+
+- **`kdna route`** — Select a primary framework from a policy or route-card sidecar and produce a trace under `kdna_trace:1.0.0`. Can abstain when a task has no supported match, and de-escalate confidence against consumer-index trust.
+- **`kdna compose`** — Build a bounded primary/advisor set with `--source-hardmax` and produce trace, never silently loading every available asset.
+- **`kdna project --shape=answer-pattern`** — Render a packaged `.kdna` asset into a task-safe projection via the authorized Core loading path; readable text, not `[object Object]`.
+- **`kdna eval-consumption`** — Run replay and multi-gate consumption evaluation across the configured replay modes (repair, holdout, fresh). Keeps routing, composition, projection, cost, quality, and promotion results separate. Verdict is fail-closed.
+- **`kdna compose-review-workbook`** — Generate a review workbook from consumption diagnostics.
+- **`kdna validate-compose-decisions`** — Validate a decision ledger with 5-mode replay (`repair` / `holdout` / `fresh` / `candidate-sealed` / `new-sealed`). All modes must pass to reach an overall `pass`; any failure fails the verdict. Promotion gate is fail-closed for `sealed-derived` evidence and cannot be auto-promoted.
+- **`kdna apply-reviewed-compose-decisions`** — Apply validated decisions to a consumer index. Requires a validation report from `validate-compose-decisions`; `sealed-derived` entries are skipped unconditionally (`--force` cannot override); emitted entries are `enabled: false` (`eval_candidate`).
+- **`kdna asset-evidence`** — Generate a public asset evidence manifest for inclusion in downstream release repositories.
+- Optional consumption sidecars (route cards, consumer index, trace, evidence manifest) remain versioned separately from the `.kdna` asset format. They are not an endorsement of an asset or a replacement for independent review.
+- New runtime dependency: `@aikdna/kdna-eval@^0.2.0` (multiplying replay regression, multi-gate gating, cost tracking).
+
 ## 0.28.35 (2026-07-03)
 
 - Replace legacy v0 local install verification with `@aikdna/kdna-core.validate()` (#93)
