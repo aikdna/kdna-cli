@@ -340,7 +340,7 @@ function cmdValidateDecisions(target, args) {
   const REPLAY_MODES = ['repair', 'holdout', 'fresh', 'candidate-sealed', 'new-sealed'];
   const engine = createReplayEngine();
 
-  let fixtures = [];
+  const fixtures = [];
   if (fixturesDir) {
     try {
       const files = fs.readdirSync(fixturesDir).filter((f) => f.endsWith('.json'));
@@ -494,7 +494,7 @@ function cmdApplyDecisions(target, args) {
   }
 
   const abs = path.resolve(target);
-  let records = [];
+  const records = [];
   try {
     const content = fs.readFileSync(abs, 'utf8');
     const lines = content.split('\n').filter((l) => l.trim());

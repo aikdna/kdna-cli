@@ -83,7 +83,7 @@ function cmdEvalConsumption(args) {
     }
   }
 
-  let fixtures = [];
+  const fixtures = [];
   if (fixturesDir) {
     try {
       const files = fs.readdirSync(fixturesDir).filter((f) => f.endsWith('.json'));

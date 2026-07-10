@@ -46,7 +46,7 @@ function cmdProject(args) {
   }
 
   const abs = path.resolve(assetPath);
-  let projectData = { path: assetPath, exists: fs.existsSync(abs) };
+  const projectData = { path: assetPath, exists: fs.existsSync(abs) };
 
   if (projectData.exists) {
     try {

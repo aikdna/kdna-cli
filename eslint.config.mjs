@@ -34,6 +34,7 @@ export default [
     rules: {
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
       'no-console': 'off',
+      'no-empty': ['error', { allowEmptyCatch: true }],
       'prefer-const': 'error',
       'no-var': 'error',
       'no-useless-assignment': 'off',
