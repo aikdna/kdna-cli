@@ -37,7 +37,7 @@ function verifyCapsule(capsulePath, _options = {}) {
     if (!assetPath) {
       errors.push(
         'Capsule signature self-claim ("verified": ...) is not a trust anchor. ' +
-        'Caller must pass { assetPath } to enable cryptographic verification.',
+          'Caller must pass { assetPath } to enable cryptographic verification.',
       );
     } else {
       try {
@@ -48,7 +48,7 @@ function verifyCapsule(capsulePath, _options = {}) {
         if (!result || !result.valid) {
           errors.push(
             `Asset signature did not verify: ${result?.error || 'unknown failure'}. ` +
-            'Capsule is rejected — its self-claim is not authoritative.',
+              'Capsule is rejected — its self-claim is not authoritative.',
           );
         } else if (_options?.trustedPubkeys && _options.trustedPubkeys.length > 0) {
           // The signature math passed, but the trust anchor must also be
@@ -59,14 +59,14 @@ function verifyCapsule(capsulePath, _options = {}) {
           if (!pubFp || !_options.trustedPubkeys.includes(pubFp)) {
             errors.push(
               `Asset signature verified, but signing key (${pubFp || 'unknown'}) ` +
-              'is not in the caller-supplied trusted allow-list.',
+                'is not in the caller-supplied trusted allow-list.',
             );
           }
         }
       } catch (e) {
         errors.push(
           `Failed to run cryptographic verification: ${e.message}. ` +
-          'Refusing to trust the capsule self-claim.',
+            'Refusing to trust the capsule self-claim.',
         );
       }
     }

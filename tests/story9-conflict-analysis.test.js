@@ -106,7 +106,8 @@ test('Story 9 unit: term conflict → ERROR entry', () => {
     // Create two fixture dirs with conflicting term definitions
     const dirA = path.join(tmp, 'compA');
     const dirB = path.join(tmp, 'compB');
-    fs.mkdirSync(dirA); fs.mkdirSync(dirB);
+    fs.mkdirSync(dirA);
+    fs.mkdirSync(dirB);
 
     const payloadA = {
       profile: 'judgment-profile-v1',
@@ -119,7 +120,12 @@ test('Story 9 unit: term conflict → ERROR entry', () => {
       profile: 'judgment-profile-v1',
       core: { axioms: [], stances: [], boundaries: [] },
       patterns: [
-        { type: 'term', id: 't1', term: 'clarity', definition: 'A completely different definition.' },
+        {
+          type: 'term',
+          id: 't1',
+          term: 'clarity',
+          definition: 'A completely different definition.',
+        },
       ],
     };
 
@@ -150,7 +156,8 @@ test('Story 9 unit: axiom id clash → WARNING entry', () => {
   try {
     const dirA = path.join(tmp, 'compA');
     const dirB = path.join(tmp, 'compB');
-    fs.mkdirSync(dirA); fs.mkdirSync(dirB);
+    fs.mkdirSync(dirA);
+    fs.mkdirSync(dirB);
 
     const payloadA = {
       profile: 'judgment-profile-v1',
@@ -188,7 +195,8 @@ test('Story 9 unit: banned_term replace_with conflict → WARNING', () => {
   try {
     const dirA = path.join(tmp, 'compA');
     const dirB = path.join(tmp, 'compB');
-    fs.mkdirSync(dirA); fs.mkdirSync(dirB);
+    fs.mkdirSync(dirA);
+    fs.mkdirSync(dirB);
 
     const make = (replaceWith) => ({
       profile: 'judgment-profile-v1',
@@ -220,24 +228,25 @@ test('Story 9 CLI: bundle with no conflicts → empty errors/warnings, no stub I
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s9-cli-'));
   try {
     const bundlePath = path.join(tmp, 'bundle.json');
-    fs.writeFileSync(bundlePath, JSON.stringify({
-      bundle_format: 'kdna-bundle-v1',
-      name: '@test/no-conflict',
-      version: '1.0.0',
-      components: [
-        { id: '@test/comp-a@1.0.0', path: FIXTURE, priority: 1 },
-        { id: '@test/comp-b@1.0.0', path: FIXTURE, priority: 2 },
-      ],
-    }));
+    fs.writeFileSync(
+      bundlePath,
+      JSON.stringify({
+        bundle_format: 'kdna-bundle-v1',
+        name: '@test/no-conflict',
+        version: '1.0.0',
+        components: [
+          { id: '@test/comp-a@1.0.0', path: FIXTURE, priority: 1 },
+          { id: '@test/comp-b@1.0.0', path: FIXTURE, priority: 2 },
+        ],
+      }),
+    );
 
     const r = run(['validate', bundlePath, '--bundle']);
     assert.equal(r.status, 0, `exit 0 expected:\n${r.stderr}`);
     const out = JSON.parse(r.stdout);
     assert.equal(out.bundle_valid, true);
     // No stub INFO note any more — Story 9 replaced it
-    const stubNote = out.info.find(
-      (i) => i.note && i.note.includes('Story 9'),
-    );
+    const stubNote = out.info.find((i) => i.note && i.note.includes('Story 9'));
     assert.ok(!stubNote, 'stub INFO note should be gone after Story 9');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
@@ -263,10 +272,11 @@ test('Story 9 CLI: bundle with term conflict → ERROR, bundle_valid=false, exit
       const payload = {
         profile: 'judgment-profile-v1',
         core: { highest_question: 'Test?', axioms: [], stances: [], boundaries: [] },
-        patterns: [
-          { type: 'term', id: 'term_clarity', term: 'clarity', definition },
-        ],
-        scenarios: [], cases: [], reasoning: {}, evolution: {},
+        patterns: [{ type: 'term', id: 'term_clarity', term: 'clarity', definition }],
+        scenarios: [],
+        cases: [],
+        reasoning: {},
+        evolution: {},
       };
       fs.writeFileSync(path.join(dir, 'payload.kdnab'), JSON.stringify(payload));
       // Write minimal checksums to make validate() pass
@@ -278,15 +288,18 @@ test('Story 9 CLI: bundle with term conflict → ERROR, bundle_valid=false, exit
     }
 
     const bundlePath = path.join(tmp, 'bundle.json');
-    fs.writeFileSync(bundlePath, JSON.stringify({
-      bundle_format: 'kdna-bundle-v1',
-      name: '@test/term-conflict-bundle',
-      version: '1.0.0',
-      components: [
-        { id: '@test/compA@1.0.0', path: dirA, priority: 1 },
-        { id: '@test/compB@1.0.0', path: dirB, priority: 2 },
-      ],
-    }));
+    fs.writeFileSync(
+      bundlePath,
+      JSON.stringify({
+        bundle_format: 'kdna-bundle-v1',
+        name: '@test/term-conflict-bundle',
+        version: '1.0.0',
+        components: [
+          { id: '@test/compA@1.0.0', path: dirA, priority: 1 },
+          { id: '@test/compB@1.0.0', path: dirB, priority: 2 },
+        ],
+      }),
+    );
 
     const r = run(['validate', bundlePath, '--bundle']);
     assert.equal(r.status, 1, `expected exit 1 for term conflict:\n${r.stderr}`);

@@ -199,7 +199,8 @@ function checkStructure(input, options = {}) {
       const mResult = validateManifestFn(manifest);
       for (const e of mResult.errors) issues.push({ severity: 'error', msg: e });
       for (const w of mResult.warnings) issues.push({ severity: 'warn', msg: w });
-      if (mResult.errors.length === 0) passed.push('kdna.json conforms to KDNA Core v1 manifest schema');
+      if (mResult.errors.length === 0)
+        passed.push('kdna.json conforms to KDNA Core v1 manifest schema');
     }
   }
 

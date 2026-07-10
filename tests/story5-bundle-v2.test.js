@@ -60,16 +60,16 @@ test('Story 5: validate v2 bundle manifest and payload successfully', () => {
       updated_at: '2026-06-28T00:00:00Z',
       creator: {
         name: 'Test Creator',
-        id: 'test-creator'
+        id: 'test-creator',
       },
       compatibility: {
         min_loader_version: '1.0.0',
-        profile: 'bundle-profile-v1'
+        profile: 'bundle-profile-v1',
       },
       payload: {
         path: 'payload.kdnab',
         encoding: 'json',
-        encrypted: false
+        encrypted: false,
       },
       summary: 'Testing bundle payload validation',
       description: 'A test v2 bundle.',
@@ -77,16 +77,14 @@ test('Story 5: validate v2 bundle manifest and payload successfully', () => {
       default_language: 'en',
       license: 'Apache-2.0',
       status: 'stable',
-      quality_badge: 'tested'
+      quality_badge: 'tested',
     };
     fs.writeFileSync(path.join(tmp, 'kdna.json'), JSON.stringify(manifest, null, 2));
 
     // Write payload matching bundle-profile-v1.schema.json
     const payload = {
       profile: 'bundle-profile-v1',
-      components: [
-        { id: 'comp-a', path: './comp-a.kdna', priority: 1 }
-      ]
+      components: [{ id: 'comp-a', path: './comp-a.kdna', priority: 1 }],
     };
     fs.writeFileSync(path.join(tmp, 'payload.kdnab'), JSON.stringify(payload, null, 2));
 

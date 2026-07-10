@@ -9,13 +9,13 @@ reference.
 
 There are two flags that look similar but mean very different things:
 
-| Flag | Command | Meaning | Use case |
-|------|---------|---------|----------|
-| `--has-password` | `kdna plan-load` | Diagnostic **presence signal** | "I have a password somewhere; skip the `needs_password` gate so I can plan ahead." |
-| `--password=<value>` | `kdna load` | **Real** password for decryption | Actually decrypt the protected entry and read its content. |
+| Flag                 | Command          | Meaning                          | Use case                                                                           |
+| -------------------- | ---------------- | -------------------------------- | ---------------------------------------------------------------------------------- |
+| `--has-password`     | `kdna plan-load` | Diagnostic **presence signal**   | "I have a password somewhere; skip the `needs_password` gate so I can plan ahead." |
+| `--password=<value>` | `kdna load`      | **Real** password for decryption | Actually decrypt the protected entry and read its content.                         |
 
-The plan-load stage decides *whether* the asset can be loaded. The load
-stage actually *does* the loading (and decryption).
+The plan-load stage decides _whether_ the asset can be loaded. The load
+stage actually _does_ the loading (and decryption).
 
 ### Why this split?
 
@@ -84,9 +84,9 @@ bypassed real password verification. A caller who possessed a stolen
 `.kdna` file could read its plaintext by simply passing
 `--has-password` to `load` — they did not need the actual password.
 
-The fix is intentional: `--has-password` is a *plan-load* concept
+The fix is intentional: `--has-password` is a _plan-load_ concept
 ("I would have a password if I had to provide one"). The actual
-*load* must always have a real key. If you are calling `load`, you
+_load_ must always have a real key. If you are calling `load`, you
 intend to read the content, and reading requires the key.
 
 ## RFC and source pointers

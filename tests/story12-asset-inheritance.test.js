@@ -156,7 +156,11 @@ test('Story 12 planLoad: KDNA_EXTENDS_RESOLVER_MISSING warning when no resolver'
     const plan = core.planLoad(childDir);
     const issue = (plan.issues || []).find((i) => i.code === 'KDNA_EXTENDS_RESOLVER_MISSING');
     assert.ok(issue, 'should have KDNA_EXTENDS_RESOLVER_MISSING warning');
-    assert.notEqual(plan.state, 'invalid', 'missing resolver for extends is a warning, not blocking');
+    assert.notEqual(
+      plan.state,
+      'invalid',
+      'missing resolver for extends is a warning, not blocking',
+    );
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -188,7 +192,10 @@ test('Story 12 inheritance: child axioms override parent, parent unoverridden ax
     };
     fs.writeFileSync(path.join(parentDir, 'payload.kdnab'), JSON.stringify(parentPayload));
     if (typeof core.buildChecksumsV1 === 'function') {
-      fs.writeFileSync(path.join(parentDir, 'checksums.json'), JSON.stringify(core.buildChecksumsV1(parentDir), null, 2));
+      fs.writeFileSync(
+        path.join(parentDir, 'checksums.json'),
+        JSON.stringify(core.buildChecksumsV1(parentDir), null, 2),
+      );
     }
 
     // Child: overrides ax1, adds ax3; no highest_question
@@ -211,12 +218,20 @@ test('Story 12 inheritance: child axioms override parent, parent unoverridden ax
     };
     fs.writeFileSync(path.join(childDir, 'payload.kdnab'), JSON.stringify(childPayload));
     if (typeof core.buildChecksumsV1 === 'function') {
-      fs.writeFileSync(path.join(childDir, 'checksums.json'), JSON.stringify(core.buildChecksumsV1(childDir), null, 2));
+      fs.writeFileSync(
+        path.join(childDir, 'checksums.json'),
+        JSON.stringify(core.buildChecksumsV1(childDir), null, 2),
+      );
     }
 
     const resolveAsset = (name) => {
       if (name === '@test/parent') {
-        return { name: '@test/parent', version: '1.0.0', path: parentDir, manifest: parentManifest };
+        return {
+          name: '@test/parent',
+          version: '1.0.0',
+          path: parentDir,
+          manifest: parentManifest,
+        };
       }
       return null;
     };
@@ -240,7 +255,11 @@ test('Story 12 inheritance: child axioms override parent, parent unoverridden ax
     assert.ok(ax3, 'ax3 should be present (child-only)');
     // Child has its own highest_question — child's version should be kept
     assert.ok(result.content.highest_question, 'highest_question should be present');
-    assert.match(result.content.highest_question, /child question|parent question/, 'highest_question should be from child or parent');
+    assert.match(
+      result.content.highest_question,
+      /child question|parent question/,
+      'highest_question should be from child or parent',
+    );
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

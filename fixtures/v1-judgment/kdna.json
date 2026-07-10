@@ -34,10 +34,30 @@
   "load_contract": {
     "default_profile": "compact",
     "profiles": {
-      "index": { "requires_decryption": false, "max_tokens_hint": 500, "selection": "manifest metadata", "intended_for": ["discovery"] },
-      "compact": { "requires_decryption": false, "max_tokens_hint": 3000, "selection": "core judgment summary", "intended_for": ["agent prompt"] },
-      "scenario": { "requires_decryption": false, "max_tokens_hint": 4000, "selection": "scenario cards", "intended_for": ["situational loading"] },
-      "full": { "requires_decryption": false, "max_tokens_hint": 12000, "selection": "full manifest and payload", "intended_for": ["audit", "reference"] }
+      "index": {
+        "requires_decryption": false,
+        "max_tokens_hint": 500,
+        "selection": "manifest metadata",
+        "intended_for": ["discovery"]
+      },
+      "compact": {
+        "requires_decryption": false,
+        "max_tokens_hint": 3000,
+        "selection": "core judgment summary",
+        "intended_for": ["agent prompt"]
+      },
+      "scenario": {
+        "requires_decryption": false,
+        "max_tokens_hint": 4000,
+        "selection": "scenario cards",
+        "intended_for": ["situational loading"]
+      },
+      "full": {
+        "requires_decryption": false,
+        "max_tokens_hint": 12000,
+        "selection": "full manifest and payload",
+        "intended_for": ["audit", "reference"]
+      }
     }
   }
 }

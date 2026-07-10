@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aikdna.com/schemas/trace-v1.schema.json",
+  "title": "KDNA Consumption Trace v1",
+  "type": "object",
+  "required": ["kdna_trace", "trace_id", "timestamp", "operation", "decision"],
+  "properties": {
+    "kdna_trace": { "const": "1.0.0" },
+    "trace_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "operation": {
+      "type": "string",
+      "description": "task verb: review, decide, compose, etc."
+    },
+    "decision": {
+      "type": "object",
+      "required": ["primary", "rejected", "budget_profile"],
+      "properties": {
+        "primary": {
+          "type": "object",
+          "properties": {
+            "domain_id": { "type": "string" },
+            "weight": { "type": "number" },
+            "reason": { "type": "string" }
+          }
+        },
+        "advisors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "domain_id": { "type": "string" },
+              "weight": { "type": "number" },
+              "role": { "type": "string" }
+            }
+          }
+        },
+        "rejected": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "domain_id": { "type": "string" },
+              "reason": { "type": "string" }
+            }
+          }
+        },
+        "budget_profile": { "type": "string" },
+        "confidence": { "type": "string" },
+        "abstain_reason": { "type": "string" }
+      }
+    },
+    "cost": {
+      "type": "object",
+      "properties": {
+        "tokens_consumed": { "type": "integer" },
+        "chars_consumed": { "type": "integer" },
+        "assets_loaded": { "type": "integer" },
+        "over_budget": { "type": "boolean" }
+      }
+    },
+    "projection": {
+      "type": "object",
+      "properties": {
+        "shape": {
+          "type": "string",
+          "enum": ["answer-pattern", "compact", "scenario", "full"]
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "route_card_version": { "type": "string" },
+        "consumer_index_version": { "type": "string" },
+        "policy_input_hash": { "type": "string" }
+      }
+    }
+  }
+}

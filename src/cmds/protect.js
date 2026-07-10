@@ -132,12 +132,16 @@ function cmdProtect(args) {
   // passes `kdna validate` (manifest_digest / asset_digest are recomputed
   // against the encrypted payload).
   const { pack, buildChecksumsV1 } = require('@aikdna/kdna-core');
-  const tmpDir = require('node:fs').mkdtempSync(require('node:path').join(require('node:os').tmpdir(), 'kdna-protect-'));
+  const tmpDir = require('node:fs').mkdtempSync(
+    require('node:path').join(require('node:os').tmpdir(), 'kdna-protect-'),
+  );
   try {
     for (const [name, data] of Object.entries(zipEntries)) {
       require('node:fs').writeFileSync(require('node:path').join(tmpDir, name), data);
     }
-    const rebuiltManifest = JSON.parse(require('node:fs').readFileSync(require('node:path').join(tmpDir, 'kdna.json'), 'utf8'));
+    const rebuiltManifest = JSON.parse(
+      require('node:fs').readFileSync(require('node:path').join(tmpDir, 'kdna.json'), 'utf8'),
+    );
     const checksums = buildChecksumsV1(tmpDir, rebuiltManifest);
     require('node:fs').writeFileSync(
       require('node:path').join(tmpDir, 'checksums.json'),
@@ -145,8 +149,11 @@ function cmdProtect(args) {
     );
     pack(tmpDir, outPath);
   } finally {
-    try { require('node:fs').rmSync(tmpDir, { recursive: true, force: true }); }
-    catch (e) { process.stderr.write(`Warning: failed to clean up temp directory ${tmpDir}: ${e.message}\n`); }
+    try {
+      require('node:fs').rmSync(tmpDir, { recursive: true, force: true });
+    } catch (e) {
+      process.stderr.write(`Warning: failed to clean up temp directory ${tmpDir}: ${e.message}\n`);
+    }
   }
   console.log(`Encrypted entries: ${entriesToEncrypt.join(', ')}`);
   console.log('Recovery code: (displayed once — save it)');
@@ -188,7 +195,8 @@ function cmdUnlock(args) {
   const profile = profileIdx >= 0 ? args[profileIdx + 1] : 'compact';
   const outIdx = args.indexOf('--out');
   const outPath = outIdx >= 0 ? args[outIdx + 1] : null;
-  if (outIdx >= 0 && !outPath) error('Missing value for --out. Run: kdna help protect', EXIT.INPUT_ERROR);
+  if (outIdx >= 0 && !outPath)
+    error('Missing value for --out. Run: kdna help protect', EXIT.INPUT_ERROR);
 
   if (!fs.existsSync(file)) error(`File not found: ${file}`, EXIT.INPUT_ERROR);
 
@@ -269,24 +277,16 @@ function cmdUnlock(args) {
           const buf = reader2.readEntrySync(asset2, entryName);
           if (encryptedEntries.includes(entryName)) {
             const plain = decryptEntry({ entryName, ciphertext: buf, manifest: origManifest });
-            require('node:fs').writeFileSync(
-              require('node:path').join(tmpDir, entryName),
-              plain,
-            );
+            require('node:fs').writeFileSync(require('node:path').join(tmpDir, entryName), plain);
             // Recompute payload digest against the decrypted plaintext
             // so payload.digest matches what is now in the .kdna.
             if (entryName === 'payload.kdnab' && kdnaJson.payload) {
               const crypto = require('node:crypto');
-              const newDigest =
-                'sha256:' +
-                crypto.createHash('sha256').update(plain).digest('hex');
+              const newDigest = 'sha256:' + crypto.createHash('sha256').update(plain).digest('hex');
               kdnaJson.payload.digest = newDigest;
             }
           } else {
-            require('node:fs').writeFileSync(
-              require('node:path').join(tmpDir, entryName),
-              buf,
-            );
+            require('node:fs').writeFileSync(require('node:path').join(tmpDir, entryName), buf);
           }
         }
         // Re-write the (now-updated) kdna.json so payload.digest change is on disk.
@@ -303,8 +303,13 @@ function cmdUnlock(args) {
         packAsset(tmpDir, outPath);
         console.error(`Unlocked asset written to: ${outPath}`);
       } finally {
-        try { require('node:fs').rmSync(tmpDir, { recursive: true, force: true }); }
-        catch (e) { process.stderr.write(`Warning: failed to clean up temp directory ${tmpDir}: ${e.message}\n`); }
+        try {
+          require('node:fs').rmSync(tmpDir, { recursive: true, force: true });
+        } catch (e) {
+          process.stderr.write(
+            `Warning: failed to clean up temp directory ${tmpDir}: ${e.message}\n`,
+          );
+        }
       }
     }
   } catch (e) {
@@ -330,7 +335,7 @@ function cmdRecover(args) {
     if (process.stdin.isTTY) {
       error(
         '--code-stdin requires the recovery code to be piped in on stdin.\n' +
-        'Example:  echo "<recovery-code>" | kdna recover <file.kdna> --out <out.kdna> --code-stdin',
+          'Example:  echo "<recovery-code>" | kdna recover <file.kdna> --out <out.kdna> --code-stdin',
         EXIT.INPUT_ERROR,
       );
     }
@@ -417,8 +422,11 @@ function cmdRecover(args) {
     );
     packAsset(tmpDir, outPath);
   } finally {
-    try { require('node:fs').rmSync(tmpDir, { recursive: true, force: true }); }
-    catch (e) { process.stderr.write(`Warning: failed to clean up temp directory ${tmpDir}: ${e.message}\n`); }
+    try {
+      require('node:fs').rmSync(tmpDir, { recursive: true, force: true });
+    } catch (e) {
+      process.stderr.write(`Warning: failed to clean up temp directory ${tmpDir}: ${e.message}\n`);
+    }
   }
 
   console.log(`Recovered asset written to: ${outPath}`);

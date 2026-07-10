@@ -159,9 +159,7 @@ function cmdIdentityInit() {
 function cmdIdentityShow(jsonMode = false) {
   if (!fs.existsSync(PUBLIC_KEY_PATH)) {
     if (jsonMode) {
-      console.log(
-        JSON.stringify({ error: 'No identity found. Run: kdna identity init' }),
-      );
+      console.log(JSON.stringify({ error: 'No identity found. Run: kdna identity init' }));
       process.exit(EXIT.INPUT_ERROR);
     }
     error('No identity found. Run: kdna identity init', EXIT.INPUT_ERROR);
@@ -361,7 +359,8 @@ function loadAssetForSigning(abs) {
     const layout = core.readV1Layout(abs);
     if (!layout || !layout.map) throw new Error(`unreadable .kdna container: ${abs}`);
     if (!layout.map['kdna.json']) throw new Error(`.kdna container missing kdna.json: ${abs}`);
-    if (!layout.map['payload.kdnab']) throw new Error(`.kdna container missing payload.kdnab: ${abs}`);
+    if (!layout.map['payload.kdnab'])
+      throw new Error(`.kdna container missing payload.kdnab: ${abs}`);
     kdnaJson = layout.map['kdna.json'];
     payload = layout.map['payload.kdnab'];
     if (layout.map['checksums.json']) checksums = layout.map['checksums.json'];
@@ -670,13 +669,15 @@ function verifyAsset(assetPath, opts = {}) {
     fingerprint: sigRecord.public_key_fingerprint,
     keyFingerprint: providedKeyFp,
     sigPath,
-    revocation: revocation ? {
-      status: 'valid',
-      revocation_path: revocation.revocationPath,
-      revoked_at: revocation.record.revoked_at,
-      reason: revocation.record.reason,
-      fingerprint: revocation.record.fingerprint,
-    } : null,
+    revocation: revocation
+      ? {
+          status: 'valid',
+          revocation_path: revocation.revocationPath,
+          revoked_at: revocation.record.revoked_at,
+          reason: revocation.record.reason,
+          fingerprint: revocation.record.fingerprint,
+        }
+      : null,
   };
 }
 
@@ -911,11 +912,7 @@ function signRevocation(assetPath, opts = {}) {
   // Make sure the parent directory exists (for .kdna files,
   // the parent is a sibling dir like `<file>.signatures/`).
   fs.mkdirSync(path.dirname(revocationPath), { recursive: true });
-  fs.writeFileSync(
-    revocationPath,
-    JSON.stringify(record, null, 2) + '\n',
-    { mode: 0o644 },
-  );
+  fs.writeFileSync(revocationPath, JSON.stringify(record, null, 2) + '\n', { mode: 0o644 });
 
   return {
     revocationPath,
@@ -1037,13 +1034,9 @@ function verifyRevocation(assetPath, opts = {}) {
   const localPublicKeyPem = fs.existsSync(PUBLIC_KEY_PATH)
     ? fs.readFileSync(PUBLIC_KEY_PATH, 'utf8')
     : null;
-  const localPublicKeyRaw = localPublicKeyPem
-    ? rawPublicKey(localPublicKeyPem)
-    : null;
+  const localPublicKeyRaw = localPublicKeyPem ? rawPublicKey(localPublicKeyPem) : null;
   const recordPublicKeyRaw = Buffer.from(record.public_key_hex, 'hex');
-  const keyMatchesLocal = localPublicKeyRaw
-    ? localPublicKeyRaw.equals(recordPublicKeyRaw)
-    : null;
+  const keyMatchesLocal = localPublicKeyRaw ? localPublicKeyRaw.equals(recordPublicKeyRaw) : null;
 
   // Verify the revocation signature over the canonical body.
   const bodyBytes = Buffer.from(STABLE_STRINGIFY(body), 'utf8');
@@ -1201,7 +1194,9 @@ function cmdVerify(args) {
           console.error(`  Reason:           ${result.revocation.reason}`);
         }
         console.error(`  Revoked at:       ${result.revocation && result.revocation.revoked_at}`);
-        console.error(`  Revocation file:  ${result.revocation && result.revocation.revocation_path}`);
+        console.error(
+          `  Revocation file:  ${result.revocation && result.revocation.revocation_path}`,
+        );
         console.error(`  Signer fingerprint: ${result.fingerprint}`);
         break;
       case 'invalid':
@@ -1257,8 +1252,7 @@ function cmdRevoke(args) {
   }
   const abs = path.resolve(target);
   const reasonIdx = args.indexOf('--reason');
-  const reason =
-    reasonIdx >= 0 && args[reasonIdx + 1] ? args[reasonIdx + 1] : null;
+  const reason = reasonIdx >= 0 && args[reasonIdx + 1] ? args[reasonIdx + 1] : null;
   const revIdx = args.indexOf('--revocation');
   const revocationPath = revIdx >= 0 ? path.resolve(args[revIdx + 1]) : null;
   const force = args.includes('--force');

@@ -358,13 +358,7 @@ function validationIssues(result) {
   if (Array.isArray(result.problems) && result.problems.length > 0) {
     return result.problems.map((problem) => String(problem));
   }
-  return [
-    'format_valid',
-    'schema_valid',
-    'payload_valid',
-    'checksums_valid',
-    'load_contract_valid',
-  ]
+  return ['format_valid', 'schema_valid', 'payload_valid', 'checksums_valid', 'load_contract_valid']
     .filter((field) => result[field] === false)
     .map((field) => `${field}=false`);
 }

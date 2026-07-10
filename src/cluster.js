@@ -137,8 +137,8 @@ function cmdClusterApply(clusterPath, input) {
     } else {
       console.error(
         'No input provided and stdin is a TTY. Pipe the task description in, e.g.\n' +
-        '  echo "..." | kdna cluster apply <path>\n' +
-        'Or pass it as a positional argument: kdna cluster apply <path> "<task>".',
+          '  echo "..." | kdna cluster apply <path>\n' +
+          'Or pass it as a positional argument: kdna cluster apply <path> "<task>".',
       );
       process.exit(2);
     }

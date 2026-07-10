@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aikdna.com/schemas/consumer-index-v1.schema.json",
+  "title": "KDNA Consumer Index v1",
+  "type": "object",
+  "required": ["consumer_index", "entries"],
+  "properties": {
+    "consumer_index": { "const": "0.1.0" },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["domain_id", "status"],
+        "properties": {
+          "domain_id": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft_generated",
+              "lint_repaired",
+              "human_reviewed",
+              "eval_candidate",
+              "trusted_runtime"
+            ]
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "default: false. Only true after independent evaluation passes."
+          },
+          "route_preference": {
+            "type": "object",
+            "properties": {
+              "primary_for": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Task verbs this domain is primary for"
+              },
+              "advisor_for": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Task verbs this domain advises on"
+              },
+              "never_for": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          },
+          "evidence": {
+            "type": "object",
+            "properties": {
+              "last_evaluated": { "type": "string", "format": "date-time" },
+              "eval_gate_results": { "type": "object" },
+              "reviewed_by": { "type": "string" },
+              "reviewed_at": { "type": "string", "format": "date-time" },
+              "replay_passed": { "type": "boolean" }
+            }
+          },
+          "provenance": {
+            "type": "object",
+            "properties": {
+              "generated_by": { "type": "string" },
+              "generated_at": { "type": "string", "format": "date-time" },
+              "input_hash": { "type": "string" },
+              "source": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

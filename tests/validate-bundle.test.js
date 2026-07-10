@@ -55,9 +55,7 @@ test('validate --bundle: valid manifest with one component exits 0', () => {
       bundle_format: 'kdna-bundle-v1',
       name: '@test/single',
       version: '1.0.0',
-      components: [
-        { id: '@test/comp-a@1.0.0', path: FIXTURE, priority: 1 },
-      ],
+      components: [{ id: '@test/comp-a@1.0.0', path: FIXTURE, priority: 1 }],
     });
     const r = run(['validate', bundlePath, '--bundle']);
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}:\n${r.stderr}`);
@@ -104,9 +102,7 @@ test('validate --bundle: missing bundle_format exits 1', () => {
       // bundle_format intentionally omitted
       name: '@test/no-format',
       version: '1.0.0',
-      components: [
-        { id: '@test/comp-a@1.0.0', path: FIXTURE },
-      ],
+      components: [{ id: '@test/comp-a@1.0.0', path: FIXTURE }],
     });
     const r = run(['validate', bundlePath, '--bundle']);
     assert.equal(r.status, 1, `expected exit 1, got ${r.status}`);
@@ -200,17 +196,13 @@ test('validate --bundle: valid run with Story 9 — no stub INFO note, conflict 
       bundle_format: 'kdna-bundle-v1',
       name: '@test/stub-check',
       version: '1.0.0',
-      components: [
-        { id: '@test/comp-a@1.0.0', path: FIXTURE, priority: 1 },
-      ],
+      components: [{ id: '@test/comp-a@1.0.0', path: FIXTURE, priority: 1 }],
     });
     const r = run(['validate', bundlePath, '--bundle']);
     assert.equal(r.status, 0);
     const out = JSON.parse(r.stdout);
     // Story 9 replaced the stub — no stub INFO note about "Story 9 pending"
-    const stubNote = out.info.find(
-      (i) => i.note && i.note.includes('Story 9'),
-    );
+    const stubNote = out.info.find((i) => i.note && i.note.includes('Story 9'));
     assert.ok(!stubNote, 'stub INFO note should be absent after Story 9 ships');
     // conflicts summary object must always be present
     assert.ok(typeof out.conflicts.error_count === 'number');

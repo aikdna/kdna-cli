@@ -366,8 +366,8 @@ function cmdLockVerify(projectPath, args = []) {
           }
         }
       } else {
-            unlocked.push(label);
-            blocking.push(`${label} requires Studio review approval`);
+        unlocked.push(label);
+        blocking.push(`${label} requires Studio review approval`);
       }
     }
   }

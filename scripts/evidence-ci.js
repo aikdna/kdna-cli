@@ -39,10 +39,7 @@ console.log('── Install version matches npm');
 {
   const pkg = require('../package.json');
   const cliVersion = pkg.version;
-  check(
-    `package.json version is ${cliVersion}`,
-    /^\d+\.\d+\.\d+$/.test(cliVersion),
-  );
+  check(`package.json version is ${cliVersion}`, /^\d+\.\d+\.\d+$/.test(cliVersion));
 }
 
 // ── CLI help exit code ───────────────────────────────────────
@@ -66,8 +63,8 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-evidence-'));
 {
   const r = run(['demo', 'minimal', tmp]);
   check('demo minimal exits 0', r.ok, r.stderr.slice(0, 120));
-  const hasFiles = fs.existsSync(path.join(tmp, 'KDNA_Core.json')) ||
-    fs.existsSync(path.join(tmp, 'kdna.json'));
+  const hasFiles =
+    fs.existsSync(path.join(tmp, 'KDNA_Core.json')) || fs.existsSync(path.join(tmp, 'kdna.json'));
   check('demo creates expected files', hasFiles);
 }
 
@@ -87,8 +84,11 @@ console.log('── kdna validate');
   check('validate exits 0', r.ok, r.stderr.slice(0, 120));
   try {
     const result = JSON.parse(r.stdout);
-    check('validate returns overall_valid', result.overall_valid === true,
-      JSON.stringify(result).slice(0, 120));
+    check(
+      'validate returns overall_valid',
+      result.overall_valid === true,
+      JSON.stringify(result).slice(0, 120),
+    );
   } catch {
     check('validate returns valid JSON', false, r.stdout.slice(0, 80));
   }
@@ -108,8 +108,7 @@ console.log('── kdna plan-load');
   } else {
     // plan-load may fail if the demo asset doesn't have a load contract;
     // that is not a README truth violation
-    check('plan-load does not crash', r.stderr.length > 0 || r.stdout.length > 0,
-      `exit ${r.code}`);
+    check('plan-load does not crash', r.stderr.length > 0 || r.stdout.length > 0, `exit ${r.code}`);
   }
 }
 
@@ -121,8 +120,7 @@ console.log('── kdna load');
     check('load exits 0', true);
     check('load produces content', r.stdout.length > 0);
   } else {
-    check('load does not crash', r.stderr.length > 0 || r.stdout.length > 0,
-      `exit ${r.code}`);
+    check('load does not crash', r.stderr.length > 0 || r.stdout.length > 0, `exit ${r.code}`);
   }
 }
 

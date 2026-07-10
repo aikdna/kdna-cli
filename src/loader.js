@@ -22,10 +22,10 @@ function readFile(sourceDir, filename) {
     return JSON.parse(fs.readFileSync(filePath, 'utf8'));
   } catch (e) {
     if (e.code === 'ENOENT') return null;
-    throw Object.assign(
-      new Error(`Failed to read ${filename}: ${e.message}`),
-      { code: 'KDNA_LOADER_PARSE_ERROR', path: filePath },
-    );
+    throw Object.assign(new Error(`Failed to read ${filename}: ${e.message}`), {
+      code: 'KDNA_LOADER_PARSE_ERROR',
+      path: filePath,
+    });
   }
 }
 

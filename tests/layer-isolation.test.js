@@ -127,7 +127,7 @@ const ALLOWLIST = [
   // publish.js — tool-usage recommendation
   {
     file: 'src/publish.js',
-    line: 496,
+    line: 498,
     reason: 'tool-usage message: "A kdna.json manifest is recommended for registry publication"',
   },
   // cmds/demo.js — tool-usage recommendation

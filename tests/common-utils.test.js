@@ -9,22 +9,26 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const fs   = require('fs');
+const fs = require('fs');
 const path = require('path');
-const os   = require('os');
+const os = require('os');
 
 const {
   EXIT,
-  setQuiet, isQuiet,
-  setExitCodeOnly, isExitCodeOnly,
-  readJson, writeJson,
-  selfCheckText, isYesNoSelfCheck,
+  setQuiet,
+  isQuiet,
+  setExitCodeOnly,
+  isExitCodeOnly,
+  readJson,
+  writeJson,
+  selfCheckText,
+  isYesNoSelfCheck,
 } = require('../src/cmds/_common');
 
 // ─── EXIT codes ─────────────────────────────────────────────────────────────
 
 test('EXIT: has expected numeric codes', () => {
-  assert.equal(typeof EXIT.OK,          'number');
+  assert.equal(typeof EXIT.OK, 'number');
   assert.equal(typeof EXIT.VALIDATION_FAILED, 'number');
   assert.equal(typeof EXIT.INPUT_ERROR, 'number');
   assert.equal(EXIT.OK, 0);
@@ -39,7 +43,7 @@ test('setQuiet / isQuiet: round-trips correctly', () => {
   assert.equal(isQuiet(), true);
   setQuiet(false);
   assert.equal(isQuiet(), false);
-  setQuiet(original);  // restore
+  setQuiet(original); // restore
 });
 
 test('setExitCodeOnly / isExitCodeOnly: round-trips correctly', () => {
@@ -99,6 +103,6 @@ test('selfCheckText: handles object with text field', () => {
 test('isYesNoSelfCheck: detects yes_no type', () => {
   assert.equal(isYesNoSelfCheck({ type: 'yes_no', question: 'Did it work?' }), true);
   assert.equal(isYesNoSelfCheck({ question: 'info only', type: 'open_end' }), false);
-  assert.equal(isYesNoSelfCheck('Is this correct?'),  true);  // question mark  // strings are yes/no by default
-  assert.equal(isYesNoSelfCheck(null),                             false);
+  assert.equal(isYesNoSelfCheck('Is this correct?'), true); // question mark  // strings are yes/no by default
+  assert.equal(isYesNoSelfCheck(null), false);
 });

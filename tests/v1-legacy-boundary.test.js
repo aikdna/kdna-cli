@@ -9,11 +9,7 @@ const path = require('node:path');
 const zlib = require('node:zlib');
 const os = require('node:os');
 
-const {
-  isV1SourceDir,
-  detectContainerFormat,
-  MIMETYPE_V2,
-} = require('@aikdna/kdna-core');
+const { isV1SourceDir, detectContainerFormat, MIMETYPE_V2 } = require('@aikdna/kdna-core');
 const cliBin = path.join(__dirname, '..', 'src', 'cli.js');
 
 function run(args) {

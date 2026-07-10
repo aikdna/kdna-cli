@@ -104,11 +104,13 @@ function extractCards(payload) {
 
   // ── core.stances (may be strings or objects)
   if (Array.isArray(core.stances)) {
-    cards.stance = core.stances.map((s, i) =>
-      typeof s === 'string'
-        ? { id: `stance_${i}`, statement: s }
-        : { id: s.id || `stance_${i}`, statement: s.statement || s.stance || '' },
-    ).filter((s) => s.statement);
+    cards.stance = core.stances
+      .map((s, i) =>
+        typeof s === 'string'
+          ? { id: `stance_${i}`, statement: s }
+          : { id: s.id || `stance_${i}`, statement: s.statement || s.stance || '' },
+      )
+      .filter((s) => s.statement);
   }
 
   // ── patterns: flat array with type field (Studio v1 compiled format)
@@ -193,16 +195,20 @@ function detectAxiomConflicts(cardsA, cardsB, compA, compB) {
   const idSetA = new Map(cardsA.axiom.map((a) => [a.id, a]));
   for (const bx of cardsB.axiom) {
     if (idSetA.has(bx.id)) {
-      out.push(makeEntry({
-        conflict_type: 'value_conflict',
-        severity: 'WARNING',
-        compA, compB,
-        cardType: 'axiom',
-        idA: bx.id, idB: bx.id,
-        field: 'id',
-        resolution: 'priority_wins',
-        note: `Axiom id "${bx.id}" defined in both components. Same id may encode different judgment.`,
-      }));
+      out.push(
+        makeEntry({
+          conflict_type: 'value_conflict',
+          severity: 'WARNING',
+          compA,
+          compB,
+          cardType: 'axiom',
+          idA: bx.id,
+          idB: bx.id,
+          field: 'id',
+          resolution: 'priority_wins',
+          note: `Axiom id "${bx.id}" defined in both components. Same id may encode different judgment.`,
+        }),
+      );
     }
   }
   return out;
@@ -210,22 +216,24 @@ function detectAxiomConflicts(cardsA, cardsB, compA, compB) {
 
 function detectTermConflicts(cardsA, cardsB, compA, compB) {
   const out = [];
-  const termMapA = new Map(
-    cardsA.term.map((t) => [t.term, t]),
-  );
+  const termMapA = new Map(cardsA.term.map((t) => [t.term, t]));
   for (const tb of cardsB.term) {
     const ta = termMapA.get(tb.term);
     if (ta && ta.definition !== tb.definition) {
-      out.push(makeEntry({
-        conflict_type: 'term_conflict',
-        severity: 'ERROR',
-        compA, compB,
-        cardType: 'term',
-        idA: ta.id || ta.term, idB: tb.id || tb.term,
-        field: 'definition',
-        resolution: 'priority_wins',
-        note: `Term "${tb.term}" has conflicting definitions across components. Consumers will receive contradictory meaning.`,
-      }));
+      out.push(
+        makeEntry({
+          conflict_type: 'term_conflict',
+          severity: 'ERROR',
+          compA,
+          compB,
+          cardType: 'term',
+          idA: ta.id || ta.term,
+          idB: tb.id || tb.term,
+          field: 'definition',
+          resolution: 'priority_wins',
+          note: `Term "${tb.term}" has conflicting definitions across components. Consumers will receive contradictory meaning.`,
+        }),
+      );
     }
   }
   return out;
@@ -237,16 +245,20 @@ function detectBannedTermConflicts(cardsA, cardsB, compA, compB) {
   for (const tb of cardsB.banned_term) {
     const ta = mapA.get(tb.term);
     if (ta && ta.replace_with !== tb.replace_with) {
-      out.push(makeEntry({
-        conflict_type: 'term_conflict',
-        severity: 'WARNING',
-        compA, compB,
-        cardType: 'banned_term',
-        idA: ta.id || ta.term, idB: tb.id || tb.term,
-        field: 'replace_with',
-        resolution: 'risk_wins',
-        note: `Banned term "${tb.term}" has different replace_with values. Both suggestions will be emitted.`,
-      }));
+      out.push(
+        makeEntry({
+          conflict_type: 'term_conflict',
+          severity: 'WARNING',
+          compA,
+          compB,
+          cardType: 'banned_term',
+          idA: ta.id || ta.term,
+          idB: tb.id || tb.term,
+          field: 'replace_with',
+          resolution: 'risk_wins',
+          note: `Banned term "${tb.term}" has different replace_with values. Both suggestions will be emitted.`,
+        }),
+      );
     }
   }
   return out;
@@ -255,24 +267,26 @@ function detectBannedTermConflicts(cardsA, cardsB, compA, compB) {
 function detectMisunderstandingConflicts(cardsA, cardsB, compA, compB) {
   const out = [];
   const mapA = new Map(
-    cardsA.misunderstanding.map((m) => [
-      (m.wrong || '').toLowerCase().trim(), m,
-    ]),
+    cardsA.misunderstanding.map((m) => [(m.wrong || '').toLowerCase().trim(), m]),
   );
   for (const mb of cardsB.misunderstanding) {
     const key = (mb.wrong || '').toLowerCase().trim();
     const ma = mapA.get(key);
     if (ma && (ma.correct || '').toLowerCase().trim() !== (mb.correct || '').toLowerCase().trim()) {
-      out.push(makeEntry({
-        conflict_type: 'value_conflict',
-        severity: 'WARNING',
-        compA, compB,
-        cardType: 'misunderstanding',
-        idA: ma.id || key, idB: mb.id || key,
-        field: 'correct',
-        resolution: 'priority_wins',
-        note: `Misunderstanding with same "wrong" text has conflicting "correct" resolution across components.`,
-      }));
+      out.push(
+        makeEntry({
+          conflict_type: 'value_conflict',
+          severity: 'WARNING',
+          compA,
+          compB,
+          cardType: 'misunderstanding',
+          idA: ma.id || key,
+          idB: mb.id || key,
+          field: 'correct',
+          resolution: 'priority_wins',
+          note: `Misunderstanding with same "wrong" text has conflicting "correct" resolution across components.`,
+        }),
+      );
     }
   }
   return out;
@@ -280,22 +294,24 @@ function detectMisunderstandingConflicts(cardsA, cardsB, compA, compB) {
 
 function detectStanceConflicts(cardsA, cardsB, compA, compB) {
   const out = [];
-  const setA = new Map(
-    cardsA.stance.map((s) => [(s.statement || '').toLowerCase().trim(), s]),
-  );
+  const setA = new Map(cardsA.stance.map((s) => [(s.statement || '').toLowerCase().trim(), s]));
   for (const sb of cardsB.stance) {
     const key = (sb.statement || '').toLowerCase().trim();
     if (setA.has(key)) {
-      out.push(makeEntry({
-        conflict_type: 'stance_conflict',
-        severity: 'WARNING',
-        compA, compB,
-        cardType: 'stance',
-        idA: setA.get(key).id || key, idB: sb.id || key,
-        field: 'statement',
-        resolution: 'surface',
-        note: `Stance "${(sb.statement || '').slice(0, 60)}" defined in both components.`,
-      }));
+      out.push(
+        makeEntry({
+          conflict_type: 'stance_conflict',
+          severity: 'WARNING',
+          compA,
+          compB,
+          cardType: 'stance',
+          idA: setA.get(key).id || key,
+          idB: sb.id || key,
+          field: 'statement',
+          resolution: 'surface',
+          note: `Stance "${(sb.statement || '').slice(0, 60)}" defined in both components.`,
+        }),
+      );
     }
   }
   return out;
@@ -303,9 +319,7 @@ function detectStanceConflicts(cardsA, cardsB, compA, compB) {
 
 function detectFrameworkConflicts(cardsA, cardsB, compA, compB) {
   const out = [];
-  const mapA = new Map(
-    cardsA.framework.map((f) => [(f.name || '').toLowerCase().trim(), f]),
-  );
+  const mapA = new Map(cardsA.framework.map((f) => [(f.name || '').toLowerCase().trim(), f]));
   for (const fb of cardsB.framework) {
     const key = (fb.name || '').toLowerCase().trim();
     const fa = mapA.get(key);
@@ -313,16 +327,20 @@ function detectFrameworkConflicts(cardsA, cardsB, compA, compB) {
       const stepsA = JSON.stringify(fa.steps || []);
       const stepsB = JSON.stringify(fb.steps || []);
       if (stepsA !== stepsB) {
-        out.push(makeEntry({
-          conflict_type: 'framework_conflict',
-          severity: 'WARNING',
-          compA, compB,
-          cardType: 'framework',
-          idA: fa.id || fa.name, idB: fb.id || fb.name,
-          field: 'steps',
-          resolution: 'priority_wins',
-          note: `Framework "${fb.name}" has different steps across components.`,
-        }));
+        out.push(
+          makeEntry({
+            conflict_type: 'framework_conflict',
+            severity: 'WARNING',
+            compA,
+            compB,
+            cardType: 'framework',
+            idA: fa.id || fa.name,
+            idB: fb.id || fb.name,
+            field: 'steps',
+            resolution: 'priority_wins',
+            note: `Framework "${fb.name}" has different steps across components.`,
+          }),
+        );
       }
     }
   }
@@ -337,16 +355,20 @@ function detectSelfCheckConflicts(cardsA, cardsB, compA, compB) {
   for (const cb of cardsB.self_check) {
     const key = (cb.question || cb.one_sentence || '').toLowerCase().trim();
     if (mapA.has(key)) {
-      out.push(makeEntry({
-        conflict_type: 'framework_conflict',
-        severity: 'WARNING',
-        compA, compB,
-        cardType: 'self_check',
-        idA: mapA.get(key).id || key, idB: cb.id || key,
-        field: 'question',
-        resolution: 'surface',
-        note: `Self-check "${(cb.question || cb.one_sentence || '').slice(0, 60)}" appears in both components.`,
-      }));
+      out.push(
+        makeEntry({
+          conflict_type: 'framework_conflict',
+          severity: 'WARNING',
+          compA,
+          compB,
+          cardType: 'self_check',
+          idA: mapA.get(key).id || key,
+          idB: cb.id || key,
+          field: 'question',
+          resolution: 'surface',
+          note: `Self-check "${(cb.question || cb.one_sentence || '').slice(0, 60)}" appears in both components.`,
+        }),
+      );
     }
   }
   return out;
@@ -357,16 +379,20 @@ function detectScenarioConflicts(cardsA, cardsB, compA, compB) {
   const setA = new Set(cardsA.scenario.map((s) => s.id));
   for (const sb of cardsB.scenario) {
     if (setA.has(sb.id)) {
-      out.push(makeEntry({
-        conflict_type: 'framework_conflict',
-        severity: 'INFO',
-        compA, compB,
-        cardType: 'scenario',
-        idA: sb.id, idB: sb.id,
-        field: 'id',
-        resolution: 'priority_wins',
-        note: `Scenario id "${sb.id}" defined in both components.`,
-      }));
+      out.push(
+        makeEntry({
+          conflict_type: 'framework_conflict',
+          severity: 'INFO',
+          compA,
+          compB,
+          cardType: 'scenario',
+          idA: sb.id,
+          idB: sb.id,
+          field: 'id',
+          resolution: 'priority_wins',
+          note: `Scenario id "${sb.id}" defined in both components.`,
+        }),
+      );
     }
   }
   return out;
@@ -382,16 +408,20 @@ function detectRiskConflicts(cardsA, cardsB, compA, compB) {
       const mitA = JSON.stringify(ra.mitigation || ra.how || '');
       const mitB = JSON.stringify(rb.mitigation || rb.how || '');
       if (mitA !== mitB) {
-        out.push(makeEntry({
-          conflict_type: 'risk_conflict',
-          severity: 'INFO',
-          compA, compB,
-          cardType: 'risk',
-          idA: ra.id || ra.name, idB: rb.id || rb.name,
-          field: 'mitigation',
-          resolution: 'risk_wins',
-          note: `Risk "${key}" has different mitigation across components; more restrictive wins.`,
-        }));
+        out.push(
+          makeEntry({
+            conflict_type: 'risk_conflict',
+            severity: 'INFO',
+            compA,
+            compB,
+            cardType: 'risk',
+            idA: ra.id || ra.name,
+            idB: rb.id || rb.name,
+            field: 'mitigation',
+            resolution: 'risk_wins',
+            note: `Risk "${key}" has different mitigation across components; more restrictive wins.`,
+          }),
+        );
       }
     }
   }
@@ -428,10 +458,7 @@ function analyseConflicts(componentResults, core) {
   const trustMap = new Map();
   for (const c of validComps) {
     const tl = c.trust_level;
-    trustMap.set(
-      c.id,
-      tl === 'community' || tl === 'verified' || tl === 'official' ? tl : null,
-    );
+    trustMap.set(c.id, tl === 'community' || tl === 'verified' || tl === 'official' ? tl : null);
   }
 
   // Load payloads once
@@ -449,7 +476,7 @@ function analyseConflicts(componentResults, core) {
       const compB = b.comp.id;
 
       const pairConflicts = [
-        ...detectTermConflicts(a.cards, b.cards, compA, compB),         // ERROR first
+        ...detectTermConflicts(a.cards, b.cards, compA, compB), // ERROR first
         ...detectAxiomConflicts(a.cards, b.cards, compA, compB),
         ...detectBannedTermConflicts(a.cards, b.cards, compA, compB),
         ...detectMisunderstandingConflicts(a.cards, b.cards, compA, compB),
@@ -469,10 +496,7 @@ function analyseConflicts(componentResults, core) {
         // community_warning when at least one side is community.
         entry.trust_level_a = tlA || null;
         entry.trust_level_b = tlB || null;
-        if (
-          entry.severity === 'WARNING' &&
-          (tlA === 'community' || tlB === 'community')
-        ) {
+        if (entry.severity === 'WARNING' && (tlA === 'community' || tlB === 'community')) {
           entry.community_warning = true;
         }
 
