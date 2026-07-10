@@ -7,6 +7,7 @@ const os = require("node:os");
 
 const CLI = path.resolve(__dirname, "..", "src", "cli.js");
 const FIXTURE = path.resolve(__dirname, "..", "fixtures", "v1-minimal");
+const PACKED_FIXTURE = path.join(os.tmpdir(), `kdna-project-${process.pid}.kdna`);
 
 function runCli(args, opts = {}) {
   return spawnSync(process.execPath, [CLI, ...args], {
@@ -16,6 +17,13 @@ function runCli(args, opts = {}) {
     env: { ...process.env, ...(opts.env || {}) },
     timeout: 30_000,
   });
+}
+
+function packedFixture() {
+  if (fs.existsSync(PACKED_FIXTURE)) return PACKED_FIXTURE;
+  const result = runCli(["pack", FIXTURE, PACKED_FIXTURE]);
+  assert.equal(result.status, 0, `fixture pack failed: ${result.stderr}`);
+  return PACKED_FIXTURE;
 }
 
 test("project --help shows usage", () => {
@@ -42,7 +50,7 @@ test("project with a valid fixture path succeeds", () => {
 });
 
 test("project --shape=answer-pattern outputs structured answer", () => {
-  const r = runCli(["project", FIXTURE, "--shape=answer-pattern", "--as=json"]);
+  const r = runCli(["project", packedFixture(), "--shape=answer-pattern", "--as=json"]);
   assert.equal(r.status, 0, `project failed: ${r.stderr}`);
   const out = JSON.parse(r.stdout);
   assert.equal(out.shape, "answer-pattern");
@@ -51,6 +59,18 @@ test("project --shape=answer-pattern outputs structured answer", () => {
   assert.ok(Array.isArray(out.sources));
   assert.ok(typeof out.confidence === "string");
   assert.ok(Array.isArray(out.alternatives));
+  assert.equal(out._loaded_from_payload, true);
+  assert.ok(out.answer.trim().length > 0);
+  assert.doesNotMatch(out.answer, /\[object Object\]/);
+  assert.match(out.answer, /Domain Cognition|Axioms|KDNA/i);
+});
+
+test("project source directories use the explicit manifest-only fallback", () => {
+  const r = runCli(["project", FIXTURE, "--shape=answer-pattern", "--as=json"]);
+  assert.equal(r.status, 0, `project failed: ${r.stderr}`);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out._loaded_from_payload, false);
+  assert.equal(out.confidence, "low");
 });
 
 test("project --shape=answer-pattern as prompt includes all sections", () => {

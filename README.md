@@ -8,6 +8,9 @@ KDNA CLI inspects, validates, packs, unpacks, loads, signs, and manages `.kdna` 
 the consumer/runtime side of the official KDNA toolchain. Formal authoring is
 handled by KDNA Studio CLI and Studio Core.
 
+For task-aware selection, composition, projection, and evaluation, see the
+[Consumption Runtime guide](./docs/consumption-runtime.md).
+
 ## Install
 
 ```bash
@@ -56,6 +59,40 @@ Successful validation returns:
 | `kdna pack <input-dir> <output.kdna>`                                             | Pack a local working folder into a `.kdna` file                |
 | `kdna unpack <input.kdna> <output-dir>`                                           | Unpack a KDNA Asset Container                                  |
 | `kdna load <path> --profile=<index\|compact\|scenario\|full> --as=<json\|prompt>` | Render judgment context for agents or tools                    |
+
+## Consumption Runtime
+
+The optional consumption commands help an application select and inspect
+judgment context for a task. They keep runtime metadata outside the `.kdna`
+file format and produce traces that can be reviewed or replayed.
+
+```bash
+# Select a primary framework from a policy, then inspect the trace.
+kdna route <asset-path> --task=review --policy=policy.json --as=trace
+
+# Compose a primary with bounded advisors.
+kdna compose <asset-path> --primary=example-primary --advisors=example-advisor --as=trace
+
+# Render a packaged asset into a readable judgment projection.
+kdna project <asset-path>.kdna --shape=answer-pattern --as=prompt
+
+# Evaluate a policy with public-safe fixtures and an explicit budget profile.
+kdna eval-consumption <asset-path> --fixtures=./fixtures --budget=interactive --as=markdown
+```
+
+| Command | Purpose |
+| --- | --- |
+| `kdna route` | Select a primary framework or report no match. |
+| `kdna compose` | Build a bounded primary/advisor set and trace it. |
+| `kdna project` | Render a packaged asset as a task-safe projection. |
+| `kdna eval-consumption` | Run replay and multi-gate consumption evaluation. |
+| `kdna compose-review-workbook` | Create a review workbook from diagnostics. |
+| `kdna validate-compose-decisions` | Validate a decision ledger with replay evidence. |
+| `kdna apply-reviewed-compose-decisions` | Create disabled candidate sidecar entries from validated decisions. |
+| `kdna asset-evidence` | Generate a public asset evidence manifest. |
+
+Generated sidecars are disabled by default. They are not an endorsement of an
+asset or a replacement for independent review.
 
 ## Asset Management
 

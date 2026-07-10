@@ -106,40 +106,21 @@ function cmdProject(args) {
   process.exit(EXIT.OK);
 }
 
-function tryLoadProjection(absPath, shape, task) {
+function tryLoadProjection(absPath, shape) {
   try {
     const core = require("@aikdna/kdna-core");
 
-    const format =
-      core.detectContainerFormat ? core.detectContainerFormat(absPath) : null;
+    // The public Core API loads packaged .kdna assets. Source directories are
+    // intentionally handled as manifest-only input here; callers can pack and
+    // validate them before requesting a runtime projection.
+    if (!fs.statSync(absPath).isFile()) return null;
 
-    if (format === "v1" || core.isV1SourceDir?.(absPath)) {
-      try {
-        const profile =
-          shape === "full" || shape === "scenario"
-            ? shape
-            : "compact";
-        const result = core.load
-          ? core.load(absPath, { profile, as: "json" })
-          : null;
-
-        if (result) return { content: result, profile, loaded: true };
-      } catch (_) {}
-
-      try {
-        const plan = core.planLoad
-          ? core.planLoad(absPath)
-          : null;
-        if (plan) return { content: plan, profile: "plan", loaded: true };
-      } catch (_) {}
+    const profile = shape === "scenario" || shape === "full" ? shape : "compact";
+    const projection = core.loadAuthorized(absPath, { profile, as: "prompt" });
+    const content = projection?.text;
+    if (typeof content === "string" && content.trim()) {
+      return { content, profile };
     }
-
-    try {
-      const inspected = core.inspect
-        ? core.inspect(absPath)
-        : null;
-      if (inspected) return { content: inspected, profile: "inspect", loaded: true };
-    } catch (_) {}
   } catch (_) {}
 
   return null;
@@ -158,23 +139,18 @@ function projectShape(projectData, shape, task, context, assetPath) {
   switch (shape) {
     case "answer-pattern": {
       const absPath = projectData.path ? path.resolve(projectData.path) : null;
-      const loaded = absPath ? tryLoadProjection(absPath, shape, task) : null;
+      const loaded = absPath ? tryLoadProjection(absPath, shape) : null;
 
       if (loaded) {
-        const content =
-          typeof loaded === "string"
-            ? loaded
-            : loaded.content?.text ||
-              loaded.content?.toString() ||
-              JSON.stringify(loaded.content || loaded);
         return {
           ...base,
-          answer: content,
+          answer: loaded.content,
           reasoning: buildReasoning(projectData, task),
           sources: buildSources(projectData),
           confidence: "medium",
           alternatives: buildAlternatives(projectData, task),
           _loaded_from_payload: true,
+          projection_profile: loaded.profile,
         };
       }
 
