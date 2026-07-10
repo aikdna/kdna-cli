@@ -217,8 +217,8 @@ function resolvePassword(args, { prompt = 'Password: ' } = {}) {
     if (process.stdin.isTTY) {
       error(
         '--password-stdin requires the password to be piped in on stdin.\n' +
-        'Example:  echo "$KDNA_PASSWORD" | kdna protect <file> --password-stdin\n' +
-        'If you are running interactively, omit --password-stdin and you will be prompted.',
+          'Example:  echo "$KDNA_PASSWORD" | kdna protect <file> --password-stdin\n' +
+          'If you are running interactively, omit --password-stdin and you will be prompted.',
         EXIT.INPUT_ERROR,
       );
     }

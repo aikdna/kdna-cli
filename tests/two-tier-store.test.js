@@ -101,10 +101,7 @@ function buildAsset(tmpRoot, name, version = '0.1.0') {
     stances: [],
   });
 
-  const asset = path.join(
-    tmpRoot,
-    name.replace(/[@/]/g, '_') + '-' + version + '.kdna',
-  );
+  const asset = path.join(tmpRoot, name.replace(/[@/]/g, '_') + '-' + version + '.kdna');
   const script = `import zipfile, os
 src = ${JSON.stringify(source)}
 out = ${JSON.stringify(asset)}
@@ -297,7 +294,10 @@ test('kdna plan-load accepts an installed v1 asset name', () => {
   const otherCwd = path.join(root, 'other-project');
   fs.mkdirSync(otherCwd, { recursive: true });
   const planned = run(['plan-load', '@example/atomspeak-core', '--json'], { env, cwd: otherCwd });
-  assert.ok(planned.ok, `kdna plan-load by installed name failed: ${planned.stderr}\n${planned.stdout}`);
+  assert.ok(
+    planned.ok,
+    `kdna plan-load by installed name failed: ${planned.stderr}\n${planned.stdout}`,
+  );
   const plan = JSON.parse(planned.stdout);
   assert.equal(plan.state, 'ready');
   assert.equal(plan.can_load_now, true);
@@ -316,12 +316,18 @@ test('agent discovery normalizes string routing fields from installed assets', (
   assert.deepEqual(domains[0].applies_when, ['review structural routing lifecycle behavior']);
   assert.deepEqual(domains[0].does_not_apply_when, ['only fix grammar']);
 
-  const match = run(['match', 'review structural routing lifecycle behavior', '--json'], { env, cwd: proj });
+  const match = run(['match', 'review structural routing lifecycle behavior', '--json'], {
+    env,
+    cwd: proj,
+  });
   assert.ok(match.ok, `match failed: ${match.stderr}`);
   const matched = JSON.parse(match.stdout);
   assert.equal(matched.no_strong_matches, false);
   assert.equal(matched.hints[0].name, '@aikdna/string_routed');
-  assert.ok(matched.hints[0].top_signals.length > 0, 'string applies_when should produce hint signals');
+  assert.ok(
+    matched.hints[0].top_signals.length > 0,
+    'string applies_when should produce hint signals',
+  );
 });
 
 // ─── getInstalled / listInstalled: project wins on conflict ───────────

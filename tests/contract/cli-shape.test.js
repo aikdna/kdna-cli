@@ -20,20 +20,65 @@ function runCli(args) {
 }
 
 const DELETED_COMMANDS = [
-  'verify', 'install', 'list', 'compare', 'setup', 'doctor', 'trace',
-  'history', 'publish', 'identity', 'license', 'protect', 'card',
-  'dev', 'search', 'info', 'remove', 'update', 'registry', 'diff',
-  'available', 'match', 'select', 'postvalidate', 'route', 'cluster',
-  'badge', 'audit', 'workpack', 'protocol', 'governance', 'proposal',
-  'review', 'evolution', 'regression', 'test', 'changelog', 'explain',
-  'version', 'init', 'preview', 'project', 'eval', 'export', 'cards',
-  'lock', 'studio', 'package', 'recover', 'unlock',
+  'verify',
+  'install',
+  'list',
+  'compare',
+  'setup',
+  'doctor',
+  'trace',
+  'history',
+  'publish',
+  'identity',
+  'license',
+  'protect',
+  'card',
+  'dev',
+  'search',
+  'info',
+  'remove',
+  'update',
+  'registry',
+  'diff',
+  'available',
+  'match',
+  'select',
+  'postvalidate',
+  'route',
+  'cluster',
+  'badge',
+  'audit',
+  'workpack',
+  'protocol',
+  'governance',
+  'proposal',
+  'review',
+  'evolution',
+  'regression',
+  'test',
+  'changelog',
+  'explain',
+  'version',
+  'init',
+  'preview',
+  'project',
+  'eval',
+  'export',
+  'cards',
+  'lock',
+  'studio',
+  'package',
+  'recover',
+  'unlock',
 ];
 
 test('kdna --help is ≤12 lines', () => {
   const r = runCli(['--help']);
   assert.equal(r.status, 0, r.stderr);
-  const lines = r.stdout.trim().split('\n').filter(l => l.length > 0);
+  const lines = r.stdout
+    .trim()
+    .split('\n')
+    .filter((l) => l.length > 0);
   assert.ok(lines.length <= 12, `help has ${lines.length} lines, expected ≤12`);
 });
 

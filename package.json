@@ -1,7 +1,7 @@
 {
   "name": "@aikdna/kdna-cli",
-  "version": "0.28.35",
-  "description": "KDNA CLI \u2014 runtime control plane for inspecting, validating, planning, packing, unpacking, and loading local .kdna assets.",
+  "version": "0.29.0",
+  "description": "KDNA CLI — runtime control plane for inspecting, validating, planning, packing, unpacking, and loading local .kdna assets.",
   "type": "commonjs",
   "bin": {
     "kdna": "src/cli.js",
@@ -28,7 +28,7 @@
     "test:all": "npm run test:v1 && npm run test:smoke",
     "test:core-smoke": "node scripts/pretest-smoke.js",
     "release:preflight": "node scripts/release-preflight.js",
-    "test:v1": "node --test tests/kdf-spec.test.js tests/common-utils.test.js tests/dev-pack-v2.test.js tests/two-tier-store.test.js tests/remove-list-cli.test.js tests/layer-isolation.test.js tests/v1-global-cli.test.js tests/v1-demo-minimal.test.js tests/cli-smoke.test.js tests/secret-store.test.js tests/license-redaction.test.js tests/validate-bundle.test.js tests/story5-bundle-v2.test.js tests/story6-dependencies.test.js tests/story8-context-budget.test.js tests/story9-conflict-analysis.test.js tests/story10-audit-log.test.js tests/story11-rag-namespace.test.js tests/story12-asset-inheritance.test.js tests/story13-trust-deprecation.test.js tests/story19-sign-verify-identity.test.js tests/story20-revocation.test.js tests/story21-watermarking.test.js tests/critical-2-remote-mode-client.test.js",
+    "test:v1": "node --test tests/kdf-spec.test.js tests/common-utils.test.js tests/dev-pack-v2.test.js tests/two-tier-store.test.js tests/remove-list-cli.test.js tests/layer-isolation.test.js tests/v1-global-cli.test.js tests/v1-demo-minimal.test.js tests/cli-smoke.test.js tests/secret-store.test.js tests/license-redaction.test.js tests/validate-bundle.test.js tests/story5-bundle-v2.test.js tests/story6-dependencies.test.js tests/story8-context-budget.test.js tests/story9-conflict-analysis.test.js tests/story10-audit-log.test.js tests/story11-rag-namespace.test.js tests/story12-asset-inheritance.test.js tests/story13-trust-deprecation.test.js tests/story19-sign-verify-identity.test.js tests/story20-revocation.test.js tests/story21-watermarking.test.js tests/critical-2-remote-mode-client.test.js tests/eval-consumption.test.js tests/project.test.js tests/route.test.js tests/compose.test.js tests/compose-review.test.js tests/asset-evidence.test.js",
     "test:smoke": "npm run test:core-smoke",
     "test:demo": "node --test tests/v1-demo-minimal.test.js",
     "prepublishOnly": "npm test && npm run release:check",
@@ -56,7 +56,8 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@aikdna/kdna-core": "^0.15.10"
+    "@aikdna/kdna-core": "^0.15.10",
+    "@aikdna/kdna-eval": "^0.2.0"
   },
   "optionalDependencies": {
     "ajv": "^8.20.0",

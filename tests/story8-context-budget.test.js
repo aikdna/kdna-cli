@@ -83,9 +83,7 @@ function writeBundleFixture(dir, opts = {}) {
 
   const payload = {
     profile: 'bundle-profile-v1',
-    components: [
-      { id: 'comp-a', path: './comp-a.kdna', priority: 1 },
-    ],
+    components: [{ id: 'comp-a', path: './comp-a.kdna', priority: 1 }],
   };
   fs.writeFileSync(path.join(dir, 'payload.kdnab'), JSON.stringify(payload, null, 2));
 
@@ -131,10 +129,7 @@ test('Story 8 unit: two components exceed budget, strategy=warn', () => {
     { name: '@scope/b', version: '2.0.0' },
     { name: '@scope/c', version: '3.0.0' },
   ];
-  const report = computeContextBudget(
-    { max_tokens: 2000, strategy: 'warn' },
-    deps,
-  );
+  const report = computeContextBudget({ max_tokens: 2000, strategy: 'warn' }, deps);
   // default 1000 × 3 = 3000 > 2000
   assert.equal(report.total_estimated_tokens, 3000);
   assert.equal(report.over_budget, true);
@@ -159,17 +154,17 @@ test('Story 8 unit: components exceed budget, strategy=truncate_lowest_priority'
 test('Story 8 unit: components exceed budget, strategy=error', () => {
   const { computeContextBudget } = require('../src/cmds/context-budget');
   const deps = [{ name: '@scope/a', version: '1.0.0' }];
-  const report = computeContextBudget(
-    { max_tokens: 500, strategy: 'error' },
-    deps,
-  );
+  const report = computeContextBudget({ max_tokens: 500, strategy: 'error' }, deps);
   // default 1000 > 500
   assert.equal(report.over_budget, true);
   assert.equal(report.budget_action, 'block_load');
 });
 
 test('Story 8 unit: default estimation_basis when per_component not declared', () => {
-  const { computeContextBudget, DEFAULT_TOKENS_PER_COMPONENT } = require('../src/cmds/context-budget');
+  const {
+    computeContextBudget,
+    DEFAULT_TOKENS_PER_COMPONENT,
+  } = require('../src/cmds/context-budget');
   const deps = [{ name: '@scope/x', version: '1.0.0' }];
   const report = computeContextBudget({ max_tokens: 9999 }, deps);
   assert.equal(report.components[0].estimation_basis, 'default_compact_profile');

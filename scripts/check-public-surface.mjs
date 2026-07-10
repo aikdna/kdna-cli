@@ -56,7 +56,9 @@ const ALLOWLIST_FILES = new Set([
 // To add a new forbidden pattern, run: echo -n "pattern" | shasum -a 256
 let FORBIDDEN_HASHES = new Set();
 const { createHash } = await import('crypto');
-function checkForbiddenHash(text) { return FORBIDDEN_HASHES.has(createHash('sha256').update(text).digest('hex')); }
+function checkForbiddenHash(text) {
+  return FORBIDDEN_HASHES.has(createHash('sha256').update(text).digest('hex'));
+}
 
 const RULES = [
   {
@@ -98,15 +100,24 @@ const CONFIG_PATH = new URL('./public-surface.config.json', import.meta.url);
 if (_existsSync(CONFIG_PATH)) {
   try {
     const cfg = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
-    if (Array.isArray(cfg.publicDirs)) { PUBLIC_DIRS.length = 0; PUBLIC_DIRS.push(...cfg.publicDirs); }
-    if (Array.isArray(cfg.publicFiles)) PUBLIC_FILES.push(...cfg.publicFiles.filter((f) => !PUBLIC_FILES.includes(f)));
-    if (Array.isArray(cfg.allowedHistoricalPaths)) cfg.allowedHistoricalPaths.forEach((p) => ALLOWLIST_FILES.add(p));
+    if (Array.isArray(cfg.publicDirs)) {
+      PUBLIC_DIRS.length = 0;
+      PUBLIC_DIRS.push(...cfg.publicDirs);
+    }
+    if (Array.isArray(cfg.publicFiles))
+      PUBLIC_FILES.push(...cfg.publicFiles.filter((f) => !PUBLIC_FILES.includes(f)));
+    if (Array.isArray(cfg.allowedHistoricalPaths))
+      cfg.allowedHistoricalPaths.forEach((p) => ALLOWLIST_FILES.add(p));
     if (Array.isArray(cfg.forbiddenPatternHashes)) {
-      for (const h of cfg.forbiddenPatternHashes) { FORBIDDEN_HASHES.add(h); }
+      for (const h of cfg.forbiddenPatternHashes) {
+        FORBIDDEN_HASHES.add(h);
+      }
     }
     // Legacy support: convert old forbiddenPatterns to hashes with deprecation warning
     if (Array.isArray(cfg.forbiddenPatterns)) {
-      console.error('Warning: forbiddenPatterns is deprecated. Migrate to forbiddenPatternHashes with SHA-256.');
+      console.error(
+        'Warning: forbiddenPatterns is deprecated. Migrate to forbiddenPatternHashes with SHA-256.',
+      );
       for (const p of cfg.forbiddenPatterns) {
         FORBIDDEN_HASHES.add(createHash('sha256').update(p).digest('hex'));
       }

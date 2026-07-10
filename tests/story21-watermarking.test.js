@@ -94,14 +94,17 @@ function makeFixture(tmpDir, access = 'public') {
       risk_model: {},
     },
     patterns: [],
-    scenarios: [], cases: [],
+    scenarios: [],
+    cases: [],
     reasoning: { self_checks: [], failure_modes: [] },
     evolution: { changelog: [], version_notes: [] },
   };
   fs.writeFileSync(path.join(dir, 'kdna.json'), JSON.stringify(manifest, null, 2) + '\n');
   fs.writeFileSync(path.join(dir, 'payload.kdnab'), JSON.stringify(payload) + '\n');
-  fs.writeFileSync(path.join(dir, 'checksums.json'),
-    JSON.stringify(core.buildChecksumsV1(dir), null, 2) + '\n');
+  fs.writeFileSync(
+    path.join(dir, 'checksums.json'),
+    JSON.stringify(core.buildChecksumsV1(dir), null, 2) + '\n',
+  );
   return dir;
 }
 
@@ -257,8 +260,11 @@ test('Story 21 plan-load: NO watermark_policy for public asset', () => {
     const r = run(['plan-load', dir, '--json'], { env });
     assert.equal(r.status, 0);
     const plan = JSON.parse(r.stdout);
-    assert.equal(plan.watermark_policy, undefined,
-      'watermark_policy MUST NOT be present for public assets');
+    assert.equal(
+      plan.watermark_policy,
+      undefined,
+      'watermark_policy MUST NOT be present for public assets',
+    );
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -310,8 +316,7 @@ test('Story 21 load: NO watermark for public asset (even in --as=prompt)', () =>
     const r = run(['load', dir, '--as=json', '--entitlement-status', 'active'], { env });
     assert.equal(r.status, 0);
     const out = JSON.parse(r.stdout);
-    assert.equal(out.watermark, undefined,
-      'watermark MUST NOT be present for public assets');
+    assert.equal(out.watermark, undefined, 'watermark MUST NOT be present for public assets');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -352,8 +357,11 @@ test('Story 21 load: watermark consumer_id is null when no kdna identity is set 
     const r = run(['load', dir, '--as=json', '--entitlement-status', 'active'], { env });
     assert.equal(r.status, 0);
     const out = JSON.parse(r.stdout);
-    assert.equal(out.watermark.consumer_id, null,
-      'consumer_id should be null when no kdna identity is set up');
+    assert.equal(
+      out.watermark.consumer_id,
+      null,
+      'consumer_id should be null when no kdna identity is set up',
+    );
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

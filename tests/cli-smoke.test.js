@@ -102,7 +102,7 @@ test('cli-smoke: every case-routed command exits cleanly or with usage error (ne
   assert.deepStrictEqual(
     crashed,
     [],
-    `Commands crashed (not just usage error):\n${crashed.map(c => `  ${c.cmd}: exit=${c.status} signal=${c.signal} ${c.snippet}`).join('\n')}`,
+    `Commands crashed (not just usage error):\n${crashed.map((c) => `  ${c.cmd}: exit=${c.status} signal=${c.signal} ${c.snippet}`).join('\n')}`,
   );
 });
 

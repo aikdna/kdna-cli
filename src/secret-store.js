@@ -84,16 +84,17 @@ const backends = {
   keychain: {
     async get(name) {
       if (!keychainAvailable()) {
-        throw new SecretStoreError('BACKEND_UNAVAILABLE',
-          'macOS Keychain backend requested but `security` CLI not available');
+        throw new SecretStoreError(
+          'BACKEND_UNAVAILABLE',
+          'macOS Keychain backend requested but `security` CLI not available',
+        );
       }
       try {
-        const out = execFileSync('security', [
-          'find-generic-password',
-          '-s', SERVICE_NAME,
-          '-a', name,
-          '-w',
-        ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+        const out = execFileSync(
+          'security',
+          ['find-generic-password', '-s', SERVICE_NAME, '-a', name, '-w'],
+          { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+        );
         return out.trimEnd();
       } catch (e) {
         // security exits with code 44 when item not found
@@ -108,24 +109,20 @@ const backends = {
         throw new SecretStoreError('BACKEND_UNAVAILABLE', 'macOS Keychain not available');
       }
       // -U updates in place if exists, otherwise adds
-      execFileSync('security', [
-        'add-generic-password',
-        '-a', name,
-        '-s', SERVICE_NAME,
-        '-w', value,
-        '-U',
-      ], { stdio: ['ignore', 'ignore', 'pipe'] });
+      execFileSync(
+        'security',
+        ['add-generic-password', '-a', name, '-s', SERVICE_NAME, '-w', value, '-U'],
+        { stdio: ['ignore', 'ignore', 'pipe'] },
+      );
     },
     async delete(name) {
       if (!keychainAvailable()) {
         throw new SecretStoreError('BACKEND_UNAVAILABLE', 'macOS Keychain not available');
       }
       try {
-        execFileSync('security', [
-          'delete-generic-password',
-          '-a', name,
-          '-s', SERVICE_NAME,
-        ], { stdio: ['ignore', 'ignore', 'pipe'] });
+        execFileSync('security', ['delete-generic-password', '-a', name, '-s', SERVICE_NAME], {
+          stdio: ['ignore', 'ignore', 'pipe'],
+        });
       } catch (e) {
         if (e.status === 44) return; // not found → idempotent delete
         throw new SecretStoreError('PERMISSION_DENIED', e.stderr || e.message);
@@ -139,9 +136,10 @@ const backends = {
         throw new SecretStoreError('BACKEND_UNAVAILABLE', 'macOS Keychain not available');
       }
       try {
-        const out = execFileSync('security', [
-          'dump-keychain',
-        ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+        const out = execFileSync('security', ['dump-keychain'], {
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
         // Each item is a series of lines, the first being
         //    "keychain: ..." (we want to skip these)
         // Entries have:
@@ -154,7 +152,10 @@ const backends = {
           // Search forward for the acct= field in this entry
           for (let j = i; j < Math.min(i + 50, lines.length); j++) {
             const m = lines[j].match(/"acct"<blob>="([^"]+)"/);
-            if (m) { names.push(m[1]); break; }
+            if (m) {
+              names.push(m[1]);
+              break;
+            }
             if (lines[j].includes('keychain:')) break;
           }
         }
@@ -194,8 +195,9 @@ const backends = {
     async list() {
       ensureFileBackendDir();
       try {
-        return fs.readdirSync(FILE_BACKEND_DIR)
-          .filter(f => !f.startsWith('.'))
+        return fs
+          .readdirSync(FILE_BACKEND_DIR)
+          .filter((f) => !f.startsWith('.'))
           .map(decodeName);
       } catch (e) {
         if (e.code === 'ENOENT') return [];
@@ -210,15 +212,19 @@ const backends = {
       return v === undefined ? null : v;
     },
     async set() {
-      throw new SecretStoreError('PERMISSION_DENIED',
-        'env backend is read-only; inject secrets via the environment');
+      throw new SecretStoreError(
+        'PERMISSION_DENIED',
+        'env backend is read-only; inject secrets via the environment',
+      );
     },
     async delete() {
-      throw new SecretStoreError('PERMISSION_DENIED',
-        'env backend is read-only; cannot delete env vars');
+      throw new SecretStoreError(
+        'PERMISSION_DENIED',
+        'env backend is read-only; cannot delete env vars',
+      );
     },
     async list() {
-      return Object.keys(process.env).filter(k => k.startsWith('KDNA_SECRET_'));
+      return Object.keys(process.env).filter((k) => k.startsWith('KDNA_SECRET_'));
     },
   },
 };
@@ -250,29 +256,39 @@ module.exports = {
    * @param {string} name — secret identifier (e.g. 'npm-token', 'openai-api-key')
    * @returns {Promise<string | null>} — the stored value, or null if not found
    */
-  get(name) { return withBackend(b => b.get(name)); },
+  get(name) {
+    return withBackend((b) => b.get(name));
+  },
 
   /**
    * @param {string} name
    * @param {string} value
    * @returns {Promise<void>}
    */
-  set(name, value) { return withBackend(b => b.set(name, value)); },
+  set(name, value) {
+    return withBackend((b) => b.set(name, value));
+  },
 
   /**
    * @param {string} name
    * @returns {Promise<void>}
    */
-  delete(name) { return withBackend(b => b.delete(name)); },
+  delete(name) {
+    return withBackend((b) => b.delete(name));
+  },
 
   /**
    * @returns {Promise<string[]>} — list of secret names (not values)
    */
-  list() { return withBackend(b => b.list()); },
+  list() {
+    return withBackend((b) => b.list());
+  },
 
   // Expose for tests
   _internals: {
-    get backend() { return pickBackend(); },
+    get backend() {
+      return pickBackend();
+    },
     backends,
     encodeName,
     decodeName,

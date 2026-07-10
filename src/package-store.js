@@ -141,7 +141,9 @@ function readDataMapCompatSync(asset, options = {}) {
   } catch (e) {
     if (asset.entries.has('payload.kdnab')) {
       try {
-        const payload = JSON.parse(assetReader.readEntrySync(asset, 'payload.kdnab').toString('utf8'));
+        const payload = JSON.parse(
+          assetReader.readEntrySync(asset, 'payload.kdnab').toString('utf8'),
+        );
         if (payload && typeof payload === 'object') {
           const judgment = payload.judgment || payload;
           return {

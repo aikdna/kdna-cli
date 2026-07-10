@@ -27,8 +27,12 @@ function runAsync(args, opts = {}) {
     });
     let stdout = '';
     let stderr = '';
-    child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
-    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
     child.on('close', (code) => {
       resolve({ ok: code === 0, code, stdout, stderr });
     });
@@ -38,16 +42,20 @@ function runAsync(args, opts = {}) {
 async function withReflectingActivationErrorServer(key, fn) {
   const server = http.createServer((req, res) => {
     let raw = '';
-    req.on('data', (chunk) => { raw += chunk; });
+    req.on('data', (chunk) => {
+      raw += chunk;
+    });
     req.on('end', () => {
       res.writeHead(403, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        ok: false,
-        error: {
-          code: 'DENIED',
-          message: `denied request body ${raw} for key ${key}`,
-        },
-      }));
+      res.end(
+        JSON.stringify({
+          ok: false,
+          error: {
+            code: 'DENIED',
+            message: `denied request body ${raw} for key ${key}`,
+          },
+        }),
+      );
     });
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -64,15 +72,10 @@ test('license activate redacts license_key from activation server errors', async
   const key = 'KDNA-LIC-SHOULD-NOT-LEAK';
 
   await withReflectingActivationErrorServer(key, async (server) => {
-    const activate = await runAsync([
-      'license',
-      'activate',
-      '@aikdna/redact',
-      '--key',
-      key,
-      '--server',
-      server,
-    ], { env });
+    const activate = await runAsync(
+      ['license', 'activate', '@aikdna/redact', '--key', key, '--server', server],
+      { env },
+    );
     assert.ok(!activate.ok, 'activation should fail');
     assert.doesNotMatch(activate.stderr, new RegExp(key));
     assert.match(activate.stderr, /redacted-license-key/);

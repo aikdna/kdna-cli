@@ -238,24 +238,16 @@ test('Story 20 verify: a different key cannot revoke another signers signature',
       .createHash('sha256')
       .update(sigBytes)
       .digest('hex')}`;
-    const attackerPub = fs.readFileSync(
-      path.join(env2.KDNA_IDENTITY_DIR, 'ed25519.pub'),
-      'utf8',
-    );
+    const attackerPub = fs.readFileSync(path.join(env2.KDNA_IDENTITY_DIR, 'ed25519.pub'), 'utf8');
     const attackerCrypto = require('node:crypto');
-    const attackerPriv = fs.readFileSync(
-      path.join(env2.KDNA_IDENTITY_DIR, 'ed25519.key'),
-      'utf8',
-    );
+    const attackerPriv = fs.readFileSync(path.join(env2.KDNA_IDENTITY_DIR, 'ed25519.key'), 'utf8');
     const attackerPrivKeyObj = attackerCrypto.createPrivateKey({
       key: attackerPriv,
       format: 'pem',
       type: 'pkcs8',
     });
     const attackerPubKeyObj = attackerCrypto.createPublicKey(attackerPrivKeyObj);
-    const attackerPubRaw = attackerPubKeyObj
-      .export({ type: 'spki', format: 'der' })
-      .subarray(-32);
+    const attackerPubRaw = attackerPubKeyObj.export({ type: 'spki', format: 'der' }).subarray(-32);
     const body = {
       version: '1',
       revoked_signature_path: sigPath,
@@ -273,7 +265,10 @@ test('Story 20 verify: a different key cannot revoke another signers signature',
     function stable(v) {
       if (Array.isArray(v)) return `[${v.map(stable).join(',')}]`;
       if (v && typeof v === 'object') {
-        return `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${stable(v[k])}`).join(',')}}`;
+        return `{${Object.keys(v)
+          .sort()
+          .map((k) => `${JSON.stringify(k)}:${stable(v[k])}`)
+          .join(',')}}`;
       }
       return JSON.stringify(v);
     }

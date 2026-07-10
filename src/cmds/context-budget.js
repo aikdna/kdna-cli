@@ -49,10 +49,7 @@ function computeContextBudget(budgetDecl, resolvedDeps) {
     load_order: i + 1,
   }));
 
-  const totalEstimatedTokens = components.reduce(
-    (sum, c) => sum + c.estimated_tokens,
-    0,
-  );
+  const totalEstimatedTokens = components.reduce((sum, c) => sum + c.estimated_tokens, 0);
   const overBudget = totalEstimatedTokens > maxTokens;
 
   let budgetAction = 'none';

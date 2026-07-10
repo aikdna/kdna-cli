@@ -39,7 +39,8 @@ function withEnv(name, value, fn) {
     try {
       return await fn();
     } finally {
-      if (prev === undefined) delete process.env[name]; else process.env[name] = prev;
+      if (prev === undefined) delete process.env[name];
+      else process.env[name] = prev;
     }
   });
 }
@@ -53,11 +54,18 @@ test('file backend: set / get / list / delete round-trip', async () => {
       const v = await ss.get('api-token');
       assert.equal(v, 'secret-value-123');
       const list = await ss.list();
-      assert.ok(list.includes('api-token'), `expected 'api-token' in list, got ${JSON.stringify(list)}`);
+      assert.ok(
+        list.includes('api-token'),
+        `expected 'api-token' in list, got ${JSON.stringify(list)}`,
+      );
       // Permissions check: file should be 0600
       const p = path.join(tmpHome, 'secrets', 'api-token');
       const st = fs.statSync(p);
-      assert.equal(st.mode & 0o777, 0o600, `file mode should be 0600, got ${(st.mode & 0o777).toString(8)}`);
+      assert.equal(
+        st.mode & 0o777,
+        0o600,
+        `file mode should be 0600, got ${(st.mode & 0o777).toString(8)}`,
+      );
       await ss.delete('api-token');
       assert.equal(await ss.get('api-token'), null, 'get after delete should be null');
     });
@@ -132,4 +140,3 @@ test('backend selection: defaults to keychain on darwin, file elsewhere', () => 
     assert.equal(ss._internals.backend, 'file');
   }
 });
-

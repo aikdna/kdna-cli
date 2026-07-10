@@ -8,6 +8,9 @@ KDNA CLI inspects, validates, packs, unpacks, loads, signs, and manages `.kdna` 
 the consumer/runtime side of the official KDNA toolchain. Formal authoring is
 handled by KDNA Studio CLI and Studio Core.
 
+For task-aware selection, composition, projection, and evaluation, see the
+[Consumption Runtime guide](./docs/consumption-runtime.md).
+
 ## Install
 
 ```bash
@@ -25,9 +28,8 @@ kdna validate agent-project-context-v0.1.2.kdna
 kdna plan-load agent-project-context-v0.1.2.kdna
 kdna load    agent-project-context-v0.1.2.kdna --profile=compact --as=prompt
 ```
-kdna plan-load ./minimal.kdna
-kdna load ./minimal.kdna --profile=compact --as=prompt
-```
+
+Successful validation returns:
 
 Successful validation returns:
 
@@ -45,46 +47,80 @@ Successful validation returns:
 
 ## Core Commands
 
-| Command | Purpose |
-| --- | --- |
-| `kdna demo minimal <dir>` | Create a minimal local demo folder |
-| `kdna inspect <path>` | Inspect a source directory or `.kdna` container |
-| `kdna validate <path>` | Validate format, schema, payload, checksums, and load contract |
-| `kdna plan-load <path> --json` | Return the Core LoadPlan before runtime load |
-| `kdna pack <input-dir> <output.kdna>` | Pack a local working folder into a `.kdna` file |
-| `kdna unpack <input.kdna> <output-dir>` | Unpack a KDNA Asset Container |
-| `kdna load <path> --profile=<index\|compact\|scenario\|full> --as=<json\|prompt>` | Render judgment context for agents or tools |
+| Command                                                                           | Purpose                                                        |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `kdna demo minimal <dir>`                                                         | Create a minimal local demo folder                             |
+| `kdna inspect <path>`                                                             | Inspect a source directory or `.kdna` container                |
+| `kdna validate <path>`                                                            | Validate format, schema, payload, checksums, and load contract |
+| `kdna plan-load <path> --json`                                                    | Return the Core LoadPlan before runtime load                   |
+| `kdna pack <input-dir> <output.kdna>`                                             | Pack a local working folder into a `.kdna` file                |
+| `kdna unpack <input.kdna> <output-dir>`                                           | Unpack a KDNA Asset Container                                  |
+| `kdna load <path> --profile=<index\|compact\|scenario\|full> --as=<json\|prompt>` | Render judgment context for agents or tools                    |
+
+## Consumption Runtime
+
+The optional consumption commands help an application select and inspect
+judgment context for a task. They keep runtime metadata outside the `.kdna`
+file format and produce traces that can be reviewed or replayed.
+
+```bash
+# Select a primary framework from a policy, then inspect the trace.
+kdna route <asset-path> --task=review --policy=policy.json --as=trace
+
+# Compose a primary with bounded advisors.
+kdna compose <asset-path> --primary=example-primary --advisors=example-advisor --as=trace
+
+# Render a packaged asset into a readable judgment projection.
+kdna project <asset-path>.kdna --shape=answer-pattern --as=prompt
+
+# Evaluate a policy with public-safe fixtures and an explicit budget profile.
+kdna eval-consumption <asset-path> --fixtures=./fixtures --budget=interactive --as=markdown
+```
+
+| Command                                 | Purpose                                                             |
+| --------------------------------------- | ------------------------------------------------------------------- |
+| `kdna route`                            | Select a primary framework or report no match.                      |
+| `kdna compose`                          | Build a bounded primary/advisor set and trace it.                   |
+| `kdna project`                          | Render a packaged asset as a task-safe projection.                  |
+| `kdna eval-consumption`                 | Run replay and multi-gate consumption evaluation.                   |
+| `kdna compose-review-workbook`          | Create a review workbook from diagnostics.                          |
+| `kdna validate-compose-decisions`       | Validate a decision ledger with replay evidence.                    |
+| `kdna apply-reviewed-compose-decisions` | Create disabled candidate sidecar entries from validated decisions. |
+| `kdna asset-evidence`                   | Generate a public asset evidence manifest.                          |
+
+Generated sidecars are disabled by default. They are not an endorsement of an
+asset or a replacement for independent review.
 
 ## Asset Management
 
-| Command | Purpose |
-| --- | --- |
-| `kdna install <file.kdna>` | Install to local asset store (`~/.kdna/packages/`) |
-| `kdna list` | List installed assets |
-| `kdna remove <name>[@version]` | Remove an installed asset |
+| Command                        | Purpose                                            |
+| ------------------------------ | -------------------------------------------------- |
+| `kdna install <file.kdna>`     | Install to local asset store (`~/.kdna/packages/`) |
+| `kdna list`                    | List installed assets                              |
+| `kdna remove <name>[@version]` | Remove an installed asset                          |
 
 ## Identity, Signing & Revocation
 
-| Command | Purpose |
-| --- | --- |
-| `kdna identity init [--name <n>]` | Create Ed25519 signing key |
-| `kdna identity show` | Show public key (PEM / hex / base64) |
-| `kdna sign <file.kdna>` | Sign an asset with your identity key |
-| `kdna verify <file.kdna> [--key <pub>]` | Verify a signature |
-| `kdna revoke <sig.kdsig> [--reason]` | Issue a signed revocation record |
-| `kdna revocation-status <sig.kdsig>` | Check revocation status |
+| Command                                 | Purpose                              |
+| --------------------------------------- | ------------------------------------ |
+| `kdna identity init [--name <n>]`       | Create Ed25519 signing key           |
+| `kdna identity show`                    | Show public key (PEM / hex / base64) |
+| `kdna sign <file.kdna>`                 | Sign an asset with your identity key |
+| `kdna verify <file.kdna> [--key <pub>]` | Verify a signature                   |
+| `kdna revoke <sig.kdsig> [--reason]`    | Issue a signed revocation record     |
+| `kdna revocation-status <sig.kdsig>`    | Check revocation status              |
 
 ## Agent Loader Commands
 
 The `kdna-loader` skill provides automatic discovery of local `.kdna` assets
 for supported agents (OpenCode, Codex, Claude Code, Cursor). Install manually:
 
-| Agent | Skill path |
-| --- | --- |
-| OpenCode | `~/.agents/skills/kdna-loader/SKILL.md` |
-| Codex | `~/.codex/skills/kdna-loader/SKILL.md` |
+| Agent       | Skill path                              |
+| ----------- | --------------------------------------- |
+| OpenCode    | `~/.agents/skills/kdna-loader/SKILL.md` |
+| Codex       | `~/.codex/skills/kdna-loader/SKILL.md`  |
 | Claude Code | `~/.claude/skills/kdna-loader/SKILL.md` |
-| Cursor | `~/.cursor/skills/kdna-loader/SKILL.md` |
+| Cursor      | `~/.cursor/skills/kdna-loader/SKILL.md` |
 
 See [kdna-skills](https://github.com/aikdna/kdna-skills) for the loader source and installer script.
 

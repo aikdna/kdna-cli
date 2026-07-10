@@ -92,7 +92,10 @@ const termPayload = (term, definition) => ({
   profile: 'judgment-profile-v1',
   core: { highest_question: 'Q?', axioms: [], stances: [], boundaries: [] },
   patterns: [{ type: 'term', id: `t_${term}`, term, definition }],
-  scenarios: [], cases: [], reasoning: {}, evolution: {},
+  scenarios: [],
+  cases: [],
+  reasoning: {},
+  evolution: {},
 });
 
 const axiomPayload = (id, text) => ({
@@ -104,7 +107,10 @@ const axiomPayload = (id, text) => ({
     boundaries: [],
   },
   patterns: [],
-  scenarios: [], cases: [], reasoning: {}, evolution: {},
+  scenarios: [],
+  cases: [],
+  reasoning: {},
+  evolution: {},
 });
 
 // ─── A: semver-util unit ──────────────────────────────────────────────────────
@@ -186,12 +192,19 @@ test('Story 13 deprecation: deprecated_in is an alias for since', () => {
 test('Story 13 deprecation: deprecated_at is shorthand for `since: >=X`', () => {
   const { evaluateDeprecation } = require('../src/cmds/deprecation');
   const dep = { deprecated_at: '0.28.0' };
-  assert.ok(evaluateDeprecation(dep, 'comp-1', 'component', '0.28.0'),
-    'deprecated_at=0.28.0 should match CLI 0.28.0');
-  assert.ok(evaluateDeprecation(dep, 'comp-1', 'component', '0.29.0'),
-    'deprecated_at=0.28.0 should match CLI 0.29.0 (shorthand for >=0.28.0)');
-  assert.equal(evaluateDeprecation(dep, 'comp-1', 'component', '0.27.0'),
-    null, 'deprecated_at=0.28.0 should NOT match CLI 0.27.0');
+  assert.ok(
+    evaluateDeprecation(dep, 'comp-1', 'component', '0.28.0'),
+    'deprecated_at=0.28.0 should match CLI 0.28.0',
+  );
+  assert.ok(
+    evaluateDeprecation(dep, 'comp-1', 'component', '0.29.0'),
+    'deprecated_at=0.28.0 should match CLI 0.29.0 (shorthand for >=0.28.0)',
+  );
+  assert.equal(
+    evaluateDeprecation(dep, 'comp-1', 'component', '0.27.0'),
+    null,
+    'deprecated_at=0.28.0 should NOT match CLI 0.27.0',
+  );
 });
 
 test('Story 13 deprecation: kind escalates to "removal" past remove_in', () => {
@@ -250,11 +263,12 @@ test('Story 13 deprecation: scanBundleDeprecations reads top-level + per-compone
     const warnings = scanBundleDeprecations(tmp, '0.28.25');
     assert.equal(warnings.length, 2, 'one bundle-level + one component-level');
     const ids = warnings.map((w) => w.component_id).sort();
-    assert.ok(ids.includes('@old/comp-a@1.0.0'),
-      'per-component deprecation should appear');
+    assert.ok(ids.includes('@old/comp-a@1.0.0'), 'per-component deprecation should appear');
     const bundleId = m.name || m.asset_id || '(unnamed bundle)';
-    assert.ok(ids.includes(bundleId),
-      'top-level bundle deprecation should appear under the bundle name');
+    assert.ok(
+      ids.includes(bundleId),
+      'top-level bundle deprecation should appear under the bundle name',
+    );
     const labels = warnings.map((w) => w.component_label).sort();
     assert.deepEqual(labels, ['bundle', 'component']);
   } finally {
@@ -436,9 +450,7 @@ test('Story 13 validate --bundle: deprecation_warnings is empty when nothing mat
   const { validateBundle } = require('../src/cmds/validate-bundle');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s13-v-'));
   try {
-    const bundlePath = writeBundleFile(tmp, [
-      { id: '@test/a@1.0.0', path: FIXTURE, priority: 1 },
-    ]);
+    const bundlePath = writeBundleFile(tmp, [{ id: '@test/a@1.0.0', path: FIXTURE, priority: 1 }]);
     const r = validateBundle(bundlePath, { currentVersion: '0.28.25' });
     assert.ok(r.deprecation_warnings);
     assert.equal(r.deprecation_warnings.count, 0);
@@ -483,7 +495,11 @@ test('Story 13 CLI plan-load: deprecated bundle prints Notice to stderr', () => 
       JSON.stringify({
         profile: 'bundle-profile-v1',
         components: [
-          { id: '@old/comp@1.0.0', path: './x.kdna', deprecation: { since: '>=0.28.0', reason: 'moved' } },
+          {
+            id: '@old/comp@1.0.0',
+            path: './x.kdna',
+            deprecation: { since: '>=0.28.0', reason: 'moved' },
+          },
         ],
       }),
     );
@@ -580,10 +596,9 @@ test('Story 13 CLI validate --bundle: deprecation matches → stderr text', () =
 test('Story 13 CLI validate --bundle: deprecation does NOT match → no stderr', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s13-cli-'));
   try {
-    const bundlePath = writeBundleFile(
-      tmp,
-      [{ id: '@old/comp@1.0.0', path: FIXTURE, priority: 1, deprecation: { since: '>=99.0.0' } }],
-    );
+    const bundlePath = writeBundleFile(tmp, [
+      { id: '@old/comp@1.0.0', path: FIXTURE, priority: 1, deprecation: { since: '>=99.0.0' } },
+    ]);
     const r = run(['validate', bundlePath, '--bundle']);
     assert.equal(r.status, 0, `expected exit 0:\n${r.stderr}`);
     assert.doesNotMatch(r.stderr, /bundle deprecation signals/i);

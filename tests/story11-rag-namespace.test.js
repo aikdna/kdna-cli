@@ -65,9 +65,7 @@ test('Story 11 core: rag_namespace format — name@version and name-only', () =>
   //   dep with name only       → "name"
   //   dep with no name         → null
   function deriveNamespace(dep) {
-    return dep.name
-      ? (dep.version ? `${dep.name}@${dep.version}` : dep.name)
-      : null;
+    return dep.name ? (dep.version ? `${dep.name}@${dep.version}` : dep.name) : null;
   }
 
   assert.equal(deriveNamespace({ name: '@scope/a', version: '1.0.0' }), '@scope/a@1.0.0');
@@ -102,7 +100,9 @@ test('Story 11 CLI: plan-load with resolved deps → rag_namespace in output', (
 test('Story 11 CLI: kdna load --namespace with no Bundle deps → warning on stderr, normal output', () => {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s11-home-'));
   try {
-    const r = run(['load', FIXTURE, '--namespace=@scope/missing', '--as=json'], { kdnaHome: tmpHome });
+    const r = run(['load', FIXTURE, '--namespace=@scope/missing', '--as=json'], {
+      kdnaHome: tmpHome,
+    });
     // The namespace filter warns when not found, but load itself succeeds
     assert.equal(r.status, 0, `expected exit 0:\n${r.stderr}`);
     // Warning should appear on stderr

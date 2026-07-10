@@ -55,7 +55,8 @@ function assetLabel(asset, fallback) {
 }
 
 function stringList(value) {
-  if (Array.isArray(value)) return value.filter((item) => item !== undefined && item !== null && item !== '');
+  if (Array.isArray(value))
+    return value.filter((item) => item !== undefined && item !== null && item !== '');
   if (typeof value === 'string' && value.trim()) return [value.trim()];
   return [];
 }
@@ -366,8 +367,8 @@ function cmdLoad(input, args = []) {
     if (process.stdin.isTTY) {
       console.error(
         '--password-stdin requires the password to be piped in on stdin.\n' +
-        'Example:  echo "$KDNA_PASSWORD" | kdna load <asset> --password-stdin\n' +
-        'If you are running interactively, omit --password-stdin and you will be prompted.',
+          'Example:  echo "$KDNA_PASSWORD" | kdna load <asset> --password-stdin\n' +
+          'If you are running interactively, omit --password-stdin and you will be prompted.',
       );
       process.exit(2);
     }
@@ -862,8 +863,8 @@ function cmdPostvalidate(args = []) {
     if (process.stdin.isTTY) {
       console.error(
         'Reading agent output from stdin requires the data to be piped in.\n' +
-        'Example:  kdna agent evaluate <domain> --input <task> < agent-output.txt\n' +
-        'Or pass --output <file> to read from a file.',
+          'Example:  kdna agent evaluate <domain> --input <task> < agent-output.txt\n' +
+          'Or pass --output <file> to read from a file.',
       );
       process.exit(2);
     }

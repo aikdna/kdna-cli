@@ -138,10 +138,7 @@ test('kdna load refuses v1 assets when LoadPlan cannot load now', () => {
     // form (and verifies the secret is still not leaked).
     const loaded = runCli(['load', tmp, '--profile=compact', '--as=prompt']);
     assert.notEqual(loaded.status, 0, 'load must be denied');
-    assert.match(
-      loaded.stderr,
-      /LoadPlan denied loading|access: "remote"/,
-    );
+    assert.match(loaded.stderr, /LoadPlan denied loading|access: "remote"/);
     assert.ok(!loaded.stdout.includes(secret));
     assert.ok(!loaded.stderr.includes(secret));
   } finally {

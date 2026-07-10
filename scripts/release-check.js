@@ -11,8 +11,10 @@ const tag = `v${version}`;
 const failures = [];
 
 function check(label, fn, { soft = false } = {}) {
-  try { fn(); console.log(`  PASS ${label}`); }
-  catch (e) {
+  try {
+    fn();
+    console.log(`  PASS ${label}`);
+  } catch (e) {
     if (soft) {
       console.log(`  WARN ${label}: ${e.message} (non-blocking)`);
     } else {
@@ -29,12 +31,16 @@ check('git tag exists', () => {
   if (!out) throw new Error(`tag ${tag} not found. Run: git tag ${tag} && git push origin ${tag}`);
 });
 
-check('GitHub Release exists', () => {
-  const repo = pkg.repository.directory
-    ? pkg.repository.url.match(/github\.com\/([^/]+\/[^.]+)/)[1]
-    : pkg.repository.url.match(/github\.com\/([^/]+\/[^.]+)/)[1];
-  execSync(`gh release view ${tag} --repo ${repo}`, { stdio: 'ignore' });
-}, { soft: true }); // soft: GitHub Release is created by publish workflow step 4, not by tag push alone
+check(
+  'GitHub Release exists',
+  () => {
+    const repo = pkg.repository.directory
+      ? pkg.repository.url.match(/github\.com\/([^/]+\/[^.]+)/)[1]
+      : pkg.repository.url.match(/github\.com\/([^/]+\/[^.]+)/)[1];
+    execSync(`gh release view ${tag} --repo ${repo}`, { stdio: 'ignore' });
+  },
+  { soft: true },
+); // soft: GitHub Release is created by publish workflow step 4, not by tag push alone
 
 check('CHANGELOG has version entry', () => {
   const changelog = fs.readFileSync(path.join(__dirname, '..', 'CHANGELOG.md'), 'utf8');

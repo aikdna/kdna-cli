@@ -149,10 +149,7 @@ function buildWatermark(opts) {
   // except the hmac field itself). The consumer can verify
   // the HMAC by recomputing it from these fields.
   const canonical = stableStringify(body);
-  const hmac = crypto
-    .createHmac('sha256', hmacKey)
-    .update(canonical)
-    .digest('hex');
+  const hmac = crypto.createHmac('sha256', hmacKey).update(canonical).digest('hex');
 
   return {
     ...body,
@@ -201,10 +198,7 @@ function verifyWatermark(watermark, opts = {}) {
   }
   const { hmac, ...body } = watermark;
   const canonical = stableStringify(body);
-  const expected = crypto
-    .createHmac('sha256', opts.hmacKey)
-    .update(canonical)
-    .digest('hex');
+  const expected = crypto.createHmac('sha256', opts.hmacKey).update(canonical).digest('hex');
   if (expected !== hmac) {
     return { ok: false, reason: 'hmac mismatch' };
   }

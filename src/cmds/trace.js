@@ -264,10 +264,7 @@ function cmdHistory(args) {
 function cmdHistoryAudit(args) {
   const json = args.includes('--json');
   const stats = args.includes('--stats');
-  const count = parseInt(
-    args.includes('-n') ? args[args.indexOf('-n') + 1] : '20',
-    10,
-  );
+  const count = parseInt(args.includes('-n') ? args[args.indexOf('-n') + 1] : '20', 10);
   const resultFilter = args.includes('--errors') ? 'error' : null;
 
   const entries = readAuditLog({ result: resultFilter });
@@ -291,7 +288,7 @@ function cmdHistoryAudit(args) {
         console.log('');
         console.log('By asset:');
         const sorted = Object.entries(s.by_asset).sort(
-          (a, b) => (b[1].success + b[1].error) - (a[1].success + a[1].error),
+          (a, b) => b[1].success + b[1].error - (a[1].success + a[1].error),
         );
         for (const [asset, counts] of sorted.slice(0, 10)) {
           console.log(`  ${asset}: ${counts.success} ok / ${counts.error} err`);
@@ -314,9 +311,7 @@ function cmdHistoryAudit(args) {
     process.exit(EXIT.OK);
   }
 
-  console.log(
-    `${'Timestamp'.padEnd(20)} ${'Result'.padEnd(8)} ${'Profile'.padEnd(10)} ${'Asset'}`,
-  );
+  console.log(`${'Timestamp'.padEnd(20)} ${'Result'.padEnd(8)} ${'Profile'.padEnd(10)} ${'Asset'}`);
   console.log('-'.repeat(80));
   for (const e of recent) {
     const ts = e.timestamp
@@ -331,7 +326,7 @@ function cmdHistoryAudit(args) {
   console.log('');
   console.log(
     `Showing ${recent.length} of ${entries.length} total audit entries. ` +
-    '--stats for summary. --errors to filter failures.',
+      '--stats for summary. --errors to filter failures.',
   );
   process.exit(EXIT.OK);
 }

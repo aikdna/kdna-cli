@@ -27,6 +27,7 @@
  *   8. The request URL normalization accepts both
  *      --remote-server https://example.com (→ /v1/project)
  *      and --remote-server https://example.com/v1/project
+ *   9. Packaged access: "remote" .kdna files route to the server too
  *
  * Run: node --test tests/critical-2-remote-mode-client.test.js
  */
@@ -66,7 +67,10 @@ async function startFakeRemoteServer(opts = {}) {
   });
 
   const readyPath = path.join(os.tmpdir(), `kdna-fake-remote-ready-${process.pid}-${Date.now()}`);
-  const lastRequestPath = path.join(os.tmpdir(), `kdna-fake-remote-last-${process.pid}-${Date.now()}`);
+  const lastRequestPath = path.join(
+    os.tmpdir(),
+    `kdna-fake-remote-last-${process.pid}-${Date.now()}`,
+  );
   const cfg = JSON.stringify({
     response: opts.response || {
       task_projection: { highest_question: 'mocked' },
@@ -130,7 +134,11 @@ async function startFakeRemoteServer(opts = {}) {
     throw new Error('fake server did not become ready within 5s');
   }
   // Clean up the ready marker so it doesn't accumulate.
-  try { fs.unlinkSync(readyPath); } catch (_) { /* ignore */ }
+  try {
+    fs.unlinkSync(readyPath);
+  } catch (_) {
+    /* ignore */
+  }
 
   return {
     proc,
@@ -179,15 +187,31 @@ function makeRemoteFixture(tmpDir) {
   };
   const payload = {
     profile: 'judgment-profile-v1',
-    core: { highest_question: 'Q?', axioms: [{ id: 'ax1', one_sentence: 'Test.' }], boundaries: [], risk_model: {} },
-    patterns: [], scenarios: [], cases: [],
+    core: {
+      highest_question: 'Q?',
+      axioms: [{ id: 'ax1', one_sentence: 'Test.' }],
+      boundaries: [],
+      risk_model: {},
+    },
+    patterns: [],
+    scenarios: [],
+    cases: [],
     reasoning: { self_checks: [], failure_modes: [] },
     evolution: { changelog: [], version_notes: [] },
   };
   fs.writeFileSync(path.join(dir, 'kdna.json'), JSON.stringify(manifest, null, 2) + '\n');
   fs.writeFileSync(path.join(dir, 'payload.kdnab'), JSON.stringify(payload) + '\n');
-  fs.writeFileSync(path.join(dir, 'checksums.json'), JSON.stringify(core.buildChecksumsV1(dir), null, 2) + '\n');
+  fs.writeFileSync(
+    path.join(dir, 'checksums.json'),
+    JSON.stringify(core.buildChecksumsV1(dir), null, 2) + '\n',
+  );
   return dir;
+}
+
+function packFixture(dir, outPath) {
+  const core = require('@aikdna/kdna-core');
+  core.pack(dir, outPath);
+  return outPath;
 }
 
 function run(args, opts = {}) {
@@ -270,13 +294,22 @@ test('CRITICAL-2: request body has kdna_id, task, mode, context fields', async (
   try {
     server = await startFakeRemoteServer();
     const dir = makeRemoteFixture(tmp);
-    const r = run([
-      'load', dir, '--as=json',
-      '--remote-server', server.url,
-      '--task', 'decide',
-      '--mode', 'explore',
-      '--context', 'pre-publish review',
-    ], { env: { KDNA_IDENTITY_DIR: path.join(tmp, 'keys') } });
+    const r = run(
+      [
+        'load',
+        dir,
+        '--as=json',
+        '--remote-server',
+        server.url,
+        '--task',
+        'decide',
+        '--mode',
+        'explore',
+        '--context',
+        'pre-publish review',
+      ],
+      { env: { KDNA_IDENTITY_DIR: path.join(tmp, 'keys') } },
+    );
     assert.equal(r.status, 0, `load failed: ${r.stderr}`);
     const last = readLastRequest(server);
     assert.ok(last, 'fake server should have received a request');
@@ -420,8 +453,32 @@ test('CRITICAL-2: public asset is loaded normally even when --remote-server is s
     // The fake server is NOT called.
     assert.equal(r.status, 0, `load failed: ${r.stderr}`);
     const last = readLastRequest(server);
-    assert.equal(last, null,
-      'fake server should NOT be called for a public asset');
+    assert.equal(last, null, 'fake server should NOT be called for a public asset');
+  } finally {
+    if (server) await server.stop();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+// ─── J: packaged remote .kdna also routes to remote server ────────────
+
+test('CRITICAL-2: packaged access:remote .kdna routes to remote server', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-crit2-'));
+  let server;
+  try {
+    server = await startFakeRemoteServer();
+    const dir = makeRemoteFixture(tmp);
+    const kdnaPath = packFixture(dir, path.join(tmp, 'remote-test.kdna'));
+    const r = run(['load', kdnaPath, '--as=json', '--remote-server', server.url], {
+      env: { KDNA_IDENTITY_DIR: path.join(tmp, 'keys') },
+    });
+    assert.equal(r.status, 0, `load failed: ${r.stderr}`);
+    const out = JSON.parse(r.stdout);
+    assert.equal(out.remote_server, server.url);
+    assert.equal(out.request.kdna_id, 'urn:uuid:00000000-0000-4000-8000-aaaaaaaaaaaa');
+    const last = readLastRequest(server);
+    assert.ok(last, 'fake server should have received a request');
+    assert.equal(last.body.kdna_id, 'urn:uuid:00000000-0000-4000-8000-aaaaaaaaaaaa');
   } finally {
     if (server) await server.stop();
     fs.rmSync(tmp, { recursive: true, force: true });

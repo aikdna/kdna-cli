@@ -189,8 +189,10 @@ test('Story 19 sign: --sig overrides default signature path', () => {
     assert.equal(r.status, 0, `sign failed:\n${r.stderr}`);
     assert.ok(fs.existsSync(customPath), 'custom --sig path not written');
     // Default path must NOT have been written.
-    assert.ok(!fs.existsSync(`${assetCopy}.ed25519.sig`),
-      'default sig path should not exist when --sig is given');
+    assert.ok(
+      !fs.existsSync(`${assetCopy}.ed25519.sig`),
+      'default sig path should not exist when --sig is given',
+    );
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -227,7 +229,11 @@ test('Story 19 verify: no --key prints the signer public key plus no-key message
     const verify = run(['verify', FIXTURE], { env });
     // Exit 2 = "no key provided" (informational; the CLI just
     // printed the signer's pubkey and refused to make a trust claim).
-    assert.equal(verify.status, 2, `verify with no key should exit 2, got ${verify.status}:\n${verify.stdout}\n${verify.stderr}`);
+    assert.equal(
+      verify.status,
+      2,
+      `verify with no key should exit 2, got ${verify.status}:\n${verify.stdout}\n${verify.stderr}`,
+    );
     assert.match(verify.stdout, /No key provided; cannot determine trust/);
     assert.match(verify.stdout, /Signer public key hex:  [0-9a-f]{64}/);
     assert.match(verify.stdout, /Signer public key b64:  [A-Za-z0-9+/=]+/);
@@ -263,7 +269,11 @@ test('Story 19 verify: wrong --key returns INVALID, exit 1', () => {
 
     // Try to verify with attacker's key
     const verify = run(['verify', FIXTURE, '--key', attackerPub], { env });
-    assert.equal(verify.status, 1, `verify with wrong key should exit 1, got ${verify.status}:\n${verify.stdout}\n${verify.stderr}`);
+    assert.equal(
+      verify.status,
+      1,
+      `verify with wrong key should exit 1, got ${verify.status}:\n${verify.stdout}\n${verify.stderr}`,
+    );
     // The "invalid" status message goes to stderr (this is an
     // error, not a normal output).
     assert.match(verify.stderr, /INVALID/);
@@ -295,7 +305,11 @@ test('Story 19 verify: tampering with kdna.json after sign makes verify fail', (
 
     const pubPath = path.join(env.KDNA_IDENTITY_DIR, 'ed25519.pub');
     const verify = run(['verify', assetCopy, '--key', pubPath], { env });
-    assert.equal(verify.status, 1, `tampered verify should fail, got ${verify.status}:\n${verify.stdout}\n${verify.stderr}`);
+    assert.equal(
+      verify.status,
+      1,
+      `tampered verify should fail, got ${verify.status}:\n${verify.stdout}\n${verify.stderr}`,
+    );
     // The "modified after signing" message goes to stderr (this
     // is an error, not a normal output).
     assert.match(verify.stderr, /INVALID/);

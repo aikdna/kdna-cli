@@ -83,7 +83,13 @@ test('Story 10 unit: readAuditLog filters by result', () => {
   try {
     const { appendAuditEntry, readAuditLog } = require('../src/cmds/audit-log');
     appendAuditEntry({ asset_path: '/a.kdna', result: 'success', profile: 'compact', as: 'json' });
-    appendAuditEntry({ asset_path: '/b.kdna', result: 'error', error_code: 'KDNA_DECRYPT_FAILED', profile: 'compact', as: 'json' });
+    appendAuditEntry({
+      asset_path: '/b.kdna',
+      result: 'error',
+      error_code: 'KDNA_DECRYPT_FAILED',
+      profile: 'compact',
+      as: 'json',
+    });
     appendAuditEntry({ asset_path: '/c.kdna', result: 'success', profile: 'full', as: 'json' });
 
     const all = readAuditLog();
@@ -114,7 +120,13 @@ test('Story 10 unit: auditStats computes correct summary', () => {
     const { appendAuditEntry, readAuditLog, auditStats } = require('../src/cmds/audit-log');
     appendAuditEntry({ asset_id: 'kdna:a', result: 'success', profile: 'compact', as: 'json' });
     appendAuditEntry({ asset_id: 'kdna:a', result: 'success', profile: 'compact', as: 'json' });
-    appendAuditEntry({ asset_id: 'kdna:b', result: 'error', error_code: 'KDNA_DECRYPT_FAILED', profile: 'compact', as: 'json' });
+    appendAuditEntry({
+      asset_id: 'kdna:b',
+      result: 'error',
+      error_code: 'KDNA_DECRYPT_FAILED',
+      profile: 'compact',
+      as: 'json',
+    });
 
     const entries = readAuditLog();
     const s = auditStats(entries);

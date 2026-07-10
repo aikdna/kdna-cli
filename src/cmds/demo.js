@@ -115,7 +115,9 @@ function cmdDemo(args) {
     process.stdout.write('Next:\n');
     process.stdout.write(`  kdna pack          ${dest} ${dest}.kdna\n`);
     process.stdout.write(`  kdna validate      ${dest}.kdna\n`);
-    process.stdout.write(`  kdna load          ${dest}.kdna --password=<pw> --profile=compact --as=prompt\n`);
+    process.stdout.write(
+      `  kdna load          ${dest}.kdna --password=<pw> --profile=compact --as=prompt\n`,
+    );
     return;
   }
 

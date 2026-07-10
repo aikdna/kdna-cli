@@ -63,7 +63,9 @@ function validateBundle(manifestPath, opts = {}) {
       version: null,
       components: [],
       conflicts: { error_count: 1, warning_count: 0, info_count: 0 },
-      errors: [{ conflict_type: 'schema', severity: 'ERROR', note: `File not found: ${manifestPath}` }],
+      errors: [
+        { conflict_type: 'schema', severity: 'ERROR', note: `File not found: ${manifestPath}` },
+      ],
       warnings: [],
       info: [],
     };
@@ -97,8 +99,9 @@ function validateBundle(manifestPath, opts = {}) {
       conflict_type: 'schema',
       severity: 'ERROR',
       field: 'bundle_format',
-      note: `Expected "${BUNDLE_FORMAT}", got "${manifest.bundle_format || '(missing)'}". `
-        + 'A valid kdna.bundle.json must have bundle_format: "kdna-bundle-v1".',
+      note:
+        `Expected "${BUNDLE_FORMAT}", got "${manifest.bundle_format || '(missing)'}". ` +
+        'A valid kdna.bundle.json must have bundle_format: "kdna-bundle-v1".',
     });
   }
 
@@ -284,8 +287,7 @@ function validateBundle(manifestPath, opts = {}) {
   // 4. Conflict analysis (Story 9) — per-card-type static analysis across
   //    all component pairs, per docs/CONFLICT_RESOLUTION.md.
   try {
-    const { errors: cErr, warnings: cWarn, info: cInfo } =
-      analyseConflicts(componentResults, core);
+    const { errors: cErr, warnings: cWarn, info: cInfo } = analyseConflicts(componentResults, core);
     for (const e of cErr) errors.push(e);
     for (const w of cWarn) warnings.push(w);
     for (const i of cInfo) info.push(i);

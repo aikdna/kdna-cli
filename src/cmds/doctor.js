@@ -76,7 +76,8 @@ function cmdDoctor(args) {
       checks.push({
         name: 'Installed assets',
         status: domains > 0 ? 'ok' : 'info',
-        detail: `${domains} .kdna asset${domains !== 1 ? 's' : ''} installed` +
+        detail:
+          `${domains} .kdna asset${domains !== 1 ? 's' : ''} installed` +
           (domains === 0 ? ' (run: kdna install <asset> to get started)' : ''),
       });
     } else {
@@ -133,7 +134,9 @@ function cmdDoctor(args) {
     checks.push({
       name: 'Signing identity',
       status: hasIdentity ? 'ok' : 'info',
-      detail: hasIdentity ? 'key available' : 'no identity (run: kdna identity init to enable signing)',
+      detail: hasIdentity
+        ? 'key available'
+        : 'no identity (run: kdna identity init to enable signing)',
     });
 
     // 7. Registry cache
@@ -216,7 +219,8 @@ function cmdDoctor(args) {
 
   if (!quiet) {
     for (const c of checks) {
-      const mark = c.status === 'ok' ? '✓' : c.status === 'warn' ? '⚠' : c.status === 'info' ? 'ℹ' : '✗';
+      const mark =
+        c.status === 'ok' ? '✓' : c.status === 'warn' ? '⚠' : c.status === 'info' ? 'ℹ' : '✗';
       console.log(`${mark} ${c.name}: ${c.detail}`);
     }
 
@@ -238,7 +242,9 @@ function cmdDoctor(args) {
     } else {
       console.log(
         `${ok}/${checks.length} checks passed${
-          infos > 0 ? ` (${infos} info item${infos !== 1 ? 's' : ''} — all normal for a fresh install)` : ''
+          infos > 0
+            ? ` (${infos} info item${infos !== 1 ? 's' : ''} — all normal for a fresh install)`
+            : ''
         }`,
       );
     }

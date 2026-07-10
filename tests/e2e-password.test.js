@@ -64,7 +64,7 @@ function makeProtectedAsset(tmpDir) {
     if (altR.status !== 0) {
       throw new Error(
         `No working --password pack path. pack+--password failed: ${protR.stderr}\n` +
-        `protect failed: ${altR.stderr}`
+          `protect failed: ${altR.stderr}`,
       );
     }
   }
@@ -89,8 +89,11 @@ test('e2e-password scenario 1: load --has-password exits 1 with clear error', ()
     `error message must explain --has-password is plan-load only. Got: ${r.stderr}`,
   );
   // CRITICAL: must NOT contain any plaintext from the asset
-  assert.doesNotMatch(r.stdout, /axiom|judgment|boundary/i,
-    'plaintext must not leak even on failure');
+  assert.doesNotMatch(
+    r.stdout,
+    /axiom|judgment|boundary/i,
+    'plaintext must not leak even on failure',
+  );
 });
 
 // ── Scenario 2: load --password=<correct> succeeds and returns plaintext ──
@@ -98,9 +101,11 @@ test('e2e-password scenario 2: load --password=<correct> returns plaintext', () 
   const tmp = mkTmp();
   const { kdnaFile } = makeProtectedAsset(tmp);
   const r = run([
-    'load', kdnaFile,
+    'load',
+    kdnaFile,
     `--password=${FIXTURE_PASSWORD}`,
-    '--profile=compact', '--as=prompt',
+    '--profile=compact',
+    '--as=prompt',
   ]);
   assert.equal(r.status, 0, `load --password=<correct> failed: ${r.stderr}`);
   assert.ok(r.stdout.length > 0, 'plaintext should be returned');
@@ -113,9 +118,11 @@ test('e2e-password scenario 3: load --password=<wrong> exits 1 with clear error'
   const tmp = mkTmp();
   const { kdnaFile } = makeProtectedAsset(tmp);
   const r = run([
-    'load', kdnaFile,
+    'load',
+    kdnaFile,
     '--password=definitely-not-the-right-password',
-    '--profile=compact', '--as=prompt',
+    '--profile=compact',
+    '--as=prompt',
   ]);
   assert.notEqual(r.status, 0, 'load --password=<wrong> must fail');
   assert.match(
@@ -124,19 +131,14 @@ test('e2e-password scenario 3: load --password=<wrong> exits 1 with clear error'
     `error must mention password failure. Got: ${r.stderr}`,
   );
   // CRITICAL: wrong password must not silently return empty or partial output
-  assert.doesNotMatch(r.stdout, /axiom|judgment/i,
-    'plaintext must not leak on wrong password');
+  assert.doesNotMatch(r.stdout, /axiom|judgment/i, 'plaintext must not leak on wrong password');
 });
 
 // ── Scenario 4: load --password="" is treated as MISSING password ─────────
 test('e2e-password scenario 4: load --password="" exits 1 (not "has empty password")', () => {
   const tmp = mkTmp();
   const { kdnaFile } = makeProtectedAsset(tmp);
-  const r = run([
-    'load', kdnaFile,
-    '--password=',
-    '--profile=compact', '--as=prompt',
-  ]);
+  const r = run(['load', kdnaFile, '--password=', '--profile=compact', '--as=prompt']);
   assert.notEqual(r.status, 0, 'load --password="" must fail');
   // Must behave like "no password supplied", not like "supplied wrong password"
   assert.match(
@@ -160,6 +162,9 @@ test('e2e-password scenario 5: plan-load --has-password works without leaking pl
     `plan-load output should mention access state. Got: ${r.stdout}`,
   );
   // CRITICAL: must NOT contain actual judgment content
-  assert.doesNotMatch(r.stdout, /axiom|judgment|boundary|applies_when/i,
-    'plan-load must never leak plaintext even with --has-password');
+  assert.doesNotMatch(
+    r.stdout,
+    /axiom|judgment|boundary|applies_when/i,
+    'plan-load must never leak plaintext even with --has-password',
+  );
 });

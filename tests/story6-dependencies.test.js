@@ -26,9 +26,9 @@ test('Story 6: dependencies semver and topological sorting logic', () => {
           compatibility: { min_loader_version: '1.0.0', profile: 'judgment-profile-v1' },
           payload: { path: 'payload.kdnab', encoding: 'json', encrypted: false },
           dependencies: {
-            '@scope/dep-b': '^2.0.0'
-          }
-        }
+            '@scope/dep-b': '^2.0.0',
+          },
+        },
       },
       '@scope/dep-b': {
         version: '2.5.1',
@@ -44,9 +44,9 @@ test('Story 6: dependencies semver and topological sorting logic', () => {
           creator: { name: 'Test' },
           compatibility: { min_loader_version: '1.0.0', profile: 'judgment-profile-v1' },
           payload: { path: 'payload.kdnab', encoding: 'json', encrypted: false },
-          dependencies: {}
-        }
-      }
+          dependencies: {},
+        },
+      },
     };
     return assets[name] || null;
   };
@@ -76,16 +76,14 @@ test('Story 6: dependencies semver and topological sorting logic', () => {
       status: 'stable',
       quality_badge: 'tested',
       dependencies: {
-        '@scope/dep-a': '^1.0.0'
-      }
+        '@scope/dep-a': '^1.0.0',
+      },
     };
     fs.writeFileSync(path.join(tmp, 'kdna.json'), JSON.stringify(manifest, null, 2));
 
     const payload = {
       profile: 'bundle-profile-v1',
-      components: [
-        { id: 'comp-a', path: './comp-a.kdna' }
-      ]
+      components: [{ id: 'comp-a', path: './comp-a.kdna' }],
     };
     fs.writeFileSync(path.join(tmp, 'payload.kdnab'), JSON.stringify(payload, null, 2));
 
@@ -95,7 +93,7 @@ test('Story 6: dependencies semver and topological sorting logic', () => {
     assert.equal(plan.state, 'ready');
     assert.equal(plan.can_load_now, true);
     assert.ok(Array.isArray(plan.resolved_dependencies));
-    
+
     // Topological order: dep-b must be loaded BEFORE dep-a
     assert.equal(plan.resolved_dependencies.length, 2);
     assert.equal(plan.resolved_dependencies[0].name, '@scope/dep-b');
@@ -123,9 +121,9 @@ test('Story 6: circular dependency throwing error', () => {
           compatibility: { min_loader_version: '1.0.0', profile: 'judgment-profile-v1' },
           payload: { path: 'payload.kdnab', encoding: 'json', encrypted: false },
           dependencies: {
-            '@scope/dep-b': '^1.0.0'
-          }
-        }
+            '@scope/dep-b': '^1.0.0',
+          },
+        },
       },
       '@scope/dep-b': {
         version: '1.0.0',
@@ -142,10 +140,10 @@ test('Story 6: circular dependency throwing error', () => {
           compatibility: { min_loader_version: '1.0.0', profile: 'judgment-profile-v1' },
           payload: { path: 'payload.kdnab', encoding: 'json', encrypted: false },
           dependencies: {
-            '@scope/dep-a': '^1.0.0'
-          }
-        }
-      }
+            '@scope/dep-a': '^1.0.0',
+          },
+        },
+      },
     };
     return assets[name] || null;
   };
@@ -175,16 +173,14 @@ test('Story 6: circular dependency throwing error', () => {
       status: 'stable',
       quality_badge: 'tested',
       dependencies: {
-        '@scope/dep-a': '^1.0.0'
-      }
+        '@scope/dep-a': '^1.0.0',
+      },
     };
     fs.writeFileSync(path.join(tmp, 'kdna.json'), JSON.stringify(manifest, null, 2));
 
     const payload = {
       profile: 'bundle-profile-v1',
-      components: [
-        { id: 'comp-a', path: './comp-a.kdna' }
-      ]
+      components: [{ id: 'comp-a', path: './comp-a.kdna' }],
     };
     fs.writeFileSync(path.join(tmp, 'payload.kdnab'), JSON.stringify(payload, null, 2));
 
@@ -192,8 +188,10 @@ test('Story 6: circular dependency throwing error', () => {
 
     assert.equal(plan.state, 'invalid');
     assert.equal(plan.can_load_now, false);
-    
-    const circularIssue = plan.issues.find(issue => issue.code === 'KDNA_DEPENDENCY_RESOLUTION_FAILED');
+
+    const circularIssue = plan.issues.find(
+      (issue) => issue.code === 'KDNA_DEPENDENCY_RESOLUTION_FAILED',
+    );
     assert.ok(circularIssue);
     assert.match(circularIssue.message, /Circular dependency detected/i);
   } finally {
@@ -218,9 +216,9 @@ test('Story 6: unsatisfied/mismatched dependency throwing error', () => {
           creator: { name: 'Test' },
           compatibility: { min_loader_version: '1.0.0', profile: 'judgment-profile-v1' },
           payload: { path: 'payload.kdnab', encoding: 'json', encrypted: false },
-          dependencies: {}
-        }
-      }
+          dependencies: {},
+        },
+      },
     };
     return assets[name] || null;
   };
@@ -250,16 +248,14 @@ test('Story 6: unsatisfied/mismatched dependency throwing error', () => {
       status: 'stable',
       quality_badge: 'tested',
       dependencies: {
-        '@scope/dep-a': '^1.0.0'
-      }
+        '@scope/dep-a': '^1.0.0',
+      },
     };
     fs.writeFileSync(path.join(tmp, 'kdna.json'), JSON.stringify(manifest, null, 2));
 
     const payload = {
       profile: 'bundle-profile-v1',
-      components: [
-        { id: 'comp-a', path: './comp-a.kdna' }
-      ]
+      components: [{ id: 'comp-a', path: './comp-a.kdna' }],
     };
     fs.writeFileSync(path.join(tmp, 'payload.kdnab'), JSON.stringify(payload, null, 2));
 
@@ -267,8 +263,8 @@ test('Story 6: unsatisfied/mismatched dependency throwing error', () => {
 
     assert.equal(plan.state, 'invalid');
     assert.equal(plan.can_load_now, false);
-    
-    const issue = plan.issues.find(issue => issue.code === 'KDNA_DEPENDENCY_RESOLUTION_FAILED');
+
+    const issue = plan.issues.find((issue) => issue.code === 'KDNA_DEPENDENCY_RESOLUTION_FAILED');
     assert.ok(issue);
     assert.match(issue.message, /Dependency mismatch/i);
   } finally {

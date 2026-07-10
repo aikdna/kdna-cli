@@ -111,9 +111,15 @@ function evaluateDeprecation(deprecation, componentId, componentLabel, currentVe
     } else {
       since = raw;
     }
-  } else if (typeof deprecation.deprecated_in === 'string' && deprecation.deprecated_in.trim() !== '') {
+  } else if (
+    typeof deprecation.deprecated_in === 'string' &&
+    deprecation.deprecated_in.trim() !== ''
+  ) {
     since = deprecation.deprecated_in;
-  } else if (typeof deprecation.deprecated_at === 'string' && deprecation.deprecated_at.trim() !== '') {
+  } else if (
+    typeof deprecation.deprecated_at === 'string' &&
+    deprecation.deprecated_at.trim() !== ''
+  ) {
     // Treat deprecated_at as shorthand: "deprecated from this version onwards".
     since = '>=' + deprecation.deprecated_at.trim();
   }
@@ -136,7 +142,9 @@ function evaluateDeprecation(deprecation, componentId, componentLabel, currentVe
     `[${tag}] ${componentLabel} "${componentId}" is deprecated (CLI ${currentVersion} ${pastRemoval ? '≥' : '≥'} since ${since}).`,
   );
   if (removeIn) {
-    lines.push(`  scheduled for removal in ${removeIn}${pastRemoval ? ' — this CLI version is past removal' : ''}.`);
+    lines.push(
+      `  scheduled for removal in ${removeIn}${pastRemoval ? ' — this CLI version is past removal' : ''}.`,
+    );
   }
   if (replacement) {
     lines.push(`  replacement: ${replacement}`);

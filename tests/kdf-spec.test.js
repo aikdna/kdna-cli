@@ -9,8 +9,8 @@ const { KDF_PARAMS, validateParameters } = require('../src/kdf-spec');
 
 test('KDF_PARAMS: all three profiles are defined', () => {
   assert.ok(KDF_PARAMS['kdna-password-protected-v1'], 'argon2id profile missing');
-  assert.ok(KDF_PARAMS['kdna-licensed-entry-v1'],     'hkdf profile missing');
-  assert.ok(KDF_PARAMS['kdna-identity-backup-v1'],    'pbkdf2 profile missing');
+  assert.ok(KDF_PARAMS['kdna-licensed-entry-v1'], 'hkdf profile missing');
+  assert.ok(KDF_PARAMS['kdna-identity-backup-v1'], 'pbkdf2 profile missing');
 });
 
 test('KDF_PARAMS: password-protected profile has required fields', () => {
@@ -41,10 +41,7 @@ test('validateParameters: returns params for known profile', () => {
 });
 
 test('validateParameters: throws for unknown profile', () => {
-  assert.throws(
-    () => validateParameters('unknown-profile'),
-    /Unknown KDF profile/
-  );
+  assert.throws(() => validateParameters('unknown-profile'), /Unknown KDF profile/);
 });
 
 test('validateParameters: error message lists valid profiles', () => {

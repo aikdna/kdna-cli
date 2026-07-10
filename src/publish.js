@@ -222,7 +222,9 @@ function cmdPublishCheck(domainPath, args = []) {
   const hl = checkHumanLock(abs);
   if (!hl.passed) {
     if (args.includes('--force')) {
-      console.warn('  ⚠  Legacy publish evidence gate: OVERRIDDEN (--force). Proceeding with checks.');
+      console.warn(
+        '  ⚠  Legacy publish evidence gate: OVERRIDDEN (--force). Proceeding with checks.',
+      );
       console.warn(`     ${hl.issues.length} unresolved publish-evidence issue(s):`);
       for (const issue of hl.issues) {
         console.warn(`       ${issue}`);
@@ -575,8 +577,7 @@ function manifestForSigning(manifest, opts = {}) {
   // `stripDigestFields: true`, so the fix accepts that name and
   // keeps `includeContentDigest` as a deprecated alias for the old
   // inverse behaviour.
-  const stripDigestFields = opts.stripDigestFields !== false
-    && opts.includeContentDigest !== true;
+  const stripDigestFields = opts.stripDigestFields !== false && opts.includeContentDigest !== true;
   if (stripDigestFields) delete copy.content_digest;
   delete copy._source;
   if (copy.authoring && typeof copy.authoring === 'object') {
@@ -607,7 +608,8 @@ function listPublishEntries(domainDir) {
   function walk(dir, prefix = '') {
     for (const name of fs.readdirSync(dir).sort()) {
       if (name === 'mimetype') continue;
-      if (name === '.DS_Store' || name === 'signature.json' || name === 'build-receipt.json') continue;
+      if (name === '.DS_Store' || name === 'signature.json' || name === 'build-receipt.json')
+        continue;
       const abs = path.join(dir, name);
       const rel = prefix ? `${prefix}/${name}` : name;
       const stat = fs.statSync(abs);
@@ -764,7 +766,8 @@ function validateAuthoringProvenance(manifest) {
       issues.push('release-evidence assets require authoring.conformance.spec_version');
     }
   }
-  if (highTrust && !authoring.compiler) issues.push('release-evidence assets require authoring.compiler');
+  if (highTrust && !authoring.compiler)
+    issues.push('release-evidence assets require authoring.compiler');
   if (highTrust && !authoring.compiler_version) {
     issues.push('release-evidence assets require authoring.compiler_version');
   }

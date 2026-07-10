@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aikdna.com/schemas/route-card-v1.schema.json",
+  "title": "KDNA Route Card v1",
+  "type": "object",
+  "required": ["route_card", "domain_id", "role"],
+  "properties": {
+    "route_card": { "const": "0.1.0" },
+    "domain_id": { "type": "string" },
+    "role": {
+      "type": "string",
+      "enum": ["primary", "advisor", "control"]
+    },
+    "boundaries": {
+      "type": "object",
+      "properties": {
+        "applies_when": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "task": { "type": "string" },
+              "confidence": { "type": "string" }
+            }
+          }
+        },
+        "does_not_apply_when": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "task": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "neighbors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["domain_id", "relationship"],
+        "properties": {
+          "domain_id": { "type": "string" },
+          "relationship": {
+            "type": "string",
+            "enum": ["complement", "alternative", "supersedes"]
+          },
+          "weight_delta": { "type": "number", "default": 0.0 }
+        }
+      }
+    },
+    "advisor_edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["domain_id", "when"],
+        "properties": {
+          "domain_id": { "type": "string" },
+          "when": {
+            "type": "string",
+            "enum": ["always", "on_uncertainty", "on_conflict"]
+          }
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["generated_by", "generated_at", "review_status"],
+      "properties": {
+        "generated_by": { "type": "string" },
+        "generated_at": { "type": "string", "format": "date-time" },
+        "input_hash": { "type": "string" },
+        "review_status": {
+          "type": "string",
+          "enum": [
+            "draft_generated",
+            "lint_repaired",
+            "human_reviewed",
+            "eval_candidate",
+            "trusted_runtime"
+          ]
+        }
+      }
+    }
+  }
+}
