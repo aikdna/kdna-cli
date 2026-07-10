@@ -6,7 +6,14 @@ const path = require('node:path');
 const os = require('node:os');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
-const EVAL_PATH = path.resolve(__dirname, '..', '..', 'kdna', 'packages', 'kdna-eval');
+// Prefer the sibling monorepo checkout when present (local dev / workspace CI),
+// otherwise fall back to the npm-installed copy under node_modules.
+let EVAL_PATH;
+try {
+  EVAL_PATH = path.dirname(require.resolve('@aikdna/kdna-eval/package.json'));
+} catch (_) {
+  EVAL_PATH = path.resolve(__dirname, '..', '..', 'kdna', 'packages', 'kdna-eval');
+}
 
 function ensureEvalAvailable() {
   try {
@@ -16,7 +23,7 @@ function ensureEvalAvailable() {
     if (e.code === 'MODULE_NOT_FOUND' || e.message.includes('Cannot find module')) {
       throw new Error(
         `@aikdna/kdna-eval not found at ${EVAL_PATH}. ` +
-          'Ensure it is installed: cd open/kdna && npm install',
+          'Ensure it is installed: npm install @aikdna/kdna-eval@^0.2.0 (or run inside the monorepo workspace).',
       );
     }
   }
