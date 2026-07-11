@@ -54,6 +54,9 @@ const { cmdRoute } = require('./cmds/route');
 const { cmdCompose } = require('./cmds/compose');
 const { cmdComposeReview } = require('./cmds/compose-review');
 const { cmdAssetEvidence } = require('./cmds/asset-evidence');
+const { cmdEvalAsset } = require('./cmds/eval-asset');
+const { cmdPlanUse } = require('./cmds/plan-use');
+const { cmdUse } = require('./cmds/use');
 const legacy = require('./cmds/legacy');
 const quality = require('./cmds/quality');
 const registry = require('./cmds/registry');
@@ -190,6 +193,24 @@ Core v1:
                                       --fixtures=<path>  Replay fixture directory
                                       --gates=<list>     Gates to run (comma
                                         separated, default: all 6)
+  eval asset <asset-path>            Run Asset Assay evaluation
+                                      --fixtures=<dir>   Fixture directory
+                                      --as=<json|md>     Output format
+                                      --classify         Classification only
+  eval cluster <asset-path>          Run Cluster Assay evaluation
+                                      --fixtures=<dir>   Fixture directory
+                                      --as=<json|md>     Output format
+                                      --gates=<list>     Gates to run
+  plan-use <asset.kdna>              Generate ConsumptionPlan (deterministic)
+                                      --task=<text>      Task description
+                                      --budget=<profile> Budget profile
+                                      --shape=<name>     Projection shape
+                                      --as=json|md       Output format
+  use <asset.kdna>                   Execute through registered Runner
+                                      --task=<text>      Task description
+                                      --runner=<type:id> Runner (default: mock:default)
+                                      --as=json|trace    Output format
+                                      --list-runners     List registered runners
                                       --mode=<list>      Replay modes (comma
                                         separated, default:
                                         repair,holdout,fresh)
@@ -1318,6 +1339,31 @@ switch (cmd) {
   }
   case 'version': {
     console.log(require('../package.json').version);
+    break;
+  }
+  case 'plan-use': {
+    cmdPlanUse(args.slice(1));
+    break;
+  }
+  case 'use': {
+    cmdUse(args.slice(1));
+    break;
+  }
+  case 'eval': {
+    const sub = args[1];
+    if (sub === 'asset') {
+      cmdEvalAsset(args.slice(2));
+    } else if (sub === 'cluster') {
+      const { cmdEvalCluster } = require('./cmds/eval-cluster');
+      cmdEvalCluster(args.slice(2));
+    } else {
+      error(
+        'Usage: kdna eval <asset|cluster> <path> [options]\n' +
+          '  kdna eval asset <asset.kdna> --fixtures <dir>\n' +
+          '  kdna eval cluster <kdna.cluster.json> --fixtures <dir>  (Phase 6)',
+        EXIT.INPUT_ERROR,
+      );
+    }
     break;
   }
   case 'eval-consumption': {
