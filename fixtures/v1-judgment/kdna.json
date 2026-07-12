@@ -18,7 +18,7 @@
   },
   "payload": {
     "path": "payload.kdnab",
-    "encoding": "json",
+    "encoding": "cbor",
     "encrypted": false
   },
   "summary": "Real judgment demo for content review. Teaches AI to review content by identifying claims, evidence, audience stakes, failure modes, and structural issues — not just cosmetic polish.",

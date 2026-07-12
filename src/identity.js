@@ -303,7 +303,7 @@ function cmdIdentityImport(filePath) {
  * Load the asset's protected entries (kdna.json, payload.kdnab,
  * checksums.json) into a Buffer concatenation of SHA-256 digests.
  *
- * Supports both .kdna containers and v1 source directories. The
+ * Supports both .kdna containers and source directories. The
  * signature is bound to the *content* of these three entries, not
  * to the container format. Same content → same digest → same
  * signature regardless of whether the asset is shipped as a
@@ -353,10 +353,10 @@ function loadAssetForSigning(abs) {
     } catch (e) {
       throw new Error(`Cannot load @aikdna/kdna-core: ${e.message}`);
     }
-    if (typeof core.readV1Layout !== 'function') {
-      throw new Error('@aikdna/kdna-core does not export readV1Layout');
+    if (typeof core.readLayout !== 'function') {
+      throw new Error('@aikdna/kdna-core does not export readLayout');
     }
-    const layout = core.readV1Layout(abs);
+    const layout = core.readLayout(abs);
     if (!layout || !layout.map) throw new Error(`unreadable .kdna container: ${abs}`);
     if (!layout.map['kdna.json']) throw new Error(`.kdna container missing kdna.json: ${abs}`);
     if (!layout.map['payload.kdnab'])
@@ -397,7 +397,7 @@ function loadAssetForSigning(abs) {
  * Sign an asset with the local Ed25519 key. Writes a detached
  * signature to <asset>.ed25519.sig (or --sig <path>).
  *
- * @param {string} assetPath - absolute path to .kdna container or v1 source dir
+ * @param {string} assetPath - absolute path to .kdna container or source dir
  * @param {object} [opts]
  * @param {string} [opts.sigPath] - override the default signature file path
  * @param {boolean} [opts.json]   - emit JSON output (for tooling)

@@ -23,6 +23,7 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
+const cbor = require('cbor-x');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 
@@ -37,7 +38,7 @@ function run(args, opts = {}) {
 }
 
 /**
- * Build a minimal v2 bundle source dir with a kdna.json that includes
+ * Build a minimal bundle source dir with a kdna.json that includes
  * optional context_budget and resolved_dependencies via a mock resolver.
  *
  * Because plan-load needs resolved_dependencies to trigger budget reporting,
@@ -51,10 +52,10 @@ function run(args, opts = {}) {
  */
 function writeBundleFixture(dir, opts = {}) {
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, 'mimetype'), 'application/vnd.aikdna.kdna+zip');
+  fs.writeFileSync(path.join(dir, 'mimetype'), 'application/vnd.kdna.asset');
 
   const manifest = {
-    kdna_version: '2.0',
+    kdna_version: '1.0',
     asset_id: 'kdna:bundle:ctx-budget-test',
     asset_uid: 'urn:uuid:00000000-0000-4000-8000-000000000099',
     asset_type: 'bundle',
@@ -65,7 +66,7 @@ function writeBundleFixture(dir, opts = {}) {
     updated_at: '2026-06-28T00:00:00Z',
     creator: { name: 'Test' },
     compatibility: { min_loader_version: '1.0.0', profile: 'bundle-profile-v1' },
-    payload: { path: 'payload.kdnab', encoding: 'json', encrypted: false },
+    payload: { path: 'payload.kdnab', encoding: 'cbor', encrypted: false },
     summary: 'Test',
     description: 'Context budget test bundle.',
     languages: ['en'],
@@ -85,7 +86,7 @@ function writeBundleFixture(dir, opts = {}) {
     profile: 'bundle-profile-v1',
     components: [{ id: 'comp-a', path: './comp-a.kdna', priority: 1 }],
   };
-  fs.writeFileSync(path.join(dir, 'payload.kdnab'), JSON.stringify(payload, null, 2));
+  fs.writeFileSync(path.join(dir, 'payload.kdnab'), cbor.encode(payload));
 
   return dir;
 }

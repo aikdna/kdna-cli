@@ -3,6 +3,16 @@ const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const cbor = require('cbor-x');
+
+function readPayload(p) {
+  const buf = fs.readFileSync(p);
+  try {
+    return cbor.decode(buf);
+  } catch {
+    return JSON.parse(buf.toString('utf8'));
+  }
+}
 
 const cliBin = path.join(__dirname, '..', 'src', 'cli.js');
 
@@ -105,7 +115,7 @@ test('demo judgment creates fixture with real judgment content', () => {
   assert.notEqual(checksums.asset_digest, 'sha256:placeholder');
   assert.match(checksums.asset_digest, /^sha256:[a-f0-9]{64}$/);
 
-  const payload = JSON.parse(fs.readFileSync(path.join(target, 'payload.kdnab'), 'utf8'));
+  const payload = readPayload(path.join(target, 'payload.kdnab'));
   assert.ok(payload.core.axioms.length >= 4, 'must have at least 4 axioms');
   assert.ok(payload.core.boundaries.length >= 2, 'must have boundaries');
   assert.ok(payload.patterns.length >= 2, 'must have patterns');
@@ -160,8 +170,8 @@ test('demo judgment scenario profile is available', () => {
   const r = run(['load', target, '--profile=scenario', '--as=json']);
   assert.equal(r.status, 0, r.stderr);
   const out = JSON.parse(r.stdout);
-  assert.equal(out.profile_available, true, 'scenario must be available');
-  assert.ok(out.content && out.content.scenarios, 'must have scenario content');
+  assert.equal(out.profile, 'scenario', 'must load scenario profile');
+  assert.ok(out.context && out.context.scenarios, 'must have scenario content');
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 

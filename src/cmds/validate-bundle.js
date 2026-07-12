@@ -6,7 +6,7 @@
  *   - Checks `bundle_format === "kdna-bundle-v1"`
  *   - Checks `components[]` is a non-empty array
  *   - For each component: resolves `path`, checks the file exists,
- *     detects it as a KDNA v1/v2 container, and runs the existing
+ *     detects it as a KDNA container, and runs the existing
  *     `validate()` pass from @aikdna/kdna-core.
  *   - Runs per-card-type conflict analysis across component pairs
  *     (Story 9, per docs/CONFLICT_RESOLUTION.md).
@@ -129,7 +129,7 @@ function validateBundle(manifestPath, opts = {}) {
     return buildResult(manifest, [], errors, warnings, info);
   }
 
-  const { validate, detectContainerFormat, isV1SourceDir, isV2SourceDir } = core;
+  const { validate, detectContainerFormat, isKdnaSourceDir } = core;
   const baseDir = path.dirname(abs);
   const componentResults = [];
 
@@ -203,7 +203,7 @@ function validateBundle(manifestPath, opts = {}) {
       continue;
     }
 
-    // Detect container format
+    // Detect container format; accept both .kdna containers and source directories.
     let fmt;
     try {
       fmt = detectContainerFormat(compAbs);
@@ -211,27 +211,25 @@ function validateBundle(manifestPath, opts = {}) {
       fmt = null;
     }
 
-    const isSourceDir = isV1SourceDir(compAbs) || (isV2SourceDir && isV2SourceDir(compAbs));
-
-    if (!isSourceDir && fmt !== 'v1' && fmt !== 'v2') {
+    if (!isKdnaSourceDir(compAbs) && fmt !== 'kdna') {
       errors.push({
         conflict_type: 'schema',
         severity: 'ERROR',
         component: compId,
         field: 'path',
-        note: `Component "${compId}" at "${comp.path}" is not a valid KDNA v1/v2 container or source directory.`,
+        note: `Component "${compId}" at "${comp.path}" is not a valid KDNA container or source directory.`,
       });
       componentResults.push({
         id: compId,
         path: comp.path,
         priority: typeof comp.priority === 'number' ? comp.priority : null,
         valid: false,
-        issues: ['not a KDNA v1 container'],
+        issues: ['not a valid KDNA container'],
       });
       continue;
     }
 
-    // Run the existing v1 validator
+    // Run the existing validator
     let compResult;
     try {
       compResult = validate(compAbs);
@@ -259,7 +257,7 @@ function validateBundle(manifestPath, opts = {}) {
         conflict_type: 'schema',
         severity: 'ERROR',
         component: compId,
-        note: `Component "${compId}" failed KDNA v1 validation. See component result for details.`,
+        note: `Component "${compId}" failed KDNA validation. See component result for details.`,
       });
     }
 

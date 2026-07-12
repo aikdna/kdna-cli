@@ -55,9 +55,7 @@ function validateManifest(manifest) {
   const errors = [];
   const warnings = [];
   const required = [
-    'format',
-    'format_version',
-    'spec_version',
+    'kdna_version',
     'name',
     'version',
     'judgment_version',
@@ -71,7 +69,7 @@ function validateManifest(manifest) {
     'default_language',
   ];
 
-  if (manifest.kdna_spec) errors.push('kdna_spec is not allowed. Use spec_version.');
+  if (manifest.kdna_spec) errors.push('kdna_spec is not allowed. Use kdna_version.');
   if (manifest.language)
     errors.push('language is not allowed. Use default_language and languages.');
   for (const field of required) {
@@ -82,13 +80,10 @@ function validateManifest(manifest) {
   if (manifest.format && manifest.format !== 'kdna') {
     errors.push(`format: invalid value "${manifest.format}". Expected "kdna".`);
   }
-  if (manifest.format_version && manifest.format_version !== '1.0') {
-    errors.push(`format_version: invalid value "${manifest.format_version}". Expected "1.0".`);
-  }
-  if (manifest.spec_version && manifest.spec_version !== '1.0-rc') {
-    warnings.push(
-      `spec_version: non-standard value "${manifest.spec_version}". Expected "1.0-rc".`,
-    );
+  if (!manifest.kdna_version) {
+    errors.push('missing required field "kdna_version"');
+  } else if (manifest.kdna_version !== '1.0') {
+    errors.push(`kdna_version: invalid value "${manifest.kdna_version}". Expected "1.0".`);
   }
   return { errors, warnings };
 }

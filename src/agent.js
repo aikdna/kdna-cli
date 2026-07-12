@@ -1371,11 +1371,13 @@ function checkTrust(domainName) {
     );
   }
 
-  // 5. SPEC compatibility check
-  const specVersion = manifest.spec_version || 'unknown';
-  const supportedSpecs = ['1.0-rc', '1.0', '0.7'];
-  if (!supportedSpecs.includes(specVersion)) {
-    warnings.push(`SPEC version '${specVersion}' may not be fully compatible with current loader`);
+  // 5. KDNA container version check
+  const kdnaVersion = manifest.kdna_version || 'unknown';
+  const supportedVersions = ['1.0'];
+  if (!supportedVersions.includes(kdnaVersion)) {
+    warnings.push(
+      `KDNA container version '${kdnaVersion}' may not be fully compatible with current loader`,
+    );
   }
 
   // 6. License validity (commercial domains)
@@ -1411,7 +1413,7 @@ function checkTrust(domainName) {
     failures,
     warnings,
     riskLevel,
-    specVersion,
+    kdnaVersion,
     signatureValid: !isPlaceholder,
   };
 }

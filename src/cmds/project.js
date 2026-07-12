@@ -45,8 +45,20 @@ function cmdProject(args) {
     }
   }
 
-  const abs = path.resolve(assetPath);
-  const projectData = { path: assetPath, exists: fs.existsSync(abs) };
+  let loadTarget = assetPath;
+  try {
+    const { resolveAsset } = require('../package-store');
+    const resolved = resolveAsset(assetPath);
+    if (resolved?.asset_path) loadTarget = resolved.asset_path;
+  } catch (_) {}
+
+  const abs = path.resolve(loadTarget);
+  const projectData = {
+    path: assetPath,
+    load_path: abs,
+    installed_name: loadTarget !== assetPath ? assetPath : null,
+    exists: fs.existsSync(abs),
+  };
 
   if (projectData.exists) {
     try {
@@ -75,7 +87,7 @@ function cmdProject(args) {
           const format = core.detectContainerFormat(abs);
           projectData.format = format;
 
-          if (format === 'v1') {
+          if (format === 'kdna') {
             try {
               const m = core.inspect(abs);
               projectData.manifest = {
@@ -138,7 +150,8 @@ function projectShape(projectData, shape, task, context, assetPath) {
 
   switch (shape) {
     case 'answer-pattern': {
-      const absPath = projectData.path ? path.resolve(projectData.path) : null;
+      const absPath =
+        projectData.load_path || (projectData.path ? path.resolve(projectData.path) : null);
       const loaded = absPath ? tryLoadProjection(absPath, shape) : null;
 
       if (loaded) {

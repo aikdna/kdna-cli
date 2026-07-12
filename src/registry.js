@@ -7,7 +7,7 @@
  *   3. Cache registry metadata locally
  *   4. Surface scope trust info to install/publish
  *
- * Schema v3.0 (historical reference; registry is out of scope for KDNA Core v1)
+ * Schema v3.0 (historical reference; registry is out of scope for KDNA Core)
  */
 
 const fs = require('fs');
@@ -20,7 +20,7 @@ const REGISTRY_DIR = path.join(USER_KDNA_DIR, 'registry');
 const CONFIG_FILE = path.join(USER_KDNA_DIR, 'config.json');
 
 const DEFAULT_OFFICIAL_SCOPE = '@aikdna';
-// Registry is out of scope for KDNA Core v1 (see ADR-XXX / 00-current-truth.md).
+// Registry is out of scope for KDNA Core (see ADR-XXX / 00-current-truth.md).
 // Production users must set KDNA_REGISTRY_URL to a valid registry endpoint.
 // Default is intentionally empty to fail loudly rather than silently pointing
 // at a historical private repo.
@@ -90,7 +90,7 @@ function verifyRegistrySignature(registry, rawPayload) {
     return {
       verified: false,
       error:
-        'Registry URL not configured. Set KDNA_REGISTRY_URL to a valid registry endpoint (registry is out of scope for KDNA Core v1 by default).',
+        'Registry URL not configured. Set KDNA_REGISTRY_URL to a valid registry endpoint (registry is out of scope for KDNA Core by default).',
     };
   }
   const trust = registry?.trust;

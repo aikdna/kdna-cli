@@ -22,6 +22,7 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
+const cbor = require('cbor-x');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
@@ -41,7 +42,7 @@ test('Story 12 schema: validateManifest accepts extends as string', () => {
   const core = require('@aikdna/kdna-core');
   if (typeof core.validateManifest !== 'function') return; // skip if not exposed
   const manifest = {
-    kdna_version: '2.0',
+    kdna_version: '1.0',
     asset_id: 'kdna:domain:child',
     asset_uid: 'urn:uuid:00000000-0000-4000-8000-000000000020',
     asset_type: 'domain',
@@ -74,10 +75,10 @@ test('Story 12 planLoad: records extends_chain when base is resolvable', () => {
     childManifest.extends = '@test/base@^1.0.0';
     fs.writeFileSync(path.join(childDir, 'kdna.json'), JSON.stringify(childManifest, null, 2));
     fs.copyFileSync(path.join(FIXTURE, 'payload.kdnab'), path.join(childDir, 'payload.kdnab'));
-    if (typeof core.buildChecksumsV1 === 'function') {
+    if (typeof core.buildChecksums === 'function') {
       fs.writeFileSync(
         path.join(childDir, 'checksums.json'),
-        JSON.stringify(core.buildChecksumsV1(childDir), null, 2),
+        JSON.stringify(core.buildChecksums(childDir), null, 2),
       );
     }
 
@@ -114,10 +115,10 @@ test('Story 12 planLoad: KDNA_EXTENDS_NOT_FOUND warning when base missing', () =
     manifest.extends = '@test/nonexistent@^1.0.0';
     fs.writeFileSync(path.join(childDir, 'kdna.json'), JSON.stringify(manifest, null, 2));
     fs.copyFileSync(path.join(FIXTURE, 'payload.kdnab'), path.join(childDir, 'payload.kdnab'));
-    if (typeof core.buildChecksumsV1 === 'function') {
+    if (typeof core.buildChecksums === 'function') {
       fs.writeFileSync(
         path.join(childDir, 'checksums.json'),
-        JSON.stringify(core.buildChecksumsV1(childDir), null, 2),
+        JSON.stringify(core.buildChecksums(childDir), null, 2),
       );
     }
 
@@ -145,10 +146,10 @@ test('Story 12 planLoad: KDNA_EXTENDS_RESOLVER_MISSING warning when no resolver'
     manifest.extends = '@test/base@^1.0.0';
     fs.writeFileSync(path.join(childDir, 'kdna.json'), JSON.stringify(manifest, null, 2));
     fs.copyFileSync(path.join(FIXTURE, 'payload.kdnab'), path.join(childDir, 'payload.kdnab'));
-    if (typeof core.buildChecksumsV1 === 'function') {
+    if (typeof core.buildChecksums === 'function') {
       fs.writeFileSync(
         path.join(childDir, 'checksums.json'),
-        JSON.stringify(core.buildChecksumsV1(childDir), null, 2),
+        JSON.stringify(core.buildChecksums(childDir), null, 2),
       );
     }
 
@@ -190,11 +191,11 @@ test('Story 12 inheritance: child axioms override parent, parent unoverridden ax
       },
       patterns: [],
     };
-    fs.writeFileSync(path.join(parentDir, 'payload.kdnab'), JSON.stringify(parentPayload));
-    if (typeof core.buildChecksumsV1 === 'function') {
+    fs.writeFileSync(path.join(parentDir, 'payload.kdnab'), cbor.encode(parentPayload));
+    if (typeof core.buildChecksums === 'function') {
       fs.writeFileSync(
         path.join(parentDir, 'checksums.json'),
-        JSON.stringify(core.buildChecksumsV1(parentDir), null, 2),
+        JSON.stringify(core.buildChecksums(parentDir), null, 2),
       );
     }
 
@@ -216,11 +217,11 @@ test('Story 12 inheritance: child axioms override parent, parent unoverridden ax
       },
       patterns: [],
     };
-    fs.writeFileSync(path.join(childDir, 'payload.kdnab'), JSON.stringify(childPayload));
-    if (typeof core.buildChecksumsV1 === 'function') {
+    fs.writeFileSync(path.join(childDir, 'payload.kdnab'), cbor.encode(childPayload));
+    if (typeof core.buildChecksums === 'function') {
       fs.writeFileSync(
         path.join(childDir, 'checksums.json'),
-        JSON.stringify(core.buildChecksumsV1(childDir), null, 2),
+        JSON.stringify(core.buildChecksums(childDir), null, 2),
       );
     }
 
@@ -243,7 +244,7 @@ test('Story 12 inheritance: child axioms override parent, parent unoverridden ax
     });
 
     assert.ok(result.inheritance_applied === true, 'inheritance_applied should be true');
-    const axioms = result.content.axioms || [];
+    const axioms = result.context.axioms || [];
     const ax1 = axioms.find((a) => a.id === 'ax1');
     const ax2 = axioms.find((a) => a.id === 'ax2');
     const ax3 = axioms.find((a) => a.id === 'ax3');
@@ -254,9 +255,9 @@ test('Story 12 inheritance: child axioms override parent, parent unoverridden ax
     assert.match(ax2.one_sentence, /Parent ax2/, 'parent ax2 should be inherited');
     assert.ok(ax3, 'ax3 should be present (child-only)');
     // Child has its own highest_question — child's version should be kept
-    assert.ok(result.content.highest_question, 'highest_question should be present');
+    assert.ok(result.context.highest_question, 'highest_question should be present');
     assert.match(
-      result.content.highest_question,
+      result.context.highest_question,
       /child question|parent question/,
       'highest_question should be from child or parent',
     );

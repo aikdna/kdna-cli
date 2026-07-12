@@ -62,8 +62,7 @@ function buildAsset(tmpRoot, name, version = '0.1.0') {
   fs.mkdirSync(source, { recursive: true });
   writeJson(path.join(source, 'kdna.json'), {
     format: 'kdna',
-    format_version: '1.0',
-    spec_version: '1.0-rc',
+    kdna_version: '1.0',
     name,
     version,
     judgment_version: '2026.05',
@@ -106,7 +105,7 @@ function buildAsset(tmpRoot, name, version = '0.1.0') {
 src = ${JSON.stringify(source)}
 out = ${JSON.stringify(asset)}
 with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
-    zf.writestr(zipfile.ZipInfo('mimetype'), 'application/vnd.aikdna.kdna+zip', compress_type=zipfile.ZIP_STORED)
+    zf.writestr(zipfile.ZipInfo('mimetype'), 'application/vnd.kdna.asset', compress_type=zipfile.ZIP_STORED)
     for name in sorted(os.listdir(src)):
         zf.write(os.path.join(src, name), name)
 `;
@@ -119,8 +118,7 @@ function buildStringRoutedAsset(tmpRoot) {
   fs.mkdirSync(source, { recursive: true });
   writeJson(path.join(source, 'kdna.json'), {
     format: 'kdna',
-    format_version: '1.0',
-    spec_version: '1.0-rc',
+    kdna_version: '1.0',
     name: '@aikdna/string_routed',
     version: '0.1.0',
     judgment_version: '2026.05',
@@ -157,7 +155,7 @@ function buildStringRoutedAsset(tmpRoot) {
 src = ${JSON.stringify(source)}
 out = ${JSON.stringify(asset)}
 with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
-    zf.writestr(zipfile.ZipInfo('mimetype'), 'application/vnd.aikdna.kdna+zip', compress_type=zipfile.ZIP_STORED)
+    zf.writestr(zipfile.ZipInfo('mimetype'), 'application/vnd.kdna.asset', compress_type=zipfile.ZIP_STORED)
     for name in sorted(os.listdir(src)):
         zf.write(os.path.join(src, name), name)
 `;

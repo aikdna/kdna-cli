@@ -106,8 +106,8 @@ test('cli-smoke: every case-routed command exits cleanly or with usage error (ne
   );
 });
 
-test('cli-smoke: --help exits 0 and shows the Core v1 section', () => {
+test('cli-smoke: --help exits 0 and shows the help text', () => {
   const r = runCli(['--help']);
   assert.strictEqual(r.status, 0, `expected exit 0, got ${r.status}`);
-  assert.match(r.stdout, /Core v1:/, 'help output should include a Core v1 section header');
+  assert.match(r.stdout, /KDNA runtime CLI/, 'help output should include KDNA branding');
 });

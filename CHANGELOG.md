@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.30.0 (2026-07-12)
+
+- Require `@aikdna/kdna-core@0.15.12` and `@aikdna/kdna-eval@0.3.1` through
+  registry-safe semver dependencies. Published CLI tarballs contain no local
+  `file:` dependency.
+- Adopt the single strict-CBOR payload contract across pack, validate, inspect,
+  conflict/deprecation analysis, encryption, recovery, and demo fixtures.
+- Return and verify `kdna.context.capsule` artifacts through `kdna load` and
+  `kdna capsule-verify`; Agents consume the authorized Capsule rather than raw
+  container entries.
+- Complete the encrypted lifecycle: pack → protect → validate → plan-load →
+  password-gated load → recover. Wrong passwords fail closed; successful loads
+  return a Capsule.
+- Surface malformed CBOR as non-blocking, stable diagnostics in conflict and
+  deprecation analysis instead of silently reporting empty results.
+- Add deterministic `kdna plan-use` and observed-execution `kdna use` paths for
+  single assets and explicit Cluster manifests. `ConsumptionPlan`,
+  `JudgmentTrace`, and evaluation evidence remain separate artifacts.
+- Make the built-in CLI Runner resolve installed package names and local source
+  paths through the package store, execute Core `planLoad`, and record
+  `digest_verified: true` only after an observed checksum-valid load.
+- Stop Cluster traces from inferring `assets_loaded` or trust facts from Plan
+  selection. Mock execution now reports zero observed loads; CLI execution
+  reports the exact assets Core loaded.
+- Make `kdna project` accept installed package names as well as packaged file
+  paths.
+- Add `kdna eval cluster` with fail-closed five-gate Cluster Assay behavior.
+  Missing behavioral or trust evidence cannot produce a passing verdict.
+- Replace primary CJK n-gram routing with `Intl.Segmenter` word segmentation
+  when available, retaining a compatibility fallback.
+- Make Cluster migration reports portable sidecars, validate the final stamped
+  manifest before writing, and preserve distinct exit codes for complete,
+  manual-action, and invalid migrations.
+- Require `selection` for applicable Cluster Plans while allowing a blocked
+  Plan to contain no selection.
+- Update the runtime dependency to `@aikdna/kdna-eval@0.3.1`.
+
 ## 0.29.0 (2026-07-10)
 
 feat: add consumption runtime pipeline — task-aware selection, composition, projection, evaluation, and review commands that keep runtime metadata outside the `.kdna` asset format.

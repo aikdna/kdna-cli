@@ -34,35 +34,48 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const cbor = require('cbor-x');
 
 // ─── Payload loading ──────────────────────────────────────────────────────────
 
 /**
  * Read and parse payload.kdnab from a component path (source dir or .kdna zip).
- * Returns parsed JSON object, or null if not available.
+ * Returns:
+ *   - parsed object on success
+ *   - null if payload.kdnab exists but is malformed CBOR
+ *   - undefined if no payload.kdnab file is found
  */
 function loadPayload(componentPath, core) {
-  try {
-    const abs = path.resolve(componentPath);
+  const abs = path.resolve(componentPath);
+  let hasPayload = false;
 
+  try {
     // Source dir: payload.kdnab is a plain file
     if (fs.existsSync(path.join(abs, 'payload.kdnab'))) {
-      const raw = fs.readFileSync(path.join(abs, 'payload.kdnab'), 'utf8');
-      return JSON.parse(raw);
+      hasPayload = true;
+      const buf = fs.readFileSync(path.join(abs, 'payload.kdnab'));
+      return cbor.decode(buf);
     }
 
-    // .kdna container: use readV1Layout to get the entry map
-    if (typeof core.readV1Layout === 'function') {
-      const layout = core.readV1Layout(abs);
+    // .kdna container: get entry bytes via readLayout
+    const readFn = core.readLayout;
+    if (typeof readFn === 'function') {
+      const layout = readFn(abs);
       if (layout && layout.map && layout.map['payload.kdnab']) {
+        hasPayload = true;
         const buf = layout.map['payload.kdnab'];
-        return JSON.parse(Buffer.isBuffer(buf) ? buf.toString('utf8') : buf);
+        const bytes = Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
+        return cbor.decode(bytes);
       }
     }
-  } catch (_) {
-    // Non-fatal — conflict analysis is best-effort
+  } catch {
+    if (hasPayload) {
+      // Payload exists but could not be decoded — malformed CBOR
+      return null;
+    }
   }
-  return null;
+
+  return undefined;
 }
 
 // ─── Card extraction ──────────────────────────────────────────────────────────
@@ -436,7 +449,7 @@ function detectRiskConflicts(cardsA, cardsB, compA, compB) {
  * @param {Array}  componentResults  Array of component objects from validateBundle.
  *   Each must have: { id, path, valid }. Story 13: may also carry `trust_level`
  *   (`"community" | "verified" | "official" | null`).
- * @param {object} core  The @aikdna/kdna-core module (for readV1Layout).
+ * @param {object} core  The @aikdna/kdna-core module (for readLayout).
  * @returns {{ errors: Array, warnings: Array, info: Array }}
  */
 function analyseConflicts(componentResults, core) {
@@ -462,10 +475,29 @@ function analyseConflicts(componentResults, core) {
   }
 
   // Load payloads once
-  const payloads = validComps.map((comp) => ({
-    comp,
-    cards: extractCards(loadPayload(comp.path, core)),
-  }));
+  const payloads = validComps.map((comp) => {
+    const raw = loadPayload(comp.path, core);
+    if (raw === null) {
+      // Payload exists but is malformed — add diagnostic
+      info.push({
+        conflict_type: 'info',
+        severity: 'INFO',
+        component_a: comp.id,
+        component_b: null,
+        card_type: 'payload',
+        card_id_a: `${comp.id}:payload`,
+        card_id_b: null,
+        conflicting_field: 'integrity',
+        resolution: 'surface',
+        note: `Component "${comp.id}" has a payload.kdnab that could not be decoded as CBOR. It may be malformed or use an unsupported encoding. Conflict analysis will skip this component.`,
+        trust_level_a: null,
+        trust_level_b: null,
+        community_warning: false,
+      });
+      return { comp, cards: extractCards(undefined) };
+    }
+    return { comp, cards: extractCards(raw) };
+  });
 
   // Compare every pair (O(n²), acceptable for small bundles)
   for (let i = 0; i < payloads.length; i++) {

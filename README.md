@@ -2,7 +2,11 @@
 
 [![npm](https://img.shields.io/npm/v/@aikdna/kdna-cli)](https://www.npmjs.com/package/@aikdna/kdna-cli) [![CI](https://github.com/aikdna/kdna-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/aikdna/kdna-cli/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
-The official command-line runtime for KDNA Core v1 judgment assets.
+The official command-line runtime for KDNA judgment assets.
+
+KDNA makes judgment portable across models and runtimes. This repository
+implements the inspect, validate, authorization, loading, projection, and
+runtime-control part of the open protocol.
 
 KDNA CLI inspects, validates, packs, unpacks, loads, signs, and manages `.kdna` files. It is
 the consumer/runtime side of the official KDNA toolchain. Formal authoring is
@@ -20,7 +24,7 @@ npm install -g @aikdna/kdna-cli
 ## Quick start — load a real judgment asset
 
 ```bash
-# Download an official judgment asset
+# Download an AIKDNA-published reference asset
 curl -LO https://github.com/aikdna/kdna-assets/releases/download/agent-project-context-v0.1.2/agent-project-context-v0.1.2.kdna
 
 # Validate, plan, load
@@ -28,8 +32,6 @@ kdna validate agent-project-context-v0.1.2.kdna
 kdna plan-load agent-project-context-v0.1.2.kdna
 kdna load    agent-project-context-v0.1.2.kdna --profile=compact --as=prompt
 ```
-
-Successful validation returns:
 
 Successful validation returns:
 
@@ -73,23 +75,46 @@ kdna compose <asset-path> --primary=example-primary --advisors=example-advisor -
 # Render a packaged asset into a readable judgment projection.
 kdna project <asset-path>.kdna --shape=answer-pattern --as=prompt
 
+# The same projection can address an installed package name.
+kdna project @aikdna/dev-deploy-readiness --task="Should this deploy?" --shape=answer-pattern --as=prompt
+
+# Plan without execution, then execute through a registered Runner.
+kdna plan-use @aikdna/dev-deploy-readiness --task="Should this deploy?" --as=json
+kdna use @aikdna/dev-deploy-readiness --task="Should this deploy?" --runner=cli:default --as=trace
+
+# Cluster is an explicit advanced path.
+kdna cluster validate ./kdna.cluster.json
+kdna cluster plan-use ./kdna.cluster.json --task="Deploy a public API change" --as=json
+kdna use ./kdna.cluster.json --task="Deploy a public API change" --runner=cli:default --as=trace
+kdna eval cluster ./kdna.cluster.json --fixtures=./fixtures --as=json
+
 # Evaluate a policy with public-safe fixtures and an explicit budget profile.
 kdna eval-consumption <asset-path> --fixtures=./fixtures --budget=interactive --as=markdown
 ```
 
-| Command                                 | Purpose                                                             |
-| --------------------------------------- | ------------------------------------------------------------------- |
-| `kdna route`                            | Select a primary framework or report no match.                      |
-| `kdna compose`                          | Build a bounded primary/advisor set and trace it.                   |
-| `kdna project`                          | Render a packaged asset as a task-safe projection.                  |
-| `kdna eval-consumption`                 | Run replay and multi-gate consumption evaluation.                   |
-| `kdna compose-review-workbook`          | Create a review workbook from diagnostics.                          |
-| `kdna validate-compose-decisions`       | Validate a decision ledger with replay evidence.                    |
-| `kdna apply-reviewed-compose-decisions` | Create disabled candidate sidecar entries from validated decisions. |
-| `kdna asset-evidence`                   | Generate a public asset evidence manifest.                          |
+| Command                                 | Purpose                                                               |
+| --------------------------------------- | --------------------------------------------------------------------- |
+| `kdna route`                            | Select a primary framework or report no match.                        |
+| `kdna compose`                          | Build a bounded primary/advisor set and trace it.                     |
+| `kdna project`                          | Render a packaged asset as a task-safe projection.                    |
+| `kdna plan-use`                         | Produce a deterministic pre-execution ConsumptionPlan.                |
+| `kdna use`                              | Execute through a registered Runner and emit an observed Trace.       |
+| `kdna cluster`                          | Validate, plan, inspect, or migrate an explicit Cluster manifest.     |
+| `kdna eval asset`                       | Run the single-asset Assay without inflating evidence classification. |
+| `kdna eval cluster`                     | Run the fail-closed five-gate Cluster Assay.                          |
+| `kdna eval-consumption`                 | Run replay and multi-gate consumption evaluation.                     |
+| `kdna compose-review-workbook`          | Create a review workbook from diagnostics.                            |
+| `kdna validate-compose-decisions`       | Validate a decision ledger with replay evidence.                      |
+| `kdna apply-reviewed-compose-decisions` | Create disabled candidate sidecar entries from validated decisions.   |
+| `kdna asset-evidence`                   | Generate a public asset evidence manifest.                            |
 
 Generated sidecars are disabled by default. They are not an endorsement of an
 asset or a replacement for independent review.
+
+The built-in `mock` Runner never claims an asset was loaded. The built-in
+`cli` Runner validates and loads assets through KDNA Core but does not invoke a
+language model; Agent/model execution is supplied by a registered Agent, app,
+or API Runner.
 
 ## Asset Management
 

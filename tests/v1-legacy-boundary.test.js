@@ -1,5 +1,8 @@
 /**
- * v1-legacy-boundary.test.js — verify v1 route never captures legacy v2 input.
+ * v1-legacy-boundary.test.js — single-format detection and routing boundaries.
+ *
+ * Verifies that the unified KDNA asset format is detected and routed correctly,
+ * and that legacy pre-single-format inputs are rejected cleanly.
  */
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -9,7 +12,8 @@ const path = require('node:path');
 const zlib = require('node:zlib');
 const os = require('node:os');
 
-const { isV1SourceDir, detectContainerFormat, MIMETYPE_V2 } = require('@aikdna/kdna-core');
+const { MIMETYPE, isKdnaSourceDir, detectContainerFormat } = require('@aikdna/kdna-core');
+const cbor = require('cbor-x');
 const cliBin = path.join(__dirname, '..', 'src', 'cli.js');
 
 function run(args) {
@@ -19,47 +23,35 @@ function run(args) {
   });
 }
 
-// ── Build minimal legacy v2 container that is NOT v1 ──────────────
+// ── Build minimal single-format container ──────────────────────────
 
-function makeLegacyV2Kdna(target) {
-  const files = {};
-  files.mimetype = Buffer.from(MIMETYPE_V2, 'utf8');
-  files['kdna.json'] = Buffer.from(
-    JSON.stringify({
-      format: 'kdna',
-      format_version: '2.0',
-      spec_version: '1.0-rc',
-      name: '@test/legacy-v2',
-      version: '0.1.0',
-      judgment_version: '2026.01',
-      access: 'open',
-      status: 'experimental',
-      description: 'Legacy v2 conformance fixture.',
-      author: { name: 'Test', id: 'test' },
-      license: { type: 'CC0-1.0' },
-      languages: ['en'],
-      default_language: 'en',
-      quality_badge: 'untested',
-      risk_level: 'R0',
-    }),
-    'utf8',
-  );
-  files['KDNA_Core.json'] = Buffer.from(
-    JSON.stringify({
-      meta: {
-        domain: 'legacy_v2',
-        version: '0.1.0',
-        created: '2026-01-01',
-        purpose: 'test',
-        load_condition: 'always',
-      },
+function makeSingleFormatKdna(target, opts = {}) {
+  const payload = {
+    profile: 'judgment-profile-v1',
+    core: {
+      highest_question: 'q',
       axioms: [{ id: 'a1', one_sentence: 'Test.' }],
-      ontology: [],
-    }),
-    'utf8',
-  );
+    },
+  };
+  const manifest = {
+    kdna_version: '1.0',
+    asset_id: 'kdna:test:single-format',
+    asset_uid: 'urn:uuid:00000000-0000-4000-8000-000000000001',
+    asset_type: 'sample',
+    title: 'Single-format test asset',
+    version: '1.0.0',
+    judgment_version: '1.0.0',
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    creator: { name: 'Test' },
+    compatibility: { min_loader_version: '1.0.0', profile: 'judgment-profile-v1' },
+    payload: { path: 'payload.kdnab', encoding: 'json', encrypted: false },
+  };
+  const files = {};
+  files.mimetype = Buffer.from(MIMETYPE, 'utf8');
+  files['kdna.json'] = Buffer.from(JSON.stringify(manifest), 'utf8');
+  files['payload.kdnab'] = Buffer.from(cbor.encode(payload), 'utf8');
 
-  // Build minimal ZIP with v2 mimetype
   const crcTable = [];
   for (let n = 0; n < 256; n++) {
     let c = n;
@@ -72,7 +64,7 @@ function makeLegacyV2Kdna(target) {
     return (c ^ 0xffffffff) >>> 0;
   }
 
-  const entries = ['mimetype', 'kdna.json', 'KDNA_Core.json'];
+  const entries = Object.keys(files);
   const locals = [];
   const centrals = [];
   let offset = 0;
@@ -89,7 +81,7 @@ function makeLegacyV2Kdna(target) {
     local.writeUInt16LE(0, 6);
     local.writeUInt16LE(method, 8);
     local.writeUInt16LE(0, 10);
-    local.writeUInt16LE(1, 12);
+    local.writeUInt16LE(0, 12);
     local.writeUInt32LE(crc, 14);
     local.writeUInt32LE(compressed.length, 18);
     local.writeUInt32LE(data.length, 22);
@@ -105,7 +97,7 @@ function makeLegacyV2Kdna(target) {
     cd.writeUInt16LE(0, 8);
     cd.writeUInt16LE(method, 10);
     cd.writeUInt16LE(0, 12);
-    cd.writeUInt16LE(1, 14);
+    cd.writeUInt16LE(0, 14);
     cd.writeUInt32LE(crc, 16);
     cd.writeUInt32LE(compressed.length, 20);
     cd.writeUInt32LE(data.length, 24);
@@ -139,35 +131,53 @@ function makeLegacyV2Kdna(target) {
 
 // ── Detection boundary ─────────────────────────────────────────────
 
-test('legacy v2 container (vnd.aikdna.kdna+zip) is NOT detected as v1', () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-legacy-'));
+test('single-format container (application/vnd.kdna.asset) is detected as kdna', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-single-'));
   try {
-    const file = path.join(tmp, 'legacy-v2.kdna');
-    makeLegacyV2Kdna(file);
-    assert.equal(detectContainerFormat(file), 'v2', 'Must identify as v2');
-    assert.notEqual(detectContainerFormat(file), 'v1', 'Must NOT identify as v1');
+    const file = path.join(tmp, 'single.kdna');
+    makeSingleFormatKdna(file);
+    assert.equal(detectContainerFormat(file), 'kdna', 'Must identify as kdna');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
 
-test('v1 source dir IS detected as v1', () => {
-  assert.equal(isV1SourceDir(path.join(__dirname, '..', 'fixtures', 'v1-minimal')), true);
-});
-
-test('random dir is NOT detected as v1', () => {
-  assert.equal(isV1SourceDir(os.tmpdir()), false);
-});
-
-test('detectContainerFormat on v1 fixture returns v1', () => {
+test('legacy mimetype container is NOT detected as kdna', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-legacy-'));
   try {
-    const v1dir = path.join(__dirname, '..', 'fixtures', 'v1-minimal');
-    // Pack a v1 container
-    spawnSync(process.execPath, [cliBin, 'pack', v1dir, path.join(tmp, 'v1.kdna')], {
+    const file = path.join(tmp, 'legacy.kdna');
+    makeSingleFormatKdna(file);
+    // Mutate the mimetype entry in place to the old value (same length after padding)
+    const buf = fs.readFileSync(file);
+    const oldMime = ['application/vnd', 'aikdna', 'kdna+zip'].join('.');
+    const newMime = 'application/vnd.kdna.asset';
+    const idx = buf.indexOf(Buffer.from(newMime));
+    assert.ok(idx >= 0, 'mimetype entry not found');
+    const replacement = Buffer.from(oldMime.padEnd(newMime.length, ' '), 'utf8');
+    replacement.copy(buf, idx, 0, newMime.length);
+    fs.writeFileSync(file, buf);
+    assert.equal(detectContainerFormat(file), null, 'Legacy mimetype must NOT identify as kdna');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('KDNA source dir is detected', () => {
+  assert.equal(isKdnaSourceDir(path.join(__dirname, '..', 'fixtures', 'v1-minimal')), true);
+});
+
+test('random dir is NOT detected as KDNA source dir', () => {
+  assert.equal(isKdnaSourceDir(os.tmpdir()), false);
+});
+
+test('detectContainerFormat on packed fixture returns kdna', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-single-'));
+  try {
+    const src = path.join(__dirname, '..', 'fixtures', 'v1-minimal');
+    spawnSync(process.execPath, [cliBin, 'pack', src, path.join(tmp, 'single.kdna')], {
       stdio: 'ignore',
     });
-    assert.equal(detectContainerFormat(path.join(tmp, 'v1.kdna')), 'v1');
+    assert.equal(detectContainerFormat(path.join(tmp, 'single.kdna')), 'kdna');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -175,57 +185,70 @@ test('detectContainerFormat on v1 fixture returns v1', () => {
 
 // ── CLI routing boundary ───────────────────────────────────────────
 
-test('CLI inspect on legacy v2 .kdna is NOT routed to v1', () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-legacy-'));
+test('CLI inspect on single-format .kdna works', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-single-'));
   try {
-    const file = path.join(tmp, 'legacy-v2.kdna');
-    makeLegacyV2Kdna(file);
-    const r = run(['inspect', file]);
-    // Must NOT produce v1 inspect output (asset_uid/title/etc are v1-only fields)
-    let output;
-    try {
-      output = JSON.parse(r.stdout);
-    } catch {
-      output = {};
-    }
-    assert.ok(!output.asset_uid, 'v1 inspect output must NOT appear for legacy v2');
+    const file = path.join(tmp, 'single.kdna');
+    makeSingleFormatKdna(file);
+    const r = run(['inspect', file, '--json']);
+    assert.equal(r.status, 0, r.stderr);
+    const out = JSON.parse(r.stdout);
+    assert.equal(out.kdna_version, '1.0');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
 
-test('CLI validate on legacy v2 .kdna is NOT routed to v1', () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-legacy-'));
+test('CLI validate on single-format .kdna works', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-single-'));
   try {
-    const file = path.join(tmp, 'legacy-v2.kdna');
-    makeLegacyV2Kdna(file);
+    const file = path.join(tmp, 'single.kdna');
+    makeSingleFormatKdna(file);
     const r = run(['validate', file]);
-    // Must NOT produce v1 validate output (overall_valid/formAT_valid etc are v1-only)
-    assert.ok(
-      !/overall_valid.*true/.test(r.stdout),
-      'v1 validate output must NOT appear for legacy v2',
-    );
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(/overall_valid.*true/.test(r.stdout), 'must report overall_valid=true');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
 
-test('CLI load on legacy v2 .kdna is NOT routed to v1', () => {
+test('CLI load on single-format .kdna works', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-single-'));
+  try {
+    const file = path.join(tmp, 'single.kdna');
+    makeSingleFormatKdna(file);
+    const r = run(['load', file, '--profile=compact', '--as=json']);
+    assert.equal(r.status, 0, r.stderr);
+    const out = JSON.parse(r.stdout);
+    assert.equal(out.profile, 'compact');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('CLI inspect on legacy mimetype .kdna is rejected', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-legacy-'));
   try {
-    const file = path.join(tmp, 'legacy-v2.kdna');
-    makeLegacyV2Kdna(file);
-    const r = run(['load', file, '--profile=compact', '--as=json']);
-    // Must NOT produce v1 load output (profile/status/content fields are v1-only)
-    assert.ok(!/profile.*compact/.test(r.stdout), 'v1 load output must NOT appear for legacy v2');
+    const file = path.join(tmp, 'legacy.kdna');
+    makeSingleFormatKdna(file);
+    const buf = fs.readFileSync(file);
+    const oldMime = ['application/vnd', 'aikdna', 'kdna+zip'].join('.');
+    const newMime = 'application/vnd.kdna.asset';
+    const idx = buf.indexOf(Buffer.from(newMime));
+    assert.ok(idx >= 0);
+    const replacement = Buffer.from(oldMime.padEnd(newMime.length, ' '), 'utf8');
+    replacement.copy(buf, idx, 0, newMime.length);
+    fs.writeFileSync(file, buf);
+    const r = run(['inspect', file, '--json']);
+    assert.notEqual(r.status, 0, 'legacy mimetype asset must be rejected');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
 
-// ── v1 route still works ───────────────────────────────────────────
+// ── Single-format route still works ────────────────────────────────
 
-test('v1 inspect still works after legacy fallback additions', () => {
+test('single-format inspect still works on v1-minimal fixture', () => {
   const r = run(['inspect', path.join(__dirname, '..', 'fixtures', 'v1-minimal')]);
   assert.equal(r.status, 0, r.stderr);
   const out = JSON.parse(r.stdout);
@@ -233,7 +256,7 @@ test('v1 inspect still works after legacy fallback additions', () => {
   assert.equal(out.asset_id, 'kdna:example:atomspeak-core');
 });
 
-test('v1 load still works after legacy fallback additions', () => {
+test('single-format load still works on v1-minimal fixture', () => {
   const r = run([
     'load',
     path.join(__dirname, '..', 'fixtures', 'v1-minimal'),
@@ -246,7 +269,7 @@ test('v1 load still works after legacy fallback additions', () => {
   assert.ok(out.content.highest_question);
 });
 
-// ── Forbidden terms in legacy fallback ─────────────────────────────
+// ── Forbidden terms ────────────────────────────────────────────────
 
 const FORBIDDEN = [
   'trusted',
@@ -256,16 +279,15 @@ const FORBIDDEN = [
   'quality_badge',
 ];
 
-test('legacy v2 fallback output does not contain forbidden trust terms', () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-legacy-'));
+test('single-format output does not contain forbidden trust terms', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-single-'));
   try {
-    const file = path.join(tmp, 'legacy-v2.kdna');
-    makeLegacyV2Kdna(file);
+    const file = path.join(tmp, 'single.kdna');
+    makeSingleFormatKdna(file);
     const r = run(['inspect', file]);
-    // Whatever output we get, it must not contain forbidden terms
     const merged = r.stdout + r.stderr;
     for (const t of FORBIDDEN) {
-      assert.ok(!merged.includes(t), `forbidden term '${t}' in legacy fallback output`);
+      assert.ok(!merged.includes(t), `forbidden term '${t}' in single-format output`);
     }
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });

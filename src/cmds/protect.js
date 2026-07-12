@@ -8,6 +8,7 @@
  */
 
 const fs = require('fs');
+const cbor = require('cbor-x');
 const { EXIT, error, promptPassword, resolvePassword } = require('./_common');
 const {
   createKdnaAssetReader,
@@ -18,7 +19,7 @@ const {
   generateRecoveryCode,
   PASSWORD_PROTECTED_SCRYPT_PROFILE,
   pack: packAsset,
-  buildChecksumsV1,
+  buildChecksums,
 } = require('@aikdna/kdna-core');
 
 function parseEntriesFlag(flag) {
@@ -41,7 +42,7 @@ function cmdProtect(args) {
         '  <file.kdna>                       Input .kdna asset to protect\n' +
         '  --out <file.kdna>                 Required. Output path for protected asset\n' +
         '  --password <pw>                   Password (insecure — visible in shell history)\n' +
-        '  --password-stdin                  Read password from stdin (recommended)\n' +
+        '  --password-stdin                  Read password from stdin (preferred)\n' +
         '  --entries <list>                  Comma-separated entry names to encrypt\n' +
         '                                    (default: payload.kdnab)\n' +
         '\n' +
@@ -113,7 +114,7 @@ function cmdProtect(args) {
         password,
         recoveryCode,
       });
-      zipEntries[entryName] = JSON.stringify(encrypted);
+      zipEntries[entryName] = cbor.encode(encrypted);
     } else {
       zipEntries[entryName] = reader.readEntrySync(asset, entryName);
     }
@@ -131,7 +132,7 @@ function cmdProtect(args) {
   // BUG-2 fix: also write a fresh checksums.json so the protected asset
   // passes `kdna validate` (manifest_digest / asset_digest are recomputed
   // against the encrypted payload).
-  const { pack, buildChecksumsV1 } = require('@aikdna/kdna-core');
+  const { pack, buildChecksums } = require('@aikdna/kdna-core');
   const tmpDir = require('node:fs').mkdtempSync(
     require('node:path').join(require('node:os').tmpdir(), 'kdna-protect-'),
   );
@@ -142,7 +143,7 @@ function cmdProtect(args) {
     const rebuiltManifest = JSON.parse(
       require('node:fs').readFileSync(require('node:path').join(tmpDir, 'kdna.json'), 'utf8'),
     );
-    const checksums = buildChecksumsV1(tmpDir, rebuiltManifest);
+    const checksums = buildChecksums(tmpDir, rebuiltManifest);
     require('node:fs').writeFileSync(
       require('node:path').join(tmpDir, 'checksums.json'),
       JSON.stringify(checksums, null, 2),
@@ -295,7 +296,7 @@ function cmdUnlock(args) {
           JSON.stringify(kdnaJson, null, 2),
         );
         // Compute checksums for the unlocked copy.
-        const checksums = buildChecksumsV1(tmpDir, kdnaJson);
+        const checksums = buildChecksums(tmpDir, kdnaJson);
         require('node:fs').writeFileSync(
           require('node:path').join(tmpDir, 'checksums.json'),
           JSON.stringify(checksums, null, 2),
@@ -386,7 +387,7 @@ function cmdRecover(args) {
         password: newPassword,
         recoveryCode: newRecoveryCode,
       });
-      zipEntries[entryName] = JSON.stringify(encrypted);
+      zipEntries[entryName] = cbor.encode(encrypted);
     } else {
       zipEntries[entryName] = reader.readEntrySync(asset, entryName);
     }
@@ -415,7 +416,7 @@ function cmdRecover(args) {
     const recoveredManifest = JSON.parse(
       require('node:fs').readFileSync(require('node:path').join(tmpDir, 'kdna.json'), 'utf8'),
     );
-    const checksums = buildChecksumsV1(tmpDir, recoveredManifest);
+    const checksums = buildChecksums(tmpDir, recoveredManifest);
     require('node:fs').writeFileSync(
       require('node:path').join(tmpDir, 'checksums.json'),
       JSON.stringify(checksums, null, 2),

@@ -203,7 +203,7 @@ function makeRemoteFixture(tmpDir) {
   fs.writeFileSync(path.join(dir, 'payload.kdnab'), JSON.stringify(payload) + '\n');
   fs.writeFileSync(
     path.join(dir, 'checksums.json'),
-    JSON.stringify(core.buildChecksumsV1(dir), null, 2) + '\n',
+    JSON.stringify(core.buildChecksums(dir), null, 2) + '\n',
   );
   return dir;
 }

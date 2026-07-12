@@ -7,7 +7,17 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const cbor = require('cbor-x');
 const core = require('@aikdna/kdna-core');
+
+function readPayload(p) {
+  const buf = fs.readFileSync(p);
+  try {
+    return cbor.decode(buf);
+  } catch {
+    return JSON.parse(buf.toString('utf8'));
+  }
+}
 
 const cliBin = path.join(__dirname, '..', 'src', 'cli.js');
 const fixture = path.join(__dirname, '..', 'fixtures', 'v1-minimal');
@@ -67,12 +77,12 @@ test('kdna validate --runtime exits 3 when LoadPlan cannot load now', () => {
     manifest.runtime = { endpoint: 'https://runtime.example.test/v1/project' };
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
     const payloadPath = path.join(tmp, 'payload.kdnab');
-    const payload = JSON.parse(fs.readFileSync(payloadPath, 'utf8'));
+    const payload = readPayload(payloadPath);
     payload.core.axioms = [{ id: 'secret', one_sentence: secret }];
-    fs.writeFileSync(payloadPath, JSON.stringify(payload, null, 2));
+    fs.writeFileSync(payloadPath, cbor.encode(payload));
     fs.writeFileSync(
       path.join(tmp, 'checksums.json'),
-      JSON.stringify(core.buildChecksumsV1(tmp), null, 2),
+      JSON.stringify(core.buildChecksums(tmp), null, 2),
     );
 
     const r = runCli(['validate', tmp, '--runtime']);
@@ -118,12 +128,12 @@ test('kdna load refuses v1 assets when LoadPlan cannot load now', () => {
     manifest.runtime = { endpoint: 'https://runtime.example.test/v1/project' };
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
     const payloadPath = path.join(tmp, 'payload.kdnab');
-    const payload = JSON.parse(fs.readFileSync(payloadPath, 'utf8'));
+    const payload = readPayload(payloadPath);
     payload.core.axioms = [{ id: 'secret', one_sentence: secret }];
-    fs.writeFileSync(payloadPath, JSON.stringify(payload, null, 2));
+    fs.writeFileSync(payloadPath, cbor.encode(payload));
     fs.writeFileSync(
       path.join(tmp, 'checksums.json'),
-      JSON.stringify(core.buildChecksumsV1(tmp), null, 2),
+      JSON.stringify(core.buildChecksums(tmp), null, 2),
     );
 
     const plan = runCli(['plan-load', tmp, '--json']);

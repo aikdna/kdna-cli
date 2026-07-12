@@ -10,6 +10,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { error, readJson, writeJson, EXIT, isYesNoSelfCheck } = require('./_common');
 
 // ─── Scaffold ─────────────────────────────────────────────────────────
@@ -501,10 +502,12 @@ function cmdStudioCompile(projectPath, args = []) {
 
   // Compile manifest → kdna.json
   const manifest = {
-    format: 'kdna',
-    format_version: '1.0',
-    spec_version: '1.0-rc',
+    kdna_version: '1.0',
     name: `@aikdna/${project.name}`,
+    asset_id: `kdna:${project.name}:studio`,
+    asset_uid: `urn:uuid:${crypto.randomUUID()}`,
+    asset_type: 'domain',
+    title: project.name,
     version: '0.1.0',
     judgment_version: '0.1.0',
     status: 'experimental',
@@ -515,13 +518,24 @@ function cmdStudioCompile(projectPath, args = []) {
     author: { name: '', id: '' },
     license: { type: 'CC-BY-4.0' },
     description: '',
-    created: project.created || today,
-    updated: today,
+    compatibility: { min_loader_version: '1.0.0', profile: 'judgment-profile-v1' },
+    payload: { path: 'payload.kdnab', encoding: 'cbor', encrypted: false },
+    created_at: project.created || today,
+    updated_at: today,
   };
 
   writeJson(path.join(outDir, 'KDNA_Core.json'), core);
   writeJson(path.join(outDir, 'KDNA_Patterns.json'), patterns);
   writeJson(path.join(outDir, 'kdna.json'), manifest);
+
+  // Produce the single-format payload so the source directory is loadable
+  const cbor = require('cbor-x');
+  const payloadBuf = cbor.encode({
+    profile: 'judgment-profile-v1',
+    core,
+    patterns,
+  });
+  fs.writeFileSync(path.join(outDir, 'payload.kdnab'), payloadBuf);
 
   included.push(
     `axioms: ${axioms.locked.length} included`,

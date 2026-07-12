@@ -50,33 +50,60 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const cbor = require('cbor-x');
 const { isDeprecatedAt } = require('./semver-util');
 
 /**
  * Read the bundle manifest if `abs` points at a `bundle-profile-v1` asset.
- * Returns `{ kind: 'bundle', manifest, components }` or `null` if the asset
- * is not a bundle or is unreadable.
+ * Returns `{ kind: 'bundle', manifest, components }`, a discriminated
+ * `{ kind: 'diagnostic', diagnostic }` result when the bundle payload exists
+ * but cannot be decoded, or `null` when the path is not a bundle.
  *
  * `manifest` is the top-level kdna.json; `components` is the parsed
  * `components[]` array from `payload.kdnab` (or the legacy `components`
  * field on the manifest itself, if present).
  */
 function readBundleComponents(abs) {
+  const kdnaJsonPath = path.join(abs, 'kdna.json');
+  if (!fs.existsSync(kdnaJsonPath)) return null;
+
+  let manifest;
   try {
-    const kdnaJsonPath = path.join(abs, 'kdna.json');
-    if (!fs.existsSync(kdnaJsonPath)) return null;
-    const manifest = JSON.parse(fs.readFileSync(kdnaJsonPath, 'utf8'));
-    if (manifest.compatibility && manifest.compatibility.profile === 'bundle-profile-v1') {
-      const payloadPath = path.join(abs, 'payload.kdnab');
-      if (!fs.existsSync(payloadPath)) return null;
-      const payload = JSON.parse(fs.readFileSync(payloadPath, 'utf8'));
-      if (Array.isArray(payload.components)) {
-        return { kind: 'bundle', manifest, components: payload.components };
-      }
-    }
-  } catch (_) {
-    // best-effort
+    manifest = JSON.parse(fs.readFileSync(kdnaJsonPath, 'utf8'));
+  } catch {
+    return null;
   }
+
+  if (!manifest.compatibility || manifest.compatibility.profile !== 'bundle-profile-v1') {
+    return null;
+  }
+
+  const payloadPath = path.join(abs, 'payload.kdnab');
+  if (!fs.existsSync(payloadPath)) return null;
+
+  try {
+    const payloadBuf = fs.readFileSync(payloadPath);
+    const payload = cbor.decode(payloadBuf);
+    if (Array.isArray(payload.components)) {
+      return { kind: 'bundle', manifest, components: payload.components };
+    }
+  } catch {
+    const componentId = manifest.name || manifest.asset_id || '(unnamed bundle)';
+    return {
+      kind: 'diagnostic',
+      diagnostic: {
+        kind: 'diagnostic',
+        severity: 'info',
+        code: 'KDNA_PAYLOAD_CBOR_DECODE_FAILED',
+        component_id: componentId,
+        component_label: 'bundle',
+        message:
+          `[KDNA_PAYLOAD_CBOR_DECODE_FAILED] bundle "${componentId}" has a ` +
+          'payload.kdnab that could not be decoded as CBOR; deprecation scanning was skipped.',
+      },
+    };
+  }
+
   return null;
 }
 
@@ -170,8 +197,9 @@ function evaluateDeprecation(deprecation, componentId, componentLabel, currentVe
 }
 
 /**
- * Scan an asset (path) for deprecation warnings. Returns an array of
- * warning objects (possibly empty). Each warning has at minimum:
+ * Scan an asset (path) for deprecation warnings and read diagnostics. Returns
+ * an array of signal objects (possibly empty). Deprecation warnings have at
+ * minimum:
  *
  *   {
  *     kind: 'deprecation' | 'removal',
@@ -182,13 +210,15 @@ function evaluateDeprecation(deprecation, componentId, componentLabel, currentVe
  *     deprecation  // raw block, for consumers that want the full shape
  *   }
  *
- * Returns [] if the asset is not a bundle or has no deprecated
- * components. Never throws.
+ * A malformed CBOR bundle payload returns a non-blocking diagnostic signal
+ * with code `KDNA_PAYLOAD_CBOR_DECODE_FAILED`. Returns [] if the asset is not
+ * a bundle or has no deprecated components. Never throws.
  */
 function scanBundleDeprecations(abs, currentVersion) {
   if (!abs || !currentVersion) return [];
   const bundle = readBundleComponents(abs);
   if (!bundle) return [];
+  if (bundle.kind === 'diagnostic') return [bundle.diagnostic];
 
   const warnings = [];
 
@@ -218,7 +248,14 @@ function scanBundleDeprecations(abs, currentVersion) {
  */
 function formatDeprecationStderr(warnings) {
   if (!warnings || warnings.length === 0) return '';
-  const lines = ['Notice: bundle deprecation signals detected.'];
+  const hasDeprecation = warnings.some(
+    (warning) => warning.kind === 'deprecation' || warning.kind === 'removal',
+  );
+  const lines = [
+    hasDeprecation
+      ? 'Notice: bundle deprecation signals detected.'
+      : 'Notice: bundle metadata diagnostics detected.',
+  ];
   for (const w of warnings) {
     lines.push(w.message);
   }

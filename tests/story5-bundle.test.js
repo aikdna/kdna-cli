@@ -9,6 +9,8 @@ const os = require('node:os');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 const FIXTURE_V1 = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
+const cbor = require('cbor-x');
+const core = require('@aikdna/kdna-core');
 
 function run(args, opts = {}) {
   return spawnSync(process.execPath, [CLI, ...args], {
@@ -41,19 +43,17 @@ test('Story 5: inspect v1 exits 0 with no spurious deprecation warning', () => {
   assert.doesNotMatch(r.stderr, /KDNA v1 format is deprecated/i);
 });
 
-test('Story 5: validate v2 bundle manifest and payload successfully', () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-v2-bundle-'));
+test('Story 5: validate bundle manifest and payload successfully', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-bundle-'));
   try {
-    // Write mimetype for v2
-    fs.writeFileSync(path.join(tmp, 'mimetype'), 'application/vnd.aikdna.kdna+zip');
+    fs.writeFileSync(path.join(tmp, 'mimetype'), 'application/vnd.kdna.asset');
 
-    // Write a valid v2 bundle kdna.json manifest
     const manifest = {
-      kdna_version: '2.0',
+      kdna_version: '1.0',
       asset_id: 'kdna:bundle:test-bundle',
       asset_uid: 'urn:uuid:00000000-0000-4000-8000-000000000009',
       asset_type: 'bundle',
-      title: 'Test Bundle v2',
+      title: 'Test Bundle',
       version: '1.0.0',
       judgment_version: '1.0.0',
       created_at: '2026-06-28T00:00:00Z',
@@ -68,11 +68,11 @@ test('Story 5: validate v2 bundle manifest and payload successfully', () => {
       },
       payload: {
         path: 'payload.kdnab',
-        encoding: 'json',
+        encoding: 'cbor',
         encrypted: false,
       },
       summary: 'Testing bundle payload validation',
-      description: 'A test v2 bundle.',
+      description: 'A test bundle.',
       languages: ['en'],
       default_language: 'en',
       license: 'Apache-2.0',
@@ -86,11 +86,16 @@ test('Story 5: validate v2 bundle manifest and payload successfully', () => {
       profile: 'bundle-profile-v1',
       components: [{ id: 'comp-a', path: './comp-a.kdna', priority: 1 }],
     };
-    fs.writeFileSync(path.join(tmp, 'payload.kdnab'), JSON.stringify(payload, null, 2));
+    fs.writeFileSync(path.join(tmp, 'payload.kdnab'), cbor.encode(payload));
+    if (core.buildChecksums)
+      fs.writeFileSync(
+        path.join(tmp, 'checksums.json'),
+        JSON.stringify(core.buildChecksums(tmp), null, 2),
+      );
 
     const r = run(['validate', tmp]);
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}:\n${r.stderr}`);
-    // v2 Bundle containers have never triggered the (now-removed) v1 deprecation warning.
+    // Bundle containers have never triggered the (now-removed) v1 deprecation warning.
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

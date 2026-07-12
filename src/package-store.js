@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const PATHS = require('./paths');
 const { nameFromAssetId, parseName } = require('./registry');
 const core = require('@aikdna/kdna-core');
+const cbor = require('cbor-x');
 
 if (typeof core.createKdnaAssetReader !== 'function') {
   throw new Error('@aikdna/kdna-core >=0.5.0 is required for direct .kdna asset loading');
@@ -141,9 +142,7 @@ function readDataMapCompatSync(asset, options = {}) {
   } catch (e) {
     if (asset.entries.has('payload.kdnab')) {
       try {
-        const payload = JSON.parse(
-          assetReader.readEntrySync(asset, 'payload.kdnab').toString('utf8'),
-        );
+        const payload = cbor.decode(assetReader.readEntrySync(asset, 'payload.kdnab'));
         if (payload && typeof payload === 'object') {
           const judgment = payload.judgment || payload;
           return {
