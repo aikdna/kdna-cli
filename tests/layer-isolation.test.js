@@ -124,12 +124,6 @@ const ALLOWLIST = [
     reason:
       'output field: `recommended_version_bump: <semver>` — semver tool recommendation, not a content-trust claim',
   },
-  // publish.js — tool-usage recommendation
-  {
-    file: 'src/publish.js',
-    line: 498,
-    reason: 'tool-usage message: "A kdna.json manifest is recommended for registry publication"',
-  },
   // cmds/demo.js — tool-usage recommendation
   {
     file: 'src/cmds/demo.js',
@@ -173,19 +167,6 @@ const ALLOWLIST = [
     file: 'src/cmds/anti-monolithic.js',
     line: 159,
     reason: 'function comment: "Returns the recommended process [exit code]"',
-  },
-  // cmds/protect.js — help text recommendation
-  {
-    file: 'src/cmds/protect.js',
-    line: 44,
-    reason: 'help text: "(recommended)" — tool-usage recommendation for --password-stdin',
-  },
-  // capsule-verify.js — negative use of "authoritative"
-  {
-    file: 'src/capsule-verify.js',
-    line: 51,
-    reason:
-      'error message: "self-claim is NOT authoritative" — negative use, asserts that the capsule self-claim is untrustworthy (the opposite of a content-trust claim)',
   },
 ];
 

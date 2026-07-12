@@ -160,10 +160,9 @@ if (args.includes('--exit-code')) setExitCodeOnly(true);
 
 function showHelp() {
   const v = require('../package.json').version;
-  console.log(`kdna v${v} — v1 Core runtime CLI
-Core v1:
-  inspect   <file.kdna>              Inspect a local v1 .kdna container
-  validate  <file.kdna>              Validate a local v1 .kdna container
+  console.log(`kdna v${v} — KDNA runtime CLI
+  inspect   <file.kdna>              Inspect a .kdna container
+  validate  <file.kdna>              Validate a .kdna container
   validate  <path> --runtime         Validate and require LoadPlan readiness
   validate  <bundle.json> --bundle   Validate a kdna.bundle.json manifest
                                      (component resolution + stub; Story 3)
@@ -180,8 +179,10 @@ Core v1:
                                      --task <name>           Task verb
                                        for remote projection
                                        (default: review)
-                                     --context "..."         Context
-                                       for the projection
+                                      --context "..."         Context
+                                        for the projection
+  capsule-verify <capsule.json>        Verify a Capsule JSON file's trust chain
+                                       --json: machine-readable output
   pack      <dev-source> <out>       Pack into .kdna (--force to overwrite)
   unpack    <file.kdna> <out>        Extract .kdna into an editing/debug view
   demo      <minimal|judgment> <dir>  Create a v1 demo fixture
@@ -312,9 +313,9 @@ Authoring & Publishing:
   test     run <domain>              Run test cases against a domain
   test     import                    Import test results
 Asset & Domain Operations:
-  badge    <domain>                  Compute quality badge for a domain
-  badge    audit                      Audit registry for stale entries
-  badge    package <path>             Package a badge artifact
+  badge    <domain>               Compute quality badge (dev preview)
+  badge    audit                   Audit registry for stale entries
+  badge    package <path>          Package a badge artifact
   domain   validate <path>            Validate a domain source directory
   domain   pack <src> <out>           Pack a domain source to .kdna
   domain   unpack <file>              Unpack a .kdna file to a source dir
@@ -324,7 +325,7 @@ Asset & Domain Operations:
   legacy   <preview|project|eval>    Legacy domain migration commands
   quality  <compare|diff|search>      Cross-version quality analysis
   registry <list|refresh>            Registry operations (registry is out of scope
-                                     for Core v1; refresh is informational only)
+                                     for KDNA Core; refresh is informational only)
   setup                                First-time setup wizard
   studio   <scaffold|cards|...>       Studio integration commands
 Flags: --version / --help / --json / --quiet
@@ -360,18 +361,12 @@ switch (cmd) {
           'Usage: kdna validate <file.kdna> [--runtime] [--entitlement-status <status>]',
           EXIT.INPUT_ERROR,
         );
-      const {
-        isV1SourceDir,
-        isV2SourceDir,
-        detectContainerFormat,
-        validate,
-      } = require('@aikdna/kdna-core');
+      const { isKdnaSourceDir, detectContainerFormat, validate } = require('@aikdna/kdna-core');
       const abs = require('node:path').resolve(v1Target);
       if (!fs.existsSync(abs)) error(`File not found: ${v1Target}`, EXIT.INPUT_ERROR);
       const containerFmt = detectContainerFormat(abs);
-      const isV1 = isV1SourceDir(abs) || containerFmt === 'v1';
-      const isV2 = (isV2SourceDir && isV2SourceDir(abs)) || containerFmt === 'v2';
-      if (!isV1 && !isV2) {
+      const isKdna = isKdnaSourceDir(abs) || containerFmt === 'kdna';
+      if (!isKdna) {
         error(`Not a KDNA container or source directory: ${v1Target}`, EXIT.INPUT_ERROR);
       }
       const runtimeMode = args.includes('--runtime');
@@ -433,21 +428,19 @@ switch (cmd) {
       let planTarget = v1Target;
       let abs = require('node:path').resolve(planTarget);
       const containerFmt = core.detectContainerFormat(abs);
-      let isV1 = core.isV1SourceDir(abs) || containerFmt === 'v1';
-      let isV2 = (core.isV2SourceDir && core.isV2SourceDir(abs)) || containerFmt === 'v2';
-      if (!isV1 && !isV2) {
+      let isKdna = core.isKdnaSourceDir(abs) || containerFmt === 'kdna';
+      if (!isKdna) {
         const installed = resolveAsset(v1Target);
         if (installed?.asset_path) {
           planTarget = installed.asset_path;
           abs = require('node:path').resolve(planTarget);
           const installedFmt = core.detectContainerFormat(abs);
-          isV1 = core.isV1SourceDir(abs) || installedFmt === 'v1';
-          isV2 = (core.isV2SourceDir && core.isV2SourceDir(abs)) || installedFmt === 'v2';
+          isKdna = core.isKdnaSourceDir(abs) || installedFmt === 'kdna';
         }
       }
-      if (!isV1 && !isV2) {
+      if (!isKdna) {
         error(
-          'plan-load requires a KDNA Core source dir, .kdna container, or installed package name',
+          'plan-load requires a KDNA source dir, .kdna container, or installed package name',
           EXIT.INPUT_ERROR,
         );
       }
@@ -574,20 +567,20 @@ switch (cmd) {
     try {
       const v1Target = args.filter((a) => !a.startsWith('--'))[1];
       if (!v1Target) error('Usage: kdna pack <source-dir> <output.kdna>', EXIT.INPUT_ERROR);
-      const { isV1SourceDir, pack: packDir } = require('@aikdna/kdna-core');
+      const { isKdnaSourceDir, pack: packDir } = require('@aikdna/kdna-core');
       const abs = require('node:path').resolve(v1Target);
-      if (!isV1SourceDir(abs)) {
-        error(`Not a KDNA v1 source directory: ${v1Target}`, EXIT.INPUT_ERROR);
+      if (!isKdnaSourceDir(abs)) {
+        error(`Not a KDNA source directory: ${v1Target}`, EXIT.INPUT_ERROR);
       }
 
       // Warn if checksums are stale (source modified since last pack)
       const checksumsPath = path.resolve(abs, 'checksums.json');
       if (fs.existsSync(checksumsPath)) {
         try {
-          const { buildChecksumsV1 } = require('@aikdna/kdna-core');
+          const { buildChecksums } = require('@aikdna/kdna-core');
           const manifestPath = path.resolve(abs, 'kdna.json');
           const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-          const fresh = buildChecksumsV1(abs, manifest);
+          const fresh = buildChecksums(abs);
           const stored = JSON.parse(fs.readFileSync(checksumsPath, 'utf8'));
           if (JSON.stringify(fresh) !== JSON.stringify(stored)) {
             process.stderr.write(
@@ -614,7 +607,7 @@ switch (cmd) {
           const mf = JSON.parse(
             fs.readFileSync(require('node:path').resolve(abs, 'kdna.json'), 'utf8'),
           );
-          const fresh = require('@aikdna/kdna-core').buildChecksumsV1(abs, mf);
+          const fresh = require('@aikdna/kdna-core').buildChecksums(abs, mf);
           const stored = JSON.parse(fs.readFileSync(csp, 'utf8'));
           if (JSON.stringify(fresh) !== JSON.stringify(stored)) {
             process.stderr.write(
@@ -644,7 +637,7 @@ switch (cmd) {
       const abs = require('node:path').resolve(v1Target);
       if (!fs.existsSync(abs)) error(`File not found: ${v1Target}`, EXIT.INPUT_ERROR);
       const containerFmt = detectContainerFormat(abs);
-      if (containerFmt !== 'v1' && containerFmt !== 'v2') {
+      if (containerFmt !== 'kdna') {
         error(`Not a valid KDNA container: ${v1Target}`, EXIT.INPUT_ERROR);
       }
       const out = args.filter((a) => !a.startsWith('--'))[2];
@@ -664,18 +657,12 @@ switch (cmd) {
     try {
       const target = args.filter((a) => !a.startsWith('--'))[1];
       if (!target) error('Usage: kdna inspect <path> [--json] [--locale zh-CN]');
-      const {
-        isV1SourceDir,
-        isV2SourceDir,
-        detectContainerFormat,
-        inspect,
-      } = require('@aikdna/kdna-core');
+      const { isKdnaSourceDir, detectContainerFormat, inspect } = require('@aikdna/kdna-core');
       const abs = require('node:path').resolve(target);
       if (!fs.existsSync(abs)) error(`File not found: ${target}`, EXIT.INPUT_ERROR);
       const containerFmt = detectContainerFormat(abs);
-      const isV1 = isV1SourceDir(abs) || containerFmt === 'v1';
-      const isV2 = (isV2SourceDir && isV2SourceDir(abs)) || containerFmt === 'v2';
-      if (!isV1 && !isV2) {
+      const isKdna = isKdnaSourceDir(abs) || containerFmt === 'kdna';
+      if (!isKdna) {
         error(`Not a valid KDNA container or source directory: ${target}`, EXIT.INPUT_ERROR);
       }
       const out = inspect(target);
@@ -698,10 +685,8 @@ switch (cmd) {
     const resolvedAsset = resolveAsset(target);
     const abs = resolvedAsset?.asset_path || require('node:path').resolve(target);
     if (!fs.existsSync(abs)) error(`File not found: ${target}`, EXIT.INPUT_ERROR);
-    const isV1 = core.isV1SourceDir(abs) || core.detectContainerFormat(abs) === 'v1';
-    // Story 13 — soft deprecation scan (bundle manifest-level +
-    // per-component). Non-blocking. Emitted before the load result
-    // so terminal users see the notice above the JSON.
+    const isKdna = core.isKdnaSourceDir(abs) || core.detectContainerFormat(abs) === 'kdna';
+    // Story 13 — soft deprecation scan. Non-blocking.
     emitDeprecationStderr(abs);
     const getFlag = (name) => {
       const eq = args.find((a) => a.startsWith(name + '='));
@@ -1337,6 +1322,40 @@ switch (cmd) {
     cmdList(args.slice(1));
     break;
   }
+  case 'capsule-verify': {
+    const capsuleFile = args.slice(1).find((a) => !a.startsWith('--')) || '';
+    if (!capsuleFile)
+      error(
+        'Usage: kdna capsule-verify <capsule.json> [--asset <file.kdna>] [--key <pubkey>] [--json]',
+        EXIT.INPUT_ERROR,
+      );
+    const getFlag = (name) => {
+      const eq = args.find((a) => a.startsWith(name + '='));
+      if (eq) return eq.split('=')[1];
+      const idx = args.indexOf(name);
+      return idx >= 0 ? args[idx + 1] : null;
+    };
+    const assetPath = getFlag('--asset') || null;
+    const publicKey = getFlag('--key') || null;
+    const { verifyCapsule } = require('./capsule-verify');
+    const result = verifyCapsule(capsuleFile, { assetPath, publicKey });
+    if (args.includes('--json')) {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      if (result.valid) {
+        console.log('Capsule verification PASSED');
+        if (result.warnings.length) {
+          for (const w of result.warnings) console.log('  WARN:', w);
+        }
+      } else {
+        console.log('Capsule verification FAILED');
+        for (const e of result.errors) console.log('  ERROR:', e);
+        for (const w of result.warnings) console.log('  WARN:', w);
+      }
+    }
+    process.exit(result.valid ? 0 : 1);
+    break;
+  }
   case 'version': {
     console.log(require('../package.json').version);
     break;
@@ -1352,7 +1371,9 @@ switch (cmd) {
   case 'eval': {
     const sub = args[1];
     if (sub === 'asset') {
-      cmdEvalAsset(args.slice(2));
+      Promise.resolve(cmdEvalAsset(args.slice(2))).catch((e) => {
+        error(`Asset Assay failed: ${e.message}`, EXIT.VALIDATION_FAILED);
+      });
     } else if (sub === 'cluster') {
       const { cmdEvalCluster } = require('./cmds/eval-cluster');
       cmdEvalCluster(args.slice(2));

@@ -66,6 +66,12 @@ function makeEnv() {
   return { tmp, env };
 }
 
+function copyFixture(tmp, name = 'asset') {
+  const asset = path.join(tmp, name);
+  fs.cpSync(FIXTURE, asset, { recursive: true });
+  return asset;
+}
+
 // ─── A: identity init — path, filenames, permissions, valid Ed25519 ────
 
 test('Story 19 identity init: writes to ~/.kdna/keys/ed25519.{key,pub} with 0600', () => {
@@ -154,7 +160,8 @@ test('Story 19 sign: writes <asset>.ed25519.sig with valid signature record', ()
   const { tmp, env } = makeEnv();
   try {
     run(['identity', 'init'], { env });
-    const r = run(['sign', FIXTURE, '--json'], { env });
+    const asset = copyFixture(tmp);
+    const r = run(['sign', asset, '--json'], { env });
     assert.equal(r.status, 0, `sign failed:\n${r.stderr}`);
     const result = JSON.parse(r.stdout);
     assert.ok(result.sig_path, 'sig_path missing from JSON output');
@@ -167,7 +174,7 @@ test('Story 19 sign: writes <asset>.ed25519.sig with valid signature record', ()
     const sigRecord = JSON.parse(fs.readFileSync(result.sig_path, 'utf8'));
     assert.equal(sigRecord.algorithm, 'ed25519');
     assert.equal(sigRecord.version, '1');
-    assert.equal(sigRecord.asset_path, FIXTURE);
+    assert.equal(sigRecord.asset_path, asset);
     assert.match(sigRecord.signed_at, /^\d{4}-\d{2}-\d{2}T/);
     assert.match(sigRecord.signature_base64, /^[A-Za-z0-9+/=]+$/);
     assert.ok(sigRecord.asset_digest_inputs.kdna_json_sha256);
@@ -182,8 +189,7 @@ test('Story 19 sign: --sig overrides default signature path', () => {
   try {
     run(['identity', 'init'], { env });
     // Copy the fixture so we don't touch the real fixture's sig path
-    const assetCopy = path.join(tmp, 'asset');
-    fs.cpSync(FIXTURE, assetCopy, { recursive: true });
+    const assetCopy = copyFixture(tmp);
     const customPath = path.join(tmp, 'my-sig.json');
     const r = run(['sign', assetCopy, '--sig', customPath], { env });
     assert.equal(r.status, 0, `sign failed:\n${r.stderr}`);
@@ -204,11 +210,12 @@ test('Story 19 verify: --key <correct pubkey> returns PASS, exit 0', () => {
   const { tmp, env } = makeEnv();
   try {
     run(['identity', 'init'], { env });
-    const sign = run(['sign', FIXTURE], { env });
+    const asset = copyFixture(tmp);
+    const sign = run(['sign', asset], { env });
     assert.equal(sign.status, 0, `sign failed:\n${sign.stderr}`);
 
     const pubPath = path.join(env.KDNA_IDENTITY_DIR, 'ed25519.pub');
-    const verify = run(['verify', FIXTURE, '--key', pubPath], { env });
+    const verify = run(['verify', asset, '--key', pubPath], { env });
     assert.equal(verify.status, 0, `verify should exit 0:\n${verify.stderr}\n${verify.stdout}`);
     assert.match(verify.stdout, /Signature is valid/);
     assert.match(verify.stdout, /Asset digest:    sha256:/);
@@ -224,9 +231,10 @@ test('Story 19 verify: no --key prints the signer public key plus no-key message
   const { tmp, env } = makeEnv();
   try {
     run(['identity', 'init'], { env });
-    run(['sign', FIXTURE], { env });
+    const asset = copyFixture(tmp);
+    run(['sign', asset], { env });
 
-    const verify = run(['verify', FIXTURE], { env });
+    const verify = run(['verify', asset], { env });
     // Exit 2 = "no key provided" (informational; the CLI just
     // printed the signer's pubkey and refused to make a trust claim).
     assert.equal(
@@ -252,7 +260,8 @@ test('Story 19 verify: wrong --key returns INVALID, exit 1', () => {
   try {
     // Two identities: author and attacker
     run(['identity', 'init'], { env });
-    run(['sign', FIXTURE], { env });
+    const asset = copyFixture(tmp);
+    run(['sign', asset], { env });
 
     // Generate a second identity (attacker)
     const tmp2 = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s19b-'));
@@ -268,7 +277,7 @@ test('Story 19 verify: wrong --key returns INVALID, exit 1', () => {
     assert.ok(fs.existsSync(attackerPub), 'attacker pub should exist after init');
 
     // Try to verify with attacker's key
-    const verify = run(['verify', FIXTURE, '--key', attackerPub], { env });
+    const verify = run(['verify', asset, '--key', attackerPub], { env });
     assert.equal(
       verify.status,
       1,
@@ -289,12 +298,9 @@ test('Story 19 verify: tampering with kdna.json after sign makes verify fail', (
   const { tmp, env } = makeEnv();
   try {
     run(['identity', 'init'], { env });
-    run(['sign', FIXTURE], { env });
 
     // Tamper: copy the asset to a temp location, sign, then modify kdna.json
-    const assetCopy = path.join(tmp, 'tampered');
-    fs.cpSync(FIXTURE, assetCopy, { recursive: true });
-    const sigPath = `${assetCopy}.ed25519.sig`;
+    const assetCopy = copyFixture(tmp, 'tampered');
     // Sign the copy first
     run(['sign', assetCopy], { env });
     // Then modify kdna.json in the copy

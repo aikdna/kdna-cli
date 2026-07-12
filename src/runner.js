@@ -91,6 +91,7 @@ function listRunners() {
  * @property {Array<string>} errors
  * @property {Array<string>} warnings
  * @property {Array<object>} attempts
+ * @property {Array<object>} assets_loaded — observed loads only; never inferred from the plan
  */
 
 // ── Runner Factory ───────────────────────────────────────────────────
@@ -169,16 +170,27 @@ function createMockRunner(opts = {}) {
           ],
           confidence: 'medium',
           sources: [],
-          alternatives: [{ option: 'Alternative path', rejected_because: 'Mock runner does not evaluate alternatives' }],
+          alternatives: [
+            {
+              option: 'Alternative path',
+              rejected_because: 'Mock runner does not evaluate alternatives',
+            },
+          ],
         },
         cost: { tokens_used: 0, model_calls: 0 },
         errors: [],
         warnings: ['Mock runner — deterministic output, not real judgment'],
         attempts: [{ attempt: 1, status: 'completed' }],
+        assets_loaded: [],
+        digest_verified: false,
       };
     },
-    async healthCheck() { return true; },
-    async cancel() { _cancelled = true; },
+    async healthCheck() {
+      return true;
+    },
+    async cancel() {
+      _cancelled = true;
+    },
   };
 }
 
@@ -203,41 +215,103 @@ function createCliRunner(opts = {}) {
 
       const signal = context.signal;
       if (signal) {
-        signal.addEventListener('abort', () => { _cancelled = true; });
+        signal.addEventListener('abort', () => {
+          _cancelled = true;
+        });
       }
 
-      // Load the asset through kdna-core
+      // Load the selected asset(s) through kdna-core. A Cluster load is a
+      // collection of independent observed asset loads, not a plan-derived
+      // claim.
       try {
         const core = require('@aikdna/kdna-core');
-        const assetPath = plan?.asset_ref?.asset_id;
+        const fs = require('node:fs');
+        const path = require('node:path');
+        const { resolveAsset } = require('./package-store');
 
-        if (!assetPath) {
-          return buildErrorResult(plan, id, version, startTime, 'No asset_id in plan');
+        const refs =
+          plan?.mode === 'cluster'
+            ? [
+                ...(plan.selection?.primary
+                  ? [{ ...plan.selection.primary, role: 'primary' }]
+                  : []),
+                ...(plan.selection?.advisors || []).map((ref) => ({ ...ref, role: 'advisor' })),
+              ]
+            : [
+                {
+                  ...(plan.asset_ref || {}),
+                  asset_id: context.assetTarget || plan?.asset_ref?.asset_id,
+                  role: 'primary',
+                },
+              ];
+
+        if (refs.length === 0 || !refs[0].asset_id) {
+          return buildErrorResult(
+            plan,
+            id,
+            version,
+            startTime,
+            'No selected asset reference in plan',
+          );
         }
 
-        // Attempt to load the asset
-        let loaded;
-        try {
-          // Try to find asset path
-          const fs = require('node:fs');
-          const path = require('node:path');
-          const possiblePaths = [
-            assetPath,
-            path.resolve(process.cwd(), assetPath),
-            path.resolve(process.env.HOME || '/tmp', '.kdna', 'packages', assetPath),
-          ];
-
-          for (const p of possiblePaths) {
-            if (fs.existsSync(p)) {
-              loaded = core.inspect(p);
-              break;
+        const observations = [];
+        for (const ref of refs) {
+          const protocolName = String(ref.asset_id || '').match(/^kdna:([^:]+):(.+)$/);
+          const packageName = protocolName
+            ? `@${protocolName[1]}/${protocolName[2]}`
+            : ref.asset_id;
+          let resolved = resolveAsset(packageName);
+          if (!resolved?.asset_path) {
+            const expanded = String(packageName).replace(/^~/, process.env.HOME || '');
+            const localPath = path.resolve(expanded);
+            if (fs.existsSync(localPath)) {
+              resolved = {
+                asset_path: localPath,
+                version: ref.version || null,
+                asset_digest: null,
+              };
             }
           }
-        } catch (_) {}
+          if (!resolved?.asset_path) {
+            return buildErrorResult(
+              plan,
+              id,
+              version,
+              startTime,
+              `Asset "${ref.asset_id}" could not be resolved from the package store or local path.`,
+            );
+          }
+
+          const loadPlan = core.planLoad(resolved.asset_path);
+          if (loadPlan?.can_load_now !== true || loadPlan?.checks?.overall_valid !== true) {
+            return buildErrorResult(
+              plan,
+              id,
+              version,
+              startTime,
+              `Asset "${ref.asset_id}" failed Core LoadPlan verification (${loadPlan?.state || 'unknown'}).`,
+            );
+          }
+
+          const inspected = core.inspect(resolved.asset_path);
+          observations.push({
+            asset_id: ref.asset_id,
+            version: inspected?.version || resolved.version || ref.version || null,
+            digest: loadPlan.input_fingerprint?.source_fingerprint || resolved.asset_digest || null,
+            role: ref.role || 'advisor',
+            digest_verified: loadPlan.checks?.checksums_valid === true,
+            authorization: loadPlan.access || inspected?.access || 'public',
+            contribution_hypothesis: ref.contribution_hypothesis,
+            contribution_fulfilled: false,
+          });
+        }
 
         if (_cancelled) {
           return buildCancelledResult(plan, id, version, startTime);
         }
+
+        const primary = observations.find((item) => item.role === 'primary') || observations[0];
 
         return {
           plan_id: plan.plan_id,
@@ -250,29 +324,35 @@ function createCliRunner(opts = {}) {
           model: context?.model || 'default',
           result: {
             shape: plan?.expected_outcome?.result_shape || 'answer-pattern',
-            answer: loaded
-              ? `Asset "${loaded.name || loaded.asset_id}" loaded and ready for judgment`
-              : `Asset "${assetPath}" resolved but not locally available`,
-            reasoning: loaded
-              ? ['Asset loaded via kdna-core', `Version: ${loaded.version || 'unknown'}`]
-              : ['Asset not found locally — remote loading not implemented'],
-            confidence: loaded ? 'medium' : 'low',
-            sources: loaded ? [{ asset_id: loaded.name || loaded.asset_id, inspection: true }] : [],
+            answer: `${observations.length} asset(s) loaded and ready for judgment`,
+            reasoning: ['Assets loaded via kdna-core LoadPlan', `Primary: ${primary.asset_id}`],
+            confidence: 'medium',
+            sources: observations.map((item) => ({ asset_id: item.asset_id, inspection: true })),
             alternatives: [],
           },
           cost: { tokens_used: 0, model_calls: 0 },
           errors: [],
-          warnings: loaded ? [] : ['Asset not loaded — runner produced inspection-level result only'],
+          warnings: ['CLI runner verifies and loads assets but does not invoke a model.'],
           attempts: [{ attempt: 1, status: 'completed' }],
+          assets_loaded: observations,
+          digest: primary.digest,
+          digest_verified: primary.digest_verified === true,
         };
       } catch (e) {
         return buildErrorResult(plan, id, version, startTime, e.message);
       }
     },
     async healthCheck() {
-      try { require('@aikdna/kdna-core'); return true; } catch (_) { return false; }
+      try {
+        require('@aikdna/kdna-core');
+        return true;
+      } catch (_) {
+        return false;
+      }
     },
-    async cancel() { _cancelled = true; },
+    async cancel() {
+      _cancelled = true;
+    },
   };
 }
 
@@ -293,6 +373,8 @@ function buildErrorResult(plan, id, version, startTime, errorMessage) {
     errors: [errorMessage],
     warnings: [],
     attempts: [{ attempt: 1, status: 'error', error: errorMessage }],
+    assets_loaded: [],
+    digest_verified: false,
   };
 }
 
@@ -311,6 +393,8 @@ function buildCancelledResult(plan, id, version, startTime) {
     errors: [],
     warnings: ['Execution cancelled by user'],
     attempts: [{ attempt: 1, status: 'cancelled' }],
+    assets_loaded: [],
+    digest_verified: false,
   };
 }
 
@@ -343,11 +427,14 @@ async function executePlan(plan, runnerType, context = {}) {
       runner = createMockRunner({ id });
       registerRunner('mock', id, runner);
     } else {
-      throw new Error(`Runner not found: ${type}:${id}. Register a runner or use "mock:<name>" for testing.`);
+      throw new Error(
+        `Runner not found: ${type}:${id}. Register a runner or use "mock:<name>" for testing.`,
+      );
     }
   }
 
-  const signal = context.signal || (context.timeoutMs ? AbortSignal.timeout(context.timeoutMs) : null);
+  const signal =
+    context.signal || (context.timeoutMs ? AbortSignal.timeout(context.timeoutMs) : null);
   const ctx = { ...context, signal };
 
   return runner.execute(plan, ctx);
@@ -361,22 +448,42 @@ async function executePlan(plan, runnerType, context = {}) {
  * @returns {object} trace (conforms to judgment-trace-candidate-0.9 schema)
  */
 function buildTraceFromResult(plan, result) {
+  // ── Trust facts: digest_verified requires actual Core verification.
+  //     The runner does not perform content verification; set false unless
+  //     the runner result explicitly reports a verified observation.
+  const digest = result.digest || plan.asset_ref?.digest || null;
+  // Only accept verification from an observed result, never from format
+  const digestVerified = result.digest_verified === true;
+  // If the runner could not load the asset, the trace must reflect that
+  const assetNotLoaded =
+    result.status === 'runner_error' ||
+    (result.warnings || []).some(
+      (w) =>
+        w.includes('not loaded') || w.includes('not locally available') || w.includes('not found'),
+    );
+
   const trace = {
     trace_version: '0.9.0',
     trace_id: 'trace_' + crypto.randomBytes(8).toString('hex'),
     plan_id: plan.plan_id,
     mode: plan.mode || 'single',
     timestamp: new Date().toISOString(),
-    asset_identity: plan.mode === 'single' ? {
-      asset_id: plan.asset_ref.asset_id,
-      version: plan.asset_ref.version,
-      digest: plan.asset_ref.digest,
-      digest_verified: true,
-      signature_verified: null,
-      revocation_status: 'not_revoked',
-      authorization: `${plan.asset_ref.access} — no authorization required`,
-      projection_digest: plan.projection_ref?.content_digest || null,
-    } : undefined,
+    asset_identity:
+      plan.mode === 'single'
+        ? {
+            asset_id: plan.asset_ref.asset_id,
+            version: plan.asset_ref.version,
+            digest: digest || null,
+            digest_verified: digestVerified,
+            signature_verified: null,
+            revocation_status: null,
+            authorization:
+              plan.asset_ref.access === 'public'
+                ? 'public — no authorization required'
+                : `${plan.asset_ref.access} — authorization required`,
+            projection_digest: plan.projection_ref?.content_digest || null,
+          }
+        : undefined,
     applicability_actual: {
       decision: plan.applicability.decision,
       confidence: plan.applicability.confidence,
@@ -398,16 +505,24 @@ function buildTraceFromResult(plan, result) {
       duration_ms: result.duration_ms,
       attempts: result.attempts?.length || 1,
     },
-    result_ref: result.result ? {
-      result_hash: 'sha256:' + crypto.createHash('sha256').update(JSON.stringify(result.result)).digest('hex'),
-      result_shape: result.result.shape || 'answer-pattern',
-      answer_summary: (result.result.answer || '').slice(0, 200),
-      result_stored: true,
-    } : undefined,
+    result_ref: result.result
+      ? {
+          result_hash:
+            'sha256:' +
+            crypto.createHash('sha256').update(JSON.stringify(result.result)).digest('hex'),
+          result_shape: result.result.shape || 'answer-pattern',
+          answer_summary: (result.result.answer || '').slice(0, 200),
+          result_stored: result.status === 'completed',
+        }
+      : undefined,
     cost: {
       tokens_used: result.cost?.tokens_used || 0,
       chars_consumed: JSON.stringify(result).length,
-      assets_loaded: 1,
+      assets_loaded: Array.isArray(result.assets_loaded)
+        ? result.assets_loaded.length
+        : result.status === 'completed' || result.status === 'partial'
+          ? 1
+          : 0,
       model_calls: result.cost?.model_calls || 0,
       budget_profile: plan.budget?.profile || 'code-review',
       over_budget: (result.cost?.tokens_used || 0) > (plan.budget?.max_tokens || Infinity),
@@ -422,8 +537,18 @@ function buildTraceFromResult(plan, result) {
       policy_hash: null,
       consumer_index_version: null,
     },
-    errors: result.errors || [],
-    warnings: result.warnings || [],
+    errors: [
+      ...(result.errors || []),
+      ...(assetNotLoaded
+        ? ['Asset was not successfully loaded — trace reflects inspection-only state']
+        : []),
+    ],
+    warnings: [
+      ...(result.warnings || []),
+      ...(!digestVerified && plan.mode === 'single'
+        ? ['Asset digest not verified — content may differ from expected']
+        : []),
+    ],
     metadata: {
       environment: 'development',
       trace_schema: '0.9.0',

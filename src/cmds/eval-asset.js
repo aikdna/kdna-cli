@@ -9,25 +9,39 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { error, EXIT } = require('./_common');
 
-function loadKdnaEval() {
+function isSupportedEvalVersion(candidate) {
   try {
-    return require('@aikdna/kdna-eval');
-  } catch (e) {
-    const altPaths = [
-      process.env.KDNA_EVAL_PATH,
-      path.resolve(__dirname, '..', '..', '..', 'kdna', 'packages', 'kdna-eval'),
-    ];
-    for (const p of altPaths) {
-      if (p) {
-        try { return require(p); } catch (_) {}
-      }
-    }
-    process.stderr.write(
-      'Error: @aikdna/kdna-eval is required for kdna eval asset.\n' +
-        'Install it with: npm install @aikdna/kdna-eval@^0.2.0\n',
+    const pkg = require(
+      candidate === '@aikdna/kdna-eval'
+        ? '@aikdna/kdna-eval/package.json'
+        : path.join(candidate, 'package.json'),
     );
-    process.exit(EXIT.DEPENDENCY_ERROR || 6);
+    const [major = 0, minor = 0, patch = 0] = String(pkg.version).split('.').map(Number);
+    return major > 0 || minor > 3 || (minor === 3 && patch >= 1);
+  } catch (_) {
+    return false;
   }
+}
+
+function loadKdnaEval() {
+  const paths = [
+    '@aikdna/kdna-eval',
+    process.env.KDNA_EVAL_PATH,
+    path.resolve(__dirname, '..', '..', '..', 'kdna', 'packages', 'kdna-eval'),
+  ].filter(Boolean);
+  for (const candidate of paths) {
+    if (!isSupportedEvalVersion(candidate)) continue;
+    try {
+      const mod = require(candidate);
+      if (typeof mod.runAssay === 'function' && typeof mod.generateEvidenceClaim === 'function')
+        return mod;
+    } catch (_) {}
+  }
+  process.stderr.write(
+    'Error: @aikdna/kdna-eval >=0.3.1 is required for kdna eval asset.\n' +
+      'Install it with: npm install @aikdna/kdna-eval@^0.3.1\n',
+  );
+  process.exit(EXIT.DEPENDENCY_ERROR || 6);
 }
 
 function loadManifest(absPath) {
@@ -49,26 +63,47 @@ function loadManifest(absPath) {
 
 function loadFixtures(dirPath) {
   if (!fs.existsSync(dirPath)) return [];
-  const files = fs.readdirSync(dirPath).filter(f => f.endsWith('.json'));
-  return files.map(f => {
-    try {
-      const fixture = JSON.parse(fs.readFileSync(path.join(dirPath, f), 'utf8'));
-      return fixture;
-    } catch (_) {
-      return null;
-    }
-  }).filter(Boolean);
+  const files = fs.readdirSync(dirPath).filter((f) => f.endsWith('.json'));
+  return files
+    .map((f) => {
+      try {
+        const fixture = JSON.parse(fs.readFileSync(path.join(dirPath, f), 'utf8'));
+        return fixture;
+      } catch (_) {
+        return null;
+      }
+    })
+    .filter(Boolean);
 }
 
-function cmdEvalAsset(args) {
+function loadObservations(inputPath) {
+  if (!inputPath || !fs.existsSync(inputPath)) return [];
+  const files = fs.statSync(inputPath).isDirectory()
+    ? fs
+        .readdirSync(inputPath)
+        .filter((f) => f.endsWith('.json'))
+        .map((f) => path.join(inputPath, f))
+    : [inputPath];
+  const observations = [];
+  for (const file of files) {
+    try {
+      const value = JSON.parse(fs.readFileSync(file, 'utf8'));
+      const rows = Array.isArray(value) ? value : value.observations || value.results || [];
+      if (Array.isArray(rows)) observations.push(...rows);
+    } catch (_) {}
+  }
+  return observations;
+}
+
+async function cmdEvalAsset(args) {
   const getFlag = (name) => {
-    const eq = args.find(a => a.startsWith(name + '='));
+    const eq = args.find((a) => a.startsWith(name + '='));
     if (eq) return eq.slice(name.length + 1);
     const idx = args.indexOf(name);
     return idx >= 0 ? args[idx + 1] : null;
   };
 
-  const posArgs = args.filter(a => !a.startsWith('--'));
+  const posArgs = args.filter((a) => !a.startsWith('--'));
   const assetPath = posArgs[0];
 
   if (!assetPath || args.includes('--help') || args.includes('-h')) {
@@ -77,6 +112,7 @@ function cmdEvalAsset(args) {
         'Options:\n' +
         '  --fixtures=<dir>      Directory containing assay fixture JSON files\n' +
         '  --baselines=<dir>     Directory containing baseline fixture results\n' +
+        '  --observations=<file>  JSON observations for every fixture × baseline arm\n' +
         '  --as=<format>         Output: json|md (default: json)\n' +
         '  --out=<path>          Write output to file\n' +
         '  --profile=<json>      Assay profile JSON (overrides defaults)\n' +
@@ -88,12 +124,19 @@ function cmdEvalAsset(args) {
 
   const fixturesPath = getFlag('--fixtures');
   const baselinesPath = getFlag('--baselines');
+  const observationsPath = getFlag('--observations') || baselinesPath;
   const as = getFlag('--as') || 'json';
   const outPath = getFlag('--out');
   const profilePath = getFlag('--profile');
   const classifyOnly = args.includes('--classify');
 
-  const abs = path.resolve(assetPath);
+  let resolvedTarget = assetPath;
+  try {
+    const { resolveAsset } = require('../package-store');
+    const resolved = resolveAsset(assetPath);
+    if (resolved?.asset_path) resolvedTarget = resolved.asset_path;
+  } catch (_) {}
+  const abs = path.resolve(resolvedTarget);
   const manifest = loadManifest(abs);
 
   if (!manifest) {
@@ -107,6 +150,8 @@ function cmdEvalAsset(args) {
     createAssayProfile,
     validateFixtureSet,
     classifyAsset,
+    runAssay,
+    generateEvidenceClaim,
     FIXTURE_CATEGORIES,
   } = loadKdnaEval();
 
@@ -141,10 +186,21 @@ function cmdEvalAsset(args) {
     for (const rf of rawFixtures) {
       if (rf && rf.task) {
         fixtures.push({
-          fixture_id: rf.fixture_id || `fixture_${crypto.randomBytes(8).toString('hex')}`,
+          fixture_id:
+            rf.fixture_id ||
+            `fixture_${crypto
+              .createHash('sha256')
+              .update(`${rf.category || 'positive_target'}:${rf.task}`)
+              .digest('hex')
+              .slice(0, 16)}`,
           category: rf.category || 'positive_target',
           task: rf.task,
-          task_hash: rf.task_hash || `sha256:${crypto.createHash('sha256').update(rf.task || '').digest('hex')}`,
+          task_hash:
+            rf.task_hash ||
+            `sha256:${crypto
+              .createHash('sha256')
+              .update(rf.task || '')
+              .digest('hex')}`,
           expected: rf.expected || {},
         });
       }
@@ -152,16 +208,22 @@ function cmdEvalAsset(args) {
   }
 
   // No fixtures? Generate a basic structural report
-  if (fixtures.length === 0 && !baselinesPath) {
+  if (fixtures.length === 0 && !observationsPath) {
     const structuralReport = {
       assay_version: '0.9.0',
       mode: 'structural_only',
       asset_id: assetId,
       asset_version: assetVersion,
       profile,
-      fixture_validation: { valid: false, summary: { total: 0, by_category: {} }, errors: ['No fixtures provided — only structural validation possible'] },
+      fixture_validation: {
+        valid: false,
+        summary: { total: 0, by_category: {} },
+        errors: ['No fixtures provided — only structural validation possible'],
+      },
       note: 'Run with --fixtures <dir> to execute a full behavioral assay. Fixtures require task/expected JSON files.',
-      fixture_categories_required: Object.fromEntries(FIXTURE_CATEGORIES.map(c => [c, profile.thresholds[c + '_min_count'] || 0])),
+      fixture_categories_required: Object.fromEntries(
+        FIXTURE_CATEGORIES.map((c) => [c, profile.thresholds[c + '_min_count'] || 0]),
+      ),
     };
     output(JSON.stringify(structuralReport, null, 2), as, outPath);
     return;
@@ -169,6 +231,54 @@ function cmdEvalAsset(args) {
 
   // Validate fixture set
   const fixtureValidation = validateFixtureSet(fixtures, profile);
+
+  const observations = loadObservations(observationsPath);
+  if (observationsPath) {
+    const byKey = new Map();
+    for (const observation of observations) {
+      const fixtureId = observation.fixture_id;
+      const arm = observation.arm || observation.baseline_arm;
+      if (fixtureId && arm)
+        byKey.set(
+          `${fixtureId}:${arm}`,
+          observation.result || observation.judgment_result || observation,
+        );
+    }
+
+    const assay = await runAssay({
+      profile,
+      fixtures,
+      asset: {},
+      runner: async (fixture, baselineArm) => {
+        const key = `${fixture.fixture_id}:${baselineArm.arm}`;
+        if (!byKey.has(key)) throw new Error(`Missing observation: ${key}`);
+        return byKey.get(key);
+      },
+    });
+    const comparisonArmsRun = Object.values(assay.results_by_arm || {}).filter(
+      (row) => row.count > 0 && row.errors === 0,
+    ).length;
+    const classification = classifyAsset({
+      format_valid: true,
+      loads: true,
+      assay_passed: assay.overall_verdict === 'pass',
+      comparison_arms_run: comparisonArmsRun,
+    });
+    const evidenceClaim = generateEvidenceClaim(assay, {
+      taskFamily: 'asset_assay',
+      runtime: '@aikdna/kdna-cli asset assay observations',
+    });
+    const report = {
+      ...assay,
+      mode: 'behavioral_observations',
+      observations_loaded: observations.length,
+      classification,
+      evidence_claim: evidenceClaim,
+    };
+    output(JSON.stringify(report, null, 2), as, outPath);
+    if (assay.overall_verdict !== 'pass') process.exitCode = EXIT.JUDGMENT_QUALITY_FAILED;
+    return;
+  }
 
   // Build output
   const report = {
@@ -178,9 +288,13 @@ function cmdEvalAsset(args) {
     profile,
     fixture_validation: fixtureValidation,
     fixtures_loaded: fixtures.length,
-    fixture_categories: FIXTURE_CATEGORIES.reduce((acc, cat) => ({
-      ...acc, [cat]: fixtures.filter(f => f.category === cat).length
-    }), {}),
+    fixture_categories: FIXTURE_CATEGORIES.reduce(
+      (acc, cat) => ({
+        ...acc,
+        [cat]: fixtures.filter((f) => f.category === cat).length,
+      }),
+      {},
+    ),
     note: 'Full behavioral assay requires a runner function. Use kdna-eval/runAssay() programmatically to execute fixtures against baseline arms.',
     next_steps: [
       'Create 8+ positive_target fixtures',
@@ -216,7 +330,7 @@ function output(data, format, outPath) {
       md += `- **Total:** ${obj.fixture_validation.summary?.total || 0}\n`;
       if (obj.fixture_validation.errors?.length) {
         md += `- **Errors:**\n`;
-        obj.fixture_validation.errors.forEach(e => md += `  - ${e}\n`);
+        obj.fixture_validation.errors.forEach((e) => (md += `  - ${e}\n`));
       }
     }
 
@@ -230,7 +344,7 @@ function output(data, format, outPath) {
 
     if (obj.next_steps) {
       md += `\n## Next Steps\n\n`;
-      obj.next_steps.forEach(s => md += `1. ${s}\n`);
+      obj.next_steps.forEach((s) => (md += `1. ${s}\n`));
     }
 
     console.log(md);

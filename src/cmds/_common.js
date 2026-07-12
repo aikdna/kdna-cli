@@ -53,7 +53,7 @@ function usage() {
 
 Usage:
 
-  --- Current Core v1 path ---
+  --- Current KDNA Core path ---
   kdna inspect <file.kdna>      Inspect a local .kdna asset
   kdna validate <file.kdna>     Validate a local .kdna asset
   kdna plan-load <file.kdna>    Produce the required LoadPlan

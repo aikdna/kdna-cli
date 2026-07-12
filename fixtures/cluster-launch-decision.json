@@ -1,0 +1,60 @@
+{
+  "format": "kdna-cluster",
+  "format_version": "0.9.0",
+  "cluster_id": "@aikdna/launch-decision",
+  "name": "Launch Decision Cluster",
+  "version": "0.1.0",
+  "description": "Coordinates deployment risk and public API design judgment.",
+  "type": "vertical",
+  "status": "draft",
+  "access": "public",
+  "domains": [
+    {
+      "id": "@aikdna/dev-change-risk",
+      "version": "^0.1.0",
+      "role": "primary-candidate",
+      "required": true,
+      "load_condition": "Task involves a deploy, rollback, production change, deployment, or release decision."
+    },
+    {
+      "id": "@aikdna/dev-api-design-judgment",
+      "version": "^0.1.0",
+      "role": "advisor",
+      "required": false,
+      "load_condition": "Task introduces or modifies a public API surface, endpoint, request, or response contract.",
+      "contribution_hypothesis_template": "Public API compatibility adds a distinct contract-design dimension beyond deployment risk."
+    },
+    {
+      "id": "@aikdna/dev-silent-failure-detection",
+      "version": "^0.1.0",
+      "role": "advisor",
+      "required": false,
+      "load_condition": "Task involves monitoring, observability, missing failure signals, or silent production errors.",
+      "contribution_hypothesis_template": "Observability adds a distinct failure-detection dimension beyond deployment risk."
+    }
+  ],
+  "composition": {
+    "strategy": "signal_based",
+    "max_active_domains": 3,
+    "conflict_policy": "surface",
+    "priority_order": [
+      "@aikdna/dev-change-risk",
+      "@aikdna/dev-api-design-judgment",
+      "@aikdna/dev-silent-failure-detection"
+    ],
+    "primary_selection": "exactly_one",
+    "advisor_selection": "contribution_hypothesis_required"
+  },
+  "budget": {
+    "profile": "interactive",
+    "max_tokens": 800,
+    "max_assets": 3,
+    "enforcement": "hard"
+  },
+  "degradation_policy": {
+    "primary_unavailable": "block",
+    "required_advisor_unavailable": "block",
+    "optional_advisor_unavailable": "continue_with_warning",
+    "budget_exceeded": "block"
+  }
+}

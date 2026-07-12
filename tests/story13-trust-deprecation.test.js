@@ -42,6 +42,7 @@ const os = require('node:os');
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
 const CORE = require('@aikdna/kdna-core');
+const cbor = require('cbor-x');
 
 function run(args, opts = {}) {
   return spawnSync(process.execPath, [CLI, ...args], {
@@ -59,11 +60,11 @@ function writeFixtureDir(tmp, name, payload) {
   fs.mkdirSync(dir, { recursive: true });
   fs.copyFileSync(path.join(FIXTURE, 'kdna.json'), path.join(dir, 'kdna.json'));
   fs.copyFileSync(path.join(FIXTURE, 'mimetype'), path.join(dir, 'mimetype'));
-  fs.writeFileSync(path.join(dir, 'payload.kdnab'), JSON.stringify(payload));
-  if (typeof CORE.buildChecksumsV1 === 'function') {
+  fs.writeFileSync(path.join(dir, 'payload.kdnab'), cbor.encode(payload));
+  if (typeof CORE.buildChecksums === 'function') {
     fs.writeFileSync(
       path.join(dir, 'checksums.json'),
-      JSON.stringify(CORE.buildChecksumsV1(dir), null, 2),
+      JSON.stringify(CORE.buildChecksums(dir), null, 2),
     );
   }
   return dir;
@@ -237,7 +238,7 @@ test('Story 13 deprecation: scanBundleDeprecations reads top-level + per-compone
     fs.writeFileSync(path.join(tmp, 'kdna.json'), JSON.stringify(m, null, 2));
     fs.writeFileSync(
       path.join(tmp, 'payload.kdnab'),
-      JSON.stringify({
+      cbor.encode({
         profile: 'bundle-profile-v1',
         components: [
           {
@@ -253,10 +254,10 @@ test('Story 13 deprecation: scanBundleDeprecations reads top-level + per-compone
         ],
       }),
     );
-    if (typeof CORE.buildChecksumsV1 === 'function') {
+    if (typeof CORE.buildChecksums === 'function') {
       fs.writeFileSync(
         path.join(tmp, 'checksums.json'),
-        JSON.stringify(CORE.buildChecksumsV1(tmp), null, 2),
+        JSON.stringify(CORE.buildChecksums(tmp), null, 2),
       );
     }
 
@@ -281,6 +282,36 @@ test('Story 13 deprecation: scanBundleDeprecations returns [] for non-bundle', (
   // FIXTURE is a judgment-profile-v1 source dir, not a bundle
   const warnings = scanBundleDeprecations(FIXTURE, '0.28.25');
   assert.deepEqual(warnings, []);
+});
+
+test('Story 13 deprecation: malformed CBOR produces a stable diagnostic', () => {
+  const {
+    readBundleComponents,
+    scanBundleDeprecations,
+    formatDeprecationStderr,
+  } = require('../src/cmds/deprecation');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s13-malformed-'));
+  try {
+    fs.copyFileSync(path.join(FIXTURE, 'kdna.json'), path.join(tmp, 'kdna.json'));
+    const manifest = JSON.parse(fs.readFileSync(path.join(tmp, 'kdna.json'), 'utf8'));
+    manifest.compatibility.profile = 'bundle-profile-v1';
+    fs.writeFileSync(path.join(tmp, 'kdna.json'), JSON.stringify(manifest, null, 2));
+    fs.writeFileSync(path.join(tmp, 'payload.kdnab'), Buffer.from([0xff, 0x00, 0xaa, 0xbb]));
+
+    const readResult = readBundleComponents(tmp);
+    assert.equal(readResult.kind, 'diagnostic');
+    assert.equal(readResult.diagnostic.code, 'KDNA_PAYLOAD_CBOR_DECODE_FAILED');
+
+    const signals = scanBundleDeprecations(tmp, '0.30.0');
+    assert.equal(signals.length, 1);
+    assert.equal(signals[0].kind, 'diagnostic');
+    assert.equal(signals[0].severity, 'info');
+    assert.equal(signals[0].code, 'KDNA_PAYLOAD_CBOR_DECODE_FAILED');
+    assert.match(signals[0].message, /could not be decoded as CBOR/);
+    assert.match(formatDeprecationStderr(signals), /bundle metadata diagnostics/i);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 });
 
 test('Story 13 deprecation: formatDeprecationStderr produces multi-line text', () => {
@@ -492,7 +523,7 @@ test('Story 13 CLI plan-load: deprecated bundle prints Notice to stderr', () => 
     fs.writeFileSync(path.join(tmp, 'kdna.json'), JSON.stringify(m, null, 2));
     fs.writeFileSync(
       path.join(tmp, 'payload.kdnab'),
-      JSON.stringify({
+      cbor.encode({
         profile: 'bundle-profile-v1',
         components: [
           {
@@ -503,10 +534,10 @@ test('Story 13 CLI plan-load: deprecated bundle prints Notice to stderr', () => 
         ],
       }),
     );
-    if (typeof CORE.buildChecksumsV1 === 'function') {
+    if (typeof CORE.buildChecksums === 'function') {
       fs.writeFileSync(
         path.join(tmp, 'checksums.json'),
-        JSON.stringify(CORE.buildChecksumsV1(tmp), null, 2),
+        JSON.stringify(CORE.buildChecksums(tmp), null, 2),
       );
     }
 
@@ -539,17 +570,17 @@ test('Story 13 CLI load: deprecated bundle prints Notice to stderr', () => {
     fs.writeFileSync(path.join(tmp, 'kdna.json'), JSON.stringify(m, null, 2));
     fs.writeFileSync(
       path.join(tmp, 'payload.kdnab'),
-      JSON.stringify({
+      cbor.encode({
         profile: 'bundle-profile-v1',
         components: [
           { id: '@old/comp@1.0.0', path: './x.kdna', deprecation: { since: '>=0.28.0' } },
         ],
       }),
     );
-    if (typeof CORE.buildChecksumsV1 === 'function') {
+    if (typeof CORE.buildChecksums === 'function') {
       fs.writeFileSync(
         path.join(tmp, 'checksums.json'),
-        JSON.stringify(CORE.buildChecksumsV1(tmp), null, 2),
+        JSON.stringify(CORE.buildChecksums(tmp), null, 2),
       );
     }
 

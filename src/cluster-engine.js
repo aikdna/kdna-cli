@@ -34,9 +34,15 @@ const COMPOSITION_STRATEGIES = ['signal_based', 'fixed', 'staged', 'user_confirm
 const CONFLICT_POLICIES = ['surface', 'priority', 'block', 'ask_user'];
 
 const CLUSTER_STATUSES = [
-  'draft', 'schema_valid', 'assets_resolved', 'route_evaluated',
-  'compose_evaluated', 'holdout_passed', 'human_reviewed',
-  'field_validated', 'production',
+  'draft',
+  'schema_valid',
+  'assets_resolved',
+  'route_evaluated',
+  'compose_evaluated',
+  'holdout_passed',
+  'human_reviewed',
+  'field_validated',
+  'production',
 ];
 
 // ── Manifest Validation ───────────────────────────────────────────────
@@ -65,26 +71,36 @@ function validateClusterManifest(manifest) {
   if (!manifest.name) errors.push('Missing name');
   if (!manifest.version) errors.push('Missing version');
 
-  // Domains
-  const domains = manifest.domains || [];
-  if (!Array.isArray(domains) || domains.length < 2) {
+  // Domains — guard against non-array truthy values
+  const rawDomains = manifest.domains;
+  const domains = Array.isArray(rawDomains) ? rawDomains : [];
+  if (!Array.isArray(rawDomains) || domains.length < 2) {
     errors.push('Cluster must have at least 2 domains');
   }
 
   // Primary candidate required
-  const primaryCandidates = domains.filter(d => d.role === 'primary-candidate');
+  const primaryCandidates = domains.filter((d) => d.role === 'primary-candidate');
   if (primaryCandidates.length === 0) {
-    errors.push('NO_PRIMARY_CANDIDATE: cluster must have at least one domain with role=primary-candidate');
+    errors.push(
+      'NO_PRIMARY_CANDIDATE: cluster must have at least one domain with role=primary-candidate',
+    );
   }
 
   // Advisor contribution hypothesis
-  const advisors = domains.filter(d => d.role === 'advisor');
+  const advisors = domains.filter((d) => d.role === 'advisor');
   for (const a of advisors) {
-    if (!a.contribution_hypothesis_template || a.contribution_hypothesis_template.trim().length === 0) {
-      errors.push(`MISSING_ADVISOR_HYPOTHESIS: advisor "${a.id}" is missing contribution_hypothesis_template`);
+    if (
+      !a.contribution_hypothesis_template ||
+      a.contribution_hypothesis_template.trim().length === 0
+    ) {
+      errors.push(
+        `MISSING_ADVISOR_HYPOTHESIS: advisor "${a.id}" is missing contribution_hypothesis_template`,
+      );
     }
     if (a.contribution_hypothesis_template && a.contribution_hypothesis_template.length < 10) {
-      warnings.push(`Advisor "${a.id}" contribution_hypothesis_template is very short — may not be distinct`);
+      warnings.push(
+        `Advisor "${a.id}" contribution_hypothesis_template is very short — may not be distinct`,
+      );
     }
   }
 
@@ -93,7 +109,9 @@ function validateClusterManifest(manifest) {
     if (!d.id) errors.push('Domain entry missing id');
     if (!d.role) errors.push(`Domain "${d.id}" missing role`);
     else if (!CANONICAL_ROLES.includes(d.role)) {
-      errors.push(`Domain "${d.id}": unknown role "${d.role}". Must be one of: ${CANONICAL_ROLES.join(', ')}`);
+      errors.push(
+        `Domain "${d.id}": unknown role "${d.role}". Must be one of: ${CANONICAL_ROLES.join(', ')}`,
+      );
     }
     if (d.role && EXPERIMENTAL_ROLES.includes(d.role)) {
       warnings.push(`Domain "${d.id}" uses experimental role "${d.role}" — semantics may change`);
@@ -118,7 +136,9 @@ function validateClusterManifest(manifest) {
       errors.push('budget.max_assets must be at least 1');
     }
     if (manifest.budget.max_assets && manifest.budget.max_assets < domains.length) {
-      warnings.push(`budget.max_assets (${manifest.budget.max_assets}) is less than domain count (${domains.length}) — some domains will never be selected`);
+      warnings.push(
+        `budget.max_assets (${manifest.budget.max_assets}) is less than domain count (${domains.length}) — some domains will never be selected`,
+      );
     }
   }
 
@@ -126,7 +146,9 @@ function validateClusterManifest(manifest) {
   if (manifest.degradation_policy) {
     const dp = manifest.degradation_policy;
     if (dp.primary_unavailable && dp.primary_unavailable !== 'block') {
-      errors.push('degradation_policy.primary_unavailable must be "block" — primary failure cannot be degraded');
+      errors.push(
+        'degradation_policy.primary_unavailable must be "block" — primary failure cannot be degraded',
+      );
     }
   }
 
@@ -139,6 +161,152 @@ function validateClusterManifest(manifest) {
 
 // ── Candidate Resolution ──────────────────────────────────────────────
 
+// ── Stopwords filtered from task-word matching to prevent
+//     structural/generic terms (e.g., "task", "decision") from
+//     matching every domain's load condition.
+const STOPWORDS = new Set([
+  // English structural terms
+  'task',
+  'tasks',
+  'decision',
+  'decisions',
+  'involve',
+  'involves',
+  'involved',
+  'change',
+  'changes',
+  'when',
+  'should',
+  'would',
+  'could',
+  'may',
+  'might',
+  'must',
+  'this',
+  'that',
+  'these',
+  'those',
+  'the',
+  'a',
+  'an',
+  'is',
+  'are',
+  'was',
+  'were',
+  'be',
+  'been',
+  'being',
+  'have',
+  'has',
+  'had',
+  'do',
+  'does',
+  'did',
+  'will',
+  'can',
+  'shall',
+  'about',
+  'with',
+  'for',
+  'from',
+  'or',
+  'and',
+  'not',
+  'but',
+  'if',
+  'to',
+  'of',
+  'in',
+  'on',
+  'at',
+  'by',
+  'it',
+  'its',
+  'their',
+  'they',
+  'them',
+  'your',
+  'all',
+  'some',
+  'any',
+  'each',
+  'every',
+  'no',
+  'yes',
+  'more',
+  'less',
+  'also',
+  'just',
+  'only',
+  'very',
+  'such',
+  'other',
+  'without',
+  'within',
+  'into',
+  'onto',
+  'need',
+  'needs',
+  'needed',
+  'based',
+  'used',
+  'using',
+  // Chinese structural terms
+  '任务',
+  '决策',
+  '决定',
+  '是否',
+  '应该',
+  '可以',
+  '需要',
+  '能够',
+  '这个',
+  '那个',
+  '这些',
+  '那些',
+  '涉及',
+  '包括',
+  '或者',
+  '以及',
+  '关于',
+  '对于',
+  '根据',
+  '按照',
+  '通过',
+  '已经',
+  '正在',
+  '将要',
+  '将会',
+  '可能',
+  '也许',
+  '什么',
+  '怎么',
+  '为什么',
+  '因为',
+  '所以',
+  '但是',
+  '虽然',
+  '如果',
+  '而且',
+  '然后',
+  '并且',
+  '所有',
+  '一些',
+  '其他',
+  '任何',
+  '每个',
+  '这种',
+  '那种',
+  '没有',
+  '不是',
+  '一样',
+  '不同',
+  '非常',
+  '比较',
+  '更多',
+  '更少',
+]);
+
 /**
  * Resolve which assets are candidates for a given task.
  * Returns all domains with match quality and disposition.
@@ -150,17 +318,69 @@ function validateClusterManifest(manifest) {
  */
 function resolveCandidates(manifest, task, context = {}) {
   const taskLower = (task || '').toLowerCase();
+  // Reject empty/single-char/whitespace-only tasks immediately
+  if (!task || task.trim().length < 2) {
+    return {
+      resolution_id: 'res_' + crypto.randomBytes(6).toString('hex'),
+      cluster_id: manifest.cluster_id,
+      cluster_version: manifest.version,
+      task: { summary: (task || '').slice(0, 200), task_family: context.taskFamily || 'general' },
+      candidates: [],
+      primary_candidates: [],
+      advisor_candidates: [],
+      rejected: [],
+    };
+  }
+  // Tokenize: whitespace-separated words ≥3 chars
+  const spaceWords = taskLower.split(/\s+/).filter((w) => w.length >= 3);
+  // CJK: use the platform word segmenter when available. Sliding n-grams are
+  // only a compatibility fallback; using them as the primary tokenizer makes
+  // unrelated sentences collide on accidental two-character fragments.
+  const cjkRaw = taskLower.match(/[一-鿿㐀-䶿]+/g) || [];
+  const cjkTokens = [];
+  if (typeof Intl?.Segmenter === 'function') {
+    const segmenter = new Intl.Segmenter('zh', { granularity: 'word' });
+    for (const seq of cjkRaw) {
+      for (const part of segmenter.segment(seq)) {
+        if (part.isWordLike && part.segment.length >= 2) cjkTokens.push(part.segment);
+      }
+    }
+  } else {
+    for (const seq of cjkRaw) {
+      for (let i = 0; i <= seq.length - 2; i++) cjkTokens.push(seq.slice(i, i + 2));
+    }
+  }
+  // Deduplicate, filter stopwords
+  const taskWords = [...new Set([...spaceWords, ...cjkTokens])].filter(
+    (w) => !STOPWORDS.has(w.toLowerCase()),
+  );
   const domains = manifest.domains || [];
   const candidates = [];
 
   for (const domain of domains) {
     const loadCondition = domain.load_condition || '';
-    const loadConditionMet = !loadCondition ||
-      taskLower.split(/\s+/).some(w => loadCondition.toLowerCase().includes(w.toLowerCase()));
+    // ── Word-boundary match: task words must appear as whole words in
+    //     the load condition. Prevents short-word substring false matches
+    //     (e.g., "to" matching "reactor"). Stopword filtering prevents
+    //     structural terms like "task"/"decision" from matching every domain.
+    const loadConditionMet =
+      !loadCondition ||
+      taskWords.some((w) => {
+        // ── ASCII tokens: word-boundary \b match
+        //     CJK tokens: simple includes() because \b doesn't work non-ASCII
+        const isCJK = /[一-鿿㐀-䶿]/.test(w);
+        if (isCJK) {
+          return loadCondition.includes(w);
+        }
+        const re = new RegExp('\\b' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
+        return re.test(loadCondition);
+      });
 
     // Check contribution hypothesis template for advisors
-    const hasHypothesis = domain.role !== 'advisor' ||
-      (domain.contribution_hypothesis_template && domain.contribution_hypothesis_template.trim().length > 0);
+    const hasHypothesis =
+      domain.role !== 'advisor' ||
+      (domain.contribution_hypothesis_template &&
+        domain.contribution_hypothesis_template.trim().length > 0);
 
     // Match quality
     let matchQuality = 'none';
@@ -176,13 +396,20 @@ function resolveCandidates(manifest, task, context = {}) {
       digest: domain.digest || null,
       role: domain.role,
       match_quality: matchQuality,
-      match_reason: matchQuality === 'none'
-        ? (loadConditionMet ? 'missing contribution_hypothesis_template' : 'load_condition_not_met')
-        : `task matches load condition`,
+      match_reason:
+        matchQuality === 'none'
+          ? loadConditionMet
+            ? 'missing contribution_hypothesis_template'
+            : 'load_condition_not_met'
+          : `task matches load condition`,
       required: domain.required !== false,
       contribution_hypothesis_template: domain.contribution_hypothesis_template || null,
-      expected_disposition: matchQuality === 'none' ? 'rejected' :
-        (domain.role === 'primary-candidate' ? 'primary-candidate' : 'advisor-candidate'),
+      expected_disposition:
+        matchQuality === 'none'
+          ? 'rejected'
+          : domain.role === 'primary-candidate'
+            ? 'primary-candidate'
+            : 'advisor-candidate',
     });
   }
 
@@ -195,9 +422,9 @@ function resolveCandidates(manifest, task, context = {}) {
       task_family: context.taskFamily || 'general',
     },
     candidates,
-    primary_candidates: candidates.filter(c => c.role === 'primary-candidate'),
-    advisor_candidates: candidates.filter(c => c.role === 'advisor'),
-    rejected: candidates.filter(c => c.match_quality === 'none'),
+    primary_candidates: candidates.filter((c) => c.role === 'primary-candidate'),
+    advisor_candidates: candidates.filter((c) => c.role === 'advisor'),
+    rejected: candidates.filter((c) => c.match_quality === 'none'),
   };
 }
 
@@ -212,7 +439,7 @@ function resolveCandidates(manifest, task, context = {}) {
  * @returns {object} selection result
  */
 function arbitratePrimary(resolution, manifest) {
-  const primaries = resolution.primary_candidates.filter(c => c.match_quality !== 'none');
+  const primaries = resolution.primary_candidates.filter((c) => c.match_quality !== 'none');
 
   if (primaries.length === 0) {
     return {
@@ -238,12 +465,13 @@ function arbitratePrimary(resolution, manifest) {
       version: primary.version,
       digest: primary.digest,
       role: 'primary',
-      selection_reason: primaries.length === 1
-        ? 'only matching primary-candidate'
-        : `selected from ${primaries.length} candidates (highest match + alphabetical tie-break)`,
+      selection_reason:
+        primaries.length === 1
+          ? 'only matching primary-candidate'
+          : `selected from ${primaries.length} candidates (highest match + alphabetical tie-break)`,
       weight: 1.0,
     },
-    alternatives: primaries.slice(1).map(p => ({
+    alternatives: primaries.slice(1).map((p) => ({
       asset_id: p.asset_id,
       reason: `superseded by ${primary.asset_id} (higher match quality or alphabetical order)`,
     })),
@@ -269,8 +497,8 @@ function selectAdvisors(resolution, primaryResult, manifest, task) {
   }
 
   const advisorCandidates = resolution.advisor_candidates
-    .filter(c => c.match_quality !== 'none')
-    .filter(c => c.asset_id !== primaryResult.primary.asset_id);
+    .filter((c) => c.match_quality !== 'none')
+    .filter((c) => c.asset_id !== primaryResult.primary.asset_id);
 
   const maxAssets = manifest.budget?.max_assets || manifest.composition?.max_active_domains || 3;
   const maxAdvisors = Math.max(0, maxAssets - 1); // minus primary
@@ -335,7 +563,7 @@ function detectConflicts(primary, advisors, manifest) {
   const conflicts = [];
   if (!primary) return conflicts;
 
-  const allIds = [primary.asset_id, ...advisors.map(a => a.asset_id)];
+  const allIds = [primary.asset_id, ...advisors.map((a) => a.asset_id)];
 
   // Check declared relationships
   const relationships = manifest.relationships || [];
@@ -362,8 +590,10 @@ function detectConflicts(primary, advisors, manifest) {
 
   // Heuristic: advisor duplicates primary coverage
   for (const advisor of advisors) {
-    if (advisor.contribution_hypothesis &&
-        advisor.contribution_hypothesis.toLowerCase().includes(primary.asset_id.toLowerCase())) {
+    if (
+      advisor.contribution_hypothesis &&
+      advisor.contribution_hypothesis.toLowerCase().includes(primary.asset_id.toLowerCase())
+    ) {
       conflicts.push({
         type: 'potential_duplicate_coverage',
         assets: [primary.asset_id, advisor.asset_id],
@@ -405,10 +635,11 @@ function generateClusterPlan(manifest, task, opts = {}) {
   const conflicts = detectConflicts(primaryResult.primary, advisorResult.advisors, manifest);
 
   // Step 5: Build plan
-  const planId = 'plan_' + crypto.createHash('sha256')
-    .update(`${manifest.cluster_id}:${task}`).digest('hex').slice(0, 16);
+  const planId =
+    'plan_' +
+    crypto.createHash('sha256').update(`${manifest.cluster_id}:${task}`).digest('hex').slice(0, 16);
 
-  const assetCount = 1 + advisorResult.advisors.length;
+  const assetCount = primaryResult.blocked ? 0 : 1 + advisorResult.advisors.length;
 
   const BUDGET_PROFILES = {
     interactive: { maxTokens: 800, maxChars: 2500, maxAssets: manifest.budget?.max_assets || 3 },
@@ -424,12 +655,18 @@ function generateClusterPlan(manifest, task, opts = {}) {
     cluster_ref: {
       cluster_id: manifest.cluster_id,
       version: manifest.version,
-      manifest_digest: 'sha256:' + crypto.createHash('sha256').update(JSON.stringify(manifest)).digest('hex'),
+      manifest_digest:
+        'sha256:' + crypto.createHash('sha256').update(JSON.stringify(manifest)).digest('hex'),
     },
     task: {
       summary: (task || '').slice(0, 500),
       task_family: taskFamily,
-      input_hash: 'sha256:' + crypto.createHash('sha256').update(task || '').digest('hex'),
+      input_hash:
+        'sha256:' +
+        crypto
+          .createHash('sha256')
+          .update(task || '')
+          .digest('hex'),
     },
     load_plan_ref: {
       plan_id: planId,
@@ -441,7 +678,12 @@ function generateClusterPlan(manifest, task, opts = {}) {
     },
     projection_ref: {
       shape: opts.shape || 'compact',
-      content_digest: 'sha256:' + crypto.createHash('sha256').update('cluster:' + manifest.cluster_id).digest('hex'),
+      content_digest:
+        'sha256:' +
+        crypto
+          .createHash('sha256')
+          .update('cluster:' + manifest.cluster_id)
+          .digest('hex'),
     },
     budget: {
       profile: budgetProfile,
@@ -461,26 +703,28 @@ function generateClusterPlan(manifest, task, opts = {}) {
       primary_required: true,
       advisor_optional: true,
     },
-    selection: primaryResult.blocked ? undefined : {
-      primary: primaryResult.primary,
-      advisors: advisorResult.advisors,
-      rejected: [
-        ...resolution.rejected.map(r => ({
-          asset_id: r.asset_id,
-          version: r.version,
-          role: r.role,
-          rejection_reason: r.match_reason,
-          rejection_policy: 'exclude_non_matching',
-        })),
-        ...advisorResult.rejected,
-      ],
-      conflicts_detected: conflicts.filter(c => c.severity === 'error'),
-      budget_check: {
-        assets_selected: assetCount,
-        max_assets: bp.maxAssets,
-        within_budget: assetCount <= bp.maxAssets,
-      },
-    },
+    selection: primaryResult.blocked
+      ? undefined
+      : {
+          primary: primaryResult.primary,
+          advisors: advisorResult.advisors,
+          rejected: [
+            ...resolution.rejected.map((r) => ({
+              asset_id: r.asset_id,
+              version: r.version,
+              role: r.role,
+              rejection_reason: r.match_reason,
+              rejection_policy: 'exclude_non_matching',
+            })),
+            ...advisorResult.rejected,
+          ],
+          conflicts_detected: conflicts.filter((c) => c.severity === 'error'),
+          budget_check: {
+            assets_selected: assetCount,
+            max_assets: bp.maxAssets,
+            within_budget: assetCount <= bp.maxAssets,
+          },
+        },
     conflicts: conflicts,
     composition_policy_ref: {
       strategy: manifest.composition?.strategy || 'signal_based',
@@ -508,6 +752,12 @@ function generateClusterPlan(manifest, task, opts = {}) {
  * @returns {object} trace (conforms to 0.9 schema)
  */
 function generateClusterTrace(plan, runnerResult) {
+  // ── Trust facts: only Runner observations can establish actual loads. ──
+  const observedLoads = Array.isArray(runnerResult?.assets_loaded)
+    ? runnerResult.assets_loaded
+    : [];
+  const loadedCount = observedLoads.length;
+
   const trace = {
     trace_version: '0.9.0',
     trace_id: 'trace_' + crypto.randomBytes(8).toString('hex'),
@@ -515,33 +765,14 @@ function generateClusterTrace(plan, runnerResult) {
     mode: 'cluster',
     timestamp: new Date().toISOString(),
     cluster_identity: plan.cluster_ref,
-    assets_loaded: [
-      plan.selection?.primary ? {
-        asset_id: plan.selection.primary.asset_id,
-        version: plan.selection.primary.version,
-        digest: plan.selection.primary.digest,
-        role: 'primary',
-        weight: 1.0,
-        digest_verified: true,
-        authorization: 'public',
-        projection_digest: plan.projection_ref?.content_digest || null,
-      } : null,
-      ...(plan.selection?.advisors || []).map(a => ({
-        asset_id: a.asset_id,
-        version: a.version,
-        digest: a.digest,
-        role: 'advisor',
-        weight: a.weight || 0.6,
-        digest_verified: true,
-        authorization: 'public',
-        contribution_hypothesis: a.contribution_hypothesis,
-        contribution_fulfilled: true,
-      })),
-    ].filter(Boolean),
+    assets_loaded: observedLoads.map((observed) => ({
+      ...observed,
+      projection_digest: observed.projection_digest || plan.projection_ref?.content_digest || null,
+    })),
     selection_actual: {
       primary: plan.selection?.primary?.asset_id || null,
-      advisors: (plan.selection?.advisors || []).map(a => a.asset_id),
-      rejected: (plan.selection?.rejected || []).map(r => ({
+      advisors: (plan.selection?.advisors || []).map((a) => a.asset_id),
+      rejected: (plan.selection?.rejected || []).map((r) => ({
         asset_id: r.asset_id,
         reason: r.rejection_reason || r.reason || 'unknown',
       })),
@@ -557,16 +788,20 @@ function generateClusterTrace(plan, runnerResult) {
       duration_ms: runnerResult?.duration_ms || 0,
       attempts: runnerResult?.attempts?.length || 1,
     },
-    result_ref: runnerResult?.result ? {
-      result_hash: 'sha256:' + crypto.createHash('sha256').update(JSON.stringify(runnerResult.result)).digest('hex'),
-      result_shape: runnerResult.result.shape || 'answer-pattern',
-      answer_summary: (runnerResult.result.answer || '').slice(0, 200),
-      result_stored: true,
-    } : undefined,
+    result_ref: runnerResult?.result
+      ? {
+          result_hash:
+            'sha256:' +
+            crypto.createHash('sha256').update(JSON.stringify(runnerResult.result)).digest('hex'),
+          result_shape: runnerResult.result.shape || 'answer-pattern',
+          answer_summary: (runnerResult.result.answer || '').slice(0, 200),
+          result_stored: runnerResult?.status === 'completed',
+        }
+      : undefined,
     conflicts: plan.conflicts || [],
     cost: {
       tokens_used: runnerResult?.cost?.tokens_used || 0,
-      assets_loaded: (plan.selection?.advisors?.length || 0) + 1,
+      assets_loaded: loadedCount,
       budget_profile: plan.budget?.profile || 'interactive',
       over_budget: (runnerResult?.cost?.tokens_used || 0) > (plan.budget?.max_tokens || Infinity),
     },
@@ -574,7 +809,12 @@ function generateClusterTrace(plan, runnerResult) {
       plan_digest: plan.metadata?.plan_digest || null,
       cluster_manifest_digest: plan.cluster_ref?.manifest_digest || null,
     },
-    errors: runnerResult?.errors || [],
+    errors: [
+      ...(runnerResult?.errors || []),
+      ...(runnerResult?.status !== 'completed' && loadedCount === 0
+        ? ['Cluster execution failed — no assets were successfully loaded']
+        : []),
+    ],
     warnings: [
       ...(runnerResult?.warnings || []),
       ...(plan.conflicts?.length ? [`${plan.conflicts.length} conflict(s) detected`] : []),
@@ -648,16 +888,32 @@ function migrateFromLegacyPackages(legacy, manifest, report) {
 
   const packages = legacy.packages || [];
   for (const pkg of packages) {
+    const mappedRole =
+      pkg.role === 'primary'
+        ? 'primary-candidate'
+        : pkg.role === 'advisor'
+          ? 'advisor'
+          : pkg.role === 'constraint'
+            ? 'constraint'
+            : pkg.role === 'critic'
+              ? 'critic'
+              : 'advisor';
+    const useWhen = Array.isArray(pkg.use_when) ? pkg.use_when : pkg.use_when ? [pkg.use_when] : [];
     const domain = {
       id: pkg.id || `package_${crypto.randomBytes(4).toString('hex')}`,
       version: pkg.version || '^0.1.0',
-      role: pkg.role === 'primary' ? 'primary-candidate' :
-            pkg.role === 'advisor' ? 'advisor' :
-            pkg.role === 'constraint' ? 'constraint' :
-            pkg.role === 'critic' ? 'critic' : 'advisor',
+      role: mappedRole,
       required: pkg.required !== false,
-      load_condition: Array.isArray(pkg.use_when) ? pkg.use_when.join(' OR ') : (pkg.use_when || ''),
+      load_condition: useWhen.length ? useWhen.join(' OR ') : '',
     };
+
+    // Auto-generate contribution_hypothesis_template for advisors
+    if (mappedRole === 'advisor' && useWhen.length > 0) {
+      domain.contribution_hypothesis_template = `Migrated advisor: provides judgment for tasks matching "${useWhen.slice(0, 3).join(', ')}"`;
+      report.warnings.push(
+        `Package "${pkg.id}": auto-generated contribution_hypothesis_template from use_when`,
+      );
+    }
 
     if (pkg.role === 'primary') {
       report.warnings.push(`Package "${pkg.id}": role "primary" mapped to "primary-candidate"`);
@@ -672,16 +928,18 @@ function migrateFromLegacyPackages(legacy, manifest, report) {
   if (legacy.composition_rules?.length) {
     manifest.composition.conflict_policy = 'surface';
     report.manual_decisions_required.push(
-      `composition_rules: ${legacy.composition_rules.length} rules stored as strings. Convert to relationships array manually.`
+      `composition_rules: ${legacy.composition_rules.length} rules stored as strings. Convert to relationships array manually.`,
     );
-    report.semantic_loss.push('composition_rules are unstructured strings — cannot auto-convert to typed relationships');
+    report.semantic_loss.push(
+      'composition_rules are unstructured strings — cannot auto-convert to typed relationships',
+    );
   }
 
   // Routing questions → dropped (replaced by signal-based classification)
   if (legacy.routing_questions?.length) {
     report.fields_dropped.push('routing_questions');
     report.manual_decisions_required.push(
-      `routing_questions: ${legacy.routing_questions.length} questions dropped. Define load_condition per domain instead.`
+      `routing_questions: ${legacy.routing_questions.length} questions dropped. Define load_condition per domain instead.`,
     );
   }
 
@@ -697,7 +955,15 @@ function migrateFromSchemaB(legacy, manifest, report) {
   manifest.status = legacy.status || 'draft';
   manifest.access = legacy.access || 'public';
 
-  report.fields_migrated.push('cluster_id', 'name', 'version', 'description', 'type', 'status', 'access');
+  report.fields_migrated.push(
+    'cluster_id',
+    'name',
+    'version',
+    'description',
+    'type',
+    'status',
+    'access',
+  );
 
   const domains = legacy.domains || [];
   for (const d of domains) {
@@ -705,18 +971,26 @@ function migrateFromSchemaB(legacy, manifest, report) {
       id: d.id,
       version: d.version || '^0.1.0',
       digest: d.digest || undefined,
-      role: d.role === 'risk_guard' ? 'constraint' :
-            d.role === 'style_and_trust' ? 'advisor' :
-            d.role === 'evaluator' ? 'critic' :
-            d.role === 'primary' ? 'primary-candidate' :
-            d.role || 'advisor',
+      role:
+        d.role === 'risk_guard'
+          ? 'constraint'
+          : d.role === 'style_and_trust'
+            ? 'advisor'
+            : d.role === 'evaluator'
+              ? 'critic'
+              : d.role === 'primary'
+                ? 'primary-candidate'
+                : d.role || 'advisor',
       required: d.required !== false,
       load_condition: d.load_condition || '',
     };
 
-    if (d.role === 'risk_guard') report.warnings.push(`Domain "${d.id}": role "risk_guard" mapped to "constraint"`);
-    if (d.role === 'style_and_trust') report.warnings.push(`Domain "${d.id}": role "style_and_trust" mapped to "advisor"`);
-    if (d.role === 'evaluator') report.warnings.push(`Domain "${d.id}": role "evaluator" mapped to "critic"`);
+    if (d.role === 'risk_guard')
+      report.warnings.push(`Domain "${d.id}": role "risk_guard" mapped to "constraint"`);
+    if (d.role === 'style_and_trust')
+      report.warnings.push(`Domain "${d.id}": role "style_and_trust" mapped to "advisor"`);
+    if (d.role === 'evaluator')
+      report.warnings.push(`Domain "${d.id}": role "evaluator" mapped to "critic"`);
 
     manifest.domains.push(domain);
   }

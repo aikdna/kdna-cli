@@ -32,6 +32,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const crypto = require('node:crypto');
+const cbor = require('cbor-x');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 
@@ -75,7 +76,7 @@ function makeFixture(tmpDir, access = 'public') {
     updated_at: '2026-06-28T00:00:00.000Z',
     creator: { name: 'Test', id: 'test' },
     compatibility: { min_loader_version: '1.0.0', profile: 'judgment-profile-v1' },
-    payload: { path: 'payload.kdnab', encoding: 'json', encrypted: false },
+    payload: { path: 'payload.kdnab', encoding: 'cbor', encrypted: false },
     access,
     // Note: no `entitlement` block is set. With no
     // entitlement_profile, the planLoad path falls through
@@ -100,10 +101,10 @@ function makeFixture(tmpDir, access = 'public') {
     evolution: { changelog: [], version_notes: [] },
   };
   fs.writeFileSync(path.join(dir, 'kdna.json'), JSON.stringify(manifest, null, 2) + '\n');
-  fs.writeFileSync(path.join(dir, 'payload.kdnab'), JSON.stringify(payload) + '\n');
+  fs.writeFileSync(path.join(dir, 'payload.kdnab'), cbor.encode(payload));
   fs.writeFileSync(
     path.join(dir, 'checksums.json'),
-    JSON.stringify(core.buildChecksumsV1(dir), null, 2) + '\n',
+    JSON.stringify(core.buildChecksums(dir), null, 2) + '\n',
   );
   return dir;
 }

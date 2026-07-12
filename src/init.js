@@ -133,7 +133,7 @@ function cmdClusterInit(name) {
     format: 'kdna-cluster',
     format_version: '0.9.0',
     cluster_id: `@aikdna/${name}`,
-    name: name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+    name: name.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
     version: '0.1.0',
     description: '[TODO: What judgment system does this cluster provide?]',
     type: 'vertical',
@@ -145,7 +145,8 @@ function cmdClusterInit(name) {
         version: '^0.1.0',
         role: 'primary-candidate',
         required: true,
-        load_condition: '[TODO: When should this domain activate? e.g., Task involves a deploy decision.]',
+        load_condition:
+          '[TODO: When should this domain activate? e.g., Task involves a deploy decision.]',
       },
       {
         id: '@aikdna/domain-two',
@@ -153,7 +154,8 @@ function cmdClusterInit(name) {
         role: 'advisor',
         required: false,
         load_condition: '[TODO: When does this advisor contribute?]',
-        contribution_hypothesis_template: '[TODO: What distinct dimension does this advisor add beyond the primary?]',
+        contribution_hypothesis_template:
+          '[TODO: What distinct dimension does this advisor add beyond the primary?]',
       },
     ],
     composition: {
@@ -208,7 +210,9 @@ function cmdClusterInit(name) {
   console.log(`  1. Edit ${targetDir}/kdna.cluster.json — replace all [TODO] placeholders`);
   console.log(`  2. Ensure each referenced domain exists as a validated .kdna asset`);
   console.log(`  3. Run: kdna cluster validate ${targetDir}/kdna.cluster.json`);
-  console.log(`  4. Run: kdna cluster plan-use ${targetDir}/kdna.cluster.json --task="...test task..."`);
+  console.log(
+    `  4. Run: kdna cluster plan-use ${targetDir}/kdna.cluster.json --task="...test task..."`,
+  );
 }
 
 module.exports = { cmdInit, cmdClusterInit };

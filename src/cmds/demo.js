@@ -4,7 +4,7 @@ const path = require('node:path');
 const DEMOS = {
   minimal: {
     fixture: 'v1-minimal',
-    label: 'Minimal KDNA Core v1 demo',
+    label: 'Minimal KDNA Core demo',
   },
   judgment: {
     fixture: 'v1-judgment',
@@ -20,8 +20,8 @@ function cmdDemo(args) {
   if (!demo) {
     const names = Object.keys(DEMOS).join('|');
     console.error(`Usage: kdna demo <${names}> <output-dir> [--force] [--password <pw>]`);
-    console.error('  minimal   — minimal schema-shape v1 demo (protocol debugging)');
-    console.error('  judgment  — real judgment-content v1 demo (recommended first-run)');
+    console.error('  minimal   — minimal schema-shape demo (protocol debugging)');
+    console.error('  judgment  — real judgment-content demo (recommended first-run)');
     console.error('  --password <pw> — create an encrypted licensed asset (sets access=licensed)');
     process.exit(2);
   }
@@ -87,10 +87,12 @@ function cmdDemo(args) {
     };
     manifest.payload = manifest.payload || {};
     manifest.payload.encrypted = true;
+    manifest.payload.encoding = 'cbor';
 
     // Actually encrypt the payload using kdna-password-protected-v1.
+    const cbor = require('cbor-x');
     const { encryptProtectedEntry, generateRecoveryCode } = require('@aikdna/kdna-core');
-    const plaintext = fs.readFileSync(payloadPath, 'utf8');
+    const plaintext = fs.readFileSync(payloadPath);
     const recoveryCode = generateRecoveryCode();
     const envelope = encryptProtectedEntry(plaintext, {
       entryName: 'payload.kdnab',
@@ -98,14 +100,13 @@ function cmdDemo(args) {
       password,
       recoveryCode,
     });
-    const envelopeJson = typeof envelope === 'string' ? envelope : JSON.stringify(envelope);
-    fs.writeFileSync(payloadPath, envelopeJson);
+    fs.writeFileSync(payloadPath, cbor.encode(envelope));
 
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 
     // Rebuild checksums after encryption
-    const { buildChecksumsV1 } = require('@aikdna/kdna-core');
-    const newChecksums = buildChecksumsV1(outDir);
+    const { buildChecksums } = require('@aikdna/kdna-core');
+    const newChecksums = buildChecksums(outDir);
     fs.writeFileSync(path.join(outDir, 'checksums.json'), JSON.stringify(newChecksums, null, 2));
 
     process.stdout.write(`  ${copied.length} file(s) copied, payload encrypted with password\n\n`);

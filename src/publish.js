@@ -221,32 +221,17 @@ function cmdPublishCheck(domainPath, args = []) {
   // ─── Legacy Human Lock evidence gate ──────────────────────────────
   const hl = checkHumanLock(abs);
   if (!hl.passed) {
-    if (args.includes('--force')) {
-      console.warn(
-        '  ⚠  Legacy publish evidence gate: OVERRIDDEN (--force). Proceeding with checks.',
-      );
-      console.warn(`     ${hl.issues.length} unresolved publish-evidence issue(s):`);
-      for (const issue of hl.issues) {
-        console.warn(`       ${issue}`);
-      }
-      console.warn('');
-    } else {
-      console.error('  Legacy publish evidence gate: BLOCKED');
-      console.error(`  ${hl.issues.length} issue(s) found:`);
-      for (const issue of hl.issues) {
-        console.error(`    ✗ ${issue}`);
-      }
-      console.error('');
-      console.error('  This legacy publish check expects reviewed judgment-class cards');
-      console.error('  with Human Lock records as release evidence. This is not a');
-      console.error('  KDNA Core v1 format-validity requirement.');
-      console.error('  For current public consumption, export a .kdna file and run:');
-      console.error('    kdna validate <file.kdna>');
-      console.error('    kdna plan-load <file.kdna>');
-      console.error('  Use --force for emergency override (audited).');
-      console.error('');
-      process.exit(EXIT.HUMAN_LOCK_REQUIRED);
+    console.warn('  ⚠  Legacy publish evidence gate: advisories (non-blocking)');
+    console.warn(`     ${hl.issues.length} advisory issue(s):`);
+    for (const issue of hl.issues) {
+      console.warn(`       ${issue}`);
     }
+    console.warn('');
+    console.warn('  Human Lock records are optional quality evidence, not a publish');
+    console.warn('  requirement. For current asset validation:');
+    console.warn('    kdna validate <file.kdna>');
+    console.warn('    kdna plan-load <file.kdna>');
+    console.warn('');
   } else {
     console.log('  ✓ Legacy publish evidence gate: passed');
     console.log('');
@@ -495,7 +480,7 @@ function cmdPublishCheck(domainPath, args = []) {
     warn(
       'kdna.json',
       'manifest',
-      'Not found. A kdna.json manifest is recommended for registry publication.',
+      'Not found. A kdna.json manifest is used for registry publication.',
     );
   }
 
@@ -537,7 +522,7 @@ function canonicalPayload(srcDir, opts = {}) {
     const full = f === 'mimetype' ? null : path.join(srcDir, f);
     let buf;
     if (f === 'mimetype') {
-      buf = Buffer.from('application/vnd.aikdna.kdna+zip');
+      buf = Buffer.from('application/vnd.kdna.asset');
     } else if (f.endsWith('.json')) {
       const obj = JSON.parse(fs.readFileSync(full, 'utf8'));
       const value = f === 'kdna.json' ? manifestForSigning(obj, opts) : obj;
@@ -729,7 +714,7 @@ function cmdPublish(assetPath, args = []) {
   console.log(JSON.stringify(patch, null, 2));
   console.log('');
   console.log(
-    `Next: do not open a public registry PR. Core v1 publishes local .kdna files through validate/load evidence, not a central registry.`,
+    `Next: do not open a public registry PR. KDNA Core publishes local .kdna files through validate/load evidence, not a central registry.`,
   );
 }
 
@@ -762,8 +747,8 @@ function validateAuthoringProvenance(manifest) {
         `quality_badge "${badge}" requires conformance validation (authoring.conformance.passed = true)`,
       );
     }
-    if (!conformance || !conformance.spec_version) {
-      issues.push('release-evidence assets require authoring.conformance.spec_version');
+    if (!conformance || !conformance.kdna_version) {
+      issues.push('release-evidence assets require authoring.conformance.kdna_version');
     }
   }
   if (highTrust && !authoring.compiler)

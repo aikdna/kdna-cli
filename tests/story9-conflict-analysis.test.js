@@ -20,6 +20,7 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
+const cbor = require('cbor-x');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
@@ -99,6 +100,36 @@ test('Story 9 unit: no conflicts when components have distinct cards', () => {
   assert.equal(info.length, 0);
 });
 
+test('Story 9 unit: malformed CBOR payload is diagnosed, not silently swallowed', () => {
+  const { loadPayload, analyseConflicts, extractCards } = require('../src/cmds/conflict-analysis');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s9-mal-'));
+  try {
+    const dir = path.join(tmp, 'malformed');
+    fs.mkdirSync(dir);
+    // Write malformed CBOR bytes
+    fs.writeFileSync(path.join(dir, 'payload.kdnab'), Buffer.from([0xff, 0x00, 0xaa, 0xbb]));
+    // loadPayload returns null for malformed CBOR (payload exists but invalid)
+    const result = loadPayload(dir, {});
+    assert.equal(result, null, 'malformed CBOR must return null when payload exists');
+    // verify undefined is returned when no payload file exists
+    const emptyDir = path.join(tmp, 'empty');
+    fs.mkdirSync(emptyDir);
+    const noResult = loadPayload(emptyDir, {});
+    assert.equal(noResult, undefined, 'no payload file returns undefined');
+    // analyseConflicts emits diagnostic INFO for malformed payload
+    const compResults = [
+      { id: '@test/mal@1.0.0', path: dir, valid: true },
+      { id: '@test/ok@1.0.0', path: emptyDir, valid: true },
+    ];
+    const { info, errors, warnings } = analyseConflicts(compResults, {});
+    const diagnostic = info.find((i) => i.note && i.note.includes('malformed'));
+    assert.ok(diagnostic, 'malformed CBOR must produce a diagnostic INFO entry');
+    assert.match(diagnostic.note, /could not be decoded as CBOR/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('Story 9 unit: term conflict → ERROR entry', () => {
   const { analyseConflicts } = require('../src/cmds/conflict-analysis');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s9-'));
@@ -129,8 +160,8 @@ test('Story 9 unit: term conflict → ERROR entry', () => {
       ],
     };
 
-    fs.writeFileSync(path.join(dirA, 'payload.kdnab'), JSON.stringify(payloadA));
-    fs.writeFileSync(path.join(dirB, 'payload.kdnab'), JSON.stringify(payloadB));
+    fs.writeFileSync(path.join(dirA, 'payload.kdnab'), cbor.encode(payloadA));
+    fs.writeFileSync(path.join(dirB, 'payload.kdnab'), cbor.encode(payloadB));
 
     const compResults = [
       { id: '@test/a@1.0.0', path: dirA, valid: true },
@@ -170,8 +201,8 @@ test('Story 9 unit: axiom id clash → WARNING entry', () => {
       patterns: [],
     };
 
-    fs.writeFileSync(path.join(dirA, 'payload.kdnab'), JSON.stringify(payloadA));
-    fs.writeFileSync(path.join(dirB, 'payload.kdnab'), JSON.stringify(payloadB));
+    fs.writeFileSync(path.join(dirA, 'payload.kdnab'), cbor.encode(payloadA));
+    fs.writeFileSync(path.join(dirB, 'payload.kdnab'), cbor.encode(payloadB));
 
     const compResults = [
       { id: '@test/a@1.0.0', path: dirA, valid: true },
@@ -204,8 +235,8 @@ test('Story 9 unit: banned_term replace_with conflict → WARNING', () => {
       patterns: [{ type: 'banned_term', id: 'bt1', term: 'synergy', replace_with: replaceWith }],
     });
 
-    fs.writeFileSync(path.join(dirA, 'payload.kdnab'), JSON.stringify(make('collaboration')));
-    fs.writeFileSync(path.join(dirB, 'payload.kdnab'), JSON.stringify(make('teamwork')));
+    fs.writeFileSync(path.join(dirA, 'payload.kdnab'), cbor.encode(make('collaboration')));
+    fs.writeFileSync(path.join(dirB, 'payload.kdnab'), cbor.encode(make('teamwork')));
 
     const compResults = [
       { id: '@test/a@1.0.0', path: dirA, valid: true },
@@ -278,11 +309,11 @@ test('Story 9 CLI: bundle with term conflict → ERROR, bundle_valid=false, exit
         reasoning: {},
         evolution: {},
       };
-      fs.writeFileSync(path.join(dir, 'payload.kdnab'), JSON.stringify(payload));
+      fs.writeFileSync(path.join(dir, 'payload.kdnab'), cbor.encode(payload));
       // Write minimal checksums to make validate() pass
       const core = require('@aikdna/kdna-core');
-      if (typeof core.buildChecksumsV1 === 'function') {
-        const cs = core.buildChecksumsV1(dir);
+      if (typeof core.buildChecksums === 'function') {
+        const cs = core.buildChecksums(dir);
         fs.writeFileSync(path.join(dir, 'checksums.json'), JSON.stringify(cs, null, 2));
       }
     }

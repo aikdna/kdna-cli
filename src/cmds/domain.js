@@ -1,7 +1,9 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { execSync } = require('child_process');
 const { error, readJson, writeJson, EXIT } = require('./_common');
+const { packKdna } = require('../dev-pack');
 const KDNA_DOMAIN_FILES = new Set([
   'KDNA_Core.json',
   'KDNA_Patterns.json',
@@ -319,20 +321,19 @@ function cmdPack(dir, outputDir) {
   console.warn('Human Lock is optional provenance and is not required for format validity.');
 
   const domainName = core.meta?.domain || path.basename(abs);
+  const today = new Date().toISOString().slice(0, 10);
 
   // Ensure kdna.json manifest exists (generate if missing)
   let manifest = readJson(path.join(abs, 'kdna.json'));
   if (!manifest) {
-    const jsonCount = fs
-      .readdirSync(abs)
-      .filter((f) => f.endsWith('.json') && f !== 'kdna.json').length;
     manifest = {
-      format: 'kdna',
-      format_version: '1.0',
-      spec_version: '1.0-rc',
-      name: domainName,
+      name: `@aikdna/${domainName}`,
       version: core.meta?.version || '0.1.0',
       judgment_version: core.meta?.version || '0.1.0',
+      asset_id: `kdna:${domainName}:dev`,
+      asset_uid: `urn:uuid:${crypto.randomUUID()}`,
+      asset_type: 'domain',
+      title: `${domainName} domain cognition`,
       status: 'experimental',
       quality_badge: 'untested',
       access: 'public',
@@ -341,92 +342,21 @@ function cmdPack(dir, outputDir) {
       author: { name: '', id: '' },
       license: { type: 'CC-BY-4.0' },
       description: core.meta?.purpose || `${domainName} domain cognition`,
-      file_count: jsonCount,
-      created: core.meta?.created || new Date().toISOString().slice(0, 10),
-      updated: new Date().toISOString().slice(0, 10),
+      compatibility: { min_loader_version: '1.0.0', profile: 'judgment-profile-v1' },
+      created_at: core.meta?.created || today,
+      updated_at: today,
     };
     writeJson(path.join(abs, 'kdna.json'), manifest);
   }
 
-  // Create ZIP container — try python3, then zip command, then Node.js native
   const outName = `${domainName}.kdna`;
   const outPath = outputDir ? path.join(outputDir, outName) : path.join(process.cwd(), outName);
   if (outputDir && !fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
-  let packed = false;
+  const { entries } = packKdna(abs, manifest);
+  createNodeZip(entries, outPath);
 
-  // Strategy 1: python3 zipfile (built-in on macOS, most Linux) — use temp file
-  const tmpPyFile = path.join(
-    fs.existsSync('/tmp') ? '/tmp' : require('os').tmpdir(),
-    `kdna-pack-${Date.now()}.py`,
-  );
-  try {
-    const pyScript = `import zipfile, os
-src = ${JSON.stringify(abs)}
-out = ${JSON.stringify(outPath)}
-with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
-    zf.writestr(zipfile.ZipInfo('mimetype'), 'application/vnd.aikdna.kdna+zip', compress_type=zipfile.ZIP_STORED)
-    for f in sorted(os.listdir(src)):
-        fp = os.path.join(src, f)
-        if os.path.isfile(fp) and (f.endswith('.json') or f in ('README.md', 'LICENSE', 'kdna.json')):
-            zf.write(fp, f)
-`;
-    fs.writeFileSync(tmpPyFile, pyScript);
-    execSync(`python3 ${tmpPyFile}`, { stdio: 'pipe' });
-    packed = true;
-  } catch {
-    /* Strategy 1 failed, try next */
-  } finally {
-    try {
-      fs.unlinkSync(tmpPyFile);
-    } catch {
-      /* cleanup */
-    }
-  }
-
-  // Strategy 2: Node.js native ZIP, which preserves the required mimetype entry
-  if (!packed) {
-    try {
-      createNodeZip(abs, outPath);
-      packed = true;
-    } catch {
-      /* try external zip last */
-    }
-  }
-
-  // Strategy 3: system zip command
-  if (!packed) {
-    const cwd = process.cwd();
-    try {
-      process.chdir(abs);
-      execSync(
-        `zip -q -r "${outPath}" *.json README.md LICENSE 2>/dev/null || zip -q -r "${outPath}" *.json`,
-        { stdio: 'pipe' },
-      );
-      process.chdir(cwd);
-      packed = true;
-    } catch {
-      process.chdir(cwd);
-    }
-  }
-
-  if (!packed) {
-    const platform = process.platform;
-    const hints = {
-      darwin: 'macOS includes python3 — ensure it is in PATH.',
-      linux: 'Install python3 or zip: apt install python3 / yum install python3 / apk add python3',
-      win32: 'Install python3 from python.org, or use WSL.',
-    };
-    error(`Cannot create ZIP.\n${hints[platform] || 'Install python3 or zip command.'}`);
-  }
-
-  // Count KDNA domain files from actual filesystem, not manifest (which may be stale)
   const fileCount = [...KDNA_DOMAIN_FILES].filter((f) => fs.existsSync(path.join(abs, f))).length;
-  // Update manifest file_count to match reality
-  if (manifest.file_count !== fileCount) {
-    manifest.file_count = fileCount;
-    writeJson(path.join(abs, 'kdna.json'), manifest);
-  }
   console.log(`✓ Packed: ${outPath}`);
   console.log(`  Domain: ${domainName} v${manifest.version}`);
   console.log(`  Files: ${fileCount} KDNA JSONs`);
@@ -434,23 +364,22 @@ with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
   console.log(`  Provenance: dev-only bundle; not release-reviewed`);
 }
 
-// #22: Node.js-native ZIP creator (zero dependencies, fallback when python3/zip unavailable)
-function createNodeZip(srcDir, outPath) {
+// #22: Node.js-native ZIP creator for single-format entries.
+// `entries` is an object { name: Buffer|string }. Mimetype is always stored
+// uncompressed and written first for container detection.
+function createNodeZip(entries, outPath) {
   const zlib = require('zlib');
-  const files = fs
-    .readdirSync(srcDir)
-    .filter((f) => f.endsWith('.json'))
-    .concat(['README.md', 'LICENSE'].filter((f) => fs.existsSync(path.join(srcDir, f))));
+  const names = Object.keys(entries);
+  const order = ['mimetype', 'kdna.json', 'payload.kdnab']
+    .filter((n) => names.includes(n))
+    .concat(names.filter((n) => !['mimetype', 'kdna.json', 'payload.kdnab'].includes(n)).sort());
 
   const centralDir = [];
   const fileData = [];
   let offset = 0;
 
-  for (const f of ['mimetype', ...files]) {
-    const raw =
-      f === 'mimetype'
-        ? Buffer.from('application/vnd.aikdna.kdna+zip')
-        : fs.readFileSync(path.join(srcDir, f));
+  for (const f of order) {
+    const raw = Buffer.isBuffer(entries[f]) ? entries[f] : Buffer.from(String(entries[f]), 'utf8');
     const crc = crc32(raw);
     const compressed = zlib.deflateRawSync(raw);
     const useStore = f === 'mimetype' || compressed.length >= raw.length;
@@ -493,8 +422,8 @@ function createNodeZip(srcDir, outPath) {
   eocd.writeUInt32LE(0x06054b50, 0); // EOCD signature
   eocd.writeUInt16LE(0, 4); // disk number
   eocd.writeUInt16LE(0, 6); // disk with CD
-  eocd.writeUInt16LE(files.length, 8); // entries on disk
-  eocd.writeUInt16LE(files.length, 10); // total entries
+  eocd.writeUInt16LE(order.length, 8); // entries on disk
+  eocd.writeUInt16LE(order.length, 10); // total entries
   eocd.writeUInt32LE(cdSize, 12); // CD size
   eocd.writeUInt32LE(cdOffset, 16); // CD offset
   eocd.writeUInt16LE(0, 20); // comment length
@@ -606,27 +535,18 @@ function inspectKdnaFile(filePath, jsonMode = false) {
   let core = null;
   let patterns = null;
   try {
-    if (decryptError) {
-      /* skip */
-    }
-    // v2 container: use readDataMap
-    else if (listContainerEntries(abs).includes('payload.kdnab')) {
+    if (!decryptError) {
       const dm = readContainerDataMap(abs, decryptOptions);
       core = dm['KDNA_Core.json'] || null;
       patterns = dm['KDNA_Patterns.json'] || null;
-    }
-    // v1 container: read individual files
-    else {
-      core = readContainerJson(abs, 'KDNA_Core.json', decryptOptions);
-      patterns = readContainerJson(abs, 'KDNA_Patterns.json', decryptOptions);
     }
   } catch (e) {
     if (!encryptedEntries.length) error(`Cannot inspect .kdna asset: ${e.message}`);
     decryptError = e.message;
   }
 
-  if (!core && !encryptedEntries.includes('KDNA_Core.json')) {
-    error('KDNA_Core.json not found in container');
+  if (!core && !encryptedEntries.includes('payload.kdnab')) {
+    error('KDNA_Core.json not found in container payload');
   }
 
   const m = manifest || {};
@@ -637,7 +557,6 @@ function inspectKdnaFile(filePath, jsonMode = false) {
     const result = {
       name: m.name || c.meta?.domain || path.basename(abs, '.kdna'),
       format: 'kdna-zip',
-      spec: m.spec_version || null,
       version: m.version || null,
       status: m.status || 'experimental',
       access: m.access || 'public',
@@ -669,7 +588,6 @@ function inspectKdnaFile(filePath, jsonMode = false) {
   console.log('═'.repeat(50));
   console.log('');
   console.log(`  Format:      .kdna (ZIP container)`);
-  console.log(`  Spec:        ${m.spec_version || '?'}`);
   console.log(`  Version:     ${m.version || '?'}`);
   console.log(`  Status:      ${m.status || 'experimental'}`);
   console.log(`  Access:      ${m.access || 'public'}`);

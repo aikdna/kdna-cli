@@ -42,8 +42,7 @@ function createAsset(tmpRoot) {
   fs.mkdirSync(source, { recursive: true });
   writeJson(path.join(source, 'kdna.json'), {
     format: 'kdna',
-    format_version: '1.0',
-    spec_version: '1.0-rc',
+    kdna_version: '1.0',
     name: '@aikdna/writing',
     version: '0.1.0',
     judgment_version: '2026.05',
@@ -108,7 +107,7 @@ function createAsset(tmpRoot) {
 src = ${JSON.stringify(source)}
 out = ${JSON.stringify(asset)}
 with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
-    zf.writestr(zipfile.ZipInfo('mimetype'), 'application/vnd.aikdna.kdna+zip', compress_type=zipfile.ZIP_STORED)
+    zf.writestr(zipfile.ZipInfo('mimetype'), 'application/vnd.kdna.asset', compress_type=zipfile.ZIP_STORED)
     for name in sorted(os.listdir(src)):
         zf.write(os.path.join(src, name), name)
 `;
@@ -123,8 +122,7 @@ function createLicensedAsset(tmpRoot) {
   const fingerprint = machineFingerprint();
   const manifest = {
     format: 'kdna',
-    format_version: '1.0',
-    spec_version: '1.0-rc',
+    kdna_version: '1.0',
     name: '@aikdna/writing_pro',
     version: '0.2.0',
     judgment_version: '2026.05',
@@ -204,7 +202,7 @@ function createLicensedAsset(tmpRoot) {
 src = ${JSON.stringify(source)}
 out = ${JSON.stringify(asset)}
 with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
-    zf.writestr(zipfile.ZipInfo('mimetype'), 'application/vnd.aikdna.kdna+zip', compress_type=zipfile.ZIP_STORED)
+    zf.writestr(zipfile.ZipInfo('mimetype'), 'application/vnd.kdna.asset', compress_type=zipfile.ZIP_STORED)
     for name in sorted(os.listdir(src)):
         zf.write(os.path.join(src, name), name)
 `;
@@ -223,7 +221,7 @@ function trustedAuthoringManifest(overrides = {}) {
       compiled_at: '2026-06-20T00:00:00.000Z',
       conformance: {
         passed: true,
-        spec_version: '1.0',
+        kdna_version: '1.0',
       },
       asset_uid: 'urn:uuid:00000000-0000-4000-8000-000000000001',
       project_uid: 'project-001',

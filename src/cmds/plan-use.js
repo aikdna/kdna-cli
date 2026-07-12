@@ -14,13 +14,24 @@ const { error, EXIT, readJson } = require('./_common');
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-function hex16() { return crypto.randomBytes(16).toString('hex'); }
-function sha256(data) { return 'sha256:' + crypto.createHash('sha256').update(data).digest('hex'); }
+function hex16() {
+  return crypto.randomBytes(16).toString('hex');
+}
+function sha256(data) {
+  return 'sha256:' + crypto.createHash('sha256').update(data).digest('hex');
+}
 
 function loadCore() {
-  try { return require('@aikdna/kdna-core'); } catch (_) {}
-  try { return require(path.resolve(__dirname, '..', '..', '..', 'kdna', 'packages', 'kdna-core')); } catch (_) {}
-  error('@aikdna/kdna-core is required for kdna plan-use. Install: npm install @aikdna/kdna-core', EXIT.DEPENDENCY_ERROR || 6);
+  try {
+    return require('@aikdna/kdna-core');
+  } catch (_) {}
+  try {
+    return require(path.resolve(__dirname, '..', '..', '..', 'kdna', 'packages', 'kdna-core'));
+  } catch (_) {}
+  error(
+    '@aikdna/kdna-core is required for kdna plan-use. Install: npm install @aikdna/kdna-core',
+    EXIT.DEPENDENCY_ERROR || 6,
+  );
 }
 
 function resolveAssetTarget(nameOrPath) {
@@ -57,6 +68,24 @@ function loadManifest(absPath) {
  */
 function determineApplicability(manifest, task) {
   const taskLower = (task || '').toLowerCase();
+
+  // Empty/single-char/whitespace-only tasks cannot match any domain
+  if (!task || task.trim().length < 2) {
+    return {
+      decision: 'ask',
+      confidence: 'low',
+      matched_signals: [],
+      boundary_check: {
+        in_scope: false,
+        warnings: [
+          'Task is too short to determine applicability. Provide a meaningful task description.',
+        ],
+        not_applicable_reasons: ['insufficient task description'],
+      },
+      load_condition_met: false,
+    };
+  }
+
   const signals = [];
 
   // Check trigger_signals from core
@@ -67,23 +96,30 @@ function determineApplicability(manifest, task) {
 
   // Check load_condition
   const loadCondition = manifest?.load_condition || manifest?.core?.load_condition || '';
-  const loadConditionMet = !loadCondition || taskLower.split(/\s+/).some(w =>
-    loadCondition.toLowerCase().includes(w.toLowerCase())
-  ) || signals.length > 0;
+  const loadConditionMet =
+    !loadCondition ||
+    taskLower.split(/\s+/).some((w) => loadCondition.toLowerCase().includes(w.toLowerCase())) ||
+    signals.length > 0;
 
   // Check boundaries
   const appliesWhen = manifest?.applies_when || manifest?.core?.applies_when || [];
-  const doesNotApplyWhen = manifest?.does_not_apply_when || manifest?.core?.does_not_apply_when || [];
+  const doesNotApplyWhen =
+    manifest?.does_not_apply_when || manifest?.core?.does_not_apply_when || [];
 
-  const inScope = appliesWhen.length === 0 || appliesWhen.some(aw => taskLower.includes(aw.toLowerCase()));
-  const outOfScope = doesNotApplyWhen.some(na => taskLower.includes(na.toLowerCase()));
+  const inScope =
+    appliesWhen.length === 0 || appliesWhen.some((aw) => taskLower.includes(aw.toLowerCase()));
+  const outOfScope = doesNotApplyWhen.some((na) => taskLower.includes(na.toLowerCase()));
 
   if (outOfScope) {
     return {
       decision: 'does_not_apply',
       confidence: 'high',
       matched_signals: [],
-      boundary_check: { in_scope: false, warnings: [], not_applicable_reasons: ['Task matches does_not_apply_when boundary'] },
+      boundary_check: {
+        in_scope: false,
+        warnings: [],
+        not_applicable_reasons: ['Task matches does_not_apply_when boundary'],
+      },
       load_condition_met: true,
     };
   }
@@ -93,7 +129,13 @@ function determineApplicability(manifest, task) {
       decision: 'ask',
       confidence: 'low',
       matched_signals: signals,
-      boundary_check: { in_scope: false, warnings: ['Task does not clearly match applies_when boundaries. Consider asking user to confirm scope.'], not_applicable_reasons: [] },
+      boundary_check: {
+        in_scope: false,
+        warnings: [
+          'Task does not clearly match applies_when boundaries. Consider asking user to confirm scope.',
+        ],
+        not_applicable_reasons: [],
+      },
       load_condition_met: loadConditionMet,
     };
   }
@@ -103,8 +145,27 @@ function determineApplicability(manifest, task) {
       decision: 'ask',
       confidence: 'medium',
       matched_signals: [],
-      boundary_check: { in_scope: true, warnings: ['No trigger signals matched but boundaries are in scope. Confirm with user.'], not_applicable_reasons: [] },
+      boundary_check: {
+        in_scope: true,
+        warnings: ['No trigger signals matched but boundaries are in scope. Confirm with user.'],
+        not_applicable_reasons: [],
+      },
       load_condition_met: loadConditionMet,
+    };
+  }
+
+  // Fail closed: an explicit load condition that is not met blocks applicability
+  if (!loadConditionMet && loadCondition) {
+    return {
+      decision: 'does_not_apply',
+      confidence: 'medium',
+      matched_signals: [],
+      boundary_check: {
+        in_scope: true,
+        warnings: [],
+        not_applicable_reasons: ['Load condition not met for this task'],
+      },
+      load_condition_met: false,
     };
   }
 
@@ -124,12 +185,17 @@ function computeProjection(manifest, shape, budgetProfile) {
   const shape_ = validShapes.includes(shape) ? shape : 'compact';
 
   // Budget-to-shape alignment
-  const budgetToShape = { 'interactive': 'answer-pattern', 'code-review': 'compact', 'offline-audit': 'full' };
+  const budgetToShape = {
+    interactive: 'answer-pattern',
+    'code-review': 'compact',
+    'offline-audit': 'full',
+  };
 
   return {
     shape: shape_,
-    content_digest: sha256(JSON.stringify({ manifest: manifest?.name || manifest?.asset_id, shape: shape_ })),
-    recommended_shape: budgetToShape[budgetProfile] || 'compact',
+    content_digest: sha256(
+      JSON.stringify({ manifest: manifest?.name || manifest?.asset_id, shape: shape_ }),
+    ),
     inline: false,
   };
 }
@@ -137,7 +203,7 @@ function computeProjection(manifest, shape, budgetProfile) {
 // ── Budget ────────────────────────────────────────────────────────────
 
 const BUDGET_PROFILES = {
-  'interactive': { max_tokens: 800, max_chars: 2500, max_assets: 3 },
+  interactive: { max_tokens: 800, max_chars: 2500, max_assets: 3 },
   'code-review': { max_tokens: 1200, max_chars: 3500, max_assets: 8 },
   'offline-audit': { max_tokens: 0, max_chars: 0, max_assets: 20 },
 };
@@ -156,10 +222,9 @@ function computeBudget(profile, assetsConsumed) {
 // ── Plan Generation ──────────────────────────────────────────────────
 
 function generatePlanId(assetPath, task) {
-  return 'plan_' + crypto.createHash('sha256')
-    .update(`${assetPath}:${task}`)
-    .digest('hex')
-    .slice(0, 16);
+  return (
+    'plan_' + crypto.createHash('sha256').update(`${assetPath}:${task}`).digest('hex').slice(0, 16)
+  );
 }
 
 function generateConsumptionPlan(opts) {
@@ -168,7 +233,11 @@ function generateConsumptionPlan(opts) {
   const abs = path.resolve(assetPath);
   const planId = generatePlanId(abs, task || '');
   const applicability = determineApplicability(manifest, task || '');
-  const projection = computeProjection(manifest, shape || 'compact', budgetProfile || 'code-review');
+  const projection = computeProjection(
+    manifest,
+    shape || 'compact',
+    budgetProfile || 'code-review',
+  );
   const budget = computeBudget(budgetProfile || 'code-review', 1);
 
   const inputHash = sha256(task || '');
@@ -179,7 +248,10 @@ function generateConsumptionPlan(opts) {
     asset_ref: {
       asset_id: manifest?.asset_id || manifest?.name || path.basename(abs, '.kdna'),
       version: manifest?.version || '0.1.0',
-      digest: manifest?.asset_digest || manifest?.content_digest || 'sha256:' + '0'.repeat(64),
+      digest:
+        manifest?.asset_digest || manifest?.content_digest
+          ? manifest.asset_digest || manifest.content_digest
+          : null,
       access: manifest?.access || 'public',
     },
     task: {
@@ -195,7 +267,6 @@ function generateConsumptionPlan(opts) {
     applicability,
     projection_ref: projection,
     budget,
-    runner: null, // plan-use doesn't select a runner
     evidence_refs: [],
     trace_policy: {
       emit: ['decision', 'cost', 'projection', 'provenance', 'result'],
@@ -235,7 +306,11 @@ function planSingleAsset(assetPath, opts = {}) {
       });
     }
   } catch (e) {
-    loadPlan = { state: 'invalid', can_load_now: false, issues: [{ code: 'LOADPLAN_ERROR', message: e.message, blocking: true }] };
+    loadPlan = {
+      state: 'invalid',
+      can_load_now: false,
+      issues: [{ code: 'LOADPLAN_ERROR', message: e.message, blocking: true }],
+    };
   }
 
   // If loadPlan is blocked, still emit a plan — but with blocked status
@@ -246,11 +321,13 @@ function planSingleAsset(assetPath, opts = {}) {
     budgetProfile,
     shape,
     manifest,
-    loadPlan: loadPlan ? {
-      plan_id: loadPlan.plan_id,
-      status: (loadPlan.state === 'valid' || loadPlan.can_load_now) ? 'ready' : 'blocked',
-      issues: loadPlan.issues || [],
-    } : undefined,
+    loadPlan: loadPlan
+      ? {
+          plan_id: loadPlan.plan_id,
+          status: loadPlan.state === 'valid' || loadPlan.can_load_now ? 'ready' : 'blocked',
+          issues: loadPlan.issues || [],
+        }
+      : undefined,
     mode: 'single',
   });
 
@@ -261,7 +338,7 @@ function planSingleAsset(assetPath, opts = {}) {
 
 function cmdPlanUse(args) {
   const getFlag = (name) => {
-    const eqIdx = args.findIndex(a => a === name + '=' || a.startsWith(name + '='));
+    const eqIdx = args.findIndex((a) => a === name + '=' || a.startsWith(name + '='));
     if (eqIdx >= 0) {
       const parts = args[eqIdx].split('=');
       return parts.slice(1).join('=') || null;
@@ -270,7 +347,7 @@ function cmdPlanUse(args) {
     return idx >= 0 && args[idx + 1] && !args[idx + 1].startsWith('--') ? args[idx + 1] : null;
   };
 
-  const posArgs = args.filter(a => !a.startsWith('--'));
+  const posArgs = args.filter((a) => !a.startsWith('--'));
   const target = posArgs[0];
 
   if (!target || args.includes('--help') || args.includes('-h')) {
@@ -306,21 +383,30 @@ function cmdPlanUse(args) {
   if (!abs) error(`Target not found: ${target}`, EXIT.INPUT_ERROR);
 
   let plan;
-  const isCluster = abs.endsWith('.json') && !abs.endsWith('kdna.json') && !abs.endsWith('checksums.json');
+  const isCluster =
+    abs.endsWith('.json') && !abs.endsWith('kdna.json') && !abs.endsWith('checksums.json');
 
   if (isCluster) {
-    // Cluster plan — Phase 5 will implement fully
+    // Cluster plan — route to cluster engine
     try {
       const manifest = readJson(abs);
       if (manifest?.format === 'kdna-cluster' || manifest?.cluster_id) {
-        plan = planSingleAsset(target, { task, taskFamily, budgetProfile, shape });
-        plan.mode = 'cluster';
-        plan.note = 'Cluster plan-use will be fully implemented in Phase 5. This is a single-asset plan with cluster metadata.';
+        const { generateClusterPlan, validateClusterManifest } = require('../cluster-engine');
+        const validation = validateClusterManifest(manifest);
+        if (!validation.valid) {
+          error(
+            `Cluster manifest invalid:\n${validation.errors.map((e) => `  - ${e}`).join('\n')}`,
+            EXIT.VALIDATION_FAILED,
+          );
+        }
+        plan = generateClusterPlan(manifest, task || '', { taskFamily, budgetProfile, shape });
+        if (planIdOverride) plan.plan_id = planIdOverride;
       } else {
         error(`Not a valid cluster manifest: ${target}`, EXIT.INPUT_ERROR);
       }
     } catch (e) {
-      error(`Cannot parse cluster manifest: ${e.message}`, EXIT.INPUT_ERROR);
+      if (e.code === 'MODULE_NOT_FOUND' || e.message?.includes('Cannot find')) throw e;
+      error(`Cannot process cluster manifest: ${e.message}`, EXIT.INPUT_ERROR);
     }
   } else {
     plan = planSingleAsset(target, { task, taskFamily, budgetProfile, shape });
@@ -338,11 +424,15 @@ function cmdPlanUse(args) {
   if (as === 'json') {
     console.log(jsonOutput);
   } else if (as === 'md') {
-    // Markdown rendering
+    // Markdown rendering — use mode-appropriate fields
     let md = `# Consumption Plan\n\n`;
     md += `**Plan ID:** ${plan.plan_id}\n`;
     md += `**Mode:** ${plan.mode}\n`;
-    md += `**Asset:** ${plan.asset_ref.asset_id} v${plan.asset_ref.version}\n\n`;
+    if (plan.mode === 'cluster' && plan.cluster_ref) {
+      md += `**Cluster:** ${plan.cluster_ref.cluster_id} v${plan.cluster_ref.version}\n\n`;
+    } else if (plan.asset_ref) {
+      md += `**Asset:** ${plan.asset_ref.asset_id} v${plan.asset_ref.version}\n\n`;
+    }
     md += `## Task\n\n${plan.task.summary || '(no task)'}\n\n`;
     md += `## Applicability\n\n`;
     md += `- **Decision:** ${plan.applicability.decision}\n`;

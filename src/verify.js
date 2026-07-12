@@ -36,9 +36,7 @@ function validateManifestFn(manifest) {
   const errors = [];
   const warnings = [];
   const required = [
-    'format',
-    'format_version',
-    'spec_version',
+    'kdna_version',
     'name',
     'version',
     'judgment_version',
@@ -52,7 +50,7 @@ function validateManifestFn(manifest) {
     'default_language',
   ];
 
-  if (manifest.kdna_spec) errors.push('kdna.json: kdna_spec is not allowed. Use spec_version.');
+  if (manifest.kdna_spec) errors.push('kdna.json: kdna_spec is not allowed. Use kdna_version.');
   if (manifest.language)
     errors.push('kdna.json: language is not allowed. Use default_language and languages.');
   for (const field of required) {
@@ -63,18 +61,11 @@ function validateManifestFn(manifest) {
   if (manifest.format && manifest.format !== 'kdna') {
     errors.push(`kdna.json.format: invalid value "${manifest.format}". Expected "kdna".`);
   }
-  if (
-    manifest.format_version &&
-    manifest.format_version !== '1.0' &&
-    manifest.format_version !== '2.0'
-  ) {
+  if (!manifest.kdna_version) {
+    errors.push('kdna.json: missing required field "kdna_version"');
+  } else if (manifest.kdna_version !== '1.0') {
     errors.push(
-      `kdna.json.format_version: invalid value "${manifest.format_version}". Expected "1.0" or "2.0".`,
-    );
-  }
-  if (manifest.spec_version && manifest.spec_version !== '1.0-rc') {
-    warnings.push(
-      `kdna.json.spec_version: non-standard value "${manifest.spec_version}". Expected "1.0-rc".`,
+      `kdna.json.kdna_version: invalid value "${manifest.kdna_version}". Expected "1.0".`,
     );
   }
   return { errors, warnings };
@@ -200,7 +191,7 @@ function checkStructure(input, options = {}) {
       for (const e of mResult.errors) issues.push({ severity: 'error', msg: e });
       for (const w of mResult.warnings) issues.push({ severity: 'warn', msg: w });
       if (mResult.errors.length === 0)
-        passed.push('kdna.json conforms to KDNA Core v1 manifest schema');
+        passed.push('kdna.json conforms to KDNA Core manifest schema');
     }
   }
 
@@ -764,7 +755,7 @@ function cmdVerify(input, args = []) {
           failures: trust.failures,
           warnings: trust.warnings,
           risk_level: trust.riskLevel,
-          spec_version: trust.specVersion,
+          kdna_version: trust.kdnaVersion,
           signature_valid: trust.signatureValid,
         },
         null,

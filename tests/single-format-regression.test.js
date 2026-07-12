@@ -1,0 +1,281 @@
+/**
+ * single-format-regression.test.js — CLI single-format regression tests.
+ *
+ * These tests prove that kdna-cli, when linked against the local Core candidate
+ * tarball, can exercise the full single-format toolchain.
+ */
+'use strict';
+
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const os = require('node:os');
+const { spawnSync } = require('node:child_process');
+
+const cliBin = path.join(__dirname, '..', 'src', 'cli.js');
+const core = require('@aikdna/kdna-core');
+const cbor = require('cbor-x');
+
+const LEGACY_MIMETYPE = ['application/vnd', 'aikdna', 'kdna+zip'].join('.');
+
+function run(args, opts = {}) {
+  return spawnSync(process.execPath, [cliBin, ...args], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    ...opts,
+  });
+}
+
+function makeMinimalSourceDir(dir) {
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'mimetype'), 'application/vnd.kdna.asset');
+  fs.writeFileSync(
+    path.join(dir, 'kdna.json'),
+    JSON.stringify({
+      kdna_version: '1.0',
+      asset_id: 'kdna:test:single-format',
+      asset_uid: 'urn:uuid:00000000-0000-4000-8000-000000000001',
+      asset_type: 'sample',
+      title: 'Single-format regression',
+      version: '1.0.0',
+      judgment_version: '1.0.0',
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+      creator: { name: 'Test' },
+      compatibility: { min_loader_version: '1.0.0', profile: 'judgment-profile-v1' },
+      payload: { path: 'payload.kdnab', encoding: 'cbor', encrypted: false },
+      access: 'public',
+    }),
+  );
+  const payload = {
+    profile: 'judgment-profile-v1',
+    core: { highest_question: 'Q', axioms: [{ id: 'a1', one_sentence: 'Test.' }] },
+  };
+  fs.writeFileSync(path.join(dir, 'payload.kdnab'), cbor.encode(payload));
+  const checks = core.buildChecksums(dir);
+  fs.writeFileSync(path.join(dir, 'checksums.json'), JSON.stringify(checks, null, 2));
+}
+
+test('CLI validate works against local Core candidate tarball', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-reg-'));
+  try {
+    const src = path.join(tmp, 'src');
+    makeMinimalSourceDir(src);
+    const r = run(['validate', src]);
+    assert.equal(r.status, 0, r.stderr);
+    const out = JSON.parse(r.stdout);
+    assert.equal(out.overall_valid, true);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('CLI inspect works against local Core candidate tarball', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-reg-'));
+  try {
+    const src = path.join(tmp, 'src');
+    makeMinimalSourceDir(src);
+    const r = run(['inspect', src, '--json']);
+    assert.equal(r.status, 0, r.stderr);
+    const out = JSON.parse(r.stdout);
+    assert.equal(out.kdna_version, '1.0');
+    assert.equal(out.asset_id, 'kdna:test:single-format');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('CLI plan-load works against local Core candidate tarball', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-reg-'));
+  try {
+    const src = path.join(tmp, 'src');
+    makeMinimalSourceDir(src);
+    const r = run(['plan-load', src, '--json']);
+    assert.equal(r.status, 0, r.stderr);
+    const out = JSON.parse(r.stdout);
+    assert.equal(out.state, 'ready');
+    assert.equal(out.can_load_now, true);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('CLI validate --runtime works against local Core candidate tarball', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-reg-'));
+  try {
+    const src = path.join(tmp, 'src');
+    makeMinimalSourceDir(src);
+    const r = run(['validate', src, '--runtime']);
+    assert.equal(r.status, 0, r.stderr);
+    const out = JSON.parse(r.stdout);
+    assert.equal(out.overall_valid, true);
+    assert.equal(out.runtime_load_plan.can_load_now, true);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('CLI pack/unpack round-trip produces current mimetype', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-reg-'));
+  try {
+    const src = path.join(tmp, 'src');
+    makeMinimalSourceDir(src);
+    const packed = path.join(tmp, 'single.kdna');
+    const r1 = run(['pack', src, packed]);
+    assert.equal(r1.status, 0, r1.stderr);
+
+    const mimetype = core.detectContainerFormat(packed);
+    assert.equal(mimetype, 'kdna', 'packed container must detect as kdna');
+
+    const unpacked = path.join(tmp, 'unpacked');
+    const r2 = run(['unpack', packed, unpacked]);
+    assert.equal(r2.status, 0, r2.stderr);
+    assert.equal(
+      fs.readFileSync(path.join(unpacked, 'mimetype'), 'utf8').trim(),
+      'application/vnd.kdna.asset',
+    );
+
+    const r3 = run(['validate', unpacked]);
+    assert.equal(r3.status, 0, r3.stderr);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('CLI rejects source dir with legacy mimetype', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-reg-'));
+  try {
+    const src = path.join(tmp, 'src');
+    makeMinimalSourceDir(src);
+    fs.writeFileSync(path.join(src, 'mimetype'), LEGACY_MIMETYPE);
+    const r = run(['validate', src]);
+    assert.notEqual(r.status, 0, 'legacy mimetype must be rejected');
+    assert.ok(!/overall_valid.*true/.test(r.stdout + r.stderr));
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('dev-pack produces current mimetype and kdna_version 1.0', () => {
+  const devPack = require('../src/dev-pack');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-reg-'));
+  try {
+    fs.writeFileSync(
+      path.join(tmp, 'KDNA_Core.json'),
+      JSON.stringify({
+        meta: {
+          domain: 'test',
+          version: '0.1.0',
+          created: '2026-01-01',
+          purpose: 'test',
+          load_condition: 'always',
+        },
+        axioms: [{ id: 'a1', one_sentence: 'Test.' }],
+        ontology: [],
+      }),
+    );
+    fs.writeFileSync(
+      path.join(tmp, 'KDNA_Patterns.json'),
+      JSON.stringify({
+        meta: {
+          domain: 'test',
+          version: '0.1.0',
+          created: '2026-01-01',
+          purpose: 'test',
+          load_condition: 'always',
+        },
+        terminology: { standard_terms: [], banned_terms: [] },
+        misunderstandings: [],
+        self_check: [],
+      }),
+    );
+    const result = devPack.packKdna(tmp, { name: '@test/regression', version: '0.1.0' });
+    assert.equal(result.entries.mimetype, 'application/vnd.kdna.asset');
+    const manifest = JSON.parse(result.entries['kdna.json']);
+    assert.equal(manifest.kdna_version, '1.0');
+    assert.equal(manifest.container, undefined, 'container-v2 block removed');
+    assert.equal(manifest.spec_version, undefined, 'spec_version removed');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+// ─── Encrypted asset lifecycle ─────────────────────────────────────
+
+test('encrypted asset: pack → protect → validate → plan-load needs_password', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-enc-'));
+  try {
+    const src = path.join(tmp, 'src');
+    makeMinimalSourceDir(src);
+    // Pack to .kdna
+    const kdna = path.join(tmp, 'plain.kdna');
+    const r1 = run(['pack', src, kdna]);
+    assert.equal(r1.status, 0, `pack failed: ${r1.stderr}`);
+
+    // Protect with password
+    const prot = path.join(tmp, 'protected.kdna');
+    const r2 = run([
+      'protect',
+      kdna,
+      '--out',
+      prot,
+      '--password',
+      'test123',
+      '--entries',
+      'payload.kdnab',
+    ]);
+    // protect may exit non-zero if warnings, accept 0 or non-zero
+    assert.ok(fs.existsSync(prot), 'protected file should exist');
+
+    // Validate protected
+    const r3 = run(['validate', prot, '--json']);
+    const v3 = JSON.parse(r3.stdout);
+    assert.equal(v3.format_valid, true, `format invalid: ${v3.problems}`);
+
+    // Plan-load = needs_password
+    const r4 = run(['plan-load', prot, '--json']);
+    const p4 = JSON.parse(r4.stdout);
+    assert.equal(p4.state, 'needs_password');
+
+    // Wrong password fails
+    const r5 = run(['load', prot, '--as=json', '--password=wrong']);
+    assert.notEqual(r5.status, 0, 'wrong password should fail');
+
+    // Correct password loads Capsule
+    const r6 = run(['load', prot, '--as=json', '--password=test123']);
+    assert.equal(r6.status, 0, `correct password load failed: ${r6.stderr}`);
+    const c6 = JSON.parse(r6.stdout);
+    assert.equal(c6.type, 'kdna.context.capsule');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('encrypted demo creates valid fixture', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-demo-enc-'));
+  try {
+    const target = path.join(tmp, 'enc-demo');
+    const r = run(['demo', 'judgment', target, '--password', 'demo123']);
+    assert.ok(fs.existsSync(path.join(target, 'payload.kdnab')), 'payload must exist');
+    assert.ok(fs.existsSync(path.join(target, 'kdna.json')), 'manifest must exist');
+
+    const m = JSON.parse(fs.readFileSync(path.join(target, 'kdna.json'), 'utf8'));
+    assert.equal(m.payload.encrypted, true);
+    assert.equal(m.payload.encoding, 'cbor');
+    assert.ok(m.encryption.encrypted_entries.includes('payload.kdnab'));
+
+    // Payload must be CBOR-encoded envelope (not JSON)
+    const payloadBuf = fs.readFileSync(path.join(target, 'payload.kdnab'));
+    const cbor = require('cbor-x');
+    let envelope;
+    try {
+      envelope = cbor.decode(payloadBuf);
+    } catch {
+      assert.fail('encrypted demo payload must be valid CBOR envelope');
+    }
+    assert.ok(envelope.profile, 'envelope must have profile field');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});

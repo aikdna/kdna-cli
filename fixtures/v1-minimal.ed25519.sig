@@ -1,17 +1,17 @@
 {
   "version": "1",
   "algorithm": "ed25519",
-  "asset_path": "/Users/kdna/aikdna/open/kdna-cli/fixtures/v1-minimal",
+  "asset_path": "fixtures/v1-minimal",
   "asset_kind": "source-dir",
-  "public_key_fingerprint": "3286be9aaaaf",
-  "public_key_hex": "7b26e39713327856d70ccdf7a4cacdb77f5fc0c8e4d33c52f2bb579bec20121f",
-  "public_key_base64": "eybjlxMyeFbXDM33pMrNt39fwMjk0zxS8rtXm+wgEh8=",
-  "asset_digest": "sha256:385cce517212ac85942d7ab419df2c6612c7b0ece68e833cae9e2fbf5611ea2c",
+  "public_key_fingerprint": "53847f30fb73",
+  "public_key_hex": "91ea82be0c1370dc4bb8286dafeef26e50ded7eec992fcf0ce040d8ae01ea99c",
+  "public_key_base64": "keqCvgwTcNxLuChtr+7yblDe1+7JkvzwzgQNiuAeqZw=",
+  "asset_digest": "sha256:1142a9830c9b38a2fa8f2a5b0c07557c77e3a4d82b66ae941f345358c331f4cc",
   "asset_digest_inputs": {
-    "kdna_json_sha256": "fae062dbca0eb8878eaf28eabeed732a6827443056eb66fb27f3961307630af7",
-    "payload_kdnab_sha256": "593109dd2aaf3fcc7ab9f352d5cd4476596ab9db5850175824e0619796088caf",
-    "checksums_json_sha256": "2c16b159e83cbb1bf25eb2f9e7c7ce5b56b17fe58e986f783e1171af7c474efd"
+    "kdna_json_sha256": "35736b685b80c98ea7b03872cad39c72c812d6170866abf89010fa51798abd57",
+    "payload_kdnab_sha256": "e0855ab99ce773fd5d062357919ecbfa1be41556afa6da954476501efc4a6e01",
+    "checksums_json_sha256": "1791e5d30690e92f0bbb51191ab1e5524aa071a72f57d3275f1bb9e368c14077"
   },
-  "signed_at": "2026-07-11T15:27:31.325Z",
-  "signature_base64": "Z+DLPgthT//pSK/+2BbbTt15FcTpca9RZSQOL/VqGd3WatBtliockZCf0+rmAN0biFS3MF3rxtI8NQz+ppv1DQ=="
+  "signed_at": "2026-07-12T23:47:14.155Z",
+  "signature_base64": "XXahI4jhIqIHzxOMiSzCw3fqSYPwoFMwqOzYMScprtdBPOza/ubS7Es4os9YgwtLefVzOOY1dHeRm1GWghWfAQ=="
 }

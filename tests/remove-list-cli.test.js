@@ -53,7 +53,7 @@ function writeJson(file, data) {
 }
 
 /**
- * Build a minimal v1 .kdna source dir in `tmpRoot/source` and pack
+ * Build a minimal .kdna source dir in `tmpRoot/source` and pack
  * it into `tmpRoot/asset.kdna` using the same Python zipfile recipe
  * the asset-store fixture uses. Returns the absolute .kdna path.
  */
@@ -62,8 +62,7 @@ function buildAsset(tmpRoot, name = '@aikdna/writing', version = '0.1.0') {
   fs.mkdirSync(source, { recursive: true });
   writeJson(path.join(source, 'kdna.json'), {
     format: 'kdna',
-    format_version: '1.0',
-    spec_version: '1.0-rc',
+    kdna_version: '1.0',
     name,
     version,
     judgment_version: '2026.05',
@@ -111,7 +110,7 @@ function buildAsset(tmpRoot, name = '@aikdna/writing', version = '0.1.0') {
 src = ${JSON.stringify(source)}
 out = ${JSON.stringify(asset)}
 with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
-    zf.writestr(zipfile.ZipInfo('mimetype'), 'application/vnd.aikdna.kdna+zip', compress_type=zipfile.ZIP_STORED)
+    zf.writestr(zipfile.ZipInfo('mimetype'), 'application/vnd.kdna.asset', compress_type=zipfile.ZIP_STORED)
     for name in sorted(os.listdir(src)):
         zf.write(os.path.join(src, name), name)
 `;

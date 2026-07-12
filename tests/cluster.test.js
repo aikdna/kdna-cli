@@ -37,7 +37,8 @@ const CANONICAL_MANIFEST = {
       role: 'advisor',
       required: false,
       load_condition: 'Task introduces or modifies a public API surface.',
-      contribution_hypothesis_template: 'API surface introduces a design dimension beyond deploy risk.',
+      contribution_hypothesis_template:
+        'API surface introduces a design dimension beyond deploy risk.',
     },
     {
       id: '@aikdna/creator-brand-positioning',
@@ -87,9 +88,15 @@ it('validates canonical manifest', () => {
 });
 
 it('rejects missing format', () => {
-  const r = validateClusterManifest({ name: 'test', version: '1.0', cluster_id: 'x', domains: [], composition: {} });
+  const r = validateClusterManifest({
+    name: 'test',
+    version: '1.0',
+    cluster_id: 'x',
+    domains: [],
+    composition: {},
+  });
   assert.strictEqual(r.valid, false);
-  assert.ok(r.errors.some(e => e.includes('format')));
+  assert.ok(r.errors.some((e) => e.includes('format')));
 });
 
 it('rejects no primary-candidate', () => {
@@ -97,7 +104,7 @@ it('rejects no primary-candidate', () => {
   noPrimary.domains[0].role = 'advisor';
   const r = validateClusterManifest(noPrimary);
   assert.strictEqual(r.valid, false);
-  assert.ok(r.errors.some(e => e.includes('NO_PRIMARY_CANDIDATE')));
+  assert.ok(r.errors.some((e) => e.includes('NO_PRIMARY_CANDIDATE')));
 });
 
 it('rejects advisor missing contribution hypothesis', () => {
@@ -105,16 +112,19 @@ it('rejects advisor missing contribution hypothesis', () => {
   delete noHyp.domains[1].contribution_hypothesis_template;
   const r = validateClusterManifest(noHyp);
   assert.strictEqual(r.valid, false);
-  assert.ok(r.errors.some(e => e.includes('MISSING_ADVISOR_HYPOTHESIS')));
+  assert.ok(r.errors.some((e) => e.includes('MISSING_ADVISOR_HYPOTHESIS')));
 });
 
 it('warns on experimental roles', () => {
   const withExp = JSON.parse(JSON.stringify(CANONICAL_MANIFEST));
   withExp.domains.push({
-    id: '@aikdna/test-critic', version: '^0.1.0', role: 'critic', required: false,
+    id: '@aikdna/test-critic',
+    version: '^0.1.0',
+    role: 'critic',
+    required: false,
   });
   const r = validateClusterManifest(withExp);
-  assert.ok(r.warnings.some(w => w.includes('experimental')));
+  assert.ok(r.warnings.some((w) => w.includes('experimental')));
 });
 
 it('rejects invalid role', () => {
@@ -133,7 +143,7 @@ it('warns when budget max_assets < domain count', () => {
   const tight = JSON.parse(JSON.stringify(CANONICAL_MANIFEST));
   tight.budget.max_assets = 1;
   const r = validateClusterManifest(tight);
-  assert.ok(r.warnings.some(w => w.includes('max_assets')));
+  assert.ok(r.warnings.some((w) => w.includes('max_assets')));
 });
 
 // ── Candidate Resolution ──────────────────────────────────────────────
@@ -146,7 +156,7 @@ it('resolves candidates for matching task', () => {
 
 it('resolves candidates for non-matching task', () => {
   const r = resolveCandidates(CANONICAL_MANIFEST, 'Write a blog post about our launch');
-  const primary = r.primary_candidates.filter(c => c.match_quality !== 'none');
+  const primary = r.primary_candidates.filter((c) => c.match_quality !== 'none');
   assert.ok(primary.length <= 1); // may match or not, depending on load_condition
 });
 
@@ -173,9 +183,17 @@ it('blocks when no primary matches', () => {
 // ── Advisor Selection ─────────────────────────────────────────────────
 
 it('selects advisors with valid hypotheses', () => {
-  const resolution = resolveCandidates(CANONICAL_MANIFEST, 'Launch new notification API v2 to production');
+  const resolution = resolveCandidates(
+    CANONICAL_MANIFEST,
+    'Launch new notification API v2 to production',
+  );
   const primaryResult = arbitratePrimary(resolution, CANONICAL_MANIFEST);
-  const advisorResult = selectAdvisors(resolution, primaryResult, CANONICAL_MANIFEST, 'Launch new notification API v2');
+  const advisorResult = selectAdvisors(
+    resolution,
+    primaryResult,
+    CANONICAL_MANIFEST,
+    'Launch new notification API v2',
+  );
   assert.ok(advisorResult.advisors.length >= 0);
   // Each accepted advisor must have a contribution hypothesis
   for (const a of advisorResult.advisors) {
@@ -189,7 +207,12 @@ it('selects advisors with valid hypotheses', () => {
 it('detects declared conflicts', () => {
   const withConflict = JSON.parse(JSON.stringify(CANONICAL_MANIFEST));
   withConflict.relationships = [
-    { from: '@aikdna/dev-change-risk', to: '@aikdna/dev-api-design-judgment', type: 'conflicts_with', description: 'Risk and API design may conflict' },
+    {
+      from: '@aikdna/dev-change-risk',
+      to: '@aikdna/dev-api-design-judgment',
+      type: 'conflicts_with',
+      description: 'Risk and API design may conflict',
+    },
   ];
   const resolution = resolveCandidates(withConflict, 'Deploy new API');
   const primaryResult = arbitratePrimary(resolution, withConflict);
@@ -201,15 +224,27 @@ it('detects declared conflicts', () => {
 it('no conflicts for clean manifest', () => {
   const resolution = resolveCandidates(CANONICAL_MANIFEST, 'Review this PR');
   const primaryResult = arbitratePrimary(resolution, CANONICAL_MANIFEST);
-  const advisorResult = selectAdvisors(resolution, primaryResult, CANONICAL_MANIFEST, 'Review this PR');
-  const conflicts = detectConflicts(primaryResult.primary, advisorResult.advisors, CANONICAL_MANIFEST);
-  assert.ok(conflicts.filter(c => c.severity === 'error').length === 0);
+  const advisorResult = selectAdvisors(
+    resolution,
+    primaryResult,
+    CANONICAL_MANIFEST,
+    'Review this PR',
+  );
+  const conflicts = detectConflicts(
+    primaryResult.primary,
+    advisorResult.advisors,
+    CANONICAL_MANIFEST,
+  );
+  assert.ok(conflicts.filter((c) => c.severity === 'error').length === 0);
 });
 
 // ── Cluster Plan ──────────────────────────────────────────────────────
 
 it('generates cluster ConsumptionPlan (0.9)', () => {
-  const plan = generateClusterPlan(CANONICAL_MANIFEST, 'Launch notification API to production on Tuesday');
+  const plan = generateClusterPlan(
+    CANONICAL_MANIFEST,
+    'Launch notification API to production on Tuesday',
+  );
   assert.strictEqual(plan.plan_version, '0.9.0');
   assert.strictEqual(plan.mode, 'cluster');
   assert.ok(plan.plan_id.startsWith('plan_'));
@@ -235,7 +270,10 @@ it('cluster plan IDs are deterministic', () => {
 // ── Cluster Trace ─────────────────────────────────────────────────────
 
 it('generates cluster JudgmentTrace', () => {
-  const plan = generateClusterPlan(CANONICAL_MANIFEST, 'Launch API v2 on Tuesday');
+  const plan = generateClusterPlan(
+    CANONICAL_MANIFEST,
+    'Should we deploy this API change to production on Tuesday?',
+  );
   const runnerResult = {
     status: 'completed',
     runner_id: 'mock:default',
@@ -248,6 +286,16 @@ it('generates cluster JudgmentTrace', () => {
     result: { shape: 'answer-pattern', answer: 'Proceed with launch' },
     errors: [],
     warnings: [],
+    assets_loaded: [
+      {
+        asset_id: plan.selection.primary.asset_id,
+        version: plan.selection.primary.version,
+        digest: plan.selection.primary.digest,
+        role: 'primary',
+        digest_verified: true,
+        authorization: 'public',
+      },
+    ],
   };
   const trace = generateClusterTrace(plan, runnerResult);
   assert.strictEqual(trace.trace_version, '0.9.0');
@@ -256,7 +304,7 @@ it('generates cluster JudgmentTrace', () => {
   assert.strictEqual(trace.plan_id, plan.plan_id);
   assert.ok(trace.assets_loaded);
   assert.ok(Array.isArray(trace.assets_loaded));
-  assert.ok(trace.assets_loaded.some(a => a.role === 'primary'));
+  assert.ok(trace.assets_loaded.some((a) => a.role === 'primary'));
   assert.ok(trace.result_ref);
 });
 
@@ -283,8 +331,20 @@ it('migrates from schema-b-domains format', () => {
     version: '0.2.0',
     type: 'vertical',
     domains: [
-      { id: '@test/primary', version: '^0.1.0', role: 'primary', required: true, load_condition: 'test' },
-      { id: '@test/risk', version: '^0.1.0', role: 'risk_guard', required: false, load_condition: 'risk' },
+      {
+        id: '@test/primary',
+        version: '^0.1.0',
+        role: 'primary',
+        required: true,
+        load_condition: 'test',
+      },
+      {
+        id: '@test/risk',
+        version: '^0.1.0',
+        role: 'risk_guard',
+        required: false,
+        load_condition: 'risk',
+      },
     ],
     composition: { strategy: 'fixed', conflict_policy: 'block' },
   };
@@ -292,7 +352,7 @@ it('migrates from schema-b-domains format', () => {
   assert.ok(manifest);
   assert.strictEqual(manifest.type, 'vertical');
   assert.strictEqual(manifest.domains[1].role, 'constraint');
-  assert.ok(report.warnings.some(w => w.includes('risk_guard')));
+  assert.ok(report.warnings.some((w) => w.includes('risk_guard')));
 });
 
 it('migration report is machine-readable', () => {
@@ -311,6 +371,134 @@ it('CANONICAL_ROLES includes primary-candidate and advisor', () => {
   assert.ok(CANONICAL_ROLES.includes('advisor'));
   assert.ok(STABLE_ROLES.includes('primary-candidate'));
   assert.ok(EXPERIMENTAL_ROLES.includes('constraint'));
+});
+
+// ── Round 4: Trust facts ──────────────────────────────────────────────
+it('cluster trace reports no loaded assets for mock runner without observations', () => {
+  const plan = generateClusterPlan(
+    CANONICAL_MANIFEST,
+    'Deploy this API change to production on Friday?',
+  );
+  const rr = {
+    status: 'completed',
+    runner_id: 'mock:default',
+    runner_version: '0.1.0',
+    model: 'test',
+    started_at: new Date().toISOString(),
+    completed_at: new Date().toISOString(),
+    duration_ms: 5000,
+    cost: { tokens_used: 500 },
+    result: { shape: 'answer-pattern', answer: 'Proceed' },
+    errors: [],
+    warnings: [],
+    attempts: [{ attempt: 1, status: 'completed' }],
+  };
+  const trace = generateClusterTrace(plan, rr);
+  assert.deepStrictEqual(trace.assets_loaded, []);
+  assert.strictEqual(trace.cost.assets_loaded, 0);
+});
+
+it('cluster trace preserves observed Core verification facts from runner', () => {
+  const plan = generateClusterPlan(
+    CANONICAL_MANIFEST,
+    'Deploy this API change to production on Friday?',
+  );
+  const observed = {
+    asset_id: plan.selection.primary.asset_id,
+    version: plan.selection.primary.version,
+    digest: plan.selection.primary.digest,
+    role: 'primary',
+    digest_verified: true,
+    authorization: 'public',
+  };
+  const rr = {
+    status: 'completed',
+    runner_id: 'cli:default',
+    runner_version: '0.1.0',
+    model: null,
+    started_at: new Date().toISOString(),
+    completed_at: new Date().toISOString(),
+    duration_ms: 5,
+    cost: { tokens_used: 0 },
+    result: { shape: 'answer-pattern', answer: 'Loaded' },
+    errors: [],
+    warnings: [],
+    attempts: [{ attempt: 1, status: 'completed' }],
+    assets_loaded: [observed],
+  };
+  const trace = generateClusterTrace(plan, rr);
+  assert.strictEqual(trace.assets_loaded.length, 1);
+  assert.strictEqual(trace.assets_loaded[0].digest_verified, true);
+  assert.strictEqual(trace.cost.assets_loaded, 1);
+});
+
+it('cluster trace on runner_error has empty assets_loaded and costs 0', () => {
+  const plan = generateClusterPlan(
+    CANONICAL_MANIFEST,
+    'Deploy this API change to production on Friday?',
+  );
+  const rr = {
+    status: 'runner_error',
+    runner_id: 'mock:default',
+    runner_version: '0.1.0',
+    model: null,
+    started_at: new Date().toISOString(),
+    completed_at: new Date().toISOString(),
+    duration_ms: 100,
+    cost: { tokens_used: 0 },
+    result: null,
+    errors: ['Failed'],
+    warnings: [],
+    attempts: [{ attempt: 1, status: 'error' }],
+  };
+  const trace = generateClusterTrace(plan, rr);
+  assert.strictEqual(trace.assets_loaded.length, 0);
+  assert.strictEqual(trace.cost.assets_loaded, 0);
+  assert.ok(trace.errors.length > 0);
+});
+
+// ── Round 4: Routing edge cases ──────────────────────────────────────
+it('empty task returns no candidates', () => {
+  const r = resolveCandidates(CANONICAL_MANIFEST, '');
+  assert.strictEqual(r.candidates.length, 0);
+  assert.strictEqual(r.primary_candidates.length, 0);
+});
+
+it('single-char task returns no candidates', () => {
+  const r = resolveCandidates(CANONICAL_MANIFEST, 'a');
+  assert.strictEqual(r.candidates.length, 0);
+});
+
+it('Chinese deploy task matches Chinese deployment load condition', () => {
+  const zhManifest = JSON.parse(JSON.stringify(CANONICAL_MANIFEST));
+  zhManifest.domains[0].load_condition = '任务涉及部署、回滚或生产变更决策。';
+  zhManifest.domains[1].load_condition = '任务引入新的公共 API 表面。';
+  const r = resolveCandidates(zhManifest, '这个任务涉及部署决策');
+  const primary = r.candidates.find((c) => c.role === 'primary-candidate');
+  assert.ok(primary, 'Should have a primary candidate');
+  assert.notStrictEqual(primary.match_quality, 'none');
+});
+
+it('Chinese stopwords-only text matches no domains', () => {
+  const zhManifest = JSON.parse(JSON.stringify(CANONICAL_MANIFEST));
+  zhManifest.domains[0].load_condition = '任务涉及部署、回滚或生产变更决策。';
+  zhManifest.domains[1].load_condition = '任务引入新的公共 API 表面。';
+  const r = resolveCandidates(zhManifest, '这个任务是什么');
+  // Only CJK stopwords (这个, 任务, 是, 什么) with no content-bearing CJK sequences ≥2 chars matching the load condition
+  const matched = r.candidates.filter((c) => c.match_quality !== 'none');
+  assert.ok(
+    matched.length === 0,
+    'Stopword-only Chinese text should not match any domain load conditions',
+  );
+});
+
+it('Chinese tokenizer does not match deployment from an unrelated design decision', () => {
+  const zhManifest = JSON.parse(JSON.stringify(CANONICAL_MANIFEST));
+  zhManifest.domains[0].load_condition = '任务涉及部署、回滚或生产变更决策。';
+  zhManifest.domains[1].load_condition = '任务引入新的公共 API 表面。';
+  const r = resolveCandidates(zhManifest, '这个设计决策需要进一步讨论');
+  const matched = r.candidates.filter((c) => c.match_quality !== 'none');
+  assert.strictEqual(matched.length, 0);
 });
 
 console.log('cluster.test.js: all tests complete');
