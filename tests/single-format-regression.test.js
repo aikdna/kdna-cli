@@ -252,6 +252,60 @@ test('encrypted asset: pack → protect → validate → plan-load needs_passwor
   }
 });
 
+test('compatibility scrypt asset remains loadable and unlockable', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-scrypt-compat-'));
+  try {
+    const src = path.join(tmp, 'src');
+    makeMinimalSourceDir(src);
+    const manifestPath = path.join(src, 'kdna.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.access = 'licensed';
+    manifest.payload.encrypted = true;
+    manifest.entitlement = { profile: 'password', offline: true, revocable: false };
+    manifest.encryption = {
+      profile: core.PASSWORD_PROTECTED_SCRYPT_PROFILE,
+      encrypted_entries: ['payload.kdnab'],
+    };
+    const plaintext = fs.readFileSync(path.join(src, 'payload.kdnab'));
+    const envelope = core.encryptProtectedEntryScrypt(plaintext, {
+      entryName: 'payload.kdnab',
+      manifest,
+      password: 'compat-password',
+    });
+    const encrypted = cbor.encode(envelope);
+    manifest.payload.digest = `sha256:${require('node:crypto').createHash('sha256').update(encrypted).digest('hex')}`;
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+    fs.writeFileSync(path.join(src, 'payload.kdnab'), encrypted);
+    fs.writeFileSync(
+      path.join(src, 'checksums.json'),
+      JSON.stringify(core.buildChecksums(src), null, 2),
+    );
+
+    const protectedAsset = path.join(tmp, 'scrypt.kdna');
+    assert.equal(run(['pack', src, protectedAsset]).status, 0);
+    const loaded = run(['load', protectedAsset, '--as=json', '--password=compat-password']);
+    assert.equal(loaded.status, 0, loaded.stderr);
+    assert.equal(JSON.parse(loaded.stdout).type, 'kdna.context.capsule');
+
+    const unlocked = path.join(tmp, 'unlocked.kdna');
+    const unlock = run([
+      'protect',
+      'unlock',
+      protectedAsset,
+      '--out',
+      unlocked,
+      '--password',
+      'compat-password',
+    ]);
+    assert.equal(unlock.status, 0, unlock.stderr);
+    const unlockedLoad = run(['load', unlocked, '--as=json']);
+    assert.equal(unlockedLoad.status, 0, unlockedLoad.stderr);
+    assert.equal(JSON.parse(unlockedLoad.stdout).access, 'public');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('encrypted demo creates valid fixture', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-demo-enc-'));
   try {

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.30.1 (2026-07-13)
+
+- Make `kdna protect` and `kdna recover` write the cross-language Argon2id
+  password profile used by Swift Core.
+- Keep existing scrypt assets loadable and unlockable as compatibility inputs.
+- Fail clearly when recovery is requested for a scrypt asset, whose envelope
+  has no recovery slot.
+
 ## 0.30.0 (2026-07-12)
 
 - Require `@aikdna/kdna-core@0.15.12` and `@aikdna/kdna-eval@0.3.1` through
