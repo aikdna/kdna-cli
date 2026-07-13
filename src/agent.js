@@ -34,10 +34,11 @@ const {
   getInstalled,
   listInstalled: listInstalledAssets,
   readContainer,
+  readContainerJson,
   resolveAsset,
 } = require('./package-store');
 const { licenseDecryptOptionsForManifest } = require('./cmds/license');
-const { planLoad } = require('@aikdna/kdna-core');
+const { load, planLoad } = require('@aikdna/kdna-core');
 
 function detectAgent() {
   return process.env.KDNA_AGENT || 'cli';
@@ -74,6 +75,46 @@ function traceAssetFields(asset, manifest = {}, license = null) {
   return fields;
 }
 
+function readDiscoveryAsset(entry) {
+  let manifest = {};
+  try {
+    manifest = readContainerJson(entry.asset_path, 'kdna.json') || {};
+  } catch (error) {
+    return {
+      manifest,
+      core: {},
+      loadable: false,
+      plan: { state: 'invalid', issues: [{ code: 'KDNA_FORMAT_INVALID', message: error.message }] },
+    };
+  }
+
+  const plan = planLoad(entry.asset_path);
+  if (plan.can_load_now !== true) {
+    return { manifest, core: {}, loadable: false, plan };
+  }
+
+  try {
+    const capsule = load(entry.asset_path, { profile: 'compact', as: 'json' });
+    return {
+      manifest,
+      core: { axioms: Array.isArray(capsule.context?.axioms) ? capsule.context.axioms : [] },
+      loadable: true,
+      plan,
+    };
+  } catch (error) {
+    return {
+      manifest,
+      core: {},
+      loadable: false,
+      plan: {
+        ...plan,
+        state: 'invalid',
+        issues: [{ code: error.code || 'KDNA_LOAD_FAILED', message: error.message }],
+      },
+    };
+  }
+}
+
 // ─── kdna available ────────────────────────────────────────────────────
 
 function cmdAvailable(args = []) {
@@ -82,7 +123,7 @@ function cmdAvailable(args = []) {
 
   const out = [];
   for (const e of installed) {
-    const { manifest = {}, core = {} } = readContainer(e.asset_path);
+    const { manifest = {}, core = {}, loadable, plan } = readDiscoveryAsset(e);
     if (manifest.yanked === true) continue;
 
     // Pull applies_when across all axioms (this is what the agent needs
@@ -108,6 +149,9 @@ function cmdAvailable(args = []) {
       applies_when,
       does_not_apply_when,
       failure_risks,
+      loadable,
+      load_state: plan.state || null,
+      issues: (plan.issues || []).map((issue) => issue.code).filter(Boolean),
     });
   }
 
@@ -190,7 +234,15 @@ function cmdMatch(taskText, args = []) {
   const hints = [];
 
   for (const e of installed) {
-    const { manifest = {}, core = {} } = readContainer(e.asset_path);
+    const { manifest = {}, core = {}, loadable, plan } = readDiscoveryAsset(e);
+    if (!loadable) {
+      dropped.push({
+        name: manifest.name || e.full,
+        reason: `not loadable (${plan.state || 'invalid'})`,
+        issues: (plan.issues || []).map((issue) => issue.code).filter(Boolean),
+      });
+      continue;
+    }
     if (manifest.yanked === true) {
       dropped.push({ name: manifest.name || e.full, reason: 'yanked' });
       continue;

@@ -185,7 +185,7 @@ function showHelp() {
                                        --json: machine-readable output
   pack      <dev-source> <out>       Pack into .kdna (--force to overwrite)
   unpack    <file.kdna> <out>        Extract .kdna into an editing/debug view
-  demo      <minimal|judgment> <dir>  Create a v1 demo fixture
+  demo      <minimal|judgment> <dir>  Create a current KDNA demo source
   lint      <source-dir>             Anti-Monolithic Domain check (RFC-0013 §4)
                                       --strict: upgrade warnings to errors
                                       --json: machine-readable output
