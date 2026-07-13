@@ -2,7 +2,7 @@
  * Agent-facing commands — what the kdna-loader skill calls.
  *
  *   kdna available --json
- *     List installed domains, lean JSON, includes v2.1 applies_when fields
+ *     List installed domains, lean JSON, including applies_when fields
  *     and yanked status. Excludes yanked. ~200 bytes per domain.
  *     The agent uses this as its primary discovery source and decides
  *     which domain (if any) fits the task by reading the applies_when

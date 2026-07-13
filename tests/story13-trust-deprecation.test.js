@@ -32,7 +32,7 @@
 
 'use strict';
 
-const { test } = require('node:test');
+const { after, test } = require('node:test');
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
@@ -43,6 +43,10 @@ const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
 const CORE = require('@aikdna/kdna-core');
 const cbor = require('cbor-x');
+const FIXTURE_TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s13-fixture-'));
+const RUNTIME_FIXTURE = path.join(FIXTURE_TMP, 'v1-minimal.kdna');
+CORE.pack(FIXTURE, RUNTIME_FIXTURE);
+after(() => fs.rmSync(FIXTURE_TMP, { recursive: true, force: true }));
 
 function run(args, opts = {}) {
   return spawnSync(process.execPath, [CLI, ...args], {
@@ -541,7 +545,9 @@ test('Story 13 CLI plan-load: deprecated bundle prints Notice to stderr', () => 
       );
     }
 
-    const r = run(['plan-load', tmp, '--json']);
+    const packed = `${tmp}.kdna`;
+    CORE.pack(tmp, packed);
+    const r = run(['plan-load', packed, '--json']);
     // The plan-load exit code may be 0 or non-zero depending on whether
     // it's a valid bundle + the resolved_dependencies is empty (no
     // resolveAsset callback). The important thing is the stderr.
@@ -550,13 +556,14 @@ test('Story 13 CLI plan-load: deprecated bundle prints Notice to stderr', () => 
     assert.match(r.stderr, /moved/);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(`${tmp}.kdna`, { force: true });
   }
 });
 
 test('Story 13 CLI plan-load: non-deprecated bundle does NOT print deprecation', () => {
   // FIXTURE is a judgment-profile-v1 dir (not a bundle) — scanBundleDeprecations
   // returns [], so no stderr notice.
-  const r = run(['plan-load', FIXTURE, '--json']);
+  const r = run(['plan-load', RUNTIME_FIXTURE, '--json']);
   assert.doesNotMatch(r.stderr, /bundle deprecation signals/i);
 });
 
@@ -584,18 +591,21 @@ test('Story 13 CLI load: deprecated bundle prints Notice to stderr', () => {
       );
     }
 
-    const r = run(['load', tmp, '--as=json']);
+    const packed = `${tmp}.kdna`;
+    CORE.pack(tmp, packed);
+    const r = run(['load', packed, '--as=json']);
     // load may fail because the bundle has no resolveAsset callback for
     // '@old/comp@1.0.0', but the stderr notice should still appear.
     assert.match(r.stderr, /bundle deprecation signals/i);
     assert.match(r.stderr, /@old\/comp@1\.0\.0/);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(`${tmp}.kdna`, { force: true });
   }
 });
 
 test('Story 13 CLI load: fresh bundle has no stderr deprecation', () => {
-  const r = run(['load', FIXTURE, '--as=json']);
+  const r = run(['load', RUNTIME_FIXTURE, '--as=json']);
   assert.equal(r.status, 0, `expected exit 0:\n${r.stderr}`);
   assert.doesNotMatch(r.stderr, /bundle deprecation signals/i);
 });

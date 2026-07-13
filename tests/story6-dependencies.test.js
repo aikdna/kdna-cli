@@ -87,9 +87,15 @@ test('Story 6: dependencies semver and topological sorting logic', () => {
       components: [{ id: 'comp-a', path: './comp-a.kdna' }],
     };
     fs.writeFileSync(path.join(tmp, 'payload.kdnab'), cbor.encode(payload));
+    fs.writeFileSync(
+      path.join(tmp, 'checksums.json'),
+      JSON.stringify(core.buildChecksums(tmp), null, 2),
+    );
+    const assetPath = `${tmp}.kdna`;
+    core.pack(tmp, assetPath);
 
     // Run planLoad with mock resolveAsset callback
-    const plan = core.planLoad(tmp, { resolveAsset: mockResolveAsset });
+    const plan = core.planLoad(assetPath, { resolveAsset: mockResolveAsset });
 
     assert.equal(plan.state, 'ready');
     assert.equal(plan.can_load_now, true);
@@ -101,6 +107,7 @@ test('Story 6: dependencies semver and topological sorting logic', () => {
     assert.equal(plan.resolved_dependencies[1].name, '@scope/dep-a');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(`${tmp}.kdna`, { force: true });
   }
 });
 
@@ -184,8 +191,14 @@ test('Story 6: circular dependency throwing error', () => {
       components: [{ id: 'comp-a', path: './comp-a.kdna' }],
     };
     fs.writeFileSync(path.join(tmp, 'payload.kdnab'), cbor.encode(payload));
+    fs.writeFileSync(
+      path.join(tmp, 'checksums.json'),
+      JSON.stringify(core.buildChecksums(tmp), null, 2),
+    );
+    const assetPath = `${tmp}.kdna`;
+    core.pack(tmp, assetPath);
 
-    const plan = core.planLoad(tmp, { resolveAsset: mockResolveAsset });
+    const plan = core.planLoad(assetPath, { resolveAsset: mockResolveAsset });
 
     assert.equal(plan.state, 'invalid');
     assert.equal(plan.can_load_now, false);
@@ -197,6 +210,7 @@ test('Story 6: circular dependency throwing error', () => {
     assert.match(circularIssue.message, /Circular dependency detected/i);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(`${tmp}.kdna`, { force: true });
   }
 });
 
@@ -259,8 +273,14 @@ test('Story 6: unsatisfied/mismatched dependency throwing error', () => {
       components: [{ id: 'comp-a', path: './comp-a.kdna' }],
     };
     fs.writeFileSync(path.join(tmp, 'payload.kdnab'), cbor.encode(payload));
+    fs.writeFileSync(
+      path.join(tmp, 'checksums.json'),
+      JSON.stringify(core.buildChecksums(tmp), null, 2),
+    );
+    const assetPath = `${tmp}.kdna`;
+    core.pack(tmp, assetPath);
 
-    const plan = core.planLoad(tmp, { resolveAsset: mockResolveAsset });
+    const plan = core.planLoad(assetPath, { resolveAsset: mockResolveAsset });
 
     assert.equal(plan.state, 'invalid');
     assert.equal(plan.can_load_now, false);
@@ -270,5 +290,6 @@ test('Story 6: unsatisfied/mismatched dependency throwing error', () => {
     assert.match(issue.message, /Dependency mismatch/i);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(`${tmp}.kdna`, { force: true });
   }
 });

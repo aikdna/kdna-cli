@@ -35,6 +35,7 @@ test(
     }
     const external = require('../src/external-entitlement');
     const assetDir = path.join(home, 'asset');
+    const assetFile = path.join(home, 'asset.kdna');
     fs.mkdirSync(assetDir, { recursive: true });
     try {
       const manifest = {
@@ -78,6 +79,7 @@ test(
       fs.writeFileSync(path.join(assetDir, 'payload.kdnab'), core.encodeExternalEnvelope(envelope));
       const checksums = core.buildChecksums(assetDir);
       fs.writeFileSync(path.join(assetDir, 'checksums.json'), JSON.stringify(checksums));
+      core.pack(assetDir, assetFile);
 
       const device = external.prepareDevice(manifest.name, 'Test Device');
       const issuer = crypto.generateKeyPairSync('ed25519');
@@ -103,7 +105,7 @@ test(
       external.installActivation({
         domain: manifest.name,
         server: 'https://fixture.invalid',
-        assetPath: assetDir,
+        assetPath: assetFile,
         response: {
           status: 'complete',
           account_id: 'acct_cli_01',
@@ -120,8 +122,8 @@ test(
       assert.equal(metadataText.includes(grant.signature), false);
       assert.equal(metadataText.includes('issuer_public_keys'), false);
 
-      const session = external.loadExternalAuthorization(assetDir, manifest, { now: new Date() });
-      const capsule = core.loadAuthorized(assetDir, {
+      const session = external.loadExternalAuthorization(assetFile, manifest, { now: new Date() });
+      const capsule = core.loadAuthorized(assetFile, {
         profile: 'compact',
         as: 'json',
         entitlement: session.entitlement,
@@ -134,7 +136,7 @@ test(
       const secretStore = require('../src/secret-store');
       secretStore.setSync(names.statusVersion, '2');
       assert.throws(
-        () => external.loadExternalAuthorization(assetDir, manifest, { now: new Date() }),
+        () => external.loadExternalAuthorization(assetFile, manifest, { now: new Date() }),
         (error) => error.code === 'KDNA_GRANT_ROLLBACK_DETECTED',
       );
     } finally {

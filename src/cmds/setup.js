@@ -1,6 +1,6 @@
-function cmdSetup() {
-  const { cmdSetup } = require('../setup');
-  cmdSetup();
+function cmdSetup(args = []) {
+  const { cmdSetup: runSetup } = require('../setup');
+  runSetup(args);
 }
 
 module.exports = {

@@ -51,8 +51,9 @@ function run(args, opts = {}) {
  * resolved_dependencies exist), and with the unit module directly.
  */
 function writeBundleFixture(dir, opts = {}) {
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, 'mimetype'), 'application/vnd.kdna.asset');
+  const sourceDir = path.join(dir, 'source');
+  fs.mkdirSync(sourceDir, { recursive: true });
+  fs.writeFileSync(path.join(sourceDir, 'mimetype'), 'application/vnd.kdna.asset');
 
   const manifest = {
     kdna_version: '1.0',
@@ -80,15 +81,22 @@ function writeBundleFixture(dir, opts = {}) {
     manifest.context_budget = opts.contextBudget;
   }
 
-  fs.writeFileSync(path.join(dir, 'kdna.json'), JSON.stringify(manifest, null, 2));
+  fs.writeFileSync(path.join(sourceDir, 'kdna.json'), JSON.stringify(manifest, null, 2));
 
   const payload = {
     profile: 'bundle-profile-v1',
     components: [{ id: 'comp-a', path: './comp-a.kdna', priority: 1 }],
   };
-  fs.writeFileSync(path.join(dir, 'payload.kdnab'), cbor.encode(payload));
+  fs.writeFileSync(path.join(sourceDir, 'payload.kdnab'), cbor.encode(payload));
 
-  return dir;
+  const core = require('@aikdna/kdna-core');
+  fs.writeFileSync(
+    path.join(sourceDir, 'checksums.json'),
+    JSON.stringify(core.buildChecksums(sourceDir), null, 2),
+  );
+  const assetPath = path.join(dir, 'bundle.kdna');
+  core.pack(sourceDir, assetPath);
+  return assetPath;
 }
 
 // ─── Unit tests for computeContextBudget ────────────────────────────────────
@@ -177,8 +185,8 @@ test('Story 8 unit: default estimation_basis when per_component not declared', (
 test('Story 8 CLI: bundle without context_budget → no context_budget_report in plan', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s8-'));
   try {
-    writeBundleFixture(tmp); // no contextBudget
-    const r = run(['plan-load', tmp]);
+    const assetPath = writeBundleFixture(tmp); // no contextBudget
+    const r = run(['plan-load', assetPath]);
     // plan-load may exit 0 or 3 depending on asset state — both are valid here
     assert.ok(r.status !== 1, `unexpected plan-load error:\n${r.stderr}`);
     const out = JSON.parse(r.stdout);
@@ -194,10 +202,10 @@ test('Story 8 CLI: bundle without context_budget → no context_budget_report in
 test('Story 8 CLI: bundle with context_budget but no resolved deps → no report', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s8-'));
   try {
-    writeBundleFixture(tmp, {
+    const assetPath = writeBundleFixture(tmp, {
       contextBudget: { max_tokens: 5000, strategy: 'warn' },
     });
-    const r = run(['plan-load', tmp]);
+    const r = run(['plan-load', assetPath]);
     assert.ok(r.status !== 1, `unexpected plan-load error:\n${r.stderr}`);
     const out = JSON.parse(r.stdout);
     // No resolved_dependencies (no real deps in manifest), so no budget report

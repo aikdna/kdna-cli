@@ -1,7 +1,7 @@
 /**
  * v1-global-cli.test.js — KDNA Core v1 route tests for aikdna/kdna-cli.
  */
-const { test } = require('node:test');
+const { after, test } = require('node:test');
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
@@ -9,6 +9,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const cbor = require('cbor-x');
 const core = require('@aikdna/kdna-core');
+const os = require('node:os');
 
 function readPayload(p) {
   const buf = fs.readFileSync(p);
@@ -21,6 +22,10 @@ function readPayload(p) {
 
 const cliBin = path.join(__dirname, '..', 'src', 'cli.js');
 const fixture = path.join(__dirname, '..', 'fixtures', 'v1-minimal');
+const packedFixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-v1-global-'));
+const packedFixture = path.join(packedFixtureDir, 'v1-minimal.kdna');
+core.pack(fixture, packedFixture);
+after(() => fs.rmSync(packedFixtureDir, { recursive: true, force: true }));
 const FORBIDDEN_TERMS = [
   'trusted',
   'recommended',
@@ -85,7 +90,9 @@ test('kdna validate --runtime exits 3 when LoadPlan cannot load now', () => {
       JSON.stringify(core.buildChecksums(tmp), null, 2),
     );
 
-    const r = runCli(['validate', tmp, '--runtime']);
+    const packed = `${tmp}.kdna`;
+    core.pack(tmp, packed);
+    const r = runCli(['validate', packed, '--runtime']);
     assert.equal(r.status, 3, r.stderr);
     const out = JSON.parse(r.stdout);
     assert.equal(out.overall_valid, true);
@@ -95,11 +102,12 @@ test('kdna validate --runtime exits 3 when LoadPlan cannot load now', () => {
     assert.ok(!r.stderr.includes(secret));
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(`${tmp}.kdna`, { force: true });
   }
 });
 
 test('kdna plan-load uses the Core LoadPlan API when available', () => {
-  const r = runCli(['plan-load', fixture, '--json']);
+  const r = runCli(['plan-load', packedFixture, '--json']);
   if (typeof core.planLoad !== 'function') {
     assert.equal(r.status, 6, r.stderr);
     assert.match(r.stderr, /requires @aikdna\/kdna-core with the LoadPlan v1 API/);
@@ -136,7 +144,9 @@ test('kdna load refuses v1 assets when LoadPlan cannot load now', () => {
       JSON.stringify(core.buildChecksums(tmp), null, 2),
     );
 
-    const plan = runCli(['plan-load', tmp, '--json']);
+    const packed = `${tmp}.kdna`;
+    core.pack(tmp, packed);
+    const plan = runCli(['plan-load', packed, '--json']);
     assert.equal(plan.status, 3, plan.stderr);
     assert.equal(JSON.parse(plan.stdout).can_load_now, false);
 
@@ -146,13 +156,14 @@ test('kdna load refuses v1 assets when LoadPlan cannot load now', () => {
     // instead of a generic "LoadPlan denied loading". Either error
     // is a valid "load is denied" signal — the test accepts the new
     // form (and verifies the secret is still not leaked).
-    const loaded = runCli(['load', tmp, '--profile=compact', '--as=prompt']);
+    const loaded = runCli(['load', packed, '--profile=compact', '--as=prompt']);
     assert.notEqual(loaded.status, 0, 'load must be denied');
     assert.match(loaded.stderr, /LoadPlan denied loading|access: "remote"/);
     assert.ok(!loaded.stdout.includes(secret));
     assert.ok(!loaded.stderr.includes(secret));
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(`${tmp}.kdna`, { force: true });
   }
 });
 
@@ -258,7 +269,7 @@ test('kdna inspect on v1 container round-trips through pack', () => {
 // ── plan-load behavior tests (WP-1 P0-2) ────────────────────────────
 
 test('kdna plan-load default returns ready with structured input_fingerprint', () => {
-  const r = runCli(['plan-load', fixture, '--json']);
+  const r = runCli(['plan-load', packedFixture, '--json']);
   assert.equal(r.status, 0, r.stderr);
   const plan = JSON.parse(r.stdout);
   assert.equal(plan.state, 'ready');
@@ -271,7 +282,7 @@ test('kdna plan-load default returns ready with structured input_fingerprint', (
 });
 
 test('kdna plan-load --has-password reflects has_password_input', () => {
-  const r = runCli(['plan-load', fixture, '--json', '--has-password']);
+  const r = runCli(['plan-load', packedFixture, '--json', '--has-password']);
   assert.equal(r.status, 0, r.stderr);
   const plan = JSON.parse(r.stdout);
   assert.equal(plan.input_fingerprint.has_password_input, true);
@@ -280,7 +291,7 @@ test('kdna plan-load --has-password reflects has_password_input', () => {
 });
 
 test('kdna plan-load --entitlement-status active reflects active', () => {
-  const r = runCli(['plan-load', fixture, '--json', '--entitlement-status', 'active']);
+  const r = runCli(['plan-load', packedFixture, '--json', '--entitlement-status', 'active']);
   assert.equal(r.status, 0, r.stderr);
   const plan = JSON.parse(r.stdout);
   assert.equal(plan.input_fingerprint.entitlement_input, 'active');
@@ -289,7 +300,7 @@ test('kdna plan-load --entitlement-status active reflects active', () => {
 });
 
 test('kdna plan-load --entitlement-status expired returns expired_grace', () => {
-  const r = runCli(['plan-load', fixture, '--json', '--entitlement-status', 'expired']);
+  const r = runCli(['plan-load', packedFixture, '--json', '--entitlement-status', 'expired']);
   assert.equal(r.status, 3, 'exit 3 for can_load_now: false');
   const plan = JSON.parse(r.stdout);
   assert.equal(plan.input_fingerprint.entitlement_input, 'expired');
@@ -299,7 +310,7 @@ test('kdna plan-load --entitlement-status expired returns expired_grace', () => 
 });
 
 test('kdna plan-load --entitlement-status revoked returns denied', () => {
-  const r = runCli(['plan-load', fixture, '--json', '--entitlement-status', 'revoked']);
+  const r = runCli(['plan-load', packedFixture, '--json', '--entitlement-status', 'revoked']);
   assert.equal(r.status, 3, 'exit 3 for can_load_now: false');
   const plan = JSON.parse(r.stdout);
   assert.equal(plan.input_fingerprint.entitlement_input, 'revoked');
@@ -309,7 +320,7 @@ test('kdna plan-load --entitlement-status revoked returns denied', () => {
 });
 
 test('kdna plan-load --entitlement-status offline_grace returns offline_grace', () => {
-  const r = runCli(['plan-load', fixture, '--json', '--entitlement-status', 'offline_grace']);
+  const r = runCli(['plan-load', packedFixture, '--json', '--entitlement-status', 'offline_grace']);
   assert.equal(r.status, 0, r.stderr);
   const plan = JSON.parse(r.stdout);
   assert.equal(plan.input_fingerprint.entitlement_input, 'offline_grace');
@@ -319,7 +330,7 @@ test('kdna plan-load --entitlement-status offline_grace returns offline_grace', 
 });
 
 test('kdna validate --runtime produces consistent LoadPlan with plan-load', () => {
-  const r = runCli(['validate', fixture, '--runtime', '--json']);
+  const r = runCli(['validate', packedFixture, '--runtime', '--json']);
   const output = JSON.parse(r.stdout);
   assert.ok(output.runtime_load_plan, 'runtime_load_plan must exist');
   const runtimePlan = output.runtime_load_plan;
@@ -332,7 +343,14 @@ test('kdna validate --runtime produces consistent LoadPlan with plan-load', () =
 });
 
 test('kdna validate --runtime --entitlement-status expired produces consistent LoadPlan', () => {
-  const r = runCli(['validate', fixture, '--runtime', '--json', '--entitlement-status', 'expired']);
+  const r = runCli([
+    'validate',
+    packedFixture,
+    '--runtime',
+    '--json',
+    '--entitlement-status',
+    'expired',
+  ]);
   const output = JSON.parse(r.stdout);
   const runtimePlan = output.runtime_load_plan;
   assert.equal(runtimePlan.input_fingerprint.entitlement_input, 'expired');

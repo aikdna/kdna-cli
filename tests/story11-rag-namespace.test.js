@@ -12,7 +12,7 @@
 
 'use strict';
 
-const { test } = require('node:test');
+const { after, test } = require('node:test');
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
@@ -21,6 +21,10 @@ const os = require('node:os');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
+const FIXTURE_TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s11-fixture-'));
+const RUNTIME_FIXTURE = path.join(FIXTURE_TMP, 'v1-minimal.kdna');
+require('@aikdna/kdna-core').pack(FIXTURE, RUNTIME_FIXTURE);
+after(() => fs.rmSync(FIXTURE_TMP, { recursive: true, force: true }));
 
 function run(args, opts = {}) {
   return spawnSync(process.execPath, [CLI, ...args], {
@@ -37,10 +41,9 @@ function run(args, opts = {}) {
 test('Story 11 core: rag_namespace is added to resolved_dependencies', () => {
   const core = require('@aikdna/kdna-core');
 
-  const dep = { name: '@test/comp-a', version: '1.2.3', path: FIXTURE };
   // Simulate what planLoad + loadAuthorized does internally by calling loadV1
   // directly if available, otherwise via loadAuthorized with mock resolver
-  const result = core.loadAuthorized(FIXTURE, {
+  const result = core.loadAuthorized(RUNTIME_FIXTURE, {
     profile: 'compact',
     as: 'json',
     resolveAsset: () => null,
@@ -81,7 +84,7 @@ test('Story 11 CLI: plan-load with resolved deps → rag_namespace in output', (
   // plan-load on a single asset has no rag_isolation_policy (correct)
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s11-'));
   try {
-    const r = run(['plan-load', FIXTURE, '--json']);
+    const r = run(['plan-load', RUNTIME_FIXTURE, '--json']);
     // plan-load exits 0 or 3 for single asset — either is fine
     assert.ok(r.status !== 1, `unexpected exit 1:\n${r.stderr}`);
     const out = JSON.parse(r.stdout);
@@ -100,7 +103,7 @@ test('Story 11 CLI: plan-load with resolved deps → rag_namespace in output', (
 test('Story 11 CLI: kdna load --namespace with no Bundle deps → warning on stderr, normal output', () => {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s11-home-'));
   try {
-    const r = run(['load', FIXTURE, '--namespace=@scope/missing', '--as=json'], {
+    const r = run(['load', RUNTIME_FIXTURE, '--namespace=@scope/missing', '--as=json'], {
       kdnaHome: tmpHome,
     });
     // The namespace filter warns when not found, but load itself succeeds
@@ -120,7 +123,7 @@ test('Story 11 CLI: kdna load --namespace with no Bundle deps → warning on std
 test('Story 11 smoke: kdna load single asset has no rag_isolation_policy field', () => {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s11-home-'));
   try {
-    const r = run(['load', FIXTURE, '--as=json'], { kdnaHome: tmpHome });
+    const r = run(['load', RUNTIME_FIXTURE, '--as=json'], { kdnaHome: tmpHome });
     assert.equal(r.status, 0, `expected exit 0:\n${r.stderr}`);
     const out = JSON.parse(r.stdout);
     // Single asset: rag_isolation_policy only appears for multi-component bundles

@@ -15,6 +15,17 @@
 - Add a standard-input-only headless credential path and redact provider
   response bodies. The legacy `--key` flow remains explicit and warns about
   shell-history exposure.
+- Require packaged `.kdna` files for runtime validation, LoadPlan generation,
+  loading, execution, dependencies, inheritance, and watermark paths while
+  preserving source directories as authoring inputs.
+- Install the bundled loader for Codex, Claude Code, and OpenCode without
+  fetching mutable `main`, preserve customized copies unless `--force` is
+  explicit, and make `setup --help` side-effect free.
+- Report declared evidence facts from `badge` without content-quality or trust
+  verdicts, and scan bundle deprecations inside packaged assets.
+- Make release readiness fail for dirty inputs or when the version tag does not
+  point to the current commit.
+- Remove active user-facing format-generation labels from authoring guidance.
 
 ## 0.30.4 (2026-07-13)
 

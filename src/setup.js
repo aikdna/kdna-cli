@@ -20,7 +20,6 @@ const PATHS = require('./paths');
 const USER_KDNA_DIR = PATHS.root;
 const DOMAINS_DIR = PATHS.domains.root;
 const CLUSTERS_DIR = PATHS.clusters;
-const SKILLS_REPO = 'https://raw.githubusercontent.com/aikdna/kdna-skills/main';
 
 const AGENTS = [
   {
@@ -65,36 +64,23 @@ function detectAgents() {
   return AGENTS.filter((a) => fs.existsSync(a.dir));
 }
 
-// v2.1 marker — written into SKILL.md so we can detect outdated copies
-const V2_1_MARKER = 'kdna available';
-
-async function downloadSkill(agent) {
+function installBundledSkill(agent, options = {}) {
   const skillDir = path.join(agent.dir, agent.skillsDir, 'kdna-loader');
-  ensureDir(skillDir);
   const dest = path.join(skillDir, 'SKILL.md');
-
-  // 1. Try remote (source of truth)
-  try {
-    const res = await fetch(`${SKILLS_REPO}/kdna-loader/SKILL.md`);
-    if (res.ok) {
-      const content = await res.text();
-      if (content.includes(V2_1_MARKER)) {
-        fs.writeFileSync(dest, content);
-        return { ok: true, source: 'remote' };
-      }
-    }
-  } catch {
-    /* network failure — try fallback */
-  }
-
-  // 2. Fall back to bundled copy (works offline)
   const local = path.join(__dirname, '..', 'skills', 'kdna-loader', 'SKILL.md');
-  if (fs.existsSync(local)) {
-    fs.copyFileSync(local, dest);
-    return { ok: true, source: 'bundled fallback' };
+  if (!fs.existsSync(local)) return { ok: false };
+
+  const bundled = fs.readFileSync(local, 'utf8');
+
+  if (fs.existsSync(dest)) {
+    const existing = fs.readFileSync(dest, 'utf8');
+    if (existing === bundled) return { ok: true, source: 'bundled', unchanged: true };
+    if (!options.force) return { ok: true, source: 'existing customized copy', preserved: true };
   }
 
-  return { ok: false };
+  ensureDir(skillDir);
+  fs.writeFileSync(dest, bundled);
+  return { ok: true, source: 'bundled', overwritten: fs.existsSync(dest) };
 }
 
 function cleanLegacySkills(agent) {
@@ -111,7 +97,15 @@ function cleanLegacySkills(agent) {
   return false;
 }
 
-async function cmdSetup() {
+function cmdSetup(args = []) {
+  if (args.includes('--help') || args.includes('-h')) {
+    console.log('Usage: kdna setup [--force]');
+    console.log(
+      'Installs the bundled kdna-loader skill. Existing customized copies are preserved unless --force is used.',
+    );
+    return;
+  }
+  const force = args.includes('--force');
   console.log('');
   console.log('KDNA Setup');
   console.log('═'.repeat(40));
@@ -168,13 +162,19 @@ async function cmdSetup() {
     log(`Detected agents: ${detected.map((a) => a.name).join(', ')}`);
 
     for (const agent of detected) {
-      const result = await downloadSkill(agent);
+      const result = installBundledSkill(agent, { force });
       if (result.ok) {
-        log(`kdna-loader → ${agent.name}  (${result.source})`);
+        if (result.preserved) {
+          warn(
+            `Preserved customized kdna-loader for ${agent.name}; use kdna setup --force to replace it.`,
+          );
+        } else {
+          log(`kdna-loader → ${agent.name}  (${result.source})`);
+        }
       } else {
         warn(`Failed to install kdna-loader for ${agent.name}`);
       }
-      if (cleanLegacySkills(agent)) {
+      if (force && cleanLegacySkills(agent)) {
         log(`removed legacy kdna-create from ${agent.name}`);
       }
     }
@@ -195,4 +195,4 @@ async function cmdSetup() {
   console.log('');
 }
 
-module.exports = { cmdSetup, detectAgents };
+module.exports = { cmdSetup, detectAgents, installBundledSkill };

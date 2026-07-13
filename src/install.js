@@ -10,12 +10,12 @@
  * Removed in v0.7 (breaking): github:user/repo, --from-git, cluster:github:...,
  * tarball/SSH fallbacks. Install is now strictly .kdna-driven from the registry.
  *
- * Schema v3.0 (historical reference; registry is out of scope for KDNA Core)
+ * Registry metadata is adapter-local and out of scope for KDNA Core.
  */
 
 const fs = require('fs');
 const path = require('path');
-const { execSync, execFileSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const core = require('@aikdna/kdna-core');
 const { RegistryResolver, nameFromAssetId, parseName } = require('./registry');
 const { EXIT, error } = require('./cmds/_common');
@@ -50,18 +50,18 @@ const AGENT_SKILL_DIRS = [
 function ensureLoaderSkill() {
   const alreadyInstalled = [];
   const toInstall = [];
-  const toUpdate = []; // present but outdated (pre-v2.1)
-
-  // v2.1 marker — present in current SKILL.md, absent in old one
-  const V2_1_MARKER = 'applies_when';
+  const toUpdate = [];
+  const localTemplate = path.resolve(__dirname, '..', 'skills', 'kdna-loader', 'SKILL.md');
+  const bundled = fs.existsSync(localTemplate) ? fs.readFileSync(localTemplate, 'utf8') : null;
 
   for (const dir of AGENT_SKILL_DIRS) {
+    if (!fs.existsSync(path.dirname(dir))) continue;
     const skillFile = path.join(dir, 'kdna-loader', 'SKILL.md');
     if (fs.existsSync(skillFile)) {
       let isCurrent = false;
       try {
         const content = fs.readFileSync(skillFile, 'utf8');
-        isCurrent = content.includes(V2_1_MARKER);
+        isCurrent = bundled !== null && content === bundled;
       } catch {
         /* unreadable — treat as missing */
       }
@@ -78,56 +78,31 @@ function ensureLoaderSkill() {
   // Notify which are current
   if (alreadyInstalled.length > 0) {
     console.log(
-      `  ✓ kdna-loader (v2.1) found in: ${alreadyInstalled.map((d) => path.basename(path.dirname(d))).join(', ')}`,
+      `  ✓ Current bundled kdna-loader found in: ${alreadyInstalled.map((d) => path.basename(path.dirname(d))).join(', ')}`,
     );
   }
 
-  // Install + update share the same target list
-  const targets = [...toInstall, ...toUpdate];
-  const verb =
-    toUpdate.length && !toInstall.length
-      ? 'Updating'
-      : toInstall.length && !toUpdate.length
-        ? 'Installing'
-        : 'Installing/updating';
-  console.log(`  ${verb} kdna-loader skill (v2.1)...`);
-
-  let installed = 0;
-  const sources = [];
-
-  // Source 1: download from kdna-skills repo (single source of truth, v0.7.4+).
-  // This must come FIRST so we don't ship stale local copies to users.
-  sources.push({
-    type: 'remote',
-    url: 'https://raw.githubusercontent.com/aikdna/kdna-skills/main/kdna-loader/SKILL.md',
-  });
-
-  // Source 2: offline fallback — KDNA repo local checkout, only used if the
-  // CDN is unreachable. The npm-published tarball does NOT include SKILL.md
-  // files anymore (they live solely in kdna-skills).
-  const localTemplate = path.resolve(__dirname, '..', 'skills', 'kdna-loader', 'SKILL.md');
-  if (fs.existsSync(localTemplate)) {
-    sources.push({ type: 'local', path: localTemplate });
+  if (toUpdate.length > 0) {
+    console.log(
+      `   ⚠ Preserving ${toUpdate.length} customized or outdated kdna-loader cop${toUpdate.length > 1 ? 'ies' : 'y'}. Run kdna setup --force to replace.`,
+    );
   }
 
+  const targets = toInstall;
+  if (targets.length === 0) return;
+  console.log('  Installing bundled kdna-loader skill...');
+
+  let installed = 0;
   for (const dir of targets) {
     const skillDir = path.join(dir, 'kdna-loader');
-    for (const src of sources) {
-      try {
+    try {
+      if (fs.existsSync(localTemplate)) {
         fs.mkdirSync(skillDir, { recursive: true });
-        if (src.type === 'local') {
-          fs.copyFileSync(src.path, path.join(skillDir, 'SKILL.md'));
-        } else {
-          execSync(`curl -fsSL -o "${path.join(skillDir, 'SKILL.md')}" "${src.url}"`, {
-            stdio: 'pipe',
-            timeout: 10000,
-          });
-        }
+        fs.copyFileSync(localTemplate, path.join(skillDir, 'SKILL.md'));
         installed++;
-        break; // Move to next agent dir
-      } catch {
-        // Try next source
       }
+    } catch {
+      // Report aggregate failures below.
     }
   }
 
@@ -722,7 +697,7 @@ function cmdInfo(input, jsonMode = false) {
   const misCount = (pat?.misunderstandings || []).length;
   const selfCheckCount = (pat?.self_check || []).length;
 
-  // ─── v2.1 governance score ─────────────────────────────────────────
+  // ─── Authoring governance coverage ─────────────────────────────────
   let governance = null;
   if (axiomCount > 0) {
     const withApplies = (core?.axioms || []).filter(
@@ -834,10 +809,10 @@ function cmdInfo(input, jsonMode = false) {
   console.log(`  Misunderstandings: ${misCount}`);
   console.log(`  Self-checks:       ${selfCheckCount}`);
 
-  // ─── v2.1 governance score ─────────────────────────────────────
+  // ─── Authoring governance coverage ─────────────────────────────
   if (governance) {
     console.log('');
-    console.log('  ── v2.1 governance ──');
+    console.log('  ── Authoring governance coverage ──');
     console.log(`  axioms with applies_when:      ${governance.withApplies}/${axiomCount}`);
     console.log(`  axioms with does_not_apply:    ${governance.withDoesNotApply}/${axiomCount}`);
     console.log(`  axioms with failure_risk:      ${governance.withFailureRisk}/${axiomCount}`);

@@ -1,5 +1,5 @@
 /**
- * KDNA Quality Badge & Registry commands — Phase 7.
+ * KDNA evidence summary and Registry diagnostic commands.
  *
  *   kdna badge compute <domain> [--json]
  *   kdna registry audit --scope <scope> [--json]
@@ -11,7 +11,7 @@ const path = require('path');
 const { error, readJson, EXIT } = require('./_common');
 const { RegistryResolver } = require('../registry');
 
-// ─── Badge Compute ─────────────────────────────────────────────────────
+// ─── Evidence Summary ──────────────────────────────────────────────────
 
 function cmdBadgeCompute(domainPath, args = []) {
   const jsonMode = args.includes('--json');
@@ -26,7 +26,7 @@ function cmdBadgeCompute(domainPath, args = []) {
   if (!core) error(`No KDNA_Core.json in ${abs}`, EXIT.INPUT_ERROR);
 
   const axiomCount = (core.axioms || []).length;
-  const lockedAxioms = (core.axioms || []).filter(
+  const boundaryCompleteAxioms = (core.axioms || []).filter(
     (a) => a.applies_when?.length && a.does_not_apply_when?.length && a.failure_risk,
   ).length;
   const misCount = (pat?.misunderstandings || []).length;
@@ -48,61 +48,62 @@ function cmdBadgeCompute(domainPath, args = []) {
   }
   const humanPassRate = evalCount > 0 ? humanPassCount / evalCount : 0;
 
-  // Regression check
-  const regressionPassed = fs.existsSync(path.join(abs, 'evals')); // simplified
+  const evalsDirectoryPresent = fs.existsSync(path.join(abs, 'evals'));
 
-  // Determine badge level
-  let badge = 'draft';
-  const criteria = [];
+  // Report observed evidence facts only. This command does not decide whether
+  // the judgment is correct, high quality, trusted, or worth publishing.
+  let evidenceStatus = 'not_declared';
+  const observations = [];
 
-  if (axiomCount >= 3 && lockedAxioms >= 3 && misCount >= 2 && selfCheckCount >= 3) {
-    badge = 'declared';
-    criteria.push('minimum content: 3 axioms, 2 misunderstandings, 3 self-checks');
+  if (axiomCount > 0 || misCount > 0 || selfCheckCount > 0) {
+    evidenceStatus = 'declared';
+    observations.push('judgment structure declared');
   }
-  if (lockedAxioms >= axiomCount && evalCount >= 5 && humanPassRate >= 0.6) {
-    badge = 'tested';
-    criteria.push(`${lockedAxioms}/${axiomCount} axioms governed`);
-    criteria.push(`${evalCount} eval cases`);
-    criteria.push(`human pass rate: ${Math.round(humanPassRate * 100)}%`);
+  if (evalCount > 0) {
+    evidenceStatus = 'observed';
+    observations.push(`${evalCount} evaluation case(s) declared`);
+    observations.push(`declared human-pass observations: ${humanPassCount}`);
   }
-  if (lockedAxioms >= axiomCount && evalCount >= 10 && humanPassRate >= 0.8 && regressionPassed) {
-    badge = 'trusted';
-    criteria.push(`${evalCount} eval cases (≥10)`);
-    criteria.push(`human pass rate: ${Math.round(humanPassRate * 100)}% (≥80%)`);
-    criteria.push('regression test passed');
+  if (evalCount > 0 && evalsDirectoryPresent) {
+    observations.push('an evals directory is present');
   }
 
   const result = {
-    quality_badge: badge,
+    evidence_status: evidenceStatus,
     evidence: {
-      axioms: { total: axiomCount, locked: lockedAxioms },
+      axioms: { total: axiomCount, boundary_complete: boundaryCompleteAxioms },
       misunderstandings: misCount,
       self_checks: selfCheckCount,
       eval_count: evalCount,
       human_pass_rate: Math.round(humanPassRate * 100) / 100,
-      regression_passed: regressionPassed,
+      evals_directory_present: evalsDirectoryPresent,
     },
-    criteria,
+    observations,
+    disclaimer:
+      'Evidence observations do not certify content truth, quality, trust, or publication fitness.',
   };
 
   if (jsonMode) {
     console.log(JSON.stringify(result, null, 2));
-    process.exit(badge === 'draft' ? EXIT.JUDGMENT_QUALITY_FAILED : EXIT.OK);
+    process.exit(EXIT.OK);
   }
 
-  console.log(`Quality Badge: ${badge.toUpperCase()}`);
+  console.log(`Evidence Status: ${evidenceStatus.toUpperCase()}`);
   console.log(`  Domain: ${manifest?.name || path.basename(abs)}`);
   console.log('');
   console.log('  Evidence:');
-  console.log(`    Axioms:                ${axiomCount} total, ${lockedAxioms} governed`);
+  console.log(
+    `    Axioms:                ${axiomCount} total, ${boundaryCompleteAxioms} with boundary fields`,
+  );
   console.log(`    Misunderstandings:     ${misCount}`);
   console.log(`    Self-checks:           ${selfCheckCount}`);
   console.log(`    Eval cases:            ${evalCount}`);
   console.log(`    Human pass rate:       ${Math.round(humanPassRate * 100)}%`);
-  console.log(`    Regression:            ${regressionPassed ? '✓ passed' : '— not run'}`);
+  console.log(`    Evals directory:       ${evalsDirectoryPresent ? 'present' : 'absent'}`);
   console.log('');
-  console.log('  Criteria met:');
-  criteria.forEach((c) => console.log(`    ✓ ${c}`));
+  console.log('  Observations:');
+  observations.forEach((observation) => console.log(`    - ${observation}`));
+  console.log('  These observations do not certify truth, quality, trust, or publication fitness.');
 }
 
 // ─── Registry Audit ────────────────────────────────────────────────────
