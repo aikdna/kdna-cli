@@ -66,7 +66,6 @@ const { computeContextBudget } = require('./cmds/context-budget');
 const { appendAuditEntry } = require('./cmds/audit-log');
 const {
   shouldWatermark,
-  watermarkPolicy,
   buildWatermark,
   renderWatermarkHeader,
   newHmacKey,
@@ -533,27 +532,9 @@ switch (cmd) {
         }
       }
 
-      // Story 21 — payload-level watermark policy. Attached to the
-      // plan when the access mode is `licensed` or `remote`. The
-      // full watermark record (with HMAC) is built at `kdna load`
-      // time; the plan only carries the policy metadata so the
-      // consumer knows what to expect.
-      try {
-        const access = plan.access;
-        const assetUid = plan.asset && plan.asset.asset_uid;
-        if (shouldWatermark(access) && assetUid) {
-          plan.watermark_policy = watermarkPolicy({
-            access,
-            assetUid,
-          });
-        }
-      } catch (_) {
-        // watermark policy is optional — never fail plan-load because of it
-      }
-      // The plan_load output already carries plan.asset.asset_uid
-      // and plan.access. The watermark_policy is a brief
-      // pointer; consumers who want the full watermark get it
-      // from `kdna load` (which has the consumer_id context).
+      // LoadPlan is a closed public contract shared with Core and Swift.
+      // Watermark data belongs to the observed load result, not to the plan;
+      // adding an undeclared field here would make CLI output schema-invalid.
 
       console.log(JSON.stringify(plan, null, 2));
       process.exit(plan.state === 'invalid' ? 1 : plan.can_load_now === true ? 0 : 3);

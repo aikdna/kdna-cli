@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.30.4 (2026-07-13)
+
+- Keep `kdna plan-load` output inside the closed public LoadPlan schema by
+  removing the CLI-only `watermark_policy` property. Watermark records remain
+  part of observed authorized load output, where they do not break Core/CLI/
+  Swift plan parity.
+
 ## 0.30.3 (2026-07-13)
 
 - Strengthen the Agent loader's silent-application rule after local Codex,
