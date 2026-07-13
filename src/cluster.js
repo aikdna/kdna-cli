@@ -46,7 +46,7 @@ function cmdClusterApply(_clusterPath) {
   console.error(
     'kdna cluster apply was removed in v0.9.\n' +
       'Use "kdna cluster plan-use <manifest> --task=..." for deterministic planning.\n' +
-      'Use "kdna use <asset.kdna> --runner=<runner>" for execution.',
+      'Use "kdna use <asset.kdna> --runner=<runner>" for Runner handoff.',
   );
   process.exit(2);
 }

@@ -59,8 +59,8 @@ function writeCluster(name, overrides = {}) {
     },
     budget: {
       profile: 'interactive',
-      max_tokens: 100,
-      max_chars: 400,
+      max_tokens: 4000,
+      max_chars: 16000,
       max_assets: overrides.maxAssets || 2,
       enforcement: 'hard',
     },
@@ -190,16 +190,28 @@ it('use --as=trace reports digest_verified: false (no Core verification)', () =>
   }
 });
 
-it('use with cli runner resolves a local asset and records Core digest verification', () => {
-  const r = execSync(
-    `node ${CLI} use ${FIXTURE} --task="Review code" --runner cli:default --as trace`,
+it('cli runner loads a real Runtime Capsule but does not claim task completion', () => {
+  const result = require('node:child_process').spawnSync(
+    'node',
+    [CLI, 'use', FIXTURE, '--task=Review code', '--runner=cli:default', '--as=json'],
     { encoding: 'utf8', env: { ...process.env, KDNA_QUIET: '1' } },
   );
-  const trace = JSON.parse(r);
-  assert.strictEqual(trace.execution.status, 'completed');
-  assert.strictEqual(trace.asset_identity.digest_verified, true);
-  assert.match(trace.asset_identity.digest, /^sha256:[a-f0-9]{64}$/);
-  assert.strictEqual(trace.cost.assets_loaded, 1);
+  assert.notStrictEqual(result.status, 0, 'partial execution should not report full success');
+  const out = JSON.parse(result.stdout);
+  assert.strictEqual(out.status, 'partial');
+  assert.strictEqual(out.trace.execution.status, 'partial');
+  assert.strictEqual(out.trace.asset_identity.digest_verified, true);
+  assert.match(out.trace.asset_identity.digest, /^sha256:[a-f0-9]{64}$/);
+  assert.strictEqual(out.trace.cost.assets_loaded, 1);
+  assert.strictEqual(out.trace.cost.chars_consumed, 0);
+  assert.ok(out.trace.cost.projection_chars > 0);
+  assert.ok(out.trace.cost.estimated_projection_tokens > 0);
+  assert.strictEqual(out.trace.cost.model_calls, 0);
+  assert.strictEqual(out.result.shape, 'kdna-capsule-bundle');
+  assert.strictEqual(out.result.task_result, null);
+  assert.strictEqual(out.result.capsules.length, 1);
+  assert.strictEqual(out.result.capsules[0].capsule.type, 'kdna.context.capsule');
+  assert.strictEqual(out.result.capsules[0].capsule.profile, 'compact');
 });
 
 it('cluster plan-use preflights and degrades an unavailable optional advisor', () => {
@@ -218,13 +230,18 @@ it('cluster plan-use preflights and degrades an unavailable optional advisor', (
 
 it('cluster use continues with the primary and records optional degradation', () => {
   const manifest = writeCluster('optional-use-degradation');
-  const result = execSync(
-    `node ${CLI} use ${manifest} --task="Deploy?" --runner=cli:default --as=trace`,
+  const result = require('node:child_process').spawnSync(
+    'node',
+    [CLI, 'use', manifest, '--task=Deploy?', '--runner=cli:default', '--as=trace'],
     { encoding: 'utf8', env: { ...process.env, KDNA_QUIET: '1' } },
   );
-  const trace = JSON.parse(result);
-  assert.strictEqual(trace.execution.status, 'completed');
+  assert.notStrictEqual(result.status, 0, 'Capsule-only handoff remains partial');
+  const trace = JSON.parse(result.stdout);
+  assert.strictEqual(trace.execution.status, 'partial');
   assert.strictEqual(trace.assets_loaded.length, 1);
+  assert.strictEqual(trace.cost.chars_consumed, 0);
+  assert.ok(trace.cost.projection_chars > 0);
+  assert.strictEqual(trace.cost.model_calls, 0);
   assert.strictEqual(trace.selection_actual.deviated_from_plan, true);
   assert.strictEqual(trace.degradations.length, 1);
   assert.ok(trace.warnings.some((warning) => warning.includes('Optional advisor')));

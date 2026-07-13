@@ -195,7 +195,9 @@ function createMockRunner(opts = {}) {
 }
 
 /**
- * Create a CLI runner that wraps kdna-load + agent execution.
+ * Create a CLI runner that loads Runtime Capsules for handoff to an Agent host.
+ * It deliberately does not claim task completion because it does not invoke a
+ * model or otherwise consume the Capsule to produce judgment.
  *
  * @param {object} opts
  * @returns {Runner}
@@ -256,6 +258,9 @@ function createCliRunner(opts = {}) {
         }
 
         const observations = [];
+        const capsules = [];
+        let projectionChars = 0;
+        let estimatedProjectionTokens = 0;
         const warnings = [...(plan.warnings || [])];
         for (const ref of refs) {
           const protocolName = String(ref.asset_id || '').match(/^kdna:([^:]+):(.+)$/);
@@ -342,6 +347,34 @@ function createCliRunner(opts = {}) {
               `Asset "${ref.asset_id}" does not match the digest declared by the Cluster manifest.`,
             );
           }
+          const requestedProfile = ['index', 'compact', 'scenario', 'full'].includes(
+            plan?.projection_ref?.shape,
+          )
+            ? plan.projection_ref.shape
+            : 'compact';
+          const capsule = core.load(resolved.asset_path, {
+            profile: requestedProfile,
+            as: 'json',
+          });
+          if (capsule?.type !== 'kdna.context.capsule') {
+            return buildErrorResult(
+              plan,
+              id,
+              version,
+              startTime,
+              `Asset "${ref.asset_id}" did not produce a Runtime Capsule.`,
+            );
+          }
+          const capsuleJson = JSON.stringify(capsule);
+          const capsuleChars = capsuleJson.length;
+          const capsuleTokenEstimate = Math.ceil(capsuleChars / 4);
+          projectionChars += capsuleChars;
+          estimatedProjectionTokens += capsuleTokenEstimate;
+          capsules.push({
+            asset_id: ref.asset_id,
+            role: ref.role || 'advisor',
+            capsule,
+          });
           observations.push({
             asset_id: ref.asset_id,
             version: inspected?.version || resolved.version || ref.version || null,
@@ -352,6 +385,11 @@ function createCliRunner(opts = {}) {
             authorization: loadPlan.access || inspected?.access || 'public',
             contribution_hypothesis: ref.contribution_hypothesis,
             contribution_fulfilled: false,
+            projection_profile: capsule.profile,
+            projection_chars: capsuleChars,
+            estimated_projection_tokens: capsuleTokenEstimate,
+            capsule_digest:
+              'sha256:' + crypto.createHash('sha256').update(capsuleJson).digest('hex'),
           });
         }
 
@@ -365,26 +403,30 @@ function createCliRunner(opts = {}) {
           plan_id: plan.plan_id,
           runner_id: `${this.type}:${id}`,
           runner_version: version,
-          status: 'completed',
+          status: 'partial',
           started_at: new Date(startTime).toISOString(),
           completed_at: new Date().toISOString(),
           duration_ms: Date.now() - startTime,
-          model: context?.model || 'default',
+          model: 'none',
           result: {
-            shape: plan?.expected_outcome?.result_shape || 'answer-pattern',
-            answer: `${observations.length} asset(s) loaded and ready for judgment`,
-            reasoning: ['Assets loaded via kdna-core LoadPlan', `Primary: ${primary.asset_id}`],
-            confidence: 'medium',
+            shape: 'kdna-capsule-bundle',
+            capsules,
+            task_result: null,
             sources: observations.map((item) => ({ asset_id: item.asset_id, inspection: true })),
-            alternatives: [],
           },
-          cost: { tokens_used: 0, model_calls: 0 },
+          cost: {
+            tokens_used: 0,
+            model_calls: 0,
+            chars_consumed: 0,
+            projection_chars: projectionChars,
+            estimated_projection_tokens: estimatedProjectionTokens,
+          },
           errors: [],
           warnings: [
-            'CLI runner verifies and loads assets but does not invoke a model.',
+            'Runtime Capsules were loaded by KDNA Core, but no Agent or model consumed them; no task judgment was produced.',
             ...warnings,
           ],
-          attempts: [{ attempt: 1, status: 'completed' }],
+          attempts: [{ attempt: 1, status: 'partial' }],
           assets_loaded: observations,
           digest: primary.digest,
           digest_verified: primary.digest_verified === true,
@@ -568,7 +610,9 @@ function buildTraceFromResult(plan, result) {
       : undefined,
     cost: {
       tokens_used: result.cost?.tokens_used || 0,
-      chars_consumed: JSON.stringify(result).length,
+      chars_consumed: result.cost?.chars_consumed || 0,
+      projection_chars: result.cost?.projection_chars || 0,
+      estimated_projection_tokens: result.cost?.estimated_projection_tokens || 0,
       assets_loaded: Array.isArray(result.assets_loaded)
         ? result.assets_loaded.length
         : result.status === 'completed' || result.status === 'partial'
@@ -576,7 +620,9 @@ function buildTraceFromResult(plan, result) {
           : 0,
       model_calls: result.cost?.model_calls || 0,
       budget_profile: plan.budget?.profile || 'code-review',
-      over_budget: (result.cost?.tokens_used || 0) > (plan.budget?.max_tokens || Infinity),
+      over_budget:
+        (result.cost?.tokens_used || 0) > (plan.budget?.max_tokens || Infinity) ||
+        (result.cost?.projection_chars || 0) > (plan.budget?.max_chars || Infinity),
     },
     evaluation: {
       self_checks: [],

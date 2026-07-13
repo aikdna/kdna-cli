@@ -882,9 +882,15 @@ function generateClusterTrace(plan, runnerResult) {
     conflicts: plan.conflicts || [],
     cost: {
       tokens_used: runnerResult?.cost?.tokens_used || 0,
+      chars_consumed: runnerResult?.cost?.chars_consumed || 0,
+      projection_chars: runnerResult?.cost?.projection_chars || 0,
+      estimated_projection_tokens: runnerResult?.cost?.estimated_projection_tokens || 0,
       assets_loaded: loadedCount,
+      model_calls: runnerResult?.cost?.model_calls || 0,
       budget_profile: plan.budget?.profile || 'interactive',
-      over_budget: (runnerResult?.cost?.tokens_used || 0) > (plan.budget?.max_tokens || Infinity),
+      over_budget:
+        (runnerResult?.cost?.tokens_used || 0) > (plan.budget?.max_tokens || Infinity) ||
+        (runnerResult?.cost?.projection_chars || 0) > (plan.budget?.max_chars || Infinity),
     },
     provenance: {
       plan_digest: plan.metadata?.plan_digest || null,

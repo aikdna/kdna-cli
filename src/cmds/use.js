@@ -1,5 +1,5 @@
 /**
- * kdna use — Execute a KDNA asset/Cluster through a registered Runner.
+ * kdna use — Run a KDNA asset/Cluster through a registered Runner.
  *
  * This is the "what actually happens" path. It:
  *   1. Generates a ConsumptionPlan via plan-use (deterministic)
@@ -59,7 +59,7 @@ function cmdUse(args) {
   if (!target || args.includes('--help') || args.includes('-h')) {
     process.stderr.write(
       'Usage: kdna use <asset.kdna> [options]\n\n' +
-        'Execute a KDNA asset through a registered Runner.\n\n' +
+        'Run a KDNA asset through a registered Runner.\n\n' +
         'Options:\n' +
         '  --task=<text>           Task description\n' +
         '  --task-family=<name>    Task family (default: general)\n' +
@@ -211,7 +211,8 @@ function cmdUse(args) {
     return;
   }
 
-  // Phase 3: Execute through runner
+  // Phase 3: Run through the selected adapter. Only a Runner that actually
+  // produces the requested task result may return completed.
   executePlan(plan, runnerSpec, {
     timeoutMs,
     model: process.env.KDNA_MODEL || 'default',

@@ -99,7 +99,7 @@ kdna eval-consumption <asset-path> --fixtures=./fixtures --budget=interactive --
 | `kdna compose`                          | Build a bounded primary/advisor set and trace it.                     |
 | `kdna project`                          | Render a packaged asset as a task-safe projection.                    |
 | `kdna plan-use`                         | Produce a deterministic pre-execution ConsumptionPlan.                |
-| `kdna use`                              | Execute through a registered Runner and emit an observed Trace.       |
+| `kdna use`                              | Run through a registered Runner and emit an observed Trace.           |
 | `kdna cluster`                          | Validate, plan, inspect, or migrate an explicit Cluster manifest.     |
 | `kdna eval asset`                       | Run the single-asset Assay without inflating evidence classification. |
 | `kdna eval cluster`                     | Run the fail-closed five-gate Cluster Assay.                          |
@@ -113,9 +113,12 @@ Generated sidecars are disabled by default. They are not an endorsement of an
 asset or a replacement for independent review.
 
 The built-in `mock` Runner never claims an asset was loaded. The built-in
-`cli` Runner validates and loads assets through KDNA Core but does not invoke a
-language model; Agent/model execution is supplied by a registered Agent, app,
-or API Runner.
+`cli` Runner calls KDNA Core `load`, returns the resulting Runtime Capsules,
+and records their measured projection size separately from consumed context.
+Because it does not invoke an Agent
+or model, it returns `partial` and never claims a task judgment was completed.
+A registered Agent, app, or API Runner must consume those Capsules to produce a
+task result.
 
 ## Asset Management
 

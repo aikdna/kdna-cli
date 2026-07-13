@@ -207,7 +207,7 @@ function showHelp() {
                                       --budget=<profile> Budget profile
                                       --shape=<name>     Projection shape
                                       --as=json|md       Output format
-  use <asset.kdna>                   Execute through registered Runner
+  use <asset.kdna>                   Run through a registered Runner
                                       --task=<text>      Task description
                                       --runner=<type:id> Runner (default: mock:default)
                                       --as=json|trace    Output format
