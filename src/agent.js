@@ -38,7 +38,8 @@ const {
   resolveAsset,
 } = require('./package-store');
 const { licenseDecryptOptionsForManifest } = require('./cmds/license');
-const { load, planLoad } = require('@aikdna/kdna-core');
+const { loadAuthorized, planLoad } = require('@aikdna/kdna-core');
+const { loadExternalAuthorization } = require('./external-entitlement');
 
 function detectAgent() {
   return process.env.KDNA_AGENT || 'cli';
@@ -77,6 +78,8 @@ function traceAssetFields(asset, manifest = {}, license = null) {
 
 function readDiscoveryAsset(entry) {
   let manifest = {};
+  let externalSession = null;
+  let plan = null;
   try {
     manifest = readContainerJson(entry.asset_path, 'kdna.json') || {};
   } catch (error) {
@@ -88,13 +91,18 @@ function readDiscoveryAsset(entry) {
     };
   }
 
-  const plan = planLoad(entry.asset_path);
-  if (plan.can_load_now !== true) {
-    return { manifest, core: {}, loadable: false, plan };
-  }
-
   try {
-    const capsule = load(entry.asset_path, { profile: 'compact', as: 'json' });
+    externalSession = loadExternalAuthorization(entry.asset_path, manifest);
+    plan = planLoad(entry.asset_path, { entitlement: externalSession?.entitlement });
+    if (plan.can_load_now !== true) {
+      return { manifest, core: {}, loadable: false, plan };
+    }
+    const capsule = loadAuthorized(entry.asset_path, {
+      profile: 'compact',
+      as: 'json',
+      entitlement: externalSession?.entitlement,
+      decryptEntry: externalSession?.decryptEntry,
+    });
     return {
       manifest,
       core: { axioms: Array.isArray(capsule.context?.axioms) ? capsule.context.axioms : [] },
@@ -107,11 +115,13 @@ function readDiscoveryAsset(entry) {
       core: {},
       loadable: false,
       plan: {
-        ...plan,
+        ...(plan || {}),
         state: 'invalid',
         issues: [{ code: error.code || 'KDNA_LOAD_FAILED', message: error.message }],
       },
     };
+  } finally {
+    externalSession?.dispose();
   }
 }
 
@@ -1439,7 +1449,7 @@ function checkTrust(domainName) {
       warnings.push(
         'commercial domain has no active entitlement — run: kdna license activate ' +
           domainName +
-          ' --key <license-key> --server <url>',
+          ' --server <url>',
       );
     }
   }

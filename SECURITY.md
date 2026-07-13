@@ -30,7 +30,8 @@ We will acknowledge within 5 business days and provide a timeline for a fix.
 - `kdna install`: registry trust chain and SHA-256 verification
 - `kdna publish`: signing and key material handling
 - `kdna license activate/sync/verify/show`: license-key and entitlement
-  handling, including redaction of activation errors and sync traces
+  handling, including redaction of activation errors and sync traces;
+  RFC-0019 device keys, issuer pins, and grants must remain in SecretStore
 - `kdna load --remote-server`: remote projection client behavior and
   avoidance of plaintext payload exposure
 

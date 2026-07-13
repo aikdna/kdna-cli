@@ -214,7 +214,6 @@ Current local authorization path:
 kdna validate ./asset.kdna --json
 kdna plan-load ./asset.kdna --json
 kdna plan-load ./asset.kdna --json --has-password
-kdna plan-load ./asset.kdna --json --entitlement-status active
 kdna load ./asset.kdna --profile=compact --as=json
 ```
 
@@ -224,6 +223,31 @@ kdna load ./asset.kdna --profile=compact --as=json
 > load a protected asset, use `kdna load --password=<value>`. See
 > [`docs/asset-authorization.md`](docs/asset-authorization.md) for the
 > full distinction and end-to-end examples.
+
+For an RFC-0019 account/device asset, an `active` status flag is not enough.
+The preferred flow is:
+
+```bash
+kdna plan-load ./asset.kdna
+# needs_account / sign_in_or_activate
+
+kdna license activate @publisher/asset \
+  --server https://publisher.example \
+  --asset ./asset.kdna
+
+kdna plan-load ./asset.kdna
+# ready
+
+kdna load ./asset.kdna --profile=compact --as=json
+# kdna.context.capsule
+```
+
+The browser step authorizes the current device. Device private keys, pinned
+issuer keys, and the signed grant are stored in the platform SecretStore; local
+JSON contains only public status metadata and secret references. Headless
+clients can use `--credential-stdin`. Activation credentials are never accepted
+as ordinary command-line arguments. Account/device loading does not fall back
+to the password profile.
 
 `plan-load` delegates to `@aikdna/kdna-core`. The CLI never redefines access,
 authorization, or decryption policy, and `load --as=json` returns the Core

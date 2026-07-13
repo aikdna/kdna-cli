@@ -73,6 +73,7 @@ const {
 const { scanBundleDeprecations, formatDeprecationStderr } = require('./cmds/deprecation');
 const studio = require('./cmds/studio');
 const { resolveAsset, readAssetManifest } = require('./package-store');
+const { loadExternalAuthorization } = require('./external-entitlement');
 
 const resolveAssetCallback = (name) => {
   const pkg = resolveAsset(name);
@@ -258,7 +259,9 @@ Auth & Identity:
   license  status [<domain>]         Show license status (all or one)
   license  generate <domain>         Generate a signed license
            --to <email> [--expires]
-  license  activate <domain>         Activate with --key and --server
+  license  activate <domain>         Authorize this device in a browser
+                                      --server <url> [--asset <path>]
+                                      [--credential-stdin] [--no-browser]
   license  sync [<domain>]           Refresh installed entitlement state
   license  verify <license.json>     Verify a license file
   license  bind <license.json>       Bind a license to this machine
@@ -473,17 +476,23 @@ switch (cmd) {
         planLoadPwIdx >= 0 && args[planLoadPwIdx + 1] && !args[planLoadPwIdx + 1].startsWith('--')
           ? args[planLoadPwIdx + 1]
           : null;
-      const plan = core.planLoad(planTarget, {
-        hasPassword: !!planLoadPassword || args.includes('--has-password'),
-        password: planLoadPassword || undefined,
-        entitlement: entitlementStatus ? { status: entitlementStatus } : undefined,
-        resolveAsset: resolveAssetCallback,
-      });
+      const planManifest = readManifestForPath(abs);
+      let externalSession = null;
+      try {
+        externalSession = loadExternalAuthorization(abs, planManifest || {});
+        const plan = core.planLoad(planTarget, {
+          hasPassword: !!planLoadPassword || args.includes('--has-password'),
+          password: planLoadPassword || undefined,
+          entitlement:
+            externalSession?.entitlement ||
+            (entitlementStatus ? { status: entitlementStatus } : undefined),
+          resolveAsset: resolveAssetCallback,
+        });
 
-      // Context budget reporting (Story 8) — non-blocking, best-effort.
+        // Context budget reporting (Story 8) — non-blocking, best-effort.
       // If the Bundle manifest declares context_budget.max_tokens, compute
       // a per-component token cost estimate and attach it to the plan output.
-      if (plan.resolved_dependencies && plan.resolved_dependencies.length > 0) {
+        if (plan.resolved_dependencies && plan.resolved_dependencies.length > 0) {
         try {
           const manifestPath = require('node:path').join(abs, 'kdna.json');
           if (fs.existsSync(manifestPath)) {
@@ -530,14 +539,18 @@ switch (cmd) {
         } catch (_) {
           // context_budget is optional — never fail plan-load because of it
         }
-      }
+        }
 
       // LoadPlan is a closed public contract shared with Core and Swift.
       // Watermark data belongs to the observed load result, not to the plan;
       // adding an undeclared field here would make CLI output schema-invalid.
 
-      console.log(JSON.stringify(plan, null, 2));
-      process.exit(plan.state === 'invalid' ? 1 : plan.can_load_now === true ? 0 : 3);
+        console.log(JSON.stringify(plan, null, 2));
+        process.exitCode = plan.state === 'invalid' ? 1 : plan.can_load_now === true ? 0 : 3;
+        return;
+      } finally {
+        externalSession?.dispose();
+      }
     } catch (e) {
       process.stderr.write('Error: ' + e.message + '\n');
       process.exit(1);
@@ -755,16 +768,22 @@ switch (cmd) {
     }
 
     const loadStart = Date.now();
+    let externalSession = null;
     try {
       const entitlementStatusIndex = args.indexOf('--entitlement-status');
       const entitlementStatus =
         entitlementStatusIndex >= 0 ? args[entitlementStatusIndex + 1] : null;
+      const loadManifest = readManifestForPath(abs) || {};
+      externalSession = loadExternalAuthorization(abs, loadManifest);
       const r = core.loadAuthorized(abs, {
         profile,
         as,
         password,
         hasPassword: !!password || args.includes('--has-password'),
-        entitlement: entitlementStatus ? { status: entitlementStatus } : undefined,
+        entitlement:
+          externalSession?.entitlement ||
+          (entitlementStatus ? { status: entitlementStatus } : undefined),
+        decryptEntry: externalSession?.decryptEntry,
         resolveAsset: resolveAssetCallback,
       });
       appendAuditEntry({
@@ -871,6 +890,13 @@ switch (cmd) {
         process.stderr.write('Error: payload requires a password. Use --password=<value>.\n');
         process.exit(EXIT.JUDGMENT_QUALITY_FAILED);
       }
+      if (e.code === 'KDNA_AUTH_ACCOUNT_REQUIRED' || e.code === 'KDNA_AUTH_ORG_REQUIRED') {
+        process.stderr.write(
+          'Error: this asset needs an approved account/device entitlement. ' +
+            'Run kdna license activate <asset-name> --server <url>.\n',
+        );
+        process.exit(EXIT.JUDGMENT_QUALITY_FAILED);
+      }
       if (e.code === 'KDNA_AUTH_REMOTE_RUNTIME_REQUIRED') {
         // Defensive: the access check above should have caught
         // this case, but if it slips through (e.g. if the access
@@ -884,6 +910,8 @@ switch (cmd) {
       }
       process.stderr.write('Error: ' + e.message + '\n');
       process.exit(EXIT.VALIDATION_FAILED);
+    } finally {
+      externalSession?.dispose();
     }
   }
   // eslint-disable-next-line no-fallthrough

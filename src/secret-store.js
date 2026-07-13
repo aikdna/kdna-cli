@@ -50,6 +50,7 @@ const PATHS = require('./paths');
 
 const SERVICE_NAME = 'aikdna-kdna';
 const FILE_BACKEND_DIR = path.join(PATHS.root, 'secrets');
+const memorySecrets = new Map();
 
 class SecretStoreError extends Error {
   constructor(code, message) {
@@ -227,6 +228,21 @@ const backends = {
       return Object.keys(process.env).filter((k) => k.startsWith('KDNA_SECRET_'));
     },
   },
+
+  memory: {
+    async get(name) {
+      return memorySecrets.has(name) ? memorySecrets.get(name) : null;
+    },
+    async set(name, value) {
+      memorySecrets.set(name, value);
+    },
+    async delete(name) {
+      memorySecrets.delete(name);
+    },
+    async list() {
+      return [...memorySecrets.keys()].sort();
+    },
+  },
 };
 
 function encodeName(name) {
@@ -239,7 +255,75 @@ function decodeName(encoded) {
   return encoded.replace(/_([0-9a-f]+)_/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
 }
 
-const activeBackend = pickBackend();
+function syncBackend() {
+  const backend = pickBackend();
+  if (backend === 'keychain') {
+    return {
+      get(name) {
+        if (!keychainAvailable()) throw new SecretStoreError('BACKEND_UNAVAILABLE', 'macOS Keychain not available');
+        try {
+          return execFileSync(
+            'security',
+            ['find-generic-password', '-s', SERVICE_NAME, '-a', name, '-w'],
+            { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+          ).trimEnd();
+        } catch (e) {
+          if (e.status === 44 || /SecKeychainSearchCopyMatch/.test(e.stderr || '')) return null;
+          throw new SecretStoreError('PERMISSION_DENIED', e.stderr || e.message);
+        }
+      },
+      set(name, value) {
+        execFileSync(
+          'security',
+          ['add-generic-password', '-a', name, '-s', SERVICE_NAME, '-w', value, '-U'],
+          { stdio: ['ignore', 'ignore', 'pipe'] },
+        );
+      },
+      delete(name) {
+        try {
+          execFileSync('security', ['delete-generic-password', '-a', name, '-s', SERVICE_NAME], {
+            stdio: ['ignore', 'ignore', 'pipe'],
+          });
+        } catch (e) {
+          if (e.status !== 44) throw new SecretStoreError('PERMISSION_DENIED', e.stderr || e.message);
+        }
+      },
+    };
+  }
+  if (backend === 'memory') {
+    return {
+      get: (name) => (memorySecrets.has(name) ? memorySecrets.get(name) : null),
+      set: (name, value) => memorySecrets.set(name, value),
+      delete: (name) => memorySecrets.delete(name),
+    };
+  }
+  if (backend === 'env') {
+    return {
+      get: (name) => process.env[name] ?? null,
+      set() { throw new SecretStoreError('PERMISSION_DENIED', 'env backend is read-only'); },
+      delete() { throw new SecretStoreError('PERMISSION_DENIED', 'env backend is read-only'); },
+    };
+  }
+  if (backend === 'file') {
+    return {
+      get(name) {
+        ensureFileBackendDir();
+        const p = path.join(FILE_BACKEND_DIR, encodeName(name));
+        return fs.existsSync(p) ? fs.readFileSync(p, 'utf8').replace(/\n$/, '') : null;
+      },
+      set(name, value) {
+        ensureFileBackendDir();
+        fs.writeFileSync(path.join(FILE_BACKEND_DIR, encodeName(name)), value + '\n', { mode: 0o600 });
+      },
+      delete(name) {
+        try { fs.unlinkSync(path.join(FILE_BACKEND_DIR, encodeName(name))); } catch (e) {
+          if (e.code !== 'ENOENT') throw e;
+        }
+      },
+    };
+  }
+  throw new SecretStoreError('BACKEND_UNAVAILABLE', `Unknown backend: ${backend}`);
+}
 
 async function withBackend(fn) {
   // Re-pick the backend on every call so that setting
@@ -284,6 +368,22 @@ module.exports = {
     return withBackend((b) => b.list());
   },
 
+  getSync(name) {
+    return syncBackend().get(name);
+  },
+
+  setSync(name, value) {
+    return syncBackend().set(name, value);
+  },
+
+  deleteSync(name) {
+    return syncBackend().delete(name);
+  },
+
+  backendName() {
+    return pickBackend();
+  },
+
   // Expose for tests
   _internals: {
     get backend() {
@@ -293,6 +393,7 @@ module.exports = {
     encodeName,
     decodeName,
     keychainAvailable,
+    memorySecrets,
   },
 
   SecretStoreError,
