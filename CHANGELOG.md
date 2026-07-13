@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.31.1 (2026-07-13)
+
+- Add explicit per-domain `routing_signals` for bounded Cluster routing,
+  punctuation-safe short tasks, specificity scoring, and manifest priority
+  tie-breaking.
+- Preflight selected Cluster members through the package store and Core
+  LoadPlan before execution. Missing or unauthorized primaries fail closed;
+  unavailable optional advisors degrade with an explicit warning and trace.
+- Enforce manifest token, character, and asset budgets. A hard
+  `budget_exceeded: block` policy now blocks instead of silently truncating.
+- Make `conflict_policy: block` produce a non-executed, zero-load blocked trace.
+- Verify observed Cluster members against both their internal checksums and the
+  artifact digest declared by the Cluster manifest.
+
 ## 0.31.0 (2026-07-13)
 
 - Add RFC-0019 browser device activation, signed challenge/proof polling,

@@ -1,5 +1,7 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert');
+const crypto = require('node:crypto');
+const fs = require('node:fs');
 const {
   validateClusterManifest,
   resolveCandidates,
@@ -10,6 +12,7 @@ const {
   generateClusterTrace,
   migrateToCanonical,
 } = require('../src/cluster-engine');
+const { preflightClusterPlan } = require('../src/cluster-preflight');
 
 // ── Canonical manifest fixture ────────────────────────────────────────
 
@@ -134,6 +137,14 @@ it('rejects invalid role', () => {
   assert.strictEqual(r.valid, false);
 });
 
+it('rejects malformed explicit routing signals', () => {
+  const bad = JSON.parse(JSON.stringify(CANONICAL_MANIFEST));
+  bad.domains[0].routing_signals = [];
+  const r = validateClusterManifest(bad);
+  assert.strictEqual(r.valid, false);
+  assert.ok(r.errors.some((error) => error.includes('routing_signals')));
+});
+
 it('validates empty manifest object', () => {
   const r = validateClusterManifest(null);
   assert.strictEqual(r.valid, false);
@@ -158,6 +169,50 @@ it('resolves candidates for non-matching task', () => {
   const r = resolveCandidates(CANONICAL_MANIFEST, 'Write a blog post about our launch');
   const primary = r.primary_candidates.filter((c) => c.match_quality !== 'none');
   assert.ok(primary.length <= 1); // may match or not, depending on load_condition
+});
+
+it('explicit routing signals remove punctuation and reject generic near matches', () => {
+  const manifest = JSON.parse(JSON.stringify(CANONICAL_MANIFEST));
+  manifest.domains[0].routing_signals = ['done', 'production rollout'];
+  manifest.domains[1].routing_signals = ['public API'];
+  manifest.domains[2].routing_signals = ['brand positioning'];
+
+  const short = resolveCandidates(manifest, 'Done?');
+  assert.strictEqual(short.primary_candidates[0].match_quality, 'high');
+
+  const unrelated = resolveCandidates(manifest, 'Plan a weekend hiking route for six people.');
+  assert.strictEqual(
+    unrelated.candidates.filter((candidate) => candidate.match_quality !== 'none').length,
+    0,
+  );
+});
+
+it('primary arbitration prefers the more specific matched signal', () => {
+  const manifest = JSON.parse(JSON.stringify(CANONICAL_MANIFEST));
+  manifest.domains = [
+    {
+      id: '@test/generic',
+      version: '1.0.0',
+      role: 'primary-candidate',
+      required: true,
+      load_condition: 'value',
+      routing_signals: ['value'],
+    },
+    {
+      id: '@test/specific',
+      version: '1.0.0',
+      role: 'primary-candidate',
+      required: true,
+      load_condition: 'distinct value',
+      routing_signals: ['distinct value'],
+    },
+  ];
+  manifest.composition.priority_order = ['@test/generic', '@test/specific'];
+  const result = arbitratePrimary(
+    resolveCandidates(manifest, 'Does it offer distinct value?'),
+    manifest,
+  );
+  assert.strictEqual(result.primary.asset_id, '@test/specific');
 });
 
 // ── Primary Arbitration ───────────────────────────────────────────────
@@ -265,6 +320,84 @@ it('cluster plan IDs are deterministic', () => {
   const p1 = generateClusterPlan(CANONICAL_MANIFEST, 'Same task A');
   const p2 = generateClusterPlan(CANONICAL_MANIFEST, 'Same task A');
   assert.strictEqual(p1.plan_id, p2.plan_id);
+});
+
+it('cluster plan propagates manifest token and character budgets', () => {
+  const manifest = JSON.parse(JSON.stringify(CANONICAL_MANIFEST));
+  manifest.budget.max_tokens = 100;
+  manifest.budget.max_chars = 400;
+  const plan = generateClusterPlan(manifest, 'Deploy to production');
+  assert.strictEqual(plan.budget.max_tokens, 100);
+  assert.strictEqual(plan.budget.max_chars, 400);
+});
+
+it('hard budget policy blocks instead of silently truncating advisors', () => {
+  const manifest = JSON.parse(JSON.stringify(CANONICAL_MANIFEST));
+  manifest.budget.max_assets = 1;
+  manifest.domains[0].routing_signals = ['deploy'];
+  manifest.domains[1].routing_signals = ['deploy'];
+  manifest.domains[2].routing_signals = ['deploy'];
+  const plan = generateClusterPlan(manifest, 'Deploy?');
+  assert.strictEqual(plan.load_plan_ref.status, 'blocked');
+  assert.strictEqual(plan.budget.assets_consumed, 0);
+  assert.ok(plan.load_plan_ref.issues.some((issue) => issue.code === 'BUDGET_EXCEEDED'));
+});
+
+it('block conflict policy produces a blocked zero-consumption plan', () => {
+  const manifest = JSON.parse(JSON.stringify(CANONICAL_MANIFEST));
+  manifest.composition.conflict_policy = 'block';
+  manifest.domains[0].routing_signals = ['deploy'];
+  manifest.domains[1].routing_signals = ['deploy'];
+  manifest.domains[2].routing_signals = ['brand'];
+  manifest.relationships = [
+    {
+      from: manifest.domains[0].id,
+      to: manifest.domains[1].id,
+      type: 'conflicts_with',
+      description: 'Test conflict',
+    },
+  ];
+  const plan = generateClusterPlan(manifest, 'Deploy?');
+  assert.strictEqual(plan.load_plan_ref.status, 'blocked');
+  assert.strictEqual(plan.budget.assets_consumed, 0);
+  assert.strictEqual(plan.conflicts[0].severity, 'error');
+});
+
+it('preflight removes an unavailable optional advisor and keeps the verified primary', () => {
+  const artifactDigest =
+    'sha256:' + crypto.createHash('sha256').update(fs.readFileSync(__filename)).digest('hex');
+  const manifest = JSON.parse(JSON.stringify(CANONICAL_MANIFEST));
+  manifest.domains[0].digest = artifactDigest;
+  manifest.domains[0].routing_signals = ['deploy'];
+  manifest.domains[1].digest = artifactDigest;
+  manifest.domains[1].routing_signals = ['deploy'];
+  manifest.domains[2].routing_signals = ['brand'];
+  const plan = generateClusterPlan(manifest, 'Deploy?');
+  const checked = preflightClusterPlan(plan, {
+    resolveAsset: (name) => (name === manifest.domains[0].id ? { asset_path: __filename } : null),
+    core: {
+      planLoad: () => ({
+        can_load_now: true,
+        state: 'ready',
+        checks: { overall_valid: true, checksums_valid: true },
+      }),
+    },
+  });
+  assert.strictEqual(checked.load_plan_ref.status, 'ready');
+  assert.strictEqual(checked.load_plan_ref.preflight.status, 'degraded');
+  assert.strictEqual(checked.selection.advisors.length, 0);
+  assert.strictEqual(checked.budget.assets_consumed, 1);
+  assert.ok(checked.warnings.some((warning) => warning.includes('Optional advisor')));
+});
+
+it('preflight blocks when the selected primary is unavailable', () => {
+  const manifest = JSON.parse(JSON.stringify(CANONICAL_MANIFEST));
+  manifest.domains[0].routing_signals = ['deploy'];
+  const plan = generateClusterPlan(manifest, 'Deploy?');
+  const checked = preflightClusterPlan(plan, { resolveAsset: () => null });
+  assert.strictEqual(checked.load_plan_ref.status, 'blocked');
+  assert.strictEqual(checked.budget.assets_consumed, 0);
+  assert.ok(checked.load_plan_ref.issues.some((issue) => issue.code === 'PRIMARY_UNAVAILABLE'));
 });
 
 // ── Cluster Trace ─────────────────────────────────────────────────────

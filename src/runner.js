@@ -256,6 +256,7 @@ function createCliRunner(opts = {}) {
         }
 
         const observations = [];
+        const warnings = [...(plan.warnings || [])];
         for (const ref of refs) {
           const protocolName = String(ref.asset_id || '').match(/^kdna:([^:]+):(.+)$/);
           const packageName = protocolName
@@ -274,6 +275,17 @@ function createCliRunner(opts = {}) {
             }
           }
           if (!resolved?.asset_path) {
+            if (
+              plan?.mode === 'cluster' &&
+              ref.role === 'advisor' &&
+              ref.required !== true &&
+              plan.degradation_policy?.optional_advisor_unavailable === 'continue_with_warning'
+            ) {
+              warnings.push(
+                `Optional advisor "${ref.asset_id}" is unavailable; continuing with the verified primary.`,
+              );
+              continue;
+            }
             return buildErrorResult(
               plan,
               id,
@@ -285,6 +297,17 @@ function createCliRunner(opts = {}) {
 
           const loadPlan = core.planLoad(resolved.asset_path);
           if (loadPlan?.can_load_now !== true || loadPlan?.checks?.overall_valid !== true) {
+            if (
+              plan?.mode === 'cluster' &&
+              ref.role === 'advisor' &&
+              ref.required !== true &&
+              plan.degradation_policy?.optional_advisor_unavailable === 'continue_with_warning'
+            ) {
+              warnings.push(
+                `Optional advisor "${ref.asset_id}" is not loadable (${loadPlan?.state || 'unknown'}); continuing with the verified primary.`,
+              );
+              continue;
+            }
             return buildErrorResult(
               plan,
               id,
@@ -295,12 +318,37 @@ function createCliRunner(opts = {}) {
           }
 
           const inspected = core.inspect(resolved.asset_path);
+          const artifactDigest =
+            'sha256:' +
+            crypto.createHash('sha256').update(fs.readFileSync(resolved.asset_path)).digest('hex');
+          const declaredDigestMatches = !ref.digest || ref.digest === artifactDigest;
+          if (!declaredDigestMatches) {
+            if (
+              plan?.mode === 'cluster' &&
+              ref.role === 'advisor' &&
+              ref.required !== true &&
+              plan.degradation_policy?.optional_advisor_unavailable === 'continue_with_warning'
+            ) {
+              warnings.push(
+                `Optional advisor "${ref.asset_id}" does not match its declared digest; continuing with the verified primary.`,
+              );
+              continue;
+            }
+            return buildErrorResult(
+              plan,
+              id,
+              version,
+              startTime,
+              `Asset "${ref.asset_id}" does not match the digest declared by the Cluster manifest.`,
+            );
+          }
           observations.push({
             asset_id: ref.asset_id,
             version: inspected?.version || resolved.version || ref.version || null,
-            digest: loadPlan.input_fingerprint?.source_fingerprint || resolved.asset_digest || null,
+            digest: artifactDigest,
             role: ref.role || 'advisor',
-            digest_verified: loadPlan.checks?.checksums_valid === true,
+            digest_verified:
+              loadPlan.checks?.checksums_valid === true && declaredDigestMatches === true,
             authorization: loadPlan.access || inspected?.access || 'public',
             contribution_hypothesis: ref.contribution_hypothesis,
             contribution_fulfilled: false,
@@ -332,7 +380,10 @@ function createCliRunner(opts = {}) {
           },
           cost: { tokens_used: 0, model_calls: 0 },
           errors: [],
-          warnings: ['CLI runner verifies and loads assets but does not invoke a model.'],
+          warnings: [
+            'CLI runner verifies and loads assets but does not invoke a model.',
+            ...warnings,
+          ],
           attempts: [{ attempt: 1, status: 'completed' }],
           assets_loaded: observations,
           digest: primary.digest,

@@ -107,6 +107,10 @@ function cmdUse(args) {
           generateClusterTrace: genClusterTrace,
         } = require('../cluster-engine');
         plan = generateClusterPlan(manifest, task, { taskFamily, budgetProfile, shape });
+        if (plan.load_plan_ref.status !== 'blocked') {
+          const { preflightClusterPlan } = require('../cluster-preflight');
+          plan = preflightClusterPlan(plan);
+        }
         plan._cluster_manifest = manifest; // carry forward for trace
       } else {
         plan = planSingleAsset(target, { task, taskFamily, budgetProfile, shape });
@@ -126,7 +130,36 @@ function cmdUse(args) {
   // Phase 2: Validate plan — fail closed on any blocked state
   if (plan.load_plan_ref.status === 'blocked') {
     const issues = plan.load_plan_ref.issues || [];
-    const blocking = issues.filter((i) => i.blocking || i.severity === 'blocking');
+    if (plan.mode === 'cluster' && (as === 'trace' || as === 'json')) {
+      const { generateClusterTrace } = require('../cluster-engine');
+      const now = new Date().toISOString();
+      const runnerResult = {
+        status: 'blocked',
+        runner_id: 'none',
+        runner_version: '0.1.0',
+        model: null,
+        started_at: now,
+        completed_at: now,
+        duration_ms: 0,
+        result: null,
+        cost: { tokens_used: 0, model_calls: 0 },
+        errors: issues.map((issue) => issue.code || issue.message || 'blocked'),
+        warnings: plan.warnings || [],
+        attempts: [],
+        assets_loaded: [],
+      };
+      const trace = generateClusterTrace(plan, runnerResult);
+      console.log(
+        JSON.stringify(
+          as === 'trace'
+            ? trace
+            : { plan_id: plan.plan_id, mode: 'cluster', status: 'blocked', result: null, trace },
+          null,
+          2,
+        ),
+      );
+      return process.exit(EXIT.TRUST_FAILED);
+    }
     // Blocked is blocked: if status is blocked, do not execute regardless of issue details
     error(
       `Cannot execute: LoadPlan is blocked.\n` +
