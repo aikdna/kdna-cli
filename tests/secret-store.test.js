@@ -131,12 +131,60 @@ test('backend selection: KDNA_SECRET_STORE_BACKEND overrides default', async () 
   });
 });
 
-test('backend selection: defaults to keychain on darwin, file elsewhere', () => {
+test('pass backend sends secret values over stdin and supports sync round-trip', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-pass-backend-'));
+  const bin = path.join(tmp, 'bin');
+  const store = path.join(tmp, 'store');
+  fs.mkdirSync(bin, { recursive: true });
+  fs.mkdirSync(store, { recursive: true });
+  const fakePass = path.join(bin, 'pass');
+  fs.writeFileSync(
+    fakePass,
+    `#!/usr/bin/env node
+const fs = require('node:fs');
+const path = require('node:path');
+const args = process.argv.slice(2);
+const root = process.env.FAKE_PASS_STORE;
+const entry = args[args.length - 1] || '';
+const file = path.join(root, Buffer.from(entry).toString('hex'));
+if (args[0] === 'ls') process.exit(0);
+if (args[0] === 'insert') { fs.writeFileSync(file, fs.readFileSync(0, 'utf8')); process.exit(0); }
+if (args[0] === 'show') { if (!fs.existsSync(file)) process.exit(1); process.stdout.write(fs.readFileSync(file)); process.exit(0); }
+if (args[0] === 'rm') { if (!fs.existsSync(file)) process.exit(1); fs.unlinkSync(file); process.exit(0); }
+process.exit(2);
+`,
+    { mode: 0o700 },
+  );
+
+  const previous = { PATH: process.env.PATH, FAKE_PASS_STORE: process.env.FAKE_PASS_STORE };
+  process.env.PATH = `${bin}${path.delimiter}${process.env.PATH}`;
+  process.env.FAKE_PASS_STORE = store;
+  try {
+    await withEnv('KDNA_SECRET_STORE_BACKEND', 'pass', async () => {
+      const ss = freshSecretStore();
+      await ss.set('entitlement/device-key', 'private-value');
+      assert.equal(await ss.get('entitlement/device-key'), 'private-value');
+      assert.equal(ss.getSync('entitlement/device-key'), 'private-value');
+      ss.setSync('entitlement/device-key', 'rotated-value');
+      assert.equal(ss.getSync('entitlement/device-key'), 'rotated-value');
+      ss.deleteSync('entitlement/device-key');
+      assert.equal(ss.getSync('entitlement/device-key'), null);
+    });
+  } finally {
+    if (previous.PATH === undefined) delete process.env.PATH;
+    else process.env.PATH = previous.PATH;
+    if (previous.FAKE_PASS_STORE === undefined) delete process.env.FAKE_PASS_STORE;
+    else process.env.FAKE_PASS_STORE = previous.FAKE_PASS_STORE;
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('backend selection: defaults to an encrypted system backend when available', () => {
   delete process.env.KDNA_SECRET_STORE_BACKEND;
   const ss = freshSecretStore();
   if (os.platform() === 'darwin') {
     assert.equal(ss._internals.backend, 'keychain');
   } else {
-    assert.equal(ss._internals.backend, 'file');
+    assert.ok(['secret-service', 'pass', 'file'].includes(ss._internals.backend));
   }
 });

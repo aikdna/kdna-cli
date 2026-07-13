@@ -9,7 +9,13 @@
  *     backend on macOS — the OS handles encryption at rest, app
  *     sandboxing, and Touch ID / AppleScript authorization.
  *
- *   - 'file' (default on Linux/Windows and CI): secrets are stored
+ *   - 'secret-service' (preferred on Linux desktops): uses libsecret's
+ *     `secret-tool` and the active desktop keyring.
+ *
+ *   - 'pass' (Linux/headless): uses the GPG-encrypted standard password
+ *     store. Secret values are written over stdin and never appear in argv.
+ *
+ *   - 'file' (fallback on Linux/Windows and CI): secrets are stored
  *     under `~/.kdna/secrets/<name>` with file permissions set to
  *     0600 (owner read/write only). The contents are stored as
  *     plaintext for now; an encrypted-on-disk format is a future
@@ -23,7 +29,8 @@
  *
  * The active backend is chosen by the `KDNA_SECRET_STORE_BACKEND`
  * environment variable. If unset, defaults to 'keychain' on macOS
- * (process.platform === 'darwin') and 'file' elsewhere.
+ * (process.platform === 'darwin'), then an available encrypted Linux backend,
+ * and finally 'file' for non-sensitive compatibility workflows.
  *
  * Interface (Promise-based to leave room for async Keychain APIs later):
  *
@@ -34,11 +41,11 @@
  *
  * Errors: SecretStoreError (with .code: 'NOT_FOUND' | 'BACKEND_UNAVAILABLE' | 'PERMISSION_DENIED').
  *
- * Security note: the file backend is NOT encrypted on disk in this
- * initial implementation. It exists so that Linux/CI users can
- * exercise the SecretStore API surface. The macOS keychain backend
- * is the only fully-encrypted option. A future revision may encrypt
- * the file backend with a passphrase-derived key (Argon2id + AES-GCM).
+ * Security note: the file backend is NOT encrypted on disk. It exists
+ * for non-sensitive compatibility workflows. Account/device grants
+ * require an encrypted backend: macOS Keychain, Linux Secret Service,
+ * or a GPG-backed standard password store. They explicitly reject the
+ * plaintext file and environment backends.
  */
 
 const fs = require('node:fs');
@@ -64,7 +71,30 @@ function pickBackend() {
   const env = process.env.KDNA_SECRET_STORE_BACKEND;
   if (env) return env;
   if (os.platform() === 'darwin') return 'keychain';
+  if (os.platform() === 'linux' && secretToolAvailable()) return 'secret-service';
+  if (os.platform() === 'linux' && passAvailable()) return 'pass';
   return 'file';
+}
+
+function commandAvailable(command, args = ['--version']) {
+  try {
+    execFileSync(command, args, { stdio: 'ignore', timeout: 3000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function secretToolAvailable() {
+  return (
+    os.platform() === 'linux' &&
+    Boolean(process.env.DBUS_SESSION_BUS_ADDRESS) &&
+    commandAvailable('secret-tool', ['--version'])
+  );
+}
+
+function passAvailable() {
+  return os.platform() === 'linux' && commandAvailable('pass', ['ls']);
 }
 
 function keychainAvailable() {
@@ -80,6 +110,100 @@ function keychainAvailable() {
 function ensureFileBackendDir() {
   fs.mkdirSync(FILE_BACKEND_DIR, { recursive: true, mode: 0o700 });
 }
+
+function passEntry(name) {
+  return `${SERVICE_NAME}/${encodeName(name)}`;
+}
+
+const secureCommandBackends = {
+  'secret-service': {
+    get(name) {
+      try {
+        return (
+          execFileSync('secret-tool', ['lookup', 'service', SERVICE_NAME, 'account', name], {
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'pipe'],
+          }).trimEnd() || null
+        );
+      } catch (error) {
+        if (error.status === 1 && !(error.stderr || '').trim()) return null;
+        throw new SecretStoreError('BACKEND_UNAVAILABLE', 'Linux Secret Service is unavailable');
+      }
+    },
+    set(name, value) {
+      try {
+        execFileSync(
+          'secret-tool',
+          ['store', `--label=KDNA ${name}`, 'service', SERVICE_NAME, 'account', name],
+          { input: value, stdio: ['pipe', 'ignore', 'pipe'] },
+        );
+      } catch {
+        throw new SecretStoreError('PERMISSION_DENIED', 'Linux Secret Service refused the secret');
+      }
+    },
+    delete(name) {
+      try {
+        execFileSync('secret-tool', ['clear', 'service', SERVICE_NAME, 'account', name], {
+          stdio: ['ignore', 'ignore', 'pipe'],
+        });
+      } catch (error) {
+        if (error.status !== 1)
+          throw new SecretStoreError('PERMISSION_DENIED', 'Linux Secret Service refused deletion');
+      }
+    },
+    list() {
+      // Secret Service intentionally has no safe cross-collection list API.
+      return [];
+    },
+  },
+  pass: {
+    get(name) {
+      try {
+        return (
+          execFileSync('pass', ['show', passEntry(name)], {
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'pipe'],
+          }).trimEnd() || null
+        );
+      } catch (error) {
+        if (error.status === 1) return null;
+        throw new SecretStoreError(
+          'BACKEND_UNAVAILABLE',
+          'The encrypted pass store is unavailable',
+        );
+      }
+    },
+    set(name, value) {
+      try {
+        execFileSync('pass', ['insert', '--multiline', '--force', passEntry(name)], {
+          input: `${value}\n`,
+          stdio: ['pipe', 'ignore', 'pipe'],
+        });
+      } catch {
+        throw new SecretStoreError(
+          'PERMISSION_DENIED',
+          'The encrypted pass store refused the secret',
+        );
+      }
+    },
+    delete(name) {
+      try {
+        execFileSync('pass', ['rm', '--force', passEntry(name)], {
+          stdio: ['ignore', 'ignore', 'pipe'],
+        });
+      } catch (error) {
+        if (error.status !== 1)
+          throw new SecretStoreError(
+            'PERMISSION_DENIED',
+            'The encrypted pass store refused deletion',
+          );
+      }
+    },
+    list() {
+      return [];
+    },
+  },
+};
 
 const backends = {
   keychain: {
@@ -164,6 +288,36 @@ const backends = {
       } catch (e) {
         throw new SecretStoreError('PERMISSION_DENIED', e.stderr || e.message);
       }
+    },
+  },
+
+  'secret-service': {
+    async get(name) {
+      return secureCommandBackends['secret-service'].get(name);
+    },
+    async set(name, value) {
+      secureCommandBackends['secret-service'].set(name, value);
+    },
+    async delete(name) {
+      secureCommandBackends['secret-service'].delete(name);
+    },
+    async list() {
+      return secureCommandBackends['secret-service'].list();
+    },
+  },
+
+  pass: {
+    async get(name) {
+      return secureCommandBackends.pass.get(name);
+    },
+    async set(name, value) {
+      secureCommandBackends.pass.set(name, value);
+    },
+    async delete(name) {
+      secureCommandBackends.pass.delete(name);
+    },
+    async list() {
+      return secureCommandBackends.pass.list();
     },
   },
 
@@ -260,7 +414,8 @@ function syncBackend() {
   if (backend === 'keychain') {
     return {
       get(name) {
-        if (!keychainAvailable()) throw new SecretStoreError('BACKEND_UNAVAILABLE', 'macOS Keychain not available');
+        if (!keychainAvailable())
+          throw new SecretStoreError('BACKEND_UNAVAILABLE', 'macOS Keychain not available');
         try {
           return execFileSync(
             'security',
@@ -285,7 +440,8 @@ function syncBackend() {
             stdio: ['ignore', 'ignore', 'pipe'],
           });
         } catch (e) {
-          if (e.status !== 44) throw new SecretStoreError('PERMISSION_DENIED', e.stderr || e.message);
+          if (e.status !== 44)
+            throw new SecretStoreError('PERMISSION_DENIED', e.stderr || e.message);
         }
       },
     };
@@ -297,11 +453,18 @@ function syncBackend() {
       delete: (name) => memorySecrets.delete(name),
     };
   }
+  if (backend === 'secret-service' || backend === 'pass') {
+    return secureCommandBackends[backend];
+  }
   if (backend === 'env') {
     return {
       get: (name) => process.env[name] ?? null,
-      set() { throw new SecretStoreError('PERMISSION_DENIED', 'env backend is read-only'); },
-      delete() { throw new SecretStoreError('PERMISSION_DENIED', 'env backend is read-only'); },
+      set() {
+        throw new SecretStoreError('PERMISSION_DENIED', 'env backend is read-only');
+      },
+      delete() {
+        throw new SecretStoreError('PERMISSION_DENIED', 'env backend is read-only');
+      },
     };
   }
   if (backend === 'file') {
@@ -313,10 +476,14 @@ function syncBackend() {
       },
       set(name, value) {
         ensureFileBackendDir();
-        fs.writeFileSync(path.join(FILE_BACKEND_DIR, encodeName(name)), value + '\n', { mode: 0o600 });
+        fs.writeFileSync(path.join(FILE_BACKEND_DIR, encodeName(name)), value + '\n', {
+          mode: 0o600,
+        });
       },
       delete(name) {
-        try { fs.unlinkSync(path.join(FILE_BACKEND_DIR, encodeName(name))); } catch (e) {
+        try {
+          fs.unlinkSync(path.join(FILE_BACKEND_DIR, encodeName(name)));
+        } catch (e) {
           if (e.code !== 'ENOENT') throw e;
         }
       },
@@ -393,6 +560,8 @@ module.exports = {
     encodeName,
     decodeName,
     keychainAvailable,
+    secretToolAvailable,
+    passAvailable,
     memorySecrets,
   },
 

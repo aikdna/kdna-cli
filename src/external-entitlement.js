@@ -45,11 +45,11 @@ function secretNames(domain) {
 
 function assertSecureSecretStore() {
   const backend = secretStore.backendName();
-  if (backend === 'keychain') return;
+  if (['keychain', 'secret-service', 'pass'].includes(backend)) return;
   if (backend === 'memory' && process.env.NODE_ENV === 'test') return;
   throw new ExternalEntitlementError(
     'KDNA_SECRET_STORE_REQUIRED',
-    'Account/device grants require an encrypted platform SecretStore; the plaintext file backend is not permitted.',
+    'Account/device grants require macOS Keychain, Linux Secret Service, or an encrypted pass store; plaintext and environment backends are not permitted.',
   );
 }
 
@@ -60,7 +60,10 @@ function readMetadata(domain) {
     const value = JSON.parse(fs.readFileSync(file, 'utf8'));
     return value.profile === PROFILE ? value : null;
   } catch {
-    throw new ExternalEntitlementError('KDNA_GRANT_METADATA_INVALID', 'installed entitlement metadata is invalid');
+    throw new ExternalEntitlementError(
+      'KDNA_GRANT_METADATA_INVALID',
+      'installed entitlement metadata is invalid',
+    );
   }
 }
 
@@ -124,11 +127,7 @@ function activationProof({ activationId, challenge, device }) {
     device_public_key: device.agreement.public_key,
     device_signing_public_key: device.signing.public_key,
   };
-  const key = rawPrivateKey(
-    'Ed25519',
-    device.signing.private_key,
-    device.signing.public_key,
-  );
+  const key = rawPrivateKey('Ed25519', device.signing.private_key, device.signing.public_key);
   const signature = crypto.sign(null, Buffer.from(core.canonicalJson(payload), 'utf8'), key);
   return { ...payload, signature: `ed25519:${signature.toString('base64url')}` };
 }
@@ -164,7 +163,10 @@ function assetAuthorizationMaterial(assetPath) {
     ? JSON.parse(layout.map['checksums.json'].toString('utf8'))
     : null;
   if (!checksums?.asset_digest) {
-    throw new ExternalEntitlementError('KDNA_GRANT_DIGEST_MISSING', 'account assets require checksums.json.asset_digest');
+    throw new ExternalEntitlementError(
+      'KDNA_GRANT_DIGEST_MISSING',
+      'account assets require checksums.json.asset_digest',
+    );
   }
   return {
     manifest: layout.manifest,
@@ -175,8 +177,16 @@ function assetAuthorizationMaterial(assetPath) {
 
 function installActivation({ domain, server, assetPath, response, device }) {
   assertSecureSecretStore();
-  if (!response?.grant || !response?.account_id || !response?.device_id || !response?.issuer_public_keys) {
-    throw new ExternalEntitlementError('KDNA_ACTIVATION_RESPONSE_INVALID', 'activation response is missing signed grant bindings');
+  if (
+    !response?.grant ||
+    !response?.account_id ||
+    !response?.device_id ||
+    !response?.issuer_public_keys
+  ) {
+    throw new ExternalEntitlementError(
+      'KDNA_ACTIVATION_RESPONSE_INVALID',
+      'activation response is missing signed grant bindings',
+    );
   }
   const material = assetAuthorizationMaterial(assetPath);
   const names = secretNames(domain);
@@ -184,8 +194,13 @@ function installActivation({ domain, server, assetPath, response, device }) {
   const pinnedKeys = secretStore.getSync(names.issuerPublicKeys);
   const storedStatusVersion = Number(secretStore.getSync(names.statusVersion) || 0);
   if (pinnedKeys) {
-    try { issuerPublicKeys = JSON.parse(pinnedKeys); } catch {
-      throw new ExternalEntitlementError('KDNA_GRANT_ISSUER_UNKNOWN', 'pinned issuer keys are invalid');
+    try {
+      issuerPublicKeys = JSON.parse(pinnedKeys);
+    } catch {
+      throw new ExternalEntitlementError(
+        'KDNA_GRANT_ISSUER_UNKNOWN',
+        'pinned issuer keys are invalid',
+      );
     }
   }
   const session = core.authorizeExternalKeyGrant({
@@ -240,26 +255,44 @@ function loadExternalAuthorization(assetPath, manifest, options = {}) {
   const names = secretNames(domain);
   const grantValue = secretStore.getSync(metadata.grant_secret_ref || names.grant);
   const agreementPrivate = secretStore.getSync(names.agreementPrivate);
-  const issuerKeysValue = secretStore.getSync(metadata.issuer_keys_secret_ref || names.issuerPublicKeys);
+  const issuerKeysValue = secretStore.getSync(
+    metadata.issuer_keys_secret_ref || names.issuerPublicKeys,
+  );
   const statusVersion = Number(secretStore.getSync(names.statusVersion));
   const lastSeenAt = secretStore.getSync(names.lastSeenAt);
   if (!grantValue || !agreementPrivate || !issuerKeysValue || !Number.isInteger(statusVersion)) {
-    throw new ExternalEntitlementError('KDNA_GRANT_NOT_INSTALLED', 'device grant, issuer pins, or private key is missing from SecretStore');
+    throw new ExternalEntitlementError(
+      'KDNA_GRANT_NOT_INSTALLED',
+      'device grant, issuer pins, or private key is missing from SecretStore',
+    );
   }
   let grant;
-  try { grant = JSON.parse(grantValue); } catch {
-    throw new ExternalEntitlementError('KDNA_GRANT_FORMAT_INVALID', 'stored device grant is invalid');
+  try {
+    grant = JSON.parse(grantValue);
+  } catch {
+    throw new ExternalEntitlementError(
+      'KDNA_GRANT_FORMAT_INVALID',
+      'stored device grant is invalid',
+    );
   }
   let issuerPublicKeys;
-  try { issuerPublicKeys = JSON.parse(issuerKeysValue); } catch {
-    throw new ExternalEntitlementError('KDNA_GRANT_ISSUER_UNKNOWN', 'pinned issuer keys are invalid');
+  try {
+    issuerPublicKeys = JSON.parse(issuerKeysValue);
+  } catch {
+    throw new ExternalEntitlementError(
+      'KDNA_GRANT_ISSUER_UNKNOWN',
+      'pinned issuer keys are invalid',
+    );
   }
   const material = assetAuthorizationMaterial(assetPath);
   const currentTime = options.now || new Date();
   const currentTimeMs = new Date(currentTime).getTime();
   const lastSeenMs = lastSeenAt ? Date.parse(lastSeenAt) : 0;
   if (lastSeenMs && currentTimeMs + 5 * 60 * 1000 < lastSeenMs) {
-    throw new ExternalEntitlementError('KDNA_AUTH_CLOCK_ROLLBACK', 'system clock moved behind the last verified grant time');
+    throw new ExternalEntitlementError(
+      'KDNA_AUTH_CLOCK_ROLLBACK',
+      'system clock moved behind the last verified grant time',
+    );
   }
   const session = core.authorizeExternalKeyGrant({
     grant,
@@ -279,14 +312,17 @@ function loadExternalAuthorization(assetPath, manifest, options = {}) {
     allowOffline: options.allowOffline !== false,
     now: currentTime,
   });
-  if (!lastSeenMs || currentTimeMs > lastSeenMs) secretStore.setSync(names.lastSeenAt, new Date(currentTimeMs).toISOString());
+  if (!lastSeenMs || currentTimeMs > lastSeenMs)
+    secretStore.setSync(names.lastSeenAt, new Date(currentTimeMs).toISOString());
   return session;
 }
 
 function removeExternalEntitlement(domain) {
   const names = secretNames(domain);
   for (const name of Object.values(names)) secretStore.deleteSync(name);
-  try { fs.unlinkSync(metadataPath(domain)); } catch (error) {
+  try {
+    fs.unlinkSync(metadataPath(domain));
+  } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
 }

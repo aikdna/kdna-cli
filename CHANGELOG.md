@@ -7,6 +7,9 @@
 - Store device private keys, pinned issuer keys, and grants in the platform
   SecretStore. Public local metadata contains only identifiers, public device
   keys, lease status, and secret references.
+- Add encrypted Linux SecretStore support through Secret Service (`secret-tool`)
+  and GPG-backed `pass`; account/device authorization fails closed when only a
+  plaintext file or environment backend is available.
 - Load account assets only after Core verifies the grant signature and every
   account/device/asset binding; plain entitlement status flags do not authorize.
 - Add a standard-input-only headless credential path and redact provider

@@ -249,6 +249,13 @@ clients can use `--credential-stdin`. Activation credentials are never accepted
 as ordinary command-line arguments. Account/device loading does not fall back
 to the password profile.
 
+Sensitive account/device state requires an encrypted SecretStore backend:
+macOS Keychain, Linux Secret Service (`secret-tool`), or a GPG-backed standard
+password store (`pass`). If none is available, account/device activation fails
+closed instead of writing device keys or grants to plaintext files. Set
+`KDNA_SECRET_STORE_BACKEND` only to select one of these trusted local backends;
+the file and environment backends are not accepted for account/device grants.
+
 `plan-load` delegates to `@aikdna/kdna-core`. The CLI never redefines access,
 authorization, or decryption policy, and `load --as=json` returns the Core
 Runtime Capsule rather than raw asset internals.

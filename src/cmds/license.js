@@ -595,7 +595,8 @@ async function cmdLicenseActivate(args = []) {
 function accountApiUrl(server, resource) {
   const base = server.replace(/\/+$/, '');
   const parsed = new URL(base);
-  if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('activation server must use HTTP or HTTPS');
+  if (!['http:', 'https:'].includes(parsed.protocol))
+    throw new Error('activation server must use HTTP or HTTPS');
   const apiBase = base.endsWith('/api') ? base : `${base}/api`;
   return `${apiBase}/v1/${resource.replace(/^\/+/, '')}`;
 }
@@ -628,10 +629,16 @@ function postAccountJson(url, body) {
         });
         res.on('end', () => {
           let payload = null;
-          try { payload = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { /* generic below */ }
+          try {
+            payload = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+          } catch {
+            /* generic below */
+          }
           if (res.statusCode >= 400) {
             const code = payload?.error?.code || payload?.code || 'request_rejected';
-            reject(new Error(`activation server rejected the request (HTTP ${res.statusCode}, ${code})`));
+            reject(
+              new Error(`activation server rejected the request (HTTP ${res.statusCode}, ${code})`),
+            );
             return;
           }
           if (!payload) return reject(new Error('activation server returned invalid JSON'));
@@ -656,10 +663,14 @@ async function activateExternalGrant({ domain, server, args, jsonMode }) {
   let activationCredential = null;
   if (args.includes('--credential-stdin')) {
     if (process.stdin.isTTY) {
-      error('--credential-stdin requires the one-time credential to be piped on stdin.', EXIT.INPUT_ERROR);
+      error(
+        '--credential-stdin requires the one-time credential to be piped on stdin.',
+        EXIT.INPUT_ERROR,
+      );
     }
     activationCredential = fs.readFileSync(0, 'utf8').trim();
-    if (!activationCredential) error('No activation credential was received on stdin.', EXIT.INPUT_ERROR);
+    if (!activationCredential)
+      error('No activation credential was received on stdin.', EXIT.INPUT_ERROR);
   }
 
   const created = await postAccountJson(accountApiUrl(server, 'device-activations'), {
@@ -675,7 +686,9 @@ async function activateExternalGrant({ domain, server, args, jsonMode }) {
     throw new Error('activation server response is missing device authorization fields');
   }
   const verificationUrl = new URL(created.verification_uri);
-  const localHttp = verificationUrl.protocol === 'http:' && ['127.0.0.1', 'localhost', '::1'].includes(verificationUrl.hostname);
+  const localHttp =
+    verificationUrl.protocol === 'http:' &&
+    ['127.0.0.1', 'localhost', '::1'].includes(verificationUrl.hostname);
   if (verificationUrl.protocol !== 'https:' && !localHttp) {
     throw new Error('device verification URI must use HTTPS (or local HTTP for development)');
   }
@@ -690,7 +703,9 @@ async function activateExternalGrant({ domain, server, args, jsonMode }) {
       const { spawn } = require('node:child_process');
       const child = spawn('open', [created.verification_uri], { detached: true, stdio: 'ignore' });
       child.unref();
-    } catch { /* user can open the printed URL */ }
+    } catch {
+      /* user can open the printed URL */
+    }
   }
   if (!jsonMode) {
     console.log(`Open: ${created.verification_uri}`);
@@ -786,14 +801,26 @@ async function syncOneLicense(entry, serverOverride = null) {
 async function syncExternalEntitlement(domain, serverOverride = null) {
   const metadata = external.readMetadata(domain);
   if (!metadata?.entitlement_id || !metadata?.device_id) {
-    return { ...(external.statusRecord(domain) || { domain }), synced: false, sync_error: 'activation metadata is incomplete' };
+    return {
+      ...(external.statusRecord(domain) || { domain }),
+      synced: false,
+      sync_error: 'activation metadata is incomplete',
+    };
   }
   const server = serverOverride || metadata.server;
-  if (!server) return { ...external.statusRecord(domain), synced: false, sync_error: 'activation server is missing' };
+  if (!server)
+    return {
+      ...external.statusRecord(domain),
+      synced: false,
+      sync_error: 'activation server is missing',
+    };
   try {
     const device = external.prepareDevice(domain, metadata.device_label);
     const challenge = await postAccountJson(
-      accountApiUrl(server, `entitlements/${encodeURIComponent(metadata.entitlement_id)}/sync/challenge`),
+      accountApiUrl(
+        server,
+        `entitlements/${encodeURIComponent(metadata.entitlement_id)}/sync/challenge`,
+      ),
       { device_id: metadata.device_id, device_signing_public_key: device.signing.public_key },
     );
     if (!challenge?.challenge) throw new Error('sync challenge is missing');
@@ -854,14 +881,16 @@ async function cmdLicenseSync(args = []) {
 
 function licenseStatusRecord(license, file) {
   if (license?.profile === external.PROFILE) {
-    return external.statusRecord(license.domain) || {
-      domain: license.domain,
-      profile: external.PROFILE,
-      status: 'invalid',
-      valid: false,
-      issues: ['entitlement metadata is unavailable'],
-      file,
-    };
+    return (
+      external.statusRecord(license.domain) || {
+        domain: license.domain,
+        profile: external.PROFILE,
+        status: 'invalid',
+        valid: false,
+        issues: ['entitlement metadata is unavailable'],
+        file,
+      }
+    );
   }
   const fingerprint = machineFingerprint();
   const result = verifyLicense(license, null, fingerprint);
