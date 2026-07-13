@@ -30,7 +30,11 @@ We will acknowledge within 5 business days and provide a timeline for a fix.
 - `kdna install`: registry trust chain and SHA-256 verification
 - `kdna publish`: signing and key material handling
 - `kdna license activate/sync/verify/show`: license-key and entitlement
-  handling, including redaction of activation errors and sync traces
+  handling, including redaction of activation errors and sync traces;
+  account/device private keys, issuer pins, and grants must remain in an
+  encrypted SecretStore backend (macOS Keychain, Linux Secret Service, or a
+  GPG-backed standard password store); plaintext file and environment backends
+  fail closed for this material
 - `kdna load --remote-server`: remote projection client behavior and
   avoidance of plaintext payload exposure
 
@@ -38,7 +42,8 @@ We will acknowledge within 5 business days and provide a timeline for a fix.
 
 - Domain content files (KDNA\_\*.json) — these are user-authored judgment assets
 - Network-level attacks (man-in-the-middle on registry fetch) — use HTTPS
-- Local filesystem access — CLI runs with user privileges
+- Compromise of the local user account or its unlocked operating-system/GPG
+  secret store — CLI runs with the user's privileges
 
 ## Supply Chain
 

@@ -1,7 +1,20 @@
 # Changelog
 
-## Unreleased
+## 0.31.0 (2026-07-13)
 
+- Add RFC-0019 browser device activation, signed challenge/proof polling,
+  account entitlement sync, status, and removal paths.
+- Store device private keys, pinned issuer keys, and grants in the platform
+  SecretStore. Public local metadata contains only identifiers, public device
+  keys, lease status, and secret references.
+- Add encrypted Linux SecretStore support through Secret Service (`secret-tool`)
+  and GPG-backed `pass`; account/device authorization fails closed when only a
+  plaintext file or environment backend is available.
+- Load account assets only after Core verifies the grant signature and every
+  account/device/asset binding; plain entitlement status flags do not authorize.
+- Add a standard-input-only headless credential path and redact provider
+  response bodies. The legacy `--key` flow remains explicit and warns about
+  shell-history exposure.
 - Require packaged `.kdna` files for runtime validation, LoadPlan generation,
   loading, execution, dependencies, inheritance, and watermark paths while
   preserving source directories as authoring inputs.
