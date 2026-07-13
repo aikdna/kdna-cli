@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.30.3 (2026-07-13)
+
+- Strengthen the Agent loader's silent-application rule after local Codex,
+  Claude Code, and OpenCode field validation.
+- Make setup and demo guidance load the Runtime Capsule JSON by default.
+- Remove the obsolete product-version keyword from the judgment demo.
+
 ## 0.30.2 (2026-07-13)
 
 - Make `kdna available` and `kdna match` tolerate installed assets that no

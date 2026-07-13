@@ -117,7 +117,7 @@ function cmdDemo(args) {
     process.stdout.write(`  kdna pack          ${dest} ${dest}.kdna\n`);
     process.stdout.write(`  kdna validate      ${dest}.kdna\n`);
     process.stdout.write(
-      `  kdna load          ${dest}.kdna --password=<pw> --profile=compact --as=prompt\n`,
+      `  kdna load          ${dest}.kdna --password=<pw> --profile=compact --as=json\n`,
     );
     return;
   }
@@ -128,7 +128,7 @@ function cmdDemo(args) {
   process.stdout.write(`  kdna pack     ${dest} ${dest}.kdna\n`);
   process.stdout.write(`  kdna validate ${dest}.kdna\n`);
   process.stdout.write(`  kdna plan-load ${dest}.kdna\n`);
-  process.stdout.write(`  kdna load     ${dest}.kdna --profile=compact --as=prompt\n`);
+  process.stdout.write(`  kdna load     ${dest}.kdna --profile=compact --as=json\n`);
 }
 
 module.exports = { cmdDemo };

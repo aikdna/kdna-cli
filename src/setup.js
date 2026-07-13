@@ -184,12 +184,12 @@ async function cmdSetup() {
   console.log('Setup complete. KDNA is ready.');
   console.log('');
   console.log('Next steps:');
-  console.log('  1. Create a local demo: kdna demo minimal ./minimal');
-  console.log('  2. Package it:          kdna pack ./minimal ./minimal.kdna');
+  console.log('  1. Create a local demo: kdna demo judgment ./judgment');
+  console.log('  2. Package it:          kdna pack ./judgment ./judgment.kdna');
   console.log(
-    '  3. Validate and plan:   kdna validate ./minimal.kdna && kdna plan-load ./minimal.kdna',
+    '  3. Validate and plan:   kdna validate ./judgment.kdna && kdna plan-load ./judgment.kdna',
   );
-  console.log('  4. Load context:        kdna load ./minimal.kdna --profile=compact --as=prompt');
+  console.log('  4. Load Capsule:        kdna load ./judgment.kdna --profile=compact --as=json');
   console.log('  5. In your agent, ask a judgment-related question.');
   console.log('     The kdna-loader skill should use local .kdna files only when relevant.');
   console.log('');

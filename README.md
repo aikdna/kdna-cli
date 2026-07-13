@@ -171,7 +171,7 @@ kdna-studio card approve my_domain --all --by expert --statement "I confirm this
 kdna-studio export my_domain --out ./my_domain.kdna
 kdna validate ./my_domain.kdna --runtime
 kdna plan-load ./my_domain.kdna --json
-kdna load ./my_domain.kdna --profile=compact --as=prompt
+kdna load ./my_domain.kdna --profile=compact --as=json
 ```
 
 ## Compatibility Notes
@@ -215,7 +215,7 @@ kdna validate ./asset.kdna --json
 kdna plan-load ./asset.kdna --json
 kdna plan-load ./asset.kdna --json --has-password
 kdna plan-load ./asset.kdna --json --entitlement-status active
-kdna load ./asset.kdna --profile=compact --as=prompt
+kdna load ./asset.kdna --profile=compact --as=json
 ```
 
 > ⚠️ `--has-password` is a **plan-load** diagnostic only. It tells the
