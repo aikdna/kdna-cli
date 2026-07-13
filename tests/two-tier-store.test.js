@@ -240,7 +240,7 @@ test('kdna install (no flag) defaults to the user-global root', () => {
 
 test('kdna install accepts v1 assets that declare asset_id instead of legacy name', () => {
   const { proj, env, root } = makeEnv();
-  const asset = path.join(root, 'atomspeak-core.kdna');
+  const asset = path.join(root, 'deployment-review.kdna');
   const pack = run(['pack', V1_FIXTURE, asset], { env, cwd: proj });
   assert.ok(pack.ok, `kdna pack failed: ${pack.stderr}`);
 
@@ -250,8 +250,8 @@ test('kdna install accepts v1 assets that declare asset_id instead of legacy nam
   assert.doesNotMatch(installed.stderr, /local_unverified/);
 
   const projectIndex = readProjectIndex(proj);
-  const entry = projectIndex.packages['@example/atomspeak-core'];
-  assert.ok(entry, 'project index should derive @example/atomspeak-core from asset_id');
+  const entry = projectIndex.packages['@example/deployment-review'];
+  assert.ok(entry, 'project index should derive @example/deployment-review from asset_id');
   assert.equal(entry.tier, 'project');
 
   const projectAsset = path.join(
@@ -259,16 +259,16 @@ test('kdna install accepts v1 assets that declare asset_id instead of legacy nam
     '.kdna',
     'packages',
     '@example',
-    'atomspeak-core',
+    'deployment-review',
     '1.0.0',
-    'atomspeak-core-1.0.0.kdna',
+    'deployment-review-1.0.0.kdna',
   );
   assert.ok(fs.existsSync(projectAsset), 'hyphenated v1 asset file should exist');
 });
 
 test('kdna plan-load accepts an installed v1 asset name', () => {
   const { proj, env, root } = makeEnv();
-  const asset = path.join(root, 'atomspeak-core.kdna');
+  const asset = path.join(root, 'deployment-review.kdna');
   const pack = run(['pack', V1_FIXTURE, asset], { env, cwd: proj });
   assert.ok(pack.ok, `kdna pack failed: ${pack.stderr}`);
 
@@ -277,7 +277,10 @@ test('kdna plan-load accepts an installed v1 asset name', () => {
 
   const otherCwd = path.join(root, 'other-project');
   fs.mkdirSync(otherCwd, { recursive: true });
-  const planned = run(['plan-load', '@example/atomspeak-core', '--json'], { env, cwd: otherCwd });
+  const planned = run(['plan-load', '@example/deployment-review', '--json'], {
+    env,
+    cwd: otherCwd,
+  });
   assert.ok(
     planned.ok,
     `kdna plan-load by installed name failed: ${planned.stderr}\n${planned.stdout}`,

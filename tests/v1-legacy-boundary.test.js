@@ -253,7 +253,7 @@ test('single-format inspect still works on v1-minimal fixture', () => {
   assert.equal(r.status, 0, r.stderr);
   const out = JSON.parse(r.stdout);
   assert.equal(out.kdna_version, '1.0');
-  assert.equal(out.asset_id, 'kdna:example:atomspeak-core');
+  assert.equal(out.asset_id, 'kdna:example:deployment-review');
 });
 
 test('single-format load still works on v1-minimal fixture', () => {

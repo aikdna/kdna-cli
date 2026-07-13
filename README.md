@@ -76,12 +76,12 @@ kdna compose <asset-path> --primary=example-primary --advisors=example-advisor -
 # Render a packaged asset into a readable judgment projection.
 kdna project <asset-path>.kdna --shape=answer-pattern --as=prompt
 
-# The same projection can address an installed package name.
-kdna project @aikdna/dev-deploy-readiness --task="Should this deploy?" --shape=answer-pattern --as=prompt
+# The same projection can address a packaged local asset.
+kdna project ./judgment.kdna --task="Should this deploy?" --shape=answer-pattern --as=prompt
 
 # Plan without execution, then execute through a registered Runner.
-kdna plan-use @aikdna/dev-deploy-readiness --task="Should this deploy?" --as=json
-kdna use @aikdna/dev-deploy-readiness --task="Should this deploy?" --runner=cli:default --as=trace
+kdna plan-use ./judgment.kdna --task="Should this deploy?" --as=json
+kdna use ./judgment.kdna --task="Should this deploy?" --runner=cli:default --as=trace
 
 # Cluster is an explicit advanced path.
 kdna cluster validate ./kdna.cluster.json

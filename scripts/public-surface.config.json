@@ -1,7 +1,4 @@
 {
-  "publicDirs": ["README.md", "docs/", "bin/"],
-  "publicFiles": ["package.json", "CHANGELOG.md"],
-  "allowedHistoricalPaths": ["docs/archive/"],
   "forbiddenPatternHashes": [
     "068c8b48752eba18baf46af3324f3ffb9306457c54b6624fade5792109af536b",
     "e2f6321a5972a38700c02f6b4344c8b9deb52b523fceb7ce25a255fb44f0917c",
@@ -9,6 +6,10 @@
     "ad832a18658e09393a42c9966b94625c82effd30dfe8bc0a6d8c000fa8056222",
     "4c94af7ca105abc9c4e2c9c7dce3b778b4bde7e6445c9e68101a0d9eb59f97bd",
     "0f89e837194f291beef89dcde345233adf1443f61763f05ee5cef5ad12d44c0a",
-    "5de109ce9d5d074259ce2b3757d33b0a68afaaf88ca599ed77d78a46797cfdb0"
+    "5de109ce9d5d074259ce2b3757d33b0a68afaaf88ca599ed77d78a46797cfdb0",
+    "3ce236400925c24e9e5416bdc69abe5427b3183e2abe6f848b297334cfdeaa25",
+    "32a183bfe17c2d785b66d5a328402623bc5ab674c86bd8ad29905a05c1a6319c",
+    "7206c17a81fdc22e097e4b78d33fee460804b0c5bf4c0e461adc7114d16d85ed",
+    "5a02d80676cf1acf987c1787c1201a7648f8cc606b6014a29ecda4eed68e6315"
   ]
 }

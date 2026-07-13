@@ -40,7 +40,7 @@ function makePoliciesFile(dir) {
         operation: 'review',
         loadProfile: 'compact',
         domains: [
-          { id: 'atomspeak-core', weight: 1 },
+          { id: 'deployment-review', weight: 1 },
           { id: 'content-review', weight: 0.5 },
           { id: 'style-advisor', weight: 0.3 },
         ],
@@ -85,7 +85,7 @@ test('kdna compose with policy auto-selects primary', () => {
     const r = runCli(['compose', FIXTURE, '--as=json', '--policy', policyFile]);
     assert.equal(r.status, 0, `compose failed: ${r.stderr}`);
     const out = JSON.parse(r.stdout);
-    assert.equal(out.decision.primary.domain_id, 'atomspeak-core');
+    assert.equal(out.decision.primary.domain_id, 'deployment-review');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

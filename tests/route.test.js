@@ -40,7 +40,7 @@ function makePoliciesFile(dir) {
         operation: 'review',
         loadProfile: 'compact',
         domains: [
-          { id: 'atomspeak-core', weight: 1 },
+          { id: 'deployment-review', weight: 1 },
           { id: 'content-review', weight: 0.5 },
         ],
       },
@@ -100,7 +100,7 @@ test('kdna route with --policy uses specified policy', () => {
     const r = runCli(['route', FIXTURE, '--as=json', '--policy', policyFile]);
     assert.equal(r.status, 0, `route failed: ${r.stderr}`);
     const out = JSON.parse(r.stdout);
-    assert.equal(out.decision.primary.domain_id, 'atomspeak-core');
+    assert.equal(out.decision.primary.domain_id, 'deployment-review');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -185,7 +185,7 @@ test('kdna route with --route-card applies card preferences', () => {
     ]);
     assert.equal(r.status, 0, `route failed: ${r.stderr}`);
     const out = JSON.parse(r.stdout);
-    assert.equal(out.decision.primary.domain_id, 'atomspeak-core');
+    assert.equal(out.decision.primary.domain_id, 'deployment-review');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -212,7 +212,7 @@ test('kdna route with --consumer-index includes consumer_index_version in proven
     ciFile,
     JSON.stringify({
       consumer_index: '0.1.0',
-      entries: [{ domain_id: 'atomspeak-core', status: 'trusted_runtime', enabled: true }],
+      entries: [{ domain_id: 'deployment-review', status: 'trusted_runtime', enabled: true }],
     }) + '\n',
   );
   try {
@@ -243,7 +243,7 @@ test('kdna route with consumer index marks untrusted domain as low confidence', 
     ciFile,
     JSON.stringify({
       consumer_index: '0.1.0',
-      entries: [{ domain_id: 'atomspeak-core', status: 'draft_generated', enabled: false }],
+      entries: [{ domain_id: 'deployment-review', status: 'draft_generated', enabled: false }],
     }) + '\n',
   );
   try {

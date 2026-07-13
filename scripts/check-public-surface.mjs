@@ -1,209 +1,114 @@
 #!/usr/bin/env node
 
 /**
- * scripts/check-public-surface.mjs
+ * Scan every Git-tracked text file. Public repositories do not gain a privacy
+ * exemption for tests, fixtures, archives, changelogs, or source code.
  *
- * Scans the public surface of this repository (docs/, specs/, .github/,
- * showcase/, root-level *.md and *.json) for references that should not
- * be present in a public release:
- *
- *   - Private repo URLs (matched against the allowlist in
- *     `scripts/private-repo-allowlist.json` — kept out of this file so
- *     the allowlist can be updated without editing this header)
- *   - Private repo path references (same allowlist)
- *   - Local filesystem paths leaking the developer's machine
- *     (/Users/<user>/OPEN/, /private/tmp/)
- *   - Full (40-char) git commit hashes in audit/spec docs
- *   - Internal code names
- *
- * Exits 0 on a clean run, 1 on any finding. Each finding includes the
- * file, line number, and the offending substring so the fix is
- * mechanical.
- *
- * Run from repo root:  node scripts/check-public-surface.mjs
- *   --strict          also flag substrings from the private-repo
- *                      allowlist (some legitimate prose uses
- *                      "test lab" — strict mode is for new PRs that
- *                      should not add new refs)
+ * Private-name configuration remains hash based so the guard itself does not
+ * publish the names it rejects. Add the SHA-256 of a forbidden token or
+ * org/name reference to public-surface.config.json.
  */
 
-import { readdirSync, readFileSync, statSync } from 'fs';
-import { join, relative, sep } from 'path';
+import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 
 const ROOT = process.cwd();
-const STRICT = process.argv.includes('--strict');
-
-const PUBLIC_DIRS = ['docs', 'specs', '.github', 'showcase'];
-const PUBLIC_FILES = [
-  'README.md',
-  'README.zh.md',
-  'CHANGELOG.md',
-  'ecosystem-manifest.json',
-  'package.json',
-  'CONTRIBUTING.md',
-];
-// Files that legitimately mention a private repo as historical record
-const ALLOWLIST_FILES = new Set([
-  'docs/archive/',
-  'docs/audits/2026-06-16-repo-compliance.md', // explicit compliance scan
-  'docs/audits/kdna-public-narrative-audit-2026-06.md', // the audit itself
-  'docs/audits/2026-06-16-rfc-0013-audit-note.md', // historical PR record
-  'CHANGELOG.md', // released history legitimately references removed repos
-]);
-
-// Wave 2.5: Forbidden patterns are now hash-based to avoid leaking private repo names.
-// The hashes are SHA-256 of the forbidden substrings. Add new hashes as needed.
-// To add a new forbidden pattern, run: echo -n "pattern" | shasum -a 256
-let FORBIDDEN_HASHES = new Set();
-const { createHash } = await import('crypto');
-function checkForbiddenHash(text) {
-  return FORBIDDEN_HASHES.has(createHash('sha256').update(text).digest('hex'));
-}
-
-const INTERNAL_HOME_ROOT = ['', 'Users', 'AI', 'K', 'OPEN'].join('/');
-const PRIVATE_TEMP_ROOT = ['', 'private', 'tmp', 'kdna'].join('/');
-
-const RULES = [
-  {
-    name: 'private-repo-reference',
-    pattern: /github\.com\/aikdna\/([a-z][a-z0-9_-]+)/g,
-    hint: 'Remove or replace private repo reference.',
-    check: (match) => checkForbiddenHash('aikdna/' + match[1]),
-  },
-  {
-    name: 'bare-org-reference',
-    pattern: /\baikdna\/([a-z][a-z0-9_-]+)\b(?!\.)/g,
-    hint: 'Remove or replace private repo reference.',
-    check: (match) => checkForbiddenHash('aikdna/' + match[1]),
-  },
-  {
-    name: 'local-filesystem-path',
-    pattern: new RegExp(`(${INTERNAL_HOME_ROOT}|${PRIVATE_TEMP_ROOT})`, 'g'),
-    hint: 'Replace internal absolute paths with public placeholders such as <workdir> or /tmp.',
-  },
-  {
-    name: 'full-commit-hash',
-    pattern: /(?<![a-f0-9])[a-f0-9]{40}(?![a-f0-9])/g,
-    hint: 'Replace full 40-char commit hash with short ref or "see acceptance note".',
-    // 40-char SHA1s are legitimate provenance pins in:
-    //   - .github/workflows/ — pinning a public release commit
-    //   - ecosystem-manifest.json conformance_commit field
-    excludePaths: ['.github/workflows/', 'ecosystem-manifest.json'],
-  },
-  {
-    name: 'internal-code-name',
-    pattern: /\bM3 self-eval\b/g,
-    hint: 'Replace with "single-model self-evaluation".',
-  },
-];
-
-// === repo-local config (kdna-studio-cli extension) ===
-import { existsSync as _existsSync } from 'fs';
 const CONFIG_PATH = new URL('./public-surface.config.json', import.meta.url);
-if (_existsSync(CONFIG_PATH)) {
+const SELF = 'scripts/check-public-surface.mjs';
+const MAX_TEXT_BYTES = 1_000_000;
+
+const forbiddenHashes = new Set();
+if (existsSync(CONFIG_PATH)) {
   try {
-    const cfg = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
-    if (Array.isArray(cfg.publicDirs)) {
-      PUBLIC_DIRS.length = 0;
-      PUBLIC_DIRS.push(...cfg.publicDirs);
+    const config = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
+    for (const hash of config.forbiddenPatternHashes || []) forbiddenHashes.add(hash);
+    if (Array.isArray(config.forbiddenPatterns) && config.forbiddenPatterns.length > 0) {
+      throw new Error('forbiddenPatterns is not public-safe; store only forbiddenPatternHashes');
     }
-    if (Array.isArray(cfg.publicFiles))
-      PUBLIC_FILES.push(...cfg.publicFiles.filter((f) => !PUBLIC_FILES.includes(f)));
-    if (Array.isArray(cfg.allowedHistoricalPaths))
-      cfg.allowedHistoricalPaths.forEach((p) => ALLOWLIST_FILES.add(p));
-    if (Array.isArray(cfg.forbiddenPatternHashes)) {
-      for (const h of cfg.forbiddenPatternHashes) {
-        FORBIDDEN_HASHES.add(h);
-      }
-    }
-    // Legacy support: convert old forbiddenPatterns to hashes with deprecation warning
-    if (Array.isArray(cfg.forbiddenPatterns)) {
-      console.error(
-        'Warning: forbiddenPatterns is deprecated. Migrate to forbiddenPatternHashes with SHA-256.',
-      );
-      for (const p of cfg.forbiddenPatterns) {
-        FORBIDDEN_HASHES.add(createHash('sha256').update(p).digest('hex'));
-      }
-    }
-  } catch (e) {
-    console.error('public-surface.config.json invalid:', e.message);
+  } catch (error) {
+    console.error(`public-surface.config.json invalid: ${error.message}`);
     process.exit(1);
   }
 }
 
-function walk(dir, out = []) {
-  let entries;
-  try {
-    entries = readdirSync(dir);
-  } catch {
-    return out;
-  }
-  for (const entry of entries) {
-    if (entry === 'node_modules' || entry === '.git' || entry.startsWith('.')) continue;
-    const full = join(dir, entry);
-    const st = statSync(full);
-    if (st.isDirectory()) {
-      walk(full, out);
-    } else if (st.isFile()) {
-      out.push(full);
-    }
-  }
-  return out;
+function digest(value) {
+  return createHash('sha256').update(value.toLowerCase()).digest('hex');
 }
 
-function isPublicPath(rel) {
-  if (rel.startsWith('node_modules' + sep) || rel.startsWith('.git' + sep)) return false;
-  if (PUBLIC_DIRS.some((d) => rel === d || rel.startsWith(d + sep))) return true;
-  if (PUBLIC_FILES.includes(rel)) return true;
-  return false;
+function isForbidden(value) {
+  return forbiddenHashes.has(digest(value));
 }
 
-function isAllowlisted(rel) {
-  for (const allow of ALLOWLIST_FILES) {
-    if (rel === allow.replace(/\/$/, '') || rel.startsWith(allow)) return true;
-  }
-  return false;
+const rules = [
+  {
+    name: 'private-repository-url',
+    pattern: /github\.com\/aikdna\/([a-z][a-z0-9_-]+)/gi,
+    check: (match) => isForbidden(`aikdna/${match[1]}`),
+    hint: 'Replace the private repository reference with a public-safe generic description.',
+  },
+  {
+    name: 'private-name-token',
+    pattern:
+      /@[a-z][a-z0-9_-]*\/[a-z][a-z0-9_-]*|[a-z][a-z0-9_-]*\/[a-z][a-z0-9_-]*|[a-z][a-z0-9_-]*/gi,
+    check: (match) => isForbidden(match[0]),
+    hint: 'Replace the private name with a public-safe generic example.',
+  },
+  {
+    name: 'local-filesystem-path',
+    pattern: /\/Users\/(?!<user>\/|you\/|username\/)[^/\s]+\/|\/private\/tmp\/kdna/gi,
+    hint: 'Replace the machine-specific path with <workdir>, <home>, or /tmp.',
+  },
+  {
+    name: 'full-commit-hash',
+    pattern: /(?<![a-f0-9])[a-f0-9]{40}(?![a-f0-9])/gi,
+    excludePaths: ['.github/workflows/', 'ecosystem-manifest.json'],
+    hint: 'Use a short public ref or a public acceptance-note link.',
+  },
+  {
+    name: 'internal-code-name',
+    pattern: /\bM3 self-eval\b/gi,
+    hint: 'Replace with "single-model self-evaluation".',
+  },
+];
+
+function listTrackedFiles() {
+  return execFileSync('git', ['ls-files', '-z'], { cwd: ROOT })
+    .toString('utf8')
+    .split('\0')
+    .filter(Boolean);
 }
 
-function isRuleExcluded(rel, rule) {
-  if (!rule.excludePaths) return false;
-  return rule.excludePaths.some((p) => rel === p || rel.startsWith(p));
+function isExcluded(file, rule) {
+  return (rule.excludePaths || []).some((prefix) => file === prefix || file.startsWith(prefix));
 }
 
 const findings = [];
-const files = [];
-for (const d of PUBLIC_DIRS) {
-  files.push(...walk(join(ROOT, d)));
-}
-for (const f of PUBLIC_FILES) {
-  const full = join(ROOT, f);
+let scanned = 0;
+for (const file of listTrackedFiles()) {
+  if (file === SELF) continue;
+  let buffer;
   try {
-    if (statSync(full).isFile()) files.push(full);
+    buffer = readFileSync(file);
   } catch {
-    /* not present */
+    continue;
   }
-}
-
-for (const full of files) {
-  const rel = relative(ROOT, full);
-  if (!isPublicPath(rel)) continue;
-  if (isAllowlisted(rel)) continue;
-  const text = readFileSync(full, 'utf8');
-  const lines = text.split('\n');
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    for (const rule of RULES) {
-      if (isRuleExcluded(rel, rule)) continue;
+  if (buffer.length > MAX_TEXT_BYTES || buffer.includes(0)) continue;
+  scanned += 1;
+  const lines = buffer.toString('utf8').split('\n');
+  for (let lineNumber = 0; lineNumber < lines.length; lineNumber += 1) {
+    const line = lines[lineNumber];
+    for (const rule of rules) {
+      if (isExcluded(file, rule)) continue;
       rule.pattern.lastIndex = 0;
-      let m;
-      while ((m = rule.pattern.exec(line)) !== null) {
-        // Hash-based rules: only flag if the hash check passes
-        if (rule.check && !rule.check(m)) continue;
+      let match;
+      while ((match = rule.pattern.exec(line)) !== null) {
+        if (rule.check && !rule.check(match)) continue;
         findings.push({
-          file: rel,
-          line: i + 1,
+          file,
+          line: lineNumber + 1,
           rule: rule.name,
-          match: m[0],
+          match: match[0],
           hint: rule.hint,
         });
       }
@@ -211,17 +116,16 @@ for (const full of files) {
   }
 }
 
-if (findings.length === 0) {
-  console.log('✅ public-surface check: 0 findings');
-  console.log(`   scanned ${files.length} files across ${PUBLIC_DIRS.join(', ')}`);
-  process.exit(0);
+if (findings.length > 0) {
+  console.error(
+    `public-surface check failed: ${findings.length} finding(s) across ${scanned} files`,
+  );
+  for (const finding of findings) {
+    console.error(`\n${finding.file}:${finding.line} [${finding.rule}]`);
+    console.error(`  match: ${finding.match}`);
+    console.error(`  ${finding.hint}`);
+  }
+  process.exit(1);
 }
 
-console.log(`❌ public-surface check: ${findings.length} finding(s)\n`);
-for (const f of findings) {
-  console.log(`  [${f.rule}] ${f.file}:${f.line}`);
-  console.log(`      match: ${f.match}`);
-  console.log(`      hint:  ${f.hint}`);
-  console.log('');
-}
-process.exit(1);
+console.log(`public-surface check passed: ${scanned} tracked text files, 0 findings`);

@@ -46,7 +46,7 @@ test('kdna inspect v1 source dir returns content-neutral JSON', () => {
   assert.equal(r.status, 0, r.stderr);
   const out = JSON.parse(r.stdout);
   assert.equal(out.kdna_version, '1.0');
-  assert.equal(out.asset_id, 'kdna:example:atomspeak-core');
+  assert.equal(out.asset_id, 'kdna:example:deployment-review');
   assert.equal(out.payload, 'payload.kdnab');
   assert.equal(out.payload_encrypted, false);
   assert.equal(out.profile, 'judgment-profile-v1');
@@ -260,7 +260,7 @@ test('kdna inspect on v1 container round-trips through pack', () => {
     assert.equal(r.status, 0, r.stderr);
     const out = JSON.parse(r.stdout);
     assert.equal(out.kdna_version, '1.0');
-    assert.equal(out.asset_id, 'kdna:example:atomspeak-core');
+    assert.equal(out.asset_id, 'kdna:example:deployment-review');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
