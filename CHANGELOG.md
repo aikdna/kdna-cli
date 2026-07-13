@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.31.0 (2026-07-13)
 
 - Add RFC-0019 browser device activation, signed challenge/proof polling,
   account entitlement sync, status, and removal paths.
