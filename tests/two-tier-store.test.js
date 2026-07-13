@@ -25,6 +25,8 @@ const { execFileSync } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
+const cbor = require('cbor-x');
+const { buildChecksums, pack } = require('@aikdna/kdna-core');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 const V1_FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
@@ -115,51 +117,35 @@ with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
 
 function buildStringRoutedAsset(tmpRoot) {
   const source = path.join(tmpRoot, 'src-string-routed');
-  fs.mkdirSync(source, { recursive: true });
-  writeJson(path.join(source, 'kdna.json'), {
-    format: 'kdna',
-    kdna_version: '1.0',
-    name: '@aikdna/string_routed',
-    version: '0.1.0',
-    judgment_version: '2026.05',
-    status: 'experimental',
-    access: 'public',
-    languages: ['en'],
-    default_language: 'en',
-    description: 'String routed judgment test asset.',
-    core_insight: 'Routing fields may arrive as strings from older authoring tools.',
-    keywords: ['routing', 'lifecycle'],
-    quality_badge: 'untested',
-    author: { name: 'Test', id: 'test', pubkey: 'ed25519:test' },
-    license: { type: 'CC-BY-4.0' },
-    file_count: 1,
-    files: ['KDNA_Core.json'],
-  });
-  writeJson(path.join(source, 'KDNA_Core.json'), {
-    meta: { domain: 'string_routed', version: '0.1.0', purpose: 'Test string routing fields.' },
-    axioms: [
-      {
-        id: 'axiom_string_routed',
-        one_sentence: 'String route fields should still be discoverable.',
-        applies_when: 'review structural routing lifecycle behavior',
-        does_not_apply_when: 'only fix grammar',
-        failure_risk: 'Installed assets may be invisible to agents.',
-      },
-    ],
-    ontology: [],
-    stances: [],
-  });
+  fs.cpSync(V1_FIXTURE, source, { recursive: true });
+  const manifestPath = path.join(source, 'kdna.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  manifest.name = '@aikdna/string_routed';
+  manifest.asset_id = 'kdna:aikdna:string_routed';
+  manifest.title = 'String Routed Judgment';
+  manifest.version = '0.1.0';
+  manifest.judgment_version = '0.1.0';
+  manifest.description = 'String routed judgment test asset.';
+  manifest.summary = manifest.description;
+  manifest.keywords = ['routing', 'lifecycle'];
+  writeJson(manifestPath, manifest);
+
+  const payloadPath = path.join(source, 'payload.kdnab');
+  const payload = cbor.decode(fs.readFileSync(payloadPath));
+  payload.core.axioms = [
+    {
+      id: 'axiom_string_routed',
+      one_sentence: 'String route fields should still be discoverable.',
+      applies_when: 'review structural routing lifecycle behavior',
+      does_not_apply_when: 'only fix grammar',
+      failure_risk: 'Installed assets may be invisible to agents.',
+    },
+  ];
+  fs.writeFileSync(payloadPath, cbor.encode(payload));
+  writeJson(path.join(source, 'checksums.json'), buildChecksums(source));
 
   const asset = path.join(tmpRoot, 'string-routed.kdna');
-  const script = `import zipfile, os
-src = ${JSON.stringify(source)}
-out = ${JSON.stringify(asset)}
-with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
-    zf.writestr(zipfile.ZipInfo('mimetype'), 'application/vnd.kdna.asset', compress_type=zipfile.ZIP_STORED)
-    for name in sorted(os.listdir(src)):
-        zf.write(os.path.join(src, name), name)
-`;
-  execFileSync('python3', ['-c', script], { stdio: 'pipe' });
+  pack(source, asset);
   return asset;
 }
 

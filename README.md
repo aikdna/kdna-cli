@@ -24,13 +24,14 @@ npm install -g @aikdna/kdna-cli
 ## Quick start — load a real judgment asset
 
 ```bash
-# Download an AIKDNA-published reference asset
-curl -LO https://github.com/aikdna/kdna-assets/releases/download/agent-project-context-v0.1.2/agent-project-context-v0.1.2.kdna
+# Generate a canonical reference asset locally
+kdna demo judgment ./demo-judgment
+kdna pack ./demo-judgment ./demo-judgment.kdna
 
 # Validate, plan, load
-kdna validate agent-project-context-v0.1.2.kdna
-kdna plan-load agent-project-context-v0.1.2.kdna
-kdna load    agent-project-context-v0.1.2.kdna --profile=compact --as=prompt
+kdna validate ./demo-judgment.kdna
+kdna plan-load ./demo-judgment.kdna
+kdna load ./demo-judgment.kdna --profile=compact --as=json
 ```
 
 Successful validation returns:
@@ -57,7 +58,7 @@ Successful validation returns:
 | `kdna plan-load <path> --json`                                                    | Return the Core LoadPlan before runtime load                   |
 | `kdna pack <input-dir> <output.kdna>`                                             | Pack a local working folder into a `.kdna` file                |
 | `kdna unpack <input.kdna> <output-dir>`                                           | Unpack a KDNA Asset Container                                  |
-| `kdna load <path> --profile=<index\|compact\|scenario\|full> --as=<json\|prompt>` | Render judgment context for agents or tools                    |
+| `kdna load <path> --profile=<index\|compact\|scenario\|full> --as=<json\|prompt>` | Return a Runtime Capsule or its prompt projection              |
 
 ## Consumption Runtime
 
@@ -149,7 +150,8 @@ for supported agents (OpenCode, Codex, Claude Code, Cursor). Install manually:
 
 See [kdna-skills](https://github.com/aikdna/kdna-skills) for the loader source and installer script.
 
-`kdna setup` and `kdna doctor` are still available in Core CLI 0.28.x. `kdna doctor [--agents] [--domains]` is the recommended first step after install; `kdna setup` is a first-time setup wizard.
+`kdna doctor [--agents] [--domains]` is the recommended first step after
+install; `kdna setup` is the first-time setup wizard.
 
 ## Producer Path
 
@@ -166,7 +168,7 @@ kdna-studio card add my_domain axiom \
   --field does_not_apply_when='["pure formatting"]' \
   --field failure_risk="generic advice"
 kdna-studio card approve my_domain --all --by expert --statement "I confirm this judgment."
-kdna-studio export my_domain --format v1 --out ./my_domain.kdna
+kdna-studio export my_domain --out ./my_domain.kdna
 kdna validate ./my_domain.kdna --runtime
 kdna plan-load ./my_domain.kdna --json
 kdna load ./my_domain.kdna --profile=compact --as=prompt
@@ -178,15 +180,15 @@ Some older commands may still appear for existing users and migration tests.
 They are maintained as compatibility surfaces, not as the recommended public
 beta path.
 
-New integrations should use the KDNA Core v1 route:
+New integrations should use the single current KDNA route:
 
 ```text
 source or Studio project
-→ v1 .kdna container
+→ .kdna asset
 → kdna validate
 → kdna plan-load
 → kdna load
-→ agent/runtime context
+→ Runtime Capsule
 ```
 
 ## Runtime Authorization Contract
@@ -223,9 +225,9 @@ kdna load ./asset.kdna --profile=compact --as=prompt
 > [`docs/asset-authorization.md`](docs/asset-authorization.md) for the
 > full distinction and end-to-end examples.
 
-`plan-load` requires a version of `@aikdna/kdna-core` that exports the LoadPlan
-KDNA Core v1 API. Until that dependency is released and installed, the command fails with
-a version-gate error instead of falling back to duplicated CLI-side parsing.
+`plan-load` delegates to `@aikdna/kdna-core`. The CLI never redefines access,
+authorization, or decryption policy, and `load --as=json` returns the Core
+Runtime Capsule rather than raw asset internals.
 
 ## Development
 

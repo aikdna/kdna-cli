@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.30.2 (2026-07-13)
+
+- Make `kdna available` and `kdna match` tolerate installed assets that no
+  longer satisfy the current wire contract; they now report those assets as
+  non-loadable instead of crashing while decoding them.
+- Route discovery of usable judgment through Core LoadPlan and Runtime Capsule.
+- Remove the old product-version label from demo help text.
+
 ## 0.30.1 (2026-07-13)
 
 - Make `kdna protect` and `kdna recover` write the cross-language Argon2id

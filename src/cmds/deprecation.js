@@ -43,7 +43,7 @@
  * Design contract: deprecation is a soft signal, never blocking.
  * It does NOT affect exit code. It does NOT prevent load/plan-load.
  * It is purely informational, like the v1 format deprecation warning
- * in Story 5 (`kdna load` on a v1 asset prints a one-liner to stderr).
+ * in Story 5 (`kdna load` on an asset prints a one-liner to stderr).
  */
 
 'use strict';
