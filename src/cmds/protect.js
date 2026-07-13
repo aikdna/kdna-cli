@@ -3,8 +3,8 @@
  *
  * Commands:
  *   kdna protect <file.kdna> --out <file.kdna> [--entries <list>]
- *   kdna unlock <file.kdna> [--profile compact|index|full]
- *   kdna recover <file.kdna> --out <file.kdna> [--code-stdin]
+ *   kdna protect unlock <file.kdna> [--profile compact|index|full]
+ *   kdna protect recover <file.kdna> --out <file.kdna> [--code-stdin]
  */
 
 const fs = require('fs');
@@ -15,8 +15,9 @@ const {
   createPasswordDecryptEntry,
   createPasswordDecryptEntryScrypt,
   createRecoveryDecryptEntry,
-  encryptProtectedEntryScrypt,
+  encryptProtectedEntry,
   generateRecoveryCode,
+  PASSWORD_PROTECTED_PROFILE,
   PASSWORD_PROTECTED_SCRYPT_PROFILE,
   pack: packAsset,
   buildChecksums,
@@ -85,15 +86,14 @@ function cmdProtect(args) {
     error('Asset is already protected. Use recover to change password.', EXIT.INPUT_ERROR);
   }
 
-  // Update manifest — B1: migrate to scrypt profile (B2 scrypt is the canonical
-  // password-protected envelope as of kdna-core@0.15.0). The old
-  // kdna-password-protected-v1 (Argon2id) profile is deprecated; old assets
-  // are still loadable, but new protect operations use the scrypt envelope.
+  // New protected assets use the Argon2id profile shared by JavaScript and
+  // Swift runtimes. JavaScript Core keeps the earlier scrypt profile readable
+  // as an explicit compatibility input.
   const newManifest = {
     ...manifest,
     access: 'licensed',
     encryption: {
-      profile: PASSWORD_PROTECTED_SCRYPT_PROFILE,
+      profile: PASSWORD_PROTECTED_PROFILE,
       encrypted_entries: entriesToEncrypt,
     },
   };
@@ -108,7 +108,7 @@ function cmdProtect(args) {
       zipEntries[entryName] = JSON.stringify(newManifest);
     } else if (entriesToEncrypt.includes(entryName)) {
       const plaintext = reader.readEntrySync(asset, entryName);
-      const encrypted = encryptProtectedEntryScrypt(plaintext, {
+      const encrypted = encryptProtectedEntry(plaintext, {
         entryName,
         manifest: newManifest,
         password,
@@ -120,7 +120,7 @@ function cmdProtect(args) {
     }
   }
 
-  // Add mimetype if missing — use v1 canonical format
+  // Add the single current KDNA media type if missing.
   if (!zipEntries.mimetype) {
     zipEntries.mimetype = 'application/vnd.kdna.asset';
   }
@@ -225,11 +225,10 @@ function cmdUnlock(args) {
   // (JSON-encoded payload). loadAuthorized dispatches to the right decoder
   // and accepts the password directly.
   const profileName = manifest.encryption?.profile;
-  if (profileName === 'kdna-password-protected-v1') {
+  if (profileName === PASSWORD_PROTECTED_SCRYPT_PROFILE) {
     process.stderr.write(
-      'Warning: this asset uses the deprecated kdna-password-protected-v1 ' +
-        '(Argon2id) profile. Re-export through `kdna protect` (or kdna-studio ' +
-        'export --password) to migrate to the scrypt envelope.\n',
+      'Warning: this asset uses the compatibility scrypt password profile. ' +
+        'Unlock and protect it again to write the current Argon2id profile.\n',
     );
   }
 
@@ -243,14 +242,17 @@ function cmdUnlock(args) {
       // the original stays encrypted; the output is the unprotected copy.
       //
       // Implementation: walk the source asset entry-by-entry, decrypting
-      // each entry listed in encryption.encrypted_entries using the same
-      // scrypt envelope, and copy through the rest unchanged. Strip
+      // each entry listed in encryption.encrypted_entries using the declared
+      // password profile, and copy through the rest unchanged. Strip
       // access/encryption from the manifest so the unlocked copy is a
       // normal public asset. Re-pack with checksums.
       const reader2 = createKdnaAssetReader();
       const asset2 = reader2.openSync(file);
       const origManifest = reader2.readManifestSync(asset2);
-      const decryptEntry = createPasswordDecryptEntryScrypt({ password });
+      const decryptEntry =
+        profileName === PASSWORD_PROTECTED_SCRYPT_PROFILE
+          ? createPasswordDecryptEntryScrypt({ password })
+          : createPasswordDecryptEntry({ password });
       const encryptedEntries = origManifest.encryption?.encrypted_entries || [];
       const tmpDir = require('node:fs').mkdtempSync(
         require('node:path').join(require('node:os').tmpdir(), 'kdna-unlock-'),
@@ -359,6 +361,13 @@ function cmdRecover(args) {
     error(`Asset access is "${manifest.access}", expected "licensed"`, EXIT.INPUT_ERROR);
   }
 
+  if (manifest.encryption?.profile === PASSWORD_PROTECTED_SCRYPT_PROFILE) {
+    error(
+      'This compatibility scrypt asset has no recovery slot. Unlock it with its password, then protect it again to create an Argon2id recovery slot.',
+      EXIT.INPUT_ERROR,
+    );
+  }
+
   const decryptEntry = createRecoveryDecryptEntry({ recoveryCode });
 
   // Decrypt all encrypted entries with recovery code, then re-encrypt with new password
@@ -373,14 +382,14 @@ function cmdRecover(args) {
       const encryptedData = reader.readEntrySync(asset, entryName);
       const plaintext = decryptEntry({ entryName, ciphertext: encryptedData, manifest });
 
-      // B1: re-encrypt under the scrypt profile when migrating.
-      const encrypted = encryptProtectedEntryScrypt(plaintext, {
+      // Re-encrypt under the current cross-language Argon2id profile.
+      const encrypted = encryptProtectedEntry(plaintext, {
         entryName,
         manifest: {
           ...manifest,
           encryption: {
             ...(manifest.encryption || {}),
-            profile: PASSWORD_PROTECTED_SCRYPT_PROFILE,
+            profile: PASSWORD_PROTECTED_PROFILE,
             encrypted_entries: entriesToEncrypt,
           },
         },
