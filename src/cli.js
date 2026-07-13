@@ -312,7 +312,7 @@ Authoring & Publishing:
   test     run <domain>              Run test cases against a domain
   test     import                    Import test results
 Asset & Domain Operations:
-  badge    <domain>               Compute quality badge (dev preview)
+  badge    <domain>               Summarize declared evaluation evidence
   badge    audit                   Audit registry for stale entries
   badge    package <path>          Package a badge artifact
   domain   validate <path>            Validate a domain source directory
@@ -371,6 +371,12 @@ switch (cmd) {
       const runtimeMode = args.includes('--runtime');
       const result = validate(v1Target);
       if (runtimeMode) {
+        if (!fs.statSync(abs).isFile() || containerFmt !== 'kdna') {
+          error(
+            'kdna validate --runtime requires a packaged .kdna asset file. Source directories are authoring inputs only.',
+            EXIT.INPUT_ERROR,
+          );
+        }
         const entitlementStatusIndex = args.indexOf('--entitlement-status');
         const entitlementStatus =
           entitlementStatusIndex >= 0 ? args[entitlementStatusIndex + 1] : null;
@@ -389,7 +395,7 @@ switch (cmd) {
         const core = require('@aikdna/kdna-core');
         if (typeof core.planLoad !== 'function') {
           error(
-            'kdna validate --runtime requires @aikdna/kdna-core with the LoadPlan v1 API. Update @aikdna/kdna-core before enabling runtime authorization diagnostics.',
+            'kdna validate --runtime requires @aikdna/kdna-core with the LoadPlan API. Update @aikdna/kdna-core before enabling runtime authorization diagnostics.',
             EXIT.PROVIDER_ERROR,
           );
         }
@@ -427,19 +433,19 @@ switch (cmd) {
       let planTarget = v1Target;
       let abs = require('node:path').resolve(planTarget);
       const containerFmt = core.detectContainerFormat(abs);
-      let isKdna = core.isKdnaSourceDir(abs) || containerFmt === 'kdna';
+      let isKdna = fs.existsSync(abs) && fs.statSync(abs).isFile() && containerFmt === 'kdna';
       if (!isKdna) {
         const installed = resolveAsset(v1Target);
         if (installed?.asset_path) {
           planTarget = installed.asset_path;
           abs = require('node:path').resolve(planTarget);
           const installedFmt = core.detectContainerFormat(abs);
-          isKdna = core.isKdnaSourceDir(abs) || installedFmt === 'kdna';
+          isKdna = fs.existsSync(abs) && fs.statSync(abs).isFile() && installedFmt === 'kdna';
         }
       }
       if (!isKdna) {
         error(
-          'plan-load requires a KDNA source dir, .kdna container, or installed package name',
+          'plan-load requires a packaged .kdna asset file or installed package name',
           EXIT.INPUT_ERROR,
         );
       }
@@ -450,7 +456,7 @@ switch (cmd) {
       emitDeprecationStderr(abs);
       if (typeof core.planLoad !== 'function') {
         error(
-          'kdna plan-load requires @aikdna/kdna-core with the LoadPlan v1 API. Update @aikdna/kdna-core before enabling runtime authorization diagnostics.',
+          'kdna plan-load requires @aikdna/kdna-core with the LoadPlan API. Update @aikdna/kdna-core before enabling runtime authorization diagnostics.',
           EXIT.PROVIDER_ERROR,
         );
       }
@@ -666,7 +672,13 @@ switch (cmd) {
     const resolvedAsset = resolveAsset(target);
     const abs = resolvedAsset?.asset_path || require('node:path').resolve(target);
     if (!fs.existsSync(abs)) error(`File not found: ${target}`, EXIT.INPUT_ERROR);
-    const isKdna = core.isKdnaSourceDir(abs) || core.detectContainerFormat(abs) === 'kdna';
+    const isKdna = fs.statSync(abs).isFile() && core.detectContainerFormat(abs) === 'kdna';
+    if (!isKdna) {
+      error(
+        'kdna load requires a packaged .kdna asset file. Source directories are authoring inputs only.',
+        EXIT.INPUT_ERROR,
+      );
+    }
     // Story 13 — soft deprecation scan. Non-blocking.
     emitDeprecationStderr(abs);
     const getFlag = (name) => {
@@ -1202,7 +1214,7 @@ switch (cmd) {
   }
 
   case 'setup': {
-    cmdSetup();
+    cmdSetup(args.slice(1));
     break;
   }
   case 'studio': {

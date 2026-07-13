@@ -205,7 +205,7 @@ function makeRemoteFixture(tmpDir) {
     path.join(dir, 'checksums.json'),
     JSON.stringify(core.buildChecksums(dir), null, 2) + '\n',
   );
-  return dir;
+  return packFixture(dir, path.join(tmpDir, 'remote-test.kdna'));
 }
 
 function packFixture(dir, outPath) {
@@ -445,8 +445,9 @@ test('CRITICAL-2: public asset is loaded normally even when --remote-server is s
   try {
     server = await startFakeRemoteServer();
     // Use the public v1-minimal fixture (no access: "remote" field)
-    const dir = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
-    const r = run(['load', dir, '--as=json', '--remote-server', server.url], {
+    const sourceDir = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
+    const assetPath = packFixture(sourceDir, path.join(tmp, 'public-test.kdna'));
+    const r = run(['load', assetPath, '--as=json', '--remote-server', server.url], {
       env: { KDNA_IDENTITY_DIR: path.join(tmp, 'keys') },
     });
     // The public asset loads successfully via the normal path.
@@ -467,8 +468,7 @@ test('CRITICAL-2: packaged access:remote .kdna routes to remote server', async (
   let server;
   try {
     server = await startFakeRemoteServer();
-    const dir = makeRemoteFixture(tmp);
-    const kdnaPath = packFixture(dir, path.join(tmp, 'remote-test.kdna'));
+    const kdnaPath = makeRemoteFixture(tmp);
     const r = run(['load', kdnaPath, '--as=json', '--remote-server', server.url], {
       env: { KDNA_IDENTITY_DIR: path.join(tmp, 'keys') },
     });

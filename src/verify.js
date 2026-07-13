@@ -3,7 +3,7 @@
  *
  *   --structure   files exist, schema OK
  *   --trust       asset digest + Ed25519 signature against scope trust key
- *   --judgment    v2.1 governance fields (boundary, applies_when, eval cases)
+ *   --judgment    authoring governance fields (boundary, applies_when, eval cases)
  *
  * No flag = run all three.
  *
@@ -367,7 +367,7 @@ function checkJudgment(input, options = {}) {
 
   // 1. Boundary declaration in README (REQUIRED)
   //    Either classic "## Scope" + "## Out of Scope" pair,
-  //    OR v2.1 "Four Questions" section (#2 = applies, #4 = does not).
+  //    OR the "Four Questions" section (#2 = applies, #4 = does not).
   let readme = '';
   try {
     readme = view.readText('README.md');
@@ -383,7 +383,7 @@ function checkJudgment(input, options = {}) {
       readme,
     );
   if ((hasScope && hasOutOfScope) || hasFourQuestions) {
-    bump(2, 2, 'README declares boundary (Scope+Out-of-Scope, or v2.1 Four Questions)');
+    bump(2, 2, 'README declares boundary (Scope+Out-of-Scope, or Four Questions)');
   } else if (hasScope || hasOutOfScope) {
     score.max += 2;
     score.total += 1;
@@ -395,11 +395,11 @@ function checkJudgment(input, options = {}) {
     score.max += 2;
     issues.push({
       severity: 'error',
-      msg: 'README missing boundary declaration: require ## Scope + ## Out of Scope (or v2.1 Four Questions)',
+      msg: 'README missing boundary declaration: require ## Scope + ## Out of Scope (or Four Questions)',
     });
   }
 
-  // 2. v2.1 axiom governance fields
+  // 2. Optional axiom governance fields
   if (core?.axioms) {
     const axioms = core.axioms;
     const withApplies = axioms.filter(
@@ -437,7 +437,7 @@ function checkJudgment(input, options = {}) {
     );
   }
 
-  // 3. v2.1 misunderstanding governance fields
+  // 3. Optional misunderstanding governance fields
   if (pat?.misunderstandings) {
     const ms = pat.misunderstandings;
     const withApplies = ms.filter(

@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- Require packaged `.kdna` files for runtime validation, LoadPlan generation,
+  loading, execution, dependencies, inheritance, and watermark paths while
+  preserving source directories as authoring inputs.
+- Install the bundled loader for Codex, Claude Code, and OpenCode without
+  fetching mutable `main`, preserve customized copies unless `--force` is
+  explicit, and make `setup --help` side-effect free.
+- Report declared evidence facts from `badge` without content-quality or trust
+  verdicts, and scan bundle deprecations inside packaged assets.
+- Make release readiness fail for dirty inputs or when the version tag does not
+  point to the current commit.
+- Remove active user-facing format-generation labels from authoring guidance.
+
 ## 0.30.4 (2026-07-13)
 
 - Keep `kdna plan-load` output inside the closed public LoadPlan schema by

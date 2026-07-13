@@ -1,10 +1,18 @@
-const { describe, it } = require('node:test');
+const { after, it } = require('node:test');
 const assert = require('node:assert');
 const { execSync } = require('node:child_process');
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
+const core = require('@aikdna/kdna-core');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
-const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
+const FIXTURE_SOURCE = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
+const FIXTURE_TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-use-test-'));
+const FIXTURE = path.join(FIXTURE_TMP, 'v1-minimal.kdna');
+core.pack(FIXTURE_SOURCE, FIXTURE);
+
+after(() => fs.rmSync(FIXTURE_TMP, { recursive: true, force: true }));
 
 it('use --help shows usage', () => {
   const { spawnSync } = require('node:child_process');

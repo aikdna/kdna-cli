@@ -60,8 +60,6 @@ Usage:
   kdna load <file.kdna> [--as=prompt|json|raw]   Load only when LoadPlan allows it
 
   --- Dev source utilities (creator/debug path) ---
-  kdna init <name>              Deprecated alias for kdna dev scaffold <name>
-  kdna dev scaffold <name>      Scaffold a non-canonical dev source workspace
   kdna dev validate <path>      Validate a dev source directory
   kdna dev pack <path>          Build a dev-only diagnostic .kdna bundle
   kdna dev unpack <path>        Unpack .kdna into a dev source directory

@@ -40,7 +40,7 @@ function cmdEval() {
 function cmdSelect() {
   // Removed in v0.9 — replaced by the agent-facing kdna-loader skill.
   // The skill discovers KDNA via 'kdna available' and decides fit
-  // using v2.1 applies_when fields. The agent makes the selection.
+  // using optional applies_when fields. The agent makes the selection.
   error(
     'kdna select was removed in v0.9.\n' +
       'KDNA selection is now done by the kdna-loader skill (installed\n' +

@@ -1,6 +1,6 @@
 'use strict';
 
-const { test } = require('node:test');
+const { after, test } = require('node:test');
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
@@ -11,6 +11,10 @@ const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 const FIXTURE_V1 = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
 const cbor = require('cbor-x');
 const core = require('@aikdna/kdna-core');
+const FIXTURE_TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s5-fixture-'));
+const RUNTIME_FIXTURE = path.join(FIXTURE_TMP, 'v1-minimal.kdna');
+core.pack(FIXTURE_V1, RUNTIME_FIXTURE);
+after(() => fs.rmSync(FIXTURE_TMP, { recursive: true, force: true }));
 
 function run(args, opts = {}) {
   return spawnSync(process.execPath, [CLI, ...args], {
@@ -32,7 +36,7 @@ test('Story 5: validate v1 exits 0 with no spurious deprecation warning', () => 
 });
 
 test('Story 5: load v1 exits 0 with no spurious deprecation warning', () => {
-  const r = run(['load', FIXTURE_V1]);
+  const r = run(['load', RUNTIME_FIXTURE]);
   assert.equal(r.status, 0, `expected exit 0, got ${r.status}:\n${r.stderr}`);
   assert.doesNotMatch(r.stderr, /KDNA v1 format is deprecated/i);
 });

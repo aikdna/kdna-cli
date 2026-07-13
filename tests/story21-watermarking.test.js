@@ -106,7 +106,9 @@ function makeFixture(tmpDir, access = 'public') {
     path.join(dir, 'checksums.json'),
     JSON.stringify(core.buildChecksums(dir), null, 2) + '\n',
   );
-  return dir;
+  const assetPath = path.join(tmpDir, `watermark-${access}.kdna`);
+  core.pack(dir, assetPath);
+  return assetPath;
 }
 
 // ─── A: shouldWatermark + module-level behavior ──────────────────────────

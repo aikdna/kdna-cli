@@ -49,6 +49,7 @@
 'use strict';
 
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const cbor = require('cbor-x');
 const { isDeprecatedAt } = require('./semver-util');
@@ -64,6 +65,20 @@ const { isDeprecatedAt } = require('./semver-util');
  * field on the manifest itself, if present).
  */
 function readBundleComponents(abs) {
+  try {
+    if (fs.statSync(abs).isFile()) {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-deprecation-'));
+      try {
+        require('@aikdna/kdna-core').unpack(abs, tmp);
+        return readBundleComponents(tmp);
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    }
+  } catch {
+    return null;
+  }
+
   const kdnaJsonPath = path.join(abs, 'kdna.json');
   if (!fs.existsSync(kdnaJsonPath)) return null;
 

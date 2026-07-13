@@ -197,7 +197,7 @@ function detectChanges(domainPath) {
     reasons.push(`judgment_version: ${manifest.judgment_version}`);
   }
 
-  // Count axioms with applies_when (v2.1 governance) vs without
+  // Count axioms with optional applies_when authoring metadata vs without
   if (core?.axioms) {
     const total = core.axioms.length;
     const governed = core.axioms.filter(
@@ -205,7 +205,7 @@ function detectChanges(domainPath) {
     ).length;
     if (governed < total) {
       axiomChanges = total - governed;
-      reasons.push(`${axiomChanges} axioms missing v2.1 governance fields`);
+      reasons.push(`${axiomChanges} axioms missing optional governance fields`);
     }
   }
 
