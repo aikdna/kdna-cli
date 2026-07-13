@@ -168,7 +168,7 @@ function diffMaps(label, oldMap, newMap, render, jsonMode = false) {
       console.log(`    was: "${render(oldMap[id])}"`);
       console.log(`    now: "${render(newMap[id])}"`);
     }
-    // Surface key diffs in v2.1 boundary fields
+    // Surface key diffs in optional authoring boundary fields
     const a = oldMap[id],
       b = newMap[id];
     for (const field of ['applies_when', 'does_not_apply_when', 'failure_risk', 'confidence']) {

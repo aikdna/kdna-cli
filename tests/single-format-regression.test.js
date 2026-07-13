@@ -90,8 +90,10 @@ test('CLI plan-load works against local Core candidate tarball', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-reg-'));
   try {
     const src = path.join(tmp, 'src');
+    const packed = path.join(tmp, 'single.kdna');
     makeMinimalSourceDir(src);
-    const r = run(['plan-load', src, '--json']);
+    core.pack(src, packed);
+    const r = run(['plan-load', packed, '--json']);
     assert.equal(r.status, 0, r.stderr);
     const out = JSON.parse(r.stdout);
     assert.equal(out.state, 'ready');
@@ -105,8 +107,10 @@ test('CLI validate --runtime works against local Core candidate tarball', () => 
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-reg-'));
   try {
     const src = path.join(tmp, 'src');
+    const packed = path.join(tmp, 'single.kdna');
     makeMinimalSourceDir(src);
-    const r = run(['validate', src, '--runtime']);
+    core.pack(src, packed);
+    const r = run(['validate', packed, '--runtime']);
     assert.equal(r.status, 0, r.stderr);
     const out = JSON.parse(r.stdout);
     assert.equal(out.overall_valid, true);

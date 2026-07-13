@@ -1,108 +1,9 @@
 /**
- * kdna init <name>        — Deprecated alias for kdna dev scaffold <name>.
- * kdna dev scaffold <name> — Scaffold a non-canonical dev source workspace.
  * kdna cluster init <name> — Scaffold a new KDNA cluster from template.
  */
 
 const fs = require('fs');
 const path = require('path');
-
-/**
- * Recursively copy a directory, applying string replacements.
- */
-function copyRecursive(src, dest, replacements) {
-  const entries = fs.readdirSync(src);
-  for (const entry of entries) {
-    const srcPath = path.join(src, entry);
-    const destPath = path.join(dest, entry);
-    if (fs.statSync(srcPath).isDirectory()) {
-      fs.mkdirSync(destPath, { recursive: true });
-      copyRecursive(srcPath, destPath, replacements);
-    } else {
-      let content = fs.readFileSync(srcPath, 'utf8');
-      for (const [pattern, to] of Object.entries(replacements)) {
-        content = content.replaceAll(pattern, to);
-      }
-      fs.writeFileSync(destPath, content);
-    }
-  }
-}
-
-function cmdInit(name, options = {}) {
-  if (!name) {
-    console.error('Error: Domain name required. Usage: kdna dev scaffold <name>');
-    process.exit(1);
-  }
-
-  if (!/^[a-z][a-z0-9_]*$/.test(name)) {
-    console.error(
-      `Error: Invalid domain name "${name}". Must be lowercase letters, numbers, underscores. Start with a letter.`,
-    );
-    process.exit(1);
-  }
-
-  const templateDir = path.resolve(__dirname, '..', 'templates', 'minimal-domain');
-  const targetDir = path.resolve(name);
-
-  if (fs.existsSync(targetDir)) {
-    console.error(`Error: Directory already exists: ${targetDir}`);
-    process.exit(1);
-  }
-
-  const today = new Date().toISOString().slice(0, 10);
-
-  fs.mkdirSync(targetDir, { recursive: true });
-  copyRecursive(templateDir, targetDir, {
-    example_domain: name,
-    'YYYY-MM-DD': today,
-  });
-
-  if (options.deprecatedAlias) {
-    console.warn(
-      'Warning: kdna init is deprecated. Use kdna dev scaffold for dev source workspaces.',
-    );
-  }
-  console.log(`✓ Created non-canonical KDNA dev source workspace: ${targetDir}/`);
-  console.log(`  Files: KDNA_Core.json, KDNA_Patterns.json, kdna.json, tests/before-after.json`);
-  console.log('  This workspace is an authoring/editing view, not a public KDNA asset.');
-  console.log('  To create a runtime .kdna file, export through KDNA Studio or kdna dev pack.');
-
-  // Run structural validation (lint + schema only). Content quality checks
-  // are for release-evidence time, not scaffold time — the template contains placeholders
-  // marked [TODO] that the author is expected to replace.
-  try {
-    const { execSync } = require('child_process');
-    const cli = process.argv[1];
-    const validCmd = `node "${cli}" validate "${targetDir}"`;
-    const { status } = execSync(validCmd, { stdio: 'pipe', encoding: 'utf8' });
-    // Structural validation passed (non-zero exit means purely structural failure)
-    if (status === null || status === undefined) {
-      console.log(`  ✓ Structural validation passed (lint + schema OK)`);
-    }
-  } catch (e) {
-    console.error(`  ⚠ Structural validation had issues:`);
-    const stderr = e.stderr?.toString() || e.stdout?.toString() || '';
-    if (stderr)
-      console.error(
-        stderr
-          .trim()
-          .split('\n')
-          .map((l) => `    ${l}`)
-          .join('\n'),
-      );
-  }
-
-  console.log('');
-  console.log(`Next steps:`);
-  console.log(`  1. Edit ${targetDir}/KDNA_Core.json — replace all [TODO] placeholders`);
-  console.log(
-    `  2. Edit ${targetDir}/KDNA_Patterns.json — replace terminology and misunderstandings`,
-  );
-  console.log(`  3. Edit ${targetDir}/kdna.json — set author, description, repo`);
-  console.log(`  4. Run: kdna dev validate ${name}           (structural check)`);
-  console.log(`  5. Run: kdna dev pack ${name} --out dist/${name}.kdna`);
-  console.log(`  6. Run: kdna validate dist/${name}.kdna && kdna plan-load dist/${name}.kdna`);
-}
 
 /**
  * kdna cluster init <name> — Scaffold a new KDNA cluster from CANONICAL template.
@@ -215,4 +116,4 @@ function cmdClusterInit(name) {
   );
 }
 
-module.exports = { cmdInit, cmdClusterInit };
+module.exports = { cmdClusterInit };

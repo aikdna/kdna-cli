@@ -433,7 +433,7 @@ function cmdRegression(args = []) {
   const oldSelfCheckCount = (oldPat?.self_check || []).length;
   const newSelfCheckCount = (newPat?.self_check || []).length;
 
-  // v2.1 governance coverage comparison
+  // Authoring governance coverage comparison
   function governanceCoverage(core) {
     const axioms = core?.axioms || [];
     if (!axioms.length) return 0;

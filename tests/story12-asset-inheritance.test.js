@@ -16,7 +16,7 @@
 
 'use strict';
 
-const { test } = require('node:test');
+const { after, test } = require('node:test');
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
@@ -26,6 +26,10 @@ const cbor = require('cbor-x');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
+const FIXTURE_TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s12-fixture-'));
+const RUNTIME_FIXTURE = path.join(FIXTURE_TMP, 'v1-minimal.kdna');
+require('@aikdna/kdna-core').pack(FIXTURE, RUNTIME_FIXTURE);
+after(() => fs.rmSync(FIXTURE_TMP, { recursive: true, force: true }));
 
 function run(args, opts = {}) {
   return spawnSync(process.execPath, [CLI, ...args], {
@@ -84,12 +88,19 @@ test('Story 12 planLoad: records extends_chain when base is resolvable', () => {
 
     const resolveAsset = (name) => {
       if (name === '@test/base') {
-        return { name: '@test/base', version: '1.0.0', path: FIXTURE, manifest: childManifest };
+        return {
+          name: '@test/base',
+          version: '1.0.0',
+          path: RUNTIME_FIXTURE,
+          manifest: childManifest,
+        };
       }
       return null;
     };
 
-    const plan = core.planLoad(childDir, { resolveAsset });
+    const childAsset = path.join(tmp, 'child.kdna');
+    core.pack(childDir, childAsset);
+    const plan = core.planLoad(childAsset, { resolveAsset });
     assert.ok(
       Array.isArray(plan.extends_chain) && plan.extends_chain.length === 1,
       'extends_chain should have one entry',
@@ -122,7 +133,9 @@ test('Story 12 planLoad: KDNA_EXTENDS_NOT_FOUND warning when base missing', () =
       );
     }
 
-    const plan = core.planLoad(childDir, { resolveAsset: () => null });
+    const childAsset = path.join(tmp, 'child.kdna');
+    core.pack(childDir, childAsset);
+    const plan = core.planLoad(childAsset, { resolveAsset: () => null });
     const issue = (plan.issues || []).find((i) => i.code === 'KDNA_EXTENDS_NOT_FOUND');
     assert.ok(issue, 'should have KDNA_EXTENDS_NOT_FOUND warning issue');
     // Non-blocking: plan should still be loadable
@@ -154,7 +167,9 @@ test('Story 12 planLoad: KDNA_EXTENDS_RESOLVER_MISSING warning when no resolver'
     }
 
     // No resolveAsset callback
-    const plan = core.planLoad(childDir);
+    const childAsset = path.join(tmp, 'child.kdna');
+    core.pack(childDir, childAsset);
+    const plan = core.planLoad(childAsset);
     const issue = (plan.issues || []).find((i) => i.code === 'KDNA_EXTENDS_RESOLVER_MISSING');
     assert.ok(issue, 'should have KDNA_EXTENDS_RESOLVER_MISSING warning');
     assert.notEqual(
@@ -230,14 +245,17 @@ test('Story 12 inheritance: child axioms override parent, parent unoverridden ax
         return {
           name: '@test/parent',
           version: '1.0.0',
-          path: parentDir,
+          path: path.join(tmp, 'parent.kdna'),
           manifest: parentManifest,
         };
       }
       return null;
     };
 
-    const result = core.loadAuthorized(childDir, {
+    core.pack(parentDir, path.join(tmp, 'parent.kdna'));
+    const childAsset = path.join(tmp, 'child.kdna');
+    core.pack(childDir, childAsset);
+    const result = core.loadAuthorized(childAsset, {
       profile: 'compact',
       as: 'json',
       resolveAsset,
@@ -269,7 +287,7 @@ test('Story 12 inheritance: child axioms override parent, parent unoverridden ax
 // ─── H: CLI smoke — single asset plan-load has no extends_chain ──────────────
 
 test('Story 12 CLI: single asset plan-load has no extends_chain', () => {
-  const r = run(['plan-load', FIXTURE, '--json']);
+  const r = run(['plan-load', RUNTIME_FIXTURE, '--json']);
   assert.ok(r.status !== 1, `unexpected exit 1:\n${r.stderr}`);
   const out = JSON.parse(r.stdout);
   assert.ok(!out.extends_chain, 'single asset should have no extends_chain');

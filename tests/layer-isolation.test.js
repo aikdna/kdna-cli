@@ -58,12 +58,9 @@ const FIXTURE = path.join(REPO_ROOT, 'fixtures', 'v1-minimal');
 // code uses 'trusted' in three legitimate-or-design-debate places:
 //   1. `--trusted` flag for signature verification (install.js)
 //   2. `trustedPubkeys` / "trusted allow-list" in capsule-verify.js
-//   3. `quality_badge: 'trusted'` level in cmds/badge.js — this is
-//      a design contract violation (CLI asserts asset is "trusted"
-//      based on heuristics), tracked separately in
-//      PRIVATE/STATUS/agent-guide.md Section 5 (discovered during
-//      this story's implementation). The guard for 'trusted' is
-//      deferred to a follow-up story that resolves the badge design.
+//   3. Evidence summaries must not claim an asset is trusted or approved.
+//      Structural observations are allowed, but content trust remains a
+//      consumer decision outside the CLI.
 const FORBIDDEN_TOKENS = [
   'recommended',
   'officially_approved',
@@ -357,4 +354,11 @@ test('layer-isolation: every ALLOWLIST entry still matches a forbidden token on 
         `Either remove the entry or update its line number / file.\n${msg}`,
     );
   }
+});
+
+test('layer-isolation: badge command reports evidence facts, not a quality or trust verdict', () => {
+  const source = fs.readFileSync(path.join(SRC_DIR, 'cmds', 'badge.js'), 'utf8');
+  assert.doesNotMatch(source, /quality_badge\s*:/);
+  assert.doesNotMatch(source, /badge\s*=\s*['"]trusted['"]/);
+  assert.match(source, /evidence_status/);
 });

@@ -140,8 +140,10 @@ test('demo judgment validates with overall_valid=true', () => {
 test('demo judgment plan-load returns ready', () => {
   const tmp = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'kdna-judge-'));
   const target = path.join(tmp, 'jd');
+  const packed = path.join(tmp, 'judgment.kdna');
   run(['demo', 'judgment', target]);
-  const r = run(['plan-load', target, '--json']);
+  assert.equal(run(['pack', target, packed]).status, 0);
+  const r = run(['plan-load', packed, '--json']);
   assert.equal(r.status, 0, r.stderr);
   const plan = JSON.parse(r.stdout);
   assert.equal(plan.state, 'ready');
@@ -152,8 +154,10 @@ test('demo judgment plan-load returns ready', () => {
 test('demo judgment compact prompt contains real judgment markers', () => {
   const tmp = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'kdna-judge-'));
   const target = path.join(tmp, 'jd');
+  const packed = path.join(tmp, 'judgment.kdna');
   run(['demo', 'judgment', target]);
-  const r = run(['load', target, '--profile=compact', '--as=prompt']);
+  assert.equal(run(['pack', target, packed]).status, 0);
+  const r = run(['load', packed, '--profile=compact', '--as=prompt']);
   assert.equal(r.status, 0, r.stderr);
   assert.ok(r.stdout.includes('Content Review Judgment'), 'must have title');
   assert.ok(r.stdout.includes('Axioms:'), 'must have axioms');
@@ -166,8 +170,10 @@ test('demo judgment compact prompt contains real judgment markers', () => {
 test('demo judgment scenario profile is available', () => {
   const tmp = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'kdna-judge-'));
   const target = path.join(tmp, 'jd');
+  const packed = path.join(tmp, 'judgment.kdna');
   run(['demo', 'judgment', target]);
-  const r = run(['load', target, '--profile=scenario', '--as=json']);
+  assert.equal(run(['pack', target, packed]).status, 0);
+  const r = run(['load', packed, '--profile=scenario', '--as=json']);
   assert.equal(r.status, 0, r.stderr);
   const out = JSON.parse(r.stdout);
   assert.equal(out.profile, 'scenario', 'must load scenario profile');

@@ -9,7 +9,7 @@ Copy this folder, fill in the bracketed placeholders, then export a packaged
 ```
 standard-domain/
 ├── README.md                   # Four Questions + Failure Risks + Files
-├── kdna.json                   # Manifest with judgment_version (v2.1)
+├── kdna.json                   # Authoring manifest with judgment_version
 ├── KDNA_Core.json              # Axioms with applies_when / does_not_apply_when / failure_risk
 ├── KDNA_Patterns.json          # Misunderstandings with same governance fields
 └── evals/
@@ -27,7 +27,7 @@ standard-domain/
 cp -r templates/standard-domain ./my_domain
 cd my_domain
 
-# 2. Generate your scope identity (once per scope)
+# 2. Optionally generate a scope identity (once per scope)
 kdna identity init
 
 # 3. Edit kdna.json:
@@ -42,12 +42,12 @@ kdna identity init
 
 # 5. Fill out evals/ — 10 real cases
 
-# 6. Verify quality
-kdna verify ./.
+# 6. Optionally review and customize the declared cases in evals/
 
-# 7. Export and verify the local v1 asset
+# 7. Export and verify the packaged asset
 mkdir -p dist
-kdna pack . ./dist/your-domain.kdna
+kdna-studio create ../your-domain-studio --from-folder . --name @yourscope/your-domain
+kdna-studio export ../your-domain-studio --out ./dist/your-domain.kdna
 kdna validate ./dist/your-domain.kdna
 
 kdna plan-load ./dist/your-domain.kdna
@@ -56,6 +56,6 @@ kdna load ./dist/your-domain.kdna --profile=compact --as=prompt
 
 ## Standard vs minimal-domain
 
-`minimal-domain/` is the **bare-minimum** template — 2 files, no v2.1 fields, no evals. Use it only for fast experimentation or learning.
+`minimal-domain/` is the **bare-minimum** template — no optional governance fields or evals. Use it only for fast experimentation or learning.
 
-`standard-domain/` is the richer authoring template for domains that need evidence, limitations, and repeatable validation. Core v1 distribution is local `.kdna` export plus `kdna validate` / `kdna plan-load` / `kdna load` evidence.
+`standard-domain/` is the richer authoring template for domains that need evidence, limitations, and repeatable validation. Public distribution uses a local `.kdna` export plus `kdna validate` / `kdna plan-load` / `kdna load` evidence.
