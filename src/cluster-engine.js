@@ -775,6 +775,8 @@ function generateClusterPlan(manifest, task, opts = {}) {
       max_chars: maxChars,
       max_assets: maxAssets,
       assets_consumed: assetCount,
+      projection_measurement: planBlocked ? 'not_applicable' : 'required_at_runner',
+      enforcement: manifest.budget?.enforcement || 'hard',
     },
     runner: opts.runner || null,
     evidence_refs: [],
@@ -806,7 +808,9 @@ function generateClusterPlan(manifest, task, opts = {}) {
           budget_check: {
             assets_selected: assetCount,
             max_assets: maxAssets,
-            within_budget: !budgetBlocked && assetCount <= maxAssets,
+            asset_limit_within_budget: !budgetBlocked && assetCount <= maxAssets,
+            projection_measurement: planBlocked ? 'not_applicable' : 'required_at_runner',
+            within_budget: budgetBlocked ? false : null,
           },
         },
     conflicts: conflicts,
@@ -884,14 +888,23 @@ function generateClusterTrace(plan, runnerResult) {
       tokens_used: runnerResult?.cost?.tokens_used || 0,
       chars_consumed: runnerResult?.cost?.chars_consumed || 0,
       projection_chars: runnerResult?.cost?.projection_chars || 0,
+      projection_tokens: runnerResult?.cost?.projection_tokens || 0,
       estimated_projection_tokens: runnerResult?.cost?.estimated_projection_tokens || 0,
+      token_count_basis: runnerResult?.cost?.token_count_basis || null,
+      token_count_verified: runnerResult?.cost?.token_count_verified === true,
       assets_loaded: loadedCount,
       model_calls: runnerResult?.cost?.model_calls || 0,
       budget_profile: plan.budget?.profile || 'interactive',
       over_budget:
-        (runnerResult?.cost?.tokens_used || 0) > (plan.budget?.max_tokens || Infinity) ||
-        (runnerResult?.cost?.projection_chars || 0) > (plan.budget?.max_chars || Infinity),
+        runnerResult?.budget?.status === 'blocked' ||
+        (Number.isFinite(plan.budget?.max_tokens) &&
+          plan.budget.max_tokens > 0 &&
+          (runnerResult?.cost?.projection_tokens || 0) > plan.budget.max_tokens) ||
+        (Number.isFinite(plan.budget?.max_chars) &&
+          plan.budget.max_chars > 0 &&
+          (runnerResult?.cost?.projection_chars || 0) > plan.budget.max_chars),
     },
+    budget: runnerResult?.budget,
     provenance: {
       plan_digest: plan.metadata?.plan_digest || null,
       cluster_manifest_digest: plan.cluster_ref?.manifest_digest || null,

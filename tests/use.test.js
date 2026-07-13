@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const core = require('@aikdna/kdna-core');
+const { createCliRunner } = require('../src/runner');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 const FIXTURE_SOURCE = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
@@ -59,8 +60,8 @@ function writeCluster(name, overrides = {}) {
     },
     budget: {
       profile: 'interactive',
-      max_tokens: 4000,
-      max_chars: 16000,
+      max_tokens: overrides.maxTokens ?? 4000,
+      max_chars: overrides.maxChars ?? 16000,
       max_assets: overrides.maxAssets || 2,
       enforcement: 'hard',
     },
@@ -205,13 +206,64 @@ it('cli runner loads a real Runtime Capsule but does not claim task completion',
   assert.strictEqual(out.trace.cost.assets_loaded, 1);
   assert.strictEqual(out.trace.cost.chars_consumed, 0);
   assert.ok(out.trace.cost.projection_chars > 0);
+  assert.ok(out.trace.cost.projection_tokens > 0);
   assert.ok(out.trace.cost.estimated_projection_tokens > 0);
+  assert.strictEqual(out.trace.cost.token_count_basis, 'deterministic_estimate');
+  assert.strictEqual(out.trace.cost.token_count_verified, false);
+  assert.strictEqual(out.trace.cost.over_budget, false);
+  assert.strictEqual(out.trace.budget.status, 'within_budget');
   assert.strictEqual(out.trace.cost.model_calls, 0);
   assert.strictEqual(out.result.shape, 'kdna-capsule-bundle');
   assert.strictEqual(out.result.task_result, null);
   assert.strictEqual(out.result.capsules.length, 1);
   assert.strictEqual(out.result.capsules[0].capsule.type, 'kdna.context.capsule');
   assert.strictEqual(out.result.capsules[0].capsule.profile, 'compact');
+});
+
+it('cli runner withholds a Capsule bundle that exceeds the exact character budget', () => {
+  const manifest = writeCluster('character-budget', { maxChars: 1 });
+  const result = require('node:child_process').spawnSync(
+    'node',
+    [CLI, 'use', manifest, '--task=Deploy?', '--runner=cli:default', '--as=trace'],
+    { encoding: 'utf8', env: { ...process.env, KDNA_QUIET: '1' } },
+  );
+  assert.notStrictEqual(result.status, 0);
+  const trace = JSON.parse(result.stdout);
+  assert.strictEqual(trace.execution.status, 'runner_error');
+  assert.strictEqual(trace.cost.over_budget, true);
+  assert.strictEqual(trace.cost.chars_consumed, 0);
+  assert.ok(trace.cost.projection_chars > 1);
+  assert.strictEqual(trace.budget.status, 'blocked');
+  assert.deepStrictEqual(trace.budget.exceeded, ['max_chars']);
+  assert.strictEqual(trace.assets_loaded.length, 1);
+  assert.strictEqual(trace.assets_loaded[0].handoff_status, 'withheld_budget');
+  assert.ok(trace.errors.some((message) => message.includes('withheld from Agent handoff')));
+  assert.ok(!trace.errors.some((message) => message.includes('inspection-only')));
+});
+
+it('Agent hosts can enforce an exact model-token budget through countTokens', async () => {
+  const plan = JSON.parse(
+    execSync(`node ${CLI} plan-use ${FIXTURE} --task="Review code" --as=json`, {
+      encoding: 'utf8',
+      env: { ...process.env, KDNA_QUIET: '1' },
+    }),
+  );
+  plan.budget.max_chars = 100000;
+  plan.budget.max_tokens = 1;
+  const runner = createCliRunner({ id: 'host-tokenizer-test' });
+  const result = await runner.execute(plan, {
+    assetTarget: FIXTURE,
+    model: 'test-model',
+    countTokens: () => 2,
+  });
+  assert.strictEqual(result.status, 'runner_error');
+  assert.strictEqual(result.budget.status, 'blocked');
+  assert.deepStrictEqual(result.budget.exceeded, ['max_tokens']);
+  assert.strictEqual(result.cost.projection_tokens, 2);
+  assert.strictEqual(result.cost.estimated_projection_tokens, 0);
+  assert.strictEqual(result.cost.token_count_basis, 'host_tokenizer');
+  assert.strictEqual(result.cost.token_count_verified, true);
+  assert.strictEqual(result.assets_loaded[0].handoff_status, 'withheld_budget');
 });
 
 it('cluster plan-use preflights and degrades an unavailable optional advisor', () => {
@@ -241,6 +293,7 @@ it('cluster use continues with the primary and records optional degradation', ()
   assert.strictEqual(trace.assets_loaded.length, 1);
   assert.strictEqual(trace.cost.chars_consumed, 0);
   assert.ok(trace.cost.projection_chars > 0);
+  assert.ok(trace.cost.projection_tokens > 0);
   assert.strictEqual(trace.cost.model_calls, 0);
   assert.strictEqual(trace.selection_actual.deviated_from_plan, true);
   assert.strictEqual(trace.degradations.length, 1);

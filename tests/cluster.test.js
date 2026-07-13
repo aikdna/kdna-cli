@@ -307,6 +307,8 @@ it('generates cluster ConsumptionPlan (0.9)', () => {
   assert.ok(plan.selection);
   assert.ok(plan.selection.primary);
   assert.ok(plan.composition_policy_ref);
+  assert.strictEqual(plan.selection.budget_check.within_budget, null);
+  assert.strictEqual(plan.selection.budget_check.projection_measurement, 'required_at_runner');
 });
 
 it('generates cluster plan that blocks when no primary', () => {

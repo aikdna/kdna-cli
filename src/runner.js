@@ -72,6 +72,8 @@ function listRunners() {
  * @property {object} credentials — runner-specific credentials
  * @property {AbortSignal} signal — cancellation signal
  * @property {function(string): void} onProgress — progress callback
+ * @property {function(string, object): (number|Promise<number>)} countTokens — optional
+ *   Agent-host tokenizer for the exact serialized projection and selected model
  */
 
 /**
@@ -260,7 +262,9 @@ function createCliRunner(opts = {}) {
         const observations = [];
         const capsules = [];
         let projectionChars = 0;
-        let estimatedProjectionTokens = 0;
+        let projectionTokens = 0;
+        let tokenCountBasis = 'deterministic_estimate';
+        let tokenCountVerified = false;
         const warnings = [...(plan.warnings || [])];
         for (const ref of refs) {
           const protocolName = String(ref.asset_id || '').match(/^kdna:([^:]+):(.+)$/);
@@ -367,15 +371,21 @@ function createCliRunner(opts = {}) {
           }
           const capsuleJson = JSON.stringify(capsule);
           const capsuleChars = capsuleJson.length;
-          const capsuleTokenEstimate = Math.ceil(capsuleChars / 4);
-          projectionChars += capsuleChars;
-          estimatedProjectionTokens += capsuleTokenEstimate;
-          capsules.push({
+          const nextCapsule = {
             asset_id: ref.asset_id,
             role: ref.role || 'advisor',
             capsule,
+          };
+          const candidateCapsules = [...capsules, nextCapsule];
+          const serializedProjection = JSON.stringify(candidateCapsules);
+          const tokenMeasurement = await measureProjectionTokens(serializedProjection, context, {
+            model: context.model || null,
+            plan_id: plan.plan_id,
+            asset_id: ref.asset_id,
+            projection_profile: capsule.profile,
           });
-          observations.push({
+          const nextProjectionChars = serializedProjection.length;
+          const observation = {
             asset_id: ref.asset_id,
             version: inspected?.version || resolved.version || ref.version || null,
             digest: artifactDigest,
@@ -387,10 +397,36 @@ function createCliRunner(opts = {}) {
             contribution_fulfilled: false,
             projection_profile: capsule.profile,
             projection_chars: capsuleChars,
-            estimated_projection_tokens: capsuleTokenEstimate,
+            handoff_status: 'pending_budget_check',
             capsule_digest:
               'sha256:' + crypto.createHash('sha256').update(capsuleJson).digest('hex'),
+          };
+          observations.push(observation);
+
+          projectionChars = nextProjectionChars;
+          projectionTokens = tokenMeasurement.tokens;
+          tokenCountBasis = tokenMeasurement.basis;
+          tokenCountVerified = tokenMeasurement.verified;
+
+          const exceeded = exceededProjectionLimits(plan.budget, {
+            chars: projectionChars,
+            tokens: projectionTokens,
           });
+          if (exceeded.length > 0) {
+            observation.handoff_status = 'withheld_budget';
+            return buildBudgetBlockedResult(plan, id, version, startTime, {
+              observations,
+              projectionChars,
+              projectionTokens,
+              tokenCountBasis,
+              tokenCountVerified,
+              exceeded,
+              warnings,
+            });
+          }
+
+          observation.handoff_status = 'ready';
+          capsules.push(nextCapsule);
         }
 
         if (_cancelled) {
@@ -419,8 +455,19 @@ function createCliRunner(opts = {}) {
             model_calls: 0,
             chars_consumed: 0,
             projection_chars: projectionChars,
-            estimated_projection_tokens: estimatedProjectionTokens,
+            projection_tokens: projectionTokens,
+            estimated_projection_tokens: tokenCountVerified ? 0 : projectionTokens,
+            token_count_basis: tokenCountBasis,
+            token_count_verified: tokenCountVerified,
           },
+          budget: buildProjectionBudgetReport(plan.budget, {
+            status: 'within_budget',
+            chars: projectionChars,
+            tokens: projectionTokens,
+            tokenCountBasis,
+            tokenCountVerified,
+            exceeded: [],
+          }),
           errors: [],
           warnings: [
             'Runtime Capsules were loaded by KDNA Core, but no Agent or model consumed them; no task judgment was produced.',
@@ -450,6 +497,114 @@ function createCliRunner(opts = {}) {
 }
 
 // ── Result Builders ──────────────────────────────────────────────────
+
+/**
+ * Deterministic fallback only. This is deliberately labelled as an estimate:
+ * tokenization is model-specific and cannot be made exact inside the generic CLI.
+ */
+function estimateProjectionTokens(text) {
+  const value = String(text || '');
+  const cjkCharacters = (value.match(/[\u3400-\u9fff\uf900-\ufaff]/gu) || []).length;
+  const nonCjkCharacters = value.length - cjkCharacters;
+  return cjkCharacters + Math.ceil(nonCjkCharacters / 4);
+}
+
+async function measureProjectionTokens(text, context, metadata) {
+  if (typeof context.countTokens === 'function') {
+    const measured = await context.countTokens(text, metadata);
+    if (!Number.isFinite(measured) || measured < 0 || !Number.isInteger(measured)) {
+      throw new Error('Agent host countTokens must return a non-negative integer.');
+    }
+    return { tokens: measured, basis: 'host_tokenizer', verified: true };
+  }
+  return {
+    tokens: estimateProjectionTokens(text),
+    basis: 'deterministic_estimate',
+    verified: false,
+  };
+}
+
+function isEnforcedLimit(value) {
+  return Number.isFinite(value) && value > 0;
+}
+
+function exceededProjectionLimits(budget = {}, observed) {
+  const exceeded = [];
+  if (isEnforcedLimit(budget.max_chars) && observed.chars > budget.max_chars) {
+    exceeded.push('max_chars');
+  }
+  if (isEnforcedLimit(budget.max_tokens) && observed.tokens > budget.max_tokens) {
+    exceeded.push('max_tokens');
+  }
+  return exceeded;
+}
+
+function buildProjectionBudgetReport(budget = {}, measurement) {
+  return {
+    status: measurement.status,
+    enforcement: budget.enforcement || 'hard',
+    limits: {
+      max_chars: budget.max_chars ?? null,
+      max_tokens: budget.max_tokens ?? null,
+    },
+    observed: {
+      projection_chars: measurement.chars,
+      projection_tokens: measurement.tokens,
+    },
+    token_count_basis: measurement.tokenCountBasis,
+    token_count_verified: measurement.tokenCountVerified,
+    exceeded: measurement.exceeded,
+  };
+}
+
+function buildBudgetBlockedResult(plan, id, version, startTime, details) {
+  const tokenQualifier = details.tokenCountVerified ? 'token' : 'estimated token';
+  const exceededLabels = details.exceeded.map((limit) =>
+    limit === 'max_tokens' ? tokenQualifier : 'character',
+  );
+  const errorMessage =
+    `Projection ${exceededLabels.join(' and ')} budget exceeded after Core loaded ` +
+    `"${details.observations.at(-1)?.asset_id || 'asset'}" for measurement; ` +
+    'the Capsule bundle was withheld from Agent handoff.';
+  const primary =
+    details.observations.find((item) => item.role === 'primary') || details.observations[0];
+
+  return {
+    plan_id: plan?.plan_id || 'unknown',
+    runner_id: `cli:${id}`,
+    runner_version: version,
+    status: 'runner_error',
+    started_at: new Date(startTime).toISOString(),
+    completed_at: new Date().toISOString(),
+    duration_ms: Date.now() - startTime,
+    model: null,
+    result: null,
+    cost: {
+      tokens_used: 0,
+      model_calls: 0,
+      chars_consumed: 0,
+      projection_chars: details.projectionChars,
+      projection_tokens: details.projectionTokens,
+      estimated_projection_tokens: details.tokenCountVerified ? 0 : details.projectionTokens,
+      token_count_basis: details.tokenCountBasis,
+      token_count_verified: details.tokenCountVerified,
+    },
+    budget: buildProjectionBudgetReport(plan?.budget, {
+      status: 'blocked',
+      chars: details.projectionChars,
+      tokens: details.projectionTokens,
+      tokenCountBasis: details.tokenCountBasis,
+      tokenCountVerified: details.tokenCountVerified,
+      exceeded: details.exceeded,
+    }),
+    errors: [errorMessage],
+    warnings: details.warnings,
+    attempts: [{ attempt: 1, status: 'blocked', error: errorMessage }],
+    assets_loaded: details.observations,
+    digest: primary?.digest || null,
+    digest_verified: primary?.digest_verified === true,
+  };
+}
 
 function buildErrorResult(plan, id, version, startTime, errorMessage) {
   return {
@@ -549,7 +704,8 @@ function buildTraceFromResult(plan, result) {
   const digestVerified = result.digest_verified === true;
   // If the runner could not load the asset, the trace must reflect that
   const assetNotLoaded =
-    result.status === 'runner_error' ||
+    !Array.isArray(result.assets_loaded) ||
+    result.assets_loaded.length === 0 ||
     (result.warnings || []).some(
       (w) =>
         w.includes('not loaded') || w.includes('not locally available') || w.includes('not found'),
@@ -612,7 +768,10 @@ function buildTraceFromResult(plan, result) {
       tokens_used: result.cost?.tokens_used || 0,
       chars_consumed: result.cost?.chars_consumed || 0,
       projection_chars: result.cost?.projection_chars || 0,
+      projection_tokens: result.cost?.projection_tokens || 0,
       estimated_projection_tokens: result.cost?.estimated_projection_tokens || 0,
+      token_count_basis: result.cost?.token_count_basis || null,
+      token_count_verified: result.cost?.token_count_verified === true,
       assets_loaded: Array.isArray(result.assets_loaded)
         ? result.assets_loaded.length
         : result.status === 'completed' || result.status === 'partial'
@@ -621,9 +780,13 @@ function buildTraceFromResult(plan, result) {
       model_calls: result.cost?.model_calls || 0,
       budget_profile: plan.budget?.profile || 'code-review',
       over_budget:
-        (result.cost?.tokens_used || 0) > (plan.budget?.max_tokens || Infinity) ||
-        (result.cost?.projection_chars || 0) > (plan.budget?.max_chars || Infinity),
+        result.budget?.status === 'blocked' ||
+        (isEnforcedLimit(plan.budget?.max_tokens) &&
+          (result.cost?.projection_tokens || 0) > plan.budget.max_tokens) ||
+        (isEnforcedLimit(plan.budget?.max_chars) &&
+          (result.cost?.projection_chars || 0) > plan.budget.max_chars),
     },
+    budget: result.budget,
     evaluation: {
       self_checks: [],
       violations: [],
