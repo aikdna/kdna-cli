@@ -219,26 +219,24 @@ test('Story 21 watermark: watermarkPolicy describes the policy without secret ma
 
 // ─── B: CLI integration ────────────────────────────────────────────────
 
-test('Story 21 plan-load: watermark_policy appears for licensed asset', () => {
+test('Story 21 plan-load: licensed plan stays inside the public LoadPlan schema', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s21-'));
   const env = { KDNA_IDENTITY_DIR: path.join(tmp, 'keys') };
   try {
     const dir = makeFixture(tmp, 'licensed');
     // Licensed assets return exit 3 (can_load_now = false) until
-    // a valid entitlement is provided. The watermark policy is
-    // part of the plan regardless.
+    // a valid entitlement is provided. Watermarking is an observed-load
+    // concern and must not add an undeclared property to LoadPlan.
     const r = run(['plan-load', dir, '--json'], { env });
     assert.ok([0, 3].includes(r.status), `plan-load unexpected exit: ${r.status}: ${r.stderr}`);
     const plan = JSON.parse(r.stdout);
-    assert.ok(plan.watermark_policy, 'watermark_policy should be present for licensed');
-    assert.equal(plan.watermark_policy.access_mode, 'licensed');
-    assert.equal(plan.watermark_policy.algorithm, 'hmac-sha256');
+    assert.equal(plan.watermark_policy, undefined);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
 
-test('Story 21 plan-load: watermark_policy appears for remote asset', () => {
+test('Story 21 plan-load: remote plan stays inside the public LoadPlan schema', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s21-'));
   const env = { KDNA_IDENTITY_DIR: path.join(tmp, 'keys') };
   try {
@@ -246,8 +244,7 @@ test('Story 21 plan-load: watermark_policy appears for remote asset', () => {
     const r = run(['plan-load', dir, '--json'], { env });
     assert.ok([0, 3].includes(r.status), `plan-load unexpected exit: ${r.status}`);
     const plan = JSON.parse(r.stdout);
-    assert.ok(plan.watermark_policy, 'watermark_policy should be present for remote');
-    assert.equal(plan.watermark_policy.access_mode, 'remote');
+    assert.equal(plan.watermark_policy, undefined);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
