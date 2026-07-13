@@ -25,7 +25,7 @@
   "description": "A demonstration KDNA judgment asset that shows how scoped principles, boundaries, and failure modes give AI a concrete review framework instead of generic feedback. This demo is the recommended first-run asset for new KDNA users.",
   "language": "en",
   "license": "Apache-2.0",
-  "keywords": ["demo", "judgment", "content-review", "real-example", "v1-core"],
+  "keywords": ["demo", "judgment", "content-review", "real-example", "kdna-core"],
   "lineage": {
     "type": "original",
     "fork_of": null,
