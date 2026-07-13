@@ -38,6 +38,7 @@ function cmdCluster(args) {
         '  kdna cluster plan-use <kdna.cluster.json>       Generate ConsumptionPlan\n' +
         '       --task=<text>    Task description\n' +
         '       --as=json|md     Output format\n' +
+        '       --no-preflight   Route only; skip package/Core availability checks\n' +
         '  kdna cluster conflicts <kdna.cluster.json>      Detect conflicts\n' +
         '       --task=<text>    Task to test\n' +
         '  kdna cluster migrate <legacy.json>              Migrate legacy → canonical\n' +
@@ -228,7 +229,13 @@ function cmdClusterPlanUse(target, args) {
 
   if (!task) error('--task is required for cluster plan-use', EXIT.INPUT_ERROR);
 
-  const plan = generateClusterPlan(manifest, task, { taskFamily, budgetProfile, shape });
+  let plan = generateClusterPlan(manifest, task, { taskFamily, budgetProfile, shape });
+  if (!args.includes('--no-preflight') && plan.load_plan_ref.status !== 'blocked') {
+    const { preflightClusterPlan } = require('../cluster-preflight');
+    plan = preflightClusterPlan(plan);
+  } else if (args.includes('--no-preflight')) {
+    plan.load_plan_ref.preflight = { status: 'not_run', members: [] };
+  }
 
   if (as === 'json') {
     console.log(JSON.stringify(plan, null, 2));

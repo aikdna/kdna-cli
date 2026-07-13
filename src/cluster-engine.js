@@ -117,6 +117,15 @@ function validateClusterManifest(manifest) {
       warnings.push(`Domain "${d.id}" uses experimental role "${d.role}" — semantics may change`);
     }
     if (!d.version) errors.push(`Domain "${d.id}" missing version`);
+    if (d.routing_signals !== undefined) {
+      if (
+        !Array.isArray(d.routing_signals) ||
+        d.routing_signals.length === 0 ||
+        d.routing_signals.some((signal) => typeof signal !== 'string' || !signal.trim())
+      ) {
+        errors.push(`Domain "${d.id}" routing_signals must be a non-empty string array`);
+      }
+    }
   }
 
   // Composition
@@ -307,6 +316,62 @@ const STOPWORDS = new Set([
   '更少',
 ]);
 
+function tokenizeTask(text) {
+  const normalized = String(text || '')
+    .normalize('NFKC')
+    .toLowerCase();
+  const ascii = normalized.match(/[a-z0-9]+(?:[-_][a-z0-9]+)*/g) || [];
+  const cjkRaw = normalized.match(/[一-鿿㐀-䶿]+/g) || [];
+  const cjk = [];
+  if (typeof Intl?.Segmenter === 'function') {
+    const segmenter = new Intl.Segmenter('zh', { granularity: 'word' });
+    for (const sequence of cjkRaw) {
+      for (const part of segmenter.segment(sequence)) {
+        if (part.isWordLike && part.segment.length >= 2) cjk.push(part.segment);
+      }
+    }
+  } else {
+    for (const sequence of cjkRaw) {
+      for (let i = 0; i <= sequence.length - 2; i += 1) cjk.push(sequence.slice(i, i + 2));
+    }
+  }
+  return [...new Set([...ascii, ...cjk])].filter((token) => !STOPWORDS.has(token));
+}
+
+function normalizedSignal(signal) {
+  return String(signal || '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[^a-z0-9一-鿿㐀-䶿]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function matchExplicitSignals(task, signals) {
+  const normalizedTask = normalizedSignal(task);
+  const taskTokens = new Set(tokenizeTask(task));
+  const compactTask = normalizedTask.replace(/\s+/g, '');
+  const matched = [];
+
+  for (const raw of signals || []) {
+    const signal = normalizedSignal(raw);
+    if (!signal) continue;
+    const hasCjk = /[一-鿿㐀-䶿]/.test(signal);
+    const signalTokens = tokenizeTask(signal);
+    let applies = false;
+    if (hasCjk) {
+      applies = compactTask.includes(signal.replace(/\s+/g, ''));
+    } else if (signalTokens.length === 1) {
+      applies = taskTokens.has(signalTokens[0]);
+    } else {
+      applies = ` ${normalizedTask} `.includes(` ${signal} `);
+    }
+    if (applies) matched.push(raw);
+  }
+
+  return matched;
+}
+
 /**
  * Resolve which assets are candidates for a given task.
  * Returns all domains with match quality and disposition.
@@ -317,7 +382,6 @@ const STOPWORDS = new Set([
  * @returns {object} resolution
  */
 function resolveCandidates(manifest, task, context = {}) {
-  const taskLower = (task || '').toLowerCase();
   // Reject empty/single-char/whitespace-only tasks immediately
   if (!task || task.trim().length < 2) {
     return {
@@ -331,50 +395,24 @@ function resolveCandidates(manifest, task, context = {}) {
       rejected: [],
     };
   }
-  // Tokenize: whitespace-separated words ≥3 chars
-  const spaceWords = taskLower.split(/\s+/).filter((w) => w.length >= 3);
-  // CJK: use the platform word segmenter when available. Sliding n-grams are
-  // only a compatibility fallback; using them as the primary tokenizer makes
-  // unrelated sentences collide on accidental two-character fragments.
-  const cjkRaw = taskLower.match(/[一-鿿㐀-䶿]+/g) || [];
-  const cjkTokens = [];
-  if (typeof Intl?.Segmenter === 'function') {
-    const segmenter = new Intl.Segmenter('zh', { granularity: 'word' });
-    for (const seq of cjkRaw) {
-      for (const part of segmenter.segment(seq)) {
-        if (part.isWordLike && part.segment.length >= 2) cjkTokens.push(part.segment);
-      }
-    }
-  } else {
-    for (const seq of cjkRaw) {
-      for (let i = 0; i <= seq.length - 2; i++) cjkTokens.push(seq.slice(i, i + 2));
-    }
-  }
-  // Deduplicate, filter stopwords
-  const taskWords = [...new Set([...spaceWords, ...cjkTokens])].filter(
-    (w) => !STOPWORDS.has(w.toLowerCase()),
-  );
+  const taskWords = tokenizeTask(task);
   const domains = manifest.domains || [];
   const candidates = [];
 
   for (const domain of domains) {
     const loadCondition = domain.load_condition || '';
-    // ── Word-boundary match: task words must appear as whole words in
-    //     the load condition. Prevents short-word substring false matches
-    //     (e.g., "to" matching "reactor"). Stopword filtering prevents
-    //     structural terms like "task"/"decision" from matching every domain.
-    const loadConditionMet =
-      !loadCondition ||
-      taskWords.some((w) => {
-        // ── ASCII tokens: word-boundary \b match
-        //     CJK tokens: simple includes() because \b doesn't work non-ASCII
-        const isCJK = /[一-鿿㐀-䶿]/.test(w);
-        if (isCJK) {
-          return loadCondition.includes(w);
-        }
-        const re = new RegExp('\\b' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
-        return re.test(loadCondition);
-      });
+    const explicitSignals = Array.isArray(domain.routing_signals) ? domain.routing_signals : null;
+    const matchedSignals = explicitSignals
+      ? matchExplicitSignals(task, explicitSignals)
+      : taskWords.filter((word) => {
+          const conditionTokens = tokenizeTask(loadCondition);
+          return conditionTokens.includes(word);
+        });
+    const loadConditionMet = !loadCondition && !explicitSignals ? true : matchedSignals.length > 0;
+    const matchScore = matchedSignals.reduce((score, signal) => {
+      const tokenCount = Math.max(1, tokenizeTask(signal).length);
+      return score + 10 + tokenCount;
+    }, 0);
 
     // Check contribution hypothesis template for advisors
     const hasHypothesis =
@@ -396,12 +434,14 @@ function resolveCandidates(manifest, task, context = {}) {
       digest: domain.digest || null,
       role: domain.role,
       match_quality: matchQuality,
+      match_score: matchScore,
+      matched_signals: matchedSignals,
       match_reason:
         matchQuality === 'none'
           ? loadConditionMet
             ? 'missing contribution_hypothesis_template'
             : 'load_condition_not_met'
-          : `task matches load condition`,
+          : `task matches: ${matchedSignals.join(', ')}`,
       required: domain.required !== false,
       contribution_hypothesis_template: domain.contribution_hypothesis_template || null,
       expected_disposition:
@@ -454,6 +494,16 @@ function arbitratePrimary(resolution, manifest) {
     const qualityOrder = { high: 3, medium: 2, low: 1, none: 0 };
     const qDiff = (qualityOrder[b.match_quality] || 0) - (qualityOrder[a.match_quality] || 0);
     if (qDiff !== 0) return qDiff;
+    const scoreDiff = (b.match_score || 0) - (a.match_score || 0);
+    if (scoreDiff !== 0) return scoreDiff;
+    const priority = manifest.composition?.priority_order || [];
+    const aPriority = priority.indexOf(a.asset_id);
+    const bPriority = priority.indexOf(b.asset_id);
+    if (aPriority !== bPriority) {
+      if (aPriority === -1) return 1;
+      if (bPriority === -1) return -1;
+      return aPriority - bPriority;
+    }
     return (a.asset_id || '').localeCompare(b.asset_id || '');
   });
 
@@ -464,6 +514,7 @@ function arbitratePrimary(resolution, manifest) {
       asset_id: primary.asset_id,
       version: primary.version,
       digest: primary.digest,
+      required: true,
       role: 'primary',
       selection_reason:
         primaries.length === 1
@@ -535,6 +586,7 @@ function selectAdvisors(resolution, primaryResult, manifest, task) {
       version: candidate.version,
       digest: candidate.digest,
       role: 'advisor',
+      required: candidate.required,
       weight: 0.6,
       contribution_hypothesis: taskHypothesis,
       accepted: true,
@@ -569,12 +621,13 @@ function detectConflicts(primary, advisors, manifest) {
   const relationships = manifest.relationships || [];
   for (const rel of relationships) {
     if (rel.type === 'conflicts_with' && allIds.includes(rel.from) && allIds.includes(rel.to)) {
+      const shouldBlock = manifest.composition?.conflict_policy === 'block';
       conflicts.push({
         type: 'declared_conflict',
         assets: [rel.from, rel.to],
         description: rel.description || `Declared conflict between ${rel.from} and ${rel.to}`,
-        severity: 'warn',
-        resolution: manifest.composition?.conflict_policy || 'surface',
+        severity: shouldBlock ? 'error' : 'warn',
+        resolution: shouldBlock ? 'blocked' : manifest.composition?.conflict_policy || 'surface',
       });
     }
     if (rel.type === 'blocks' && allIds.includes(rel.from) && allIds.includes(rel.to)) {
@@ -633,13 +686,25 @@ function generateClusterPlan(manifest, task, opts = {}) {
 
   // Step 4: Detect conflicts
   const conflicts = detectConflicts(primaryResult.primary, advisorResult.advisors, manifest);
+  const degradationPolicy = manifest.degradation_policy || {
+    primary_unavailable: 'block',
+    required_advisor_unavailable: 'block',
+    optional_advisor_unavailable: 'continue_with_warning',
+    budget_exceeded: 'block',
+  };
+  const conflictBlocked = conflicts.some(
+    (conflict) => conflict.severity === 'error' || conflict.resolution === 'blocked',
+  );
+  const budgetBlocked =
+    advisorResult.budget_exceeded && degradationPolicy.budget_exceeded === 'block';
+  const planBlocked = primaryResult.blocked || conflictBlocked || budgetBlocked;
 
   // Step 5: Build plan
   const planId =
     'plan_' +
     crypto.createHash('sha256').update(`${manifest.cluster_id}:${task}`).digest('hex').slice(0, 16);
 
-  const assetCount = primaryResult.blocked ? 0 : 1 + advisorResult.advisors.length;
+  const assetCount = planBlocked ? 0 : 1 + advisorResult.advisors.length;
 
   const BUDGET_PROFILES = {
     interactive: { maxTokens: 800, maxChars: 2500, maxAssets: manifest.budget?.max_assets || 3 },
@@ -647,6 +712,24 @@ function generateClusterPlan(manifest, task, opts = {}) {
     'offline-audit': { maxTokens: 0, maxChars: 0, maxAssets: manifest.budget?.max_assets || 20 },
   };
   const bp = BUDGET_PROFILES[budgetProfile] || BUDGET_PROFILES.interactive;
+  const maxTokens = Number.isFinite(manifest.budget?.max_tokens)
+    ? manifest.budget.max_tokens
+    : bp.maxTokens;
+  const maxChars = Number.isFinite(manifest.budget?.max_chars)
+    ? manifest.budget.max_chars
+    : bp.maxChars;
+  const maxAssets = Number.isFinite(manifest.budget?.max_assets)
+    ? manifest.budget.max_assets
+    : bp.maxAssets;
+  const blockingIssues = [
+    ...(primaryResult.blocked
+      ? [{ code: 'NO_PRIMARY_AVAILABLE', severity: 'blocking', blocking: true }]
+      : []),
+    ...(conflictBlocked
+      ? [{ code: 'BLOCKING_CONFLICT', severity: 'blocking', blocking: true }]
+      : []),
+    ...(budgetBlocked ? [{ code: 'BUDGET_EXCEEDED', severity: 'blocking', blocking: true }] : []),
+  ];
 
   const plan = {
     plan_version: '0.9.0',
@@ -670,11 +753,12 @@ function generateClusterPlan(manifest, task, opts = {}) {
     },
     load_plan_ref: {
       plan_id: planId,
-      status: primaryResult.blocked ? 'blocked' : 'ready',
+      status: planBlocked ? 'blocked' : 'ready',
+      issues: blockingIssues,
     },
     applicability: {
-      decision: primaryResult.blocked ? 'blocked' : 'applies',
-      confidence: primaryResult.blocked ? 'none' : 'high',
+      decision: planBlocked ? 'blocked' : 'applies',
+      confidence: planBlocked ? 'none' : 'high',
     },
     projection_ref: {
       shape: opts.shape || 'compact',
@@ -687,9 +771,9 @@ function generateClusterPlan(manifest, task, opts = {}) {
     },
     budget: {
       profile: budgetProfile,
-      max_tokens: bp.maxTokens,
-      max_chars: bp.maxChars,
-      max_assets: bp.maxAssets,
+      max_tokens: maxTokens,
+      max_chars: maxChars,
+      max_assets: maxAssets,
       assets_consumed: assetCount,
     },
     runner: opts.runner || null,
@@ -721,8 +805,8 @@ function generateClusterPlan(manifest, task, opts = {}) {
           conflicts_detected: conflicts.filter((c) => c.severity === 'error'),
           budget_check: {
             assets_selected: assetCount,
-            max_assets: bp.maxAssets,
-            within_budget: assetCount <= bp.maxAssets,
+            max_assets: maxAssets,
+            within_budget: !budgetBlocked && assetCount <= maxAssets,
           },
         },
     conflicts: conflicts,
@@ -731,12 +815,7 @@ function generateClusterPlan(manifest, task, opts = {}) {
       conflict_policy: manifest.composition?.conflict_policy || 'surface',
       priority_order: manifest.composition?.priority_order || [],
     },
-    degradation_policy: manifest.degradation_policy || {
-      primary_unavailable: 'block',
-      required_advisor_unavailable: 'block',
-      optional_advisor_unavailable: 'continue_with_warning',
-      budget_exceeded: 'block',
-    },
+    degradation_policy: degradationPolicy,
   };
 
   return plan;
@@ -776,8 +855,10 @@ function generateClusterTrace(plan, runnerResult) {
         asset_id: r.asset_id,
         reason: r.rejection_reason || r.reason || 'unknown',
       })),
-      deviated_from_plan: false,
+      deviated_from_plan:
+        (plan.degradations?.length || 0) > 0 || runnerResult?.status === 'blocked',
     },
+    degradations: plan.degradations || [],
     execution: {
       status: runnerResult?.status || 'completed',
       runner_id: runnerResult?.runner_id || 'unknown',
@@ -786,7 +867,7 @@ function generateClusterTrace(plan, runnerResult) {
       started_at: runnerResult?.started_at || new Date().toISOString(),
       completed_at: runnerResult?.completed_at || new Date().toISOString(),
       duration_ms: runnerResult?.duration_ms || 0,
-      attempts: runnerResult?.attempts?.length || 1,
+      attempts: Array.isArray(runnerResult?.attempts) ? runnerResult.attempts.length : 1,
     },
     result_ref: runnerResult?.result
       ? {
