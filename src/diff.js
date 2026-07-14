@@ -17,13 +17,12 @@
  */
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { RegistryResolver } = require('./registry');
 const { EXIT } = require('./cmds/_common');
 const { getInstalled, readContainer } = require('./package-store');
 const { downloadAndExtractKdna } = require('./safe-archive');
-
-const TMP_DIR = '/tmp';
 
 function error(msg, code = EXIT.VALIDATION_FAILED) {
   console.error(`Error: ${msg}`);
@@ -57,19 +56,16 @@ function parseNameVersion(input) {
 // ─── Download specific version ────────────────────────────────────────
 
 function downloadVersion(entry, version, destDir, options = {}) {
-  const assetUrl = entry.asset_url;
-  // assetUrl is for the registry-current version. For older versions
-  // we infer the URL pattern from the registry-current URL.
-  if (entry.version === version) {
-    return downloadAndExtractKdna(assetUrl, destDir, options);
+  if (!entry || entry.version !== version) {
+    throw new Error(
+      `registry version mismatch: requested ${version}, resolved ${entry?.version || 'none'}`,
+    );
   }
-
-  // Infer pattern: replace v<current> in the URL with v<requested>
-  const inferredUrl = assetUrl
-    .replace(`/v${entry.version}/`, `/v${version}/`)
-    .replace(`-${entry.version}.kdna`, `-${version}.kdna`);
-
-  return downloadAndExtractKdna(inferredUrl, destDir, options);
+  if (typeof entry.asset_url !== 'string' || entry.asset_url.length === 0) {
+    throw new Error(`registry entry ${entry.name || 'unknown'}@${version} has no asset_url`);
+  }
+  const assetUrl = entry.asset_url;
+  return downloadAndExtractKdna(assetUrl, destDir, options);
 }
 
 // ─── Extract judgment artifacts ────────────────────────────────────────
@@ -182,11 +178,12 @@ async function cmdDiff(a, b, args = []) {
   const aParsed = parseNameVersion(a);
   const bParsed = b ? parseNameVersion(b) : null;
   if (!aParsed) error(`Cannot parse "${a}"`, EXIT.INPUT_ERROR);
+  if (b && !bParsed) error(`Cannot parse "${b}"`, EXIT.INPUT_ERROR);
 
   const resolver = new RegistryResolver({ allowNetwork: true });
   let entryA;
   try {
-    ({ entry: entryA } = resolver.resolve(aParsed.full));
+    ({ entry: entryA } = resolver.resolve(a));
   } catch (e) {
     error(e.message, EXIT.REGISTRY_ERROR);
   }
@@ -196,7 +193,7 @@ async function cmdDiff(a, b, args = []) {
   if (bParsed) {
     let entryB;
     try {
-      ({ entry: entryB } = resolver.resolve(bParsed.full));
+      ({ entry: entryB } = resolver.resolve(b));
     } catch (e) {
       error(e.message, EXIT.REGISTRY_ERROR);
     }
@@ -215,7 +212,6 @@ async function cmdDiff(a, b, args = []) {
     const localManifest = readContainer(installed.asset_path).manifest || {};
     oldVersion = localManifest?.version || '?';
     newVersion = entryA.version;
-    oldEntry = entryA;
     newEntry = entryA;
     if (oldVersion === newVersion) {
       if (jsonMode) {
@@ -230,6 +226,11 @@ async function cmdDiff(a, b, args = []) {
       );
       return;
     }
+    try {
+      ({ entry: oldEntry } = resolver.resolve(`${aParsed.full}@${oldVersion}`));
+    } catch (e) {
+      error(e.message, EXIT.REGISTRY_ERROR);
+    }
   }
 
   if (!jsonMode) {
@@ -240,16 +241,25 @@ async function cmdDiff(a, b, args = []) {
   }
 
   // Download both versions to temp dirs
-  const tmpOld = path.join(TMP_DIR, `kdna-diff-${Date.now()}-old`);
-  const tmpNew = path.join(TMP_DIR, `kdna-diff-${Date.now()}-new`);
-
-  if (!jsonMode) console.log('Downloading old version...');
-  downloadVersion(oldEntry, oldVersion, tmpOld);
-  if (!jsonMode) console.log('Downloading new version...');
-  downloadVersion(newEntry, newVersion, tmpNew);
-
-  const oldJ = loadJudgment(tmpOld);
-  const newJ = loadJudgment(tmpNew);
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-diff-'));
+  const tmpOld = path.join(tempRoot, 'old');
+  const tmpNew = path.join(tempRoot, 'new');
+  let oldJ;
+  let newJ;
+  let fetching = `${aParsed.full}@${oldVersion}`;
+  try {
+    if (!jsonMode) console.log('Downloading old version...');
+    downloadVersion(oldEntry, oldVersion, tmpOld);
+    fetching = `${aParsed.full}@${newVersion}`;
+    if (!jsonMode) console.log('Downloading new version...');
+    downloadVersion(newEntry, newVersion, tmpNew);
+    oldJ = loadJudgment(tmpOld);
+    newJ = loadJudgment(tmpNew);
+  } catch (downloadError) {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+    error(`Failed to download ${fetching}: ${downloadError.message}`, EXIT.PROVIDER_ERROR);
+  }
+  fs.rmSync(tempRoot, { recursive: true, force: true });
 
   if (!jsonMode) {
     console.log('');
@@ -284,18 +294,6 @@ async function cmdDiff(a, b, args = []) {
     jsonMode,
   );
   const stancesDiff = diffStanceList(oldJ.stances, newJ.stances, jsonMode);
-
-  // Cleanup
-  try {
-    fs.rmSync(tmpOld, { recursive: true, force: true });
-  } catch {
-    /* ignore */
-  }
-  try {
-    fs.rmSync(tmpNew, { recursive: true, force: true });
-  } catch {
-    /* ignore */
-  }
 
   // Derive structured JSON fields
   const changedAxioms = axiomsDiff.changedDetails.map((d) => ({

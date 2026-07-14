@@ -92,17 +92,22 @@ const ALLOWLIST = [
   // diff.js — `recommendedVersionBump` internal var, semver calculation
   {
     file: 'src/diff.js',
-    line: 332,
+    line: 330,
     reason: 'function comment: "Determine recommended version bump" — semver calculation',
   },
   {
     file: 'src/diff.js',
-    line: 336,
+    line: 334,
     reason: 'internal var: `recommendedVersionBump` — semver calculation',
   },
   {
     file: 'src/diff.js',
-    line: 337,
+    line: 335,
+    reason: 'internal var: `recommendedVersionBump`',
+  },
+  {
+    file: 'src/diff.js',
+    line: 336,
     reason: 'internal var: `recommendedVersionBump`',
   },
   {
@@ -112,12 +117,7 @@ const ALLOWLIST = [
   },
   {
     file: 'src/diff.js',
-    line: 340,
-    reason: 'internal var: `recommendedVersionBump`',
-  },
-  {
-    file: 'src/diff.js',
-    line: 357,
+    line: 355,
     reason:
       'output field: `recommended_version_bump: <semver>` — semver tool recommendation, not a content-trust claim',
   },
@@ -130,32 +130,32 @@ const ALLOWLIST = [
   // cmds/changelog.js — `recommendedBump` internal var, semver calculation
   {
     file: 'src/cmds/changelog.js',
-    line: 96,
+    line: 114,
     reason: 'internal var: `recommendedBump` — semver calculation',
   },
   {
     file: 'src/cmds/changelog.js',
-    line: 97,
+    line: 115,
     reason: 'internal var: `recommendedBump`',
   },
   {
     file: 'src/cmds/changelog.js',
-    line: 98,
+    line: 116,
     reason: 'internal var: `recommendedBump`',
   },
   {
     file: 'src/cmds/changelog.js',
-    line: 99,
+    line: 117,
     reason: 'internal var: `recommendedBump`',
   },
   {
     file: 'src/cmds/changelog.js',
-    line: 129,
+    line: 135,
     reason: 'output field: `recommended_version_bump: <semver>` — semver tool recommendation',
   },
   {
     file: 'src/cmds/changelog.js',
-    line: 173,
+    line: 179,
     reason:
       'output: "Recommended version bump: `<semver>`" — semver tool recommendation, not a content-trust claim',
   },

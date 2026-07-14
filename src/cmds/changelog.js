@@ -7,22 +7,29 @@
  */
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { error, EXIT } = require('./_common');
 const { loadJudgment } = require('../diff');
 const { RegistryResolver } = require('../registry');
 const { downloadAndExtractKdna } = require('../safe-archive');
 
-const TMP_DIR = '/tmp';
-
 function downloadVersion(entry, version, destDir, options = {}) {
+  if (!entry || entry.version !== version) {
+    throw new Error(
+      `registry version mismatch: requested ${version}, resolved ${entry?.version || 'none'}`,
+    );
+  }
+  if (typeof entry.asset_url !== 'string' || entry.asset_url.length === 0) {
+    throw new Error(`registry entry ${entry.name || 'unknown'}@${version} has no asset_url`);
+  }
   return downloadAndExtractKdna(entry.asset_url, destDir, options);
 }
 
 function cmdChangelog(args = []) {
   const jsonMode = args.includes('--json');
   const positional = args.filter((a) => !a.startsWith('--'));
-  const domainInput = positional[1];
+  const domainInput = positional[0];
   const fromIdx = args.indexOf('--from');
   const toIdx = args.indexOf('--to');
   const fromVersion = fromIdx >= 0 ? args[fromIdx + 1] : null;
@@ -50,24 +57,35 @@ function cmdChangelog(args = []) {
   if (!parsed) error(`Cannot parse "${domainInput}"`, EXIT.INPUT_ERROR);
 
   const resolver = new RegistryResolver({ allowNetwork: true });
-  let entry;
+  let oldEntry;
+  let newEntry;
   try {
-    ({ entry } = resolver.resolve(parsed.reference || parsed.full));
+    ({ entry: oldEntry } = resolver.resolve(`${parsed.full}@${fromVersion}`));
+    ({ entry: newEntry } = resolver.resolve(`${parsed.full}@${toVersion}`));
   } catch (e) {
     error(e.message, EXIT.REGISTRY_ERROR);
   }
 
   // Download both versions
-  const tmpOld = path.join(TMP_DIR, `kdna-changelog-${Date.now()}-old`);
-  const tmpNew = path.join(TMP_DIR, `kdna-changelog-${Date.now()}-new`);
-
-  if (!jsonMode) console.log(`Fetching ${parsed.full}@${fromVersion}...`);
-  downloadVersion(entry, fromVersion, tmpOld);
-  if (!jsonMode) console.log(`Fetching ${parsed.full}@${toVersion}...`);
-  downloadVersion(entry, toVersion, tmpNew);
-
-  const oldJ = loadJudgment(tmpOld);
-  const newJ = loadJudgment(tmpNew);
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-changelog-'));
+  const tmpOld = path.join(tempRoot, 'old');
+  const tmpNew = path.join(tempRoot, 'new');
+  let oldJ;
+  let newJ;
+  let fetching = `${parsed.full}@${fromVersion}`;
+  try {
+    if (!jsonMode) console.log(`Fetching ${fetching}...`);
+    downloadVersion(oldEntry, fromVersion, tmpOld);
+    fetching = `${parsed.full}@${toVersion}`;
+    if (!jsonMode) console.log(`Fetching ${fetching}...`);
+    downloadVersion(newEntry, toVersion, tmpNew);
+    oldJ = loadJudgment(tmpOld);
+    newJ = loadJudgment(tmpNew);
+  } catch (downloadError) {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+    error(`Failed to download ${fetching}: ${downloadError.message}`, EXIT.PROVIDER_ERROR);
+  }
+  fs.rmSync(tempRoot, { recursive: true, force: true });
 
   // Diff maps
   const axioms = diffSummary(oldJ.axioms || {}, newJ.axioms || {}, 'one_sentence');
@@ -97,18 +115,6 @@ function cmdChangelog(args = []) {
   if (hasRemoved) recommendedBump = 'major';
   else if (hasAdded || hasChanged) recommendedBump = 'minor';
   else if (stances.added.length || stances.removed.length) recommendedBump = 'patch';
-
-  // Cleanup
-  try {
-    fs.rmSync(tmpOld, { recursive: true, force: true });
-  } catch {
-    /* cleanup */
-  }
-  try {
-    fs.rmSync(tmpNew, { recursive: true, force: true });
-  } catch {
-    /* cleanup */
-  }
 
   // Output
   const changelog = {

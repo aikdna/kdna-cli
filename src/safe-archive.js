@@ -1,12 +1,11 @@
 'use strict';
 
-const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { TextDecoder } = require('node:util');
-const core = require('@aikdna/kdna-core');
+const zlib = require('node:zlib');
 
 const EOCD_SIGNATURE = 0x06054b50;
 const CENTRAL_SIGNATURE = 0x02014b50;
@@ -14,6 +13,9 @@ const LOCAL_SIGNATURE = 0x04034b50;
 const MAX_EOCD_SEARCH = 65557;
 const MAX_ARCHIVE_BYTES = 25 * 1024 * 1024;
 const MAX_ENTRIES = 128;
+const MAX_ENTRY_BYTES = 5 * 1024 * 1024;
+const MAX_TOTAL_UNCOMPRESSED_BYTES = 12 * 1024 * 1024;
+const MAX_COMPRESSION_RATIO = 100;
 const ALLOWED_FLAGS = 0x0800; // UTF-8 names. Core v1 also emits zero for UTF-8 names.
 const ALLOWED_METHODS = new Set([0, 8]);
 const REJECTED_EXTRA_FIELDS = new Set([
@@ -24,7 +26,20 @@ const REJECTED_EXTRA_FIELDS = new Set([
   0x9901, // WinZip AES: changes data interpretation.
 ]);
 const WINDOWS_RESERVED = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
+const KDNA_MIMETYPES = new Set(['application/vnd.kdna.asset', 'application/vnd.aikdna.kdna+zip']);
 const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
+
+const CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let index = 0; index < 256; index += 1) {
+    let value = index;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+    }
+    table[index] = value >>> 0;
+  }
+  return table;
+})();
 
 function fail(message) {
   throw new Error(`unsafe KDNA archive: ${message}`);
@@ -37,6 +52,14 @@ function ensureRange(buffer, offset, length, label) {
   if (offset > buffer.length || length > buffer.length - offset) {
     fail(`truncated ${label}`);
   }
+}
+
+function crc32(buffer) {
+  let value = 0xffffffff;
+  for (const byte of buffer) {
+    value = CRC_TABLE[(value ^ byte) & 0xff] ^ (value >>> 8);
+  }
+  return (value ^ 0xffffffff) >>> 0;
 }
 
 function decodeEntryName(bytes) {
@@ -115,8 +138,7 @@ function findEocd(buffer) {
 }
 
 /**
- * Strictly validate the ZIP directory and every local header before extraction.
- * The Core unpacker performs a second validation and decompression-size pass.
+ * Strictly validate all ZIP metadata and actual entry bytes before extraction.
  */
 function preflightKdnaArchive(archivePath) {
   const archiveStat = fs.lstatSync(archivePath);
@@ -146,6 +168,7 @@ function preflightKdnaArchive(archivePath) {
   const names = new Set();
   const portableNames = new Set();
   const localRanges = [];
+  const descriptors = [];
   let cursor = centralOffset;
 
   for (let index = 0; index < entryCount; index += 1) {
@@ -233,6 +256,14 @@ function preflightKdnaArchive(archivePath) {
     const dataEnd = dataStart + compressedSize;
     if (dataEnd > centralOffset) fail(`entry data overlaps the central directory: ${name}`);
     localRanges.push({ start: localOffset, end: dataEnd, name });
+    descriptors.push({
+      name,
+      method,
+      crc,
+      compressedSize,
+      uncompressedSize,
+      compressed: buffer.subarray(dataStart, dataEnd),
+    });
     cursor += entryLength;
   }
 
@@ -246,7 +277,69 @@ function preflightKdnaArchive(archivePath) {
     }
   }
 
-  return { entries: [...names] };
+  for (const name of names) {
+    const components = name.split('/');
+    for (let length = 1; length < components.length; length += 1) {
+      const prefix = components.slice(0, length).join('/').toLocaleLowerCase('en-US');
+      if (portableNames.has(prefix)) {
+        fail(`entry path conflicts with an ordinary file: ${name}`);
+      }
+    }
+  }
+
+  let declaredTotal = 0;
+  for (const descriptor of descriptors) {
+    if (descriptor.uncompressedSize > MAX_ENTRY_BYTES) {
+      fail(`entry exceeds the uncompressed size limit: ${descriptor.name}`);
+    }
+    if (descriptor.method === 0 && descriptor.compressedSize !== descriptor.uncompressedSize) {
+      fail(`stored entry has inconsistent sizes: ${descriptor.name}`);
+    }
+    if (
+      descriptor.uncompressedSize > 0 &&
+      (descriptor.compressedSize === 0 ||
+        descriptor.uncompressedSize / descriptor.compressedSize > MAX_COMPRESSION_RATIO)
+    ) {
+      fail(`entry exceeds the compression-ratio limit: ${descriptor.name}`);
+    }
+    declaredTotal += descriptor.uncompressedSize;
+    if (declaredTotal > MAX_TOTAL_UNCOMPRESSED_BYTES) {
+      fail('archive exceeds the total uncompressed size limit');
+    }
+  }
+
+  const entries = [];
+  let actualTotal = 0;
+  for (const descriptor of descriptors) {
+    let data;
+    try {
+      data =
+        descriptor.method === 0
+          ? Buffer.from(descriptor.compressed)
+          : zlib.inflateRawSync(descriptor.compressed, { maxOutputLength: MAX_ENTRY_BYTES });
+    } catch {
+      fail(`entry cannot be safely decompressed: ${descriptor.name}`);
+    }
+    if (data.length !== descriptor.uncompressedSize) {
+      fail(`entry uncompressed size does not match its bytes: ${descriptor.name}`);
+    }
+    actualTotal += data.length;
+    if (actualTotal > MAX_TOTAL_UNCOMPRESSED_BYTES) {
+      fail('archive exceeds the total uncompressed size limit');
+    }
+    if (crc32(data) !== descriptor.crc) {
+      fail(`entry CRC32 does not match its bytes: ${descriptor.name}`);
+    }
+    entries.push({ name: descriptor.name, data });
+  }
+
+  if (entries.length === 0 || entries[0].name !== 'mimetype' || descriptors[0].method !== 0) {
+    fail('first entry must be an uncompressed mimetype file');
+  }
+  const mimetype = entries[0].data.toString('utf8');
+  if (!KDNA_MIMETYPES.has(mimetype)) fail(`unsupported KDNA mimetype: ${mimetype}`);
+
+  return { entries, mimetype };
 }
 
 function assertOrdinaryTree(root) {
@@ -266,30 +359,33 @@ function assertOrdinaryTree(root) {
   }
 }
 
-function randomSuffix() {
-  return `${process.pid}-${crypto.randomBytes(8).toString('hex')}`;
-}
-
 function extractKdnaArchive(archivePath, destination) {
   const absoluteDestination = path.resolve(destination);
-  preflightKdnaArchive(archivePath);
+  const verified = preflightKdnaArchive(archivePath);
   if (fs.existsSync(absoluteDestination)) {
     throw new Error(`refusing to replace existing extraction destination: ${absoluteDestination}`);
   }
 
   const parent = path.dirname(absoluteDestination);
-  const staging = path.join(
-    parent,
-    `.${path.basename(absoluteDestination)}.extract-${randomSuffix()}`,
-  );
+  let staging = null;
   try {
     fs.mkdirSync(parent, { recursive: true });
-    core.unpack(archivePath, staging);
+    staging = fs.mkdtempSync(path.join(parent, `.${path.basename(absoluteDestination)}.extract-`));
+    for (const entry of verified.entries) {
+      const output = path.join(staging, entry.name);
+      const relative = path.relative(staging, output);
+      if (relative.startsWith('..') || path.isAbsolute(relative)) {
+        fail(`entry escapes the extraction root: ${entry.name}`);
+      }
+      fs.mkdirSync(path.dirname(output), { recursive: true });
+      fs.writeFileSync(output, entry.data, { flag: 'wx', mode: 0o600 });
+    }
     assertOrdinaryTree(staging);
     fs.renameSync(staging, absoluteDestination);
+    staging = null;
     return absoluteDestination;
   } catch (error) {
-    fs.rmSync(staging, { recursive: true, force: true });
+    if (staging) fs.rmSync(staging, { recursive: true, force: true });
     throw error;
   }
 }

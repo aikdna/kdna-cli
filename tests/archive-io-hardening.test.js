@@ -6,12 +6,34 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
+const zlib = require('node:zlib');
 const core = require('@aikdna/kdna-core');
-const { downloadVersion: downloadForDiff } = require('../src/diff');
+const { downloadVersion: downloadForDiff, loadJudgment } = require('../src/diff');
 const { downloadVersion: downloadForChangelog } = require('../src/cmds/changelog');
 const { extractKdnaArchive } = require('../src/safe-archive');
 
 const cli = path.join(__dirname, '..', 'src', 'cli.js');
+
+const CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let index = 0; index < 256; index += 1) {
+    let value = index;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+    }
+    table[index] = value >>> 0;
+  }
+  return table;
+})();
+
+function crc32(buffer) {
+  let value = 0xffffffff;
+  for (const byte of buffer) {
+    value = CRC_TABLE[(value ^ byte) & 0xff] ^ (value >>> 8);
+  }
+  return (value ^ 0xffffffff) >>> 0;
+}
 
 function zipExtra(id, data = Buffer.alloc(0)) {
   const extra = Buffer.alloc(4 + data.length);
@@ -38,7 +60,10 @@ function buildStoredZip(entries) {
     const localExtra = entry.localExtra || extra;
     const flags = entry.flags || 0;
     const method = entry.method || 0;
-    const crc = entry.crc || 0;
+    const compressed = method === 8 ? zlib.deflateRawSync(data) : data;
+    const crc = entry.crc ?? crc32(data);
+    const compressedSize = entry.compressedSize ?? compressed.length;
+    const uncompressedSize = entry.uncompressedSize ?? data.length;
 
     const local = Buffer.alloc(30 + localName.length + localExtra.length);
     local.writeUInt32LE(0x04034b50, 0);
@@ -46,13 +71,13 @@ function buildStoredZip(entries) {
     local.writeUInt16LE(flags, 6);
     local.writeUInt16LE(method, 8);
     local.writeUInt32LE(crc, 14);
-    local.writeUInt32LE(data.length, 18);
-    local.writeUInt32LE(data.length, 22);
+    local.writeUInt32LE(compressedSize, 18);
+    local.writeUInt32LE(uncompressedSize, 22);
     local.writeUInt16LE(localName.length, 26);
     local.writeUInt16LE(localExtra.length, 28);
     localName.copy(local, 30);
     localExtra.copy(local, 30 + localName.length);
-    localChunks.push(local, data);
+    localChunks.push(local, compressed);
 
     const central = Buffer.alloc(46 + name.length + extra.length);
     central.writeUInt32LE(0x02014b50, 0);
@@ -61,8 +86,8 @@ function buildStoredZip(entries) {
     central.writeUInt16LE(flags, 8);
     central.writeUInt16LE(method, 10);
     central.writeUInt32LE(crc, 16);
-    central.writeUInt32LE(data.length, 20);
-    central.writeUInt32LE(data.length, 24);
+    central.writeUInt32LE(compressedSize, 20);
+    central.writeUInt32LE(uncompressedSize, 24);
     central.writeUInt16LE(name.length, 28);
     central.writeUInt16LE(extra.length, 30);
     central.writeUInt32LE((entry.externalAttributes || 0) >>> 0, 38);
@@ -70,7 +95,7 @@ function buildStoredZip(entries) {
     name.copy(central, 46);
     extra.copy(central, 46 + name.length);
     centralChunks.push(central);
-    offset += local.length + data.length;
+    offset += local.length + compressed.length;
   }
 
   const centralOffset = offset;
@@ -103,6 +128,92 @@ function makeValidArchive(tmp) {
   const archive = path.join(tmp, 'valid.kdna');
   core.pack(source, archive);
   return archive;
+}
+
+function makeHistoricalArchive(output, version, axiomText) {
+  const entries = [
+    { name: 'mimetype', data: 'application/vnd.aikdna.kdna+zip' },
+    {
+      name: 'KDNA_Core.json',
+      method: 8,
+      data: JSON.stringify({
+        axioms: [{ id: 'judgment-core', one_sentence: axiomText }],
+        ontology: [],
+        stances: [],
+      }),
+    },
+    {
+      name: 'KDNA_Patterns.json',
+      method: 8,
+      data: JSON.stringify({ misunderstandings: [], terminology: { banned_terms: [] } }),
+    },
+    {
+      name: 'kdna.json',
+      method: 8,
+      data: JSON.stringify({ version, judgment_version: version }),
+    },
+  ];
+  fs.writeFileSync(output, buildStoredZip(entries));
+  return output;
+}
+
+function writeRegistryHome(entries) {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-archive-registry-'));
+  const registryDir = path.join(home, '.kdna', 'registry');
+  fs.mkdirSync(registryDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(registryDir, 'domains.json'),
+    JSON.stringify({
+      schema_version: '3.0',
+      registry_version: '3.0.0-archive-test',
+      trust: {
+        model: 'kdna-registry-v1',
+        snapshot: {
+          registry_version: '3.0.0-archive-test',
+          generated_at: '2026-07-15T00:00:00Z',
+          expires_at: '2099-01-01T00:00:00Z',
+        },
+        timestamp: {
+          generated_at: '2026-07-15T00:00:00Z',
+          expires_at: '2099-01-01T00:00:00Z',
+        },
+        revocations: [],
+      },
+      scopes: {
+        '@aikdna': {
+          type: 'official',
+          trust_pubkey: 'ed25519:test',
+          verified: true,
+        },
+      },
+      domains: entries,
+    }),
+  );
+  return home;
+}
+
+function registryEntry(version, archive) {
+  return {
+    name: '@aikdna/archive-history',
+    type: 'domain',
+    version,
+    status: 'experimental',
+    access: 'open',
+    asset_url: pathToFileURL(archive).href,
+    asset_digest: `sha256:${version
+      .replaceAll(/[^0-9]/g, '')
+      .padEnd(64, '0')
+      .slice(0, 64)}`,
+    signature: 'ed25519:test',
+    release_status: 'published_signed',
+  };
+}
+
+function runCli(args, env) {
+  return spawnSync(process.execPath, [cli, ...args], {
+    encoding: 'utf8',
+    env: { ...process.env, ...env, KDNA_REGISTRY_URL: '' },
+  });
 }
 
 function copyDownloader(source, observedPaths = []) {
@@ -220,9 +331,141 @@ test('downloaded archive preflight rejects path, encoding, collision, and file-t
       () => extractKdnaArchive(collisionArchive, path.join(tmp, 'collision-out')),
       /platform-colliding entry name/,
     );
+
+    const hierarchyCollision = path.join(tmp, 'hierarchy-collision.kdna');
+    fs.writeFileSync(
+      hierarchyCollision,
+      buildStoredZip([
+        { name: 'mimetype', data: core.MIMETYPE },
+        { name: 'kdna.json', data: '{}' },
+        { name: 'payload.kdnab', data: '{}' },
+        { name: 'attachments/node', data: 'file' },
+        { name: 'attachments/node/child', data: 'child' },
+      ]),
+    );
+    assert.throws(
+      () => extractKdnaArchive(hierarchyCollision, path.join(tmp, 'hierarchy-out')),
+      /path conflicts with an ordinary file/,
+    );
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
+});
+
+test('downloaded archive verifies actual CRC32, size, and compression limits before writes', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-archive-integrity-'));
+  try {
+    for (const method of [0, 8]) {
+      const data = Buffer.from(`method-${method}-integrity`);
+      const archive = path.join(tmp, `bad-crc-${method}.kdna`);
+      fs.writeFileSync(
+        archive,
+        maliciousArchive({
+          name: `attachments/bad-crc-${method}.txt`,
+          method,
+          data,
+          crc: (crc32(data) + 1) >>> 0,
+        }),
+      );
+      const destination = path.join(tmp, `bad-crc-${method}-out`);
+      assert.throws(
+        () => extractKdnaArchive(archive, destination),
+        /CRC32 does not match its bytes/,
+      );
+      assert.equal(fs.existsSync(destination), false);
+    }
+
+    const badSize = path.join(tmp, 'bad-size.kdna');
+    fs.writeFileSync(
+      badSize,
+      maliciousArchive({
+        name: 'attachments/bad-size.txt',
+        method: 8,
+        data: 'actual bytes',
+        uncompressedSize: Buffer.byteLength('actual bytes') + 1,
+      }),
+    );
+    assert.throws(
+      () => extractKdnaArchive(badSize, path.join(tmp, 'bad-size-out')),
+      /uncompressed size does not match its bytes/,
+    );
+
+    const badRatio = path.join(tmp, 'bad-ratio.kdna');
+    fs.writeFileSync(
+      badRatio,
+      maliciousArchive({
+        name: 'attachments/bad-ratio.txt',
+        method: 8,
+        data: 'tiny',
+        uncompressedSize: 1024 * 1024,
+      }),
+    );
+    assert.throws(
+      () => extractKdnaArchive(badRatio, path.join(tmp, 'bad-ratio-out')),
+      /compression-ratio limit/,
+    );
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('safe extraction supports current runtime and historical authoring archives', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-archive-compatibility-'));
+  try {
+    const runtimeArchive = makeValidArchive(tmp);
+    const runtimeDestination = path.join(tmp, 'runtime-out');
+    extractKdnaArchive(runtimeArchive, runtimeDestination);
+    assert.equal(fs.readFileSync(path.join(runtimeDestination, 'mimetype'), 'utf8'), core.MIMETYPE);
+
+    const conformanceArchive = path.resolve(
+      __dirname,
+      '..',
+      '..',
+      'kdna',
+      'fixtures',
+      'test_conformance.kdna',
+    );
+    const conformanceDestination = path.join(tmp, 'conformance-out');
+    extractKdnaArchive(conformanceArchive, conformanceDestination);
+    assert.equal(fs.existsSync(path.join(conformanceDestination, 'KDNA_Core.json')), true);
+    assert.equal(fs.existsSync(path.join(conformanceDestination, 'KDNA_Patterns.json')), true);
+
+    const generatedArchive = makeHistoricalArchive(
+      path.join(tmp, 'historical.kdna'),
+      '1.2.3',
+      'Historical authoring judgment',
+    );
+    const generatedDestination = path.join(tmp, 'historical-out');
+    extractKdnaArchive(generatedArchive, generatedDestination);
+    const judgment = loadJudgment(generatedDestination);
+    assert.equal(judgment.version, '1.2.3');
+    assert.equal(judgment.axioms['judgment-core'].one_sentence, 'Historical authoring judgment');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('diff and changelog fail closed when a registry entry version does not match', () => {
+  let downloadCalled = false;
+  const options = {
+    downloadFile() {
+      downloadCalled = true;
+    },
+  };
+  const mismatched = {
+    name: '@aikdna/archive-history',
+    version: '2.0.0',
+    asset_url: 'https://invalid.example/2.0.0.kdna',
+  };
+  assert.throws(
+    () => downloadForDiff(mismatched, '1.0.0', '/unused/diff', options),
+    /registry version mismatch/,
+  );
+  assert.throws(
+    () => downloadForChangelog(mismatched, '1.0.0', '/unused/changelog', options),
+    /registry version mismatch/,
+  );
+  assert.equal(downloadCalled, false);
 });
 
 test('diff archive download accepts a valid KDNA and cleans its temporary download', () => {
@@ -281,7 +524,7 @@ test('changelog archive download accepts valid KDNA and rejects link metadata', 
     const validArchive = makeValidArchive(tmp);
     const validDestination = path.join(tmp, 'changelog-valid');
     downloadForChangelog(
-      { asset_url: 'https://invalid.example/asset.kdna' },
+      { version: '1.0.0', asset_url: 'https://invalid.example/asset.kdna' },
       '1.0.0',
       validDestination,
       { downloadFile: copyDownloader(validArchive) },
@@ -301,7 +544,7 @@ test('changelog archive download accepts valid KDNA and rejects link metadata', 
     assert.throws(
       () =>
         downloadForChangelog(
-          { asset_url: 'https://invalid.example/asset.kdna' },
+          { version: '1.0.0', asset_url: 'https://invalid.example/asset.kdna' },
           '1.0.0',
           rejectedDestination,
           { downloadFile: copyDownloader(malicious) },
@@ -310,6 +553,94 @@ test('changelog archive download accepts valid KDNA and rejects link metadata', 
     );
     assert.equal(fs.existsSync(rejectedDestination), false);
   } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('diff and changelog resolve and compare two exact registry versions', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-exact-version-'));
+  let home;
+  try {
+    const oldArchive = makeHistoricalArchive(
+      path.join(tmp, 'archive-1.0.0.kdna'),
+      '1.0.0',
+      'Old judgment',
+    );
+    const newArchive = makeHistoricalArchive(
+      path.join(tmp, 'archive-2.0.0.kdna'),
+      '2.0.0',
+      'New judgment',
+    );
+    home = writeRegistryHome([
+      registryEntry('1.0.0', oldArchive),
+      registryEntry('2.0.0', newArchive),
+    ]);
+    const commandTmp = path.join(tmp, 'command-tmp');
+    fs.mkdirSync(commandTmp);
+    const env = { HOME: home, TMPDIR: commandTmp };
+
+    const diff = runCli(
+      [
+        'quality',
+        'diff',
+        '@aikdna/archive-history@1.0.0',
+        '@aikdna/archive-history@2.0.0',
+        '--json',
+      ],
+      env,
+    );
+    assert.equal(diff.status, 0, diff.stderr);
+    const diffOutput = JSON.parse(diff.stdout);
+    assert.equal(diffOutput.old_version, '1.0.0');
+    assert.equal(diffOutput.new_version, '2.0.0');
+    assert.equal(diffOutput.changed_axioms[0].id, 'judgment-core');
+
+    const changelog = runCli(
+      ['changelog', '@aikdna/archive-history', '--from', '1.0.0', '--to', '2.0.0', '--json'],
+      env,
+    );
+    assert.equal(changelog.status, 0, changelog.stderr);
+    const changelogOutput = JSON.parse(changelog.stdout);
+    assert.equal(changelogOutput.from, '1.0.0');
+    assert.equal(changelogOutput.to, '2.0.0');
+    assert.equal(changelogOutput.changes.axioms['judgment-core'].status, 'changed');
+    assert.deepEqual(fs.readdirSync(commandTmp), []);
+  } finally {
+    if (home) fs.rmSync(home, { recursive: true, force: true });
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('diff and changelog report download failures as provider errors and clean temporary files', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-provider-error-'));
+  let home;
+  try {
+    const oldArchive = makeHistoricalArchive(
+      path.join(tmp, 'archive-1.0.0.kdna'),
+      '1.0.0',
+      'Old judgment',
+    );
+    const missingArchive = path.join(tmp, 'missing-2.0.0.kdna');
+    home = writeRegistryHome([
+      registryEntry('1.0.0', oldArchive),
+      registryEntry('2.0.0', missingArchive),
+    ]);
+    for (const [label, args] of [
+      [
+        'diff',
+        ['quality', 'diff', '@aikdna/archive-history@1.0.0', '@aikdna/archive-history@2.0.0'],
+      ],
+      ['changelog', ['changelog', '@aikdna/archive-history', '--from', '1.0.0', '--to', '2.0.0']],
+    ]) {
+      const commandTmp = path.join(tmp, `${label}-tmp`);
+      fs.mkdirSync(commandTmp);
+      const result = runCli(args, { HOME: home, TMPDIR: commandTmp });
+      assert.equal(result.status, 6, `${label}: ${result.stderr}`);
+      assert.match(result.stderr, /Failed to download @aikdna\/archive-history@2\.0\.0/);
+      assert.deepEqual(fs.readdirSync(commandTmp), [], label);
+    }
+  } finally {
+    if (home) fs.rmSync(home, { recursive: true, force: true });
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });

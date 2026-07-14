@@ -33,8 +33,8 @@ function cmdDiff(args) {
   const { cmdDiff } = require('../diff');
   const jsonMode = args.includes('--json');
   const positional = args.filter((a) => !a.startsWith('--'));
-  const a = positional[1];
-  const b = positional[2];
+  const a = positional[0];
+  const b = positional[1];
   if (!a) {
     error(
       'Usage:\n' +
