@@ -94,6 +94,15 @@ process failure, malformed or uncorrelated JSON, malformed usage, and an empty
 judgment all fail closed. Without `--agent-host`, the CLI stays `partial` with
 execution not started.
 
+For the single-asset `kdna use` process Host handoff, the request carries the
+selected Runtime Capsule as one JSON value. The Golden compact-profile
+regression proves this handoff does not trim or reorder Capsule arrays, select a
+subset of its context, or reinterpret standard judgment-role fields before
+process serialization. The observed Capsule digest in Trace is computed before
+handoff and can therefore be matched against the exact Capsule captured by the
+process Host. This is delivery evidence only; preservation of request values
+does not show that the Host read, followed, or judged faithfully from them.
+
 Trace records prepared projection size as `projection_chars`. After a
 correlated Host response, `projection_chars_delivered` records the serialized
 projection characters delivered by Runtime. Delivery does not prove that the

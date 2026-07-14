@@ -9,6 +9,23 @@ jobs:
         with: { node-version: 22 }
       - run: npm ci
       - run: npm test
+  golden-host-request:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: aikdna/kdna
+          ref: 59ab8f1b9d05573346ddb5c485625219c331c82a
+          path: .cross-repo/kdna
+      - uses: actions/setup-node@v6
+        with: { node-version: 22 }
+      - run: npm ci
+      - run: npm ci --prefix .cross-repo/kdna
+      - name: Verify Golden Core Capsule through the real process Host path
+        run: npm run test:golden-host-request
+        env:
+          KDNA_GOLDEN_CORE_ROOT: ${{ github.workspace }}/.cross-repo/kdna/packages/kdna-core
   evidence:
     runs-on: ubuntu-latest
     needs: test

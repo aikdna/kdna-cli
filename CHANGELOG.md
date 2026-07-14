@@ -16,6 +16,11 @@
 - Trace count fields require non-negative integers, and delivery/consumption
   basis fields reject unknown or malformed values in both Schema and runtime
   validation.
+- Add a synthetic Golden cross-repository regression for the single-asset
+  `kdna use` process Host handoff. The compact-profile regression proves exact
+  request-value preservation and correlated receipt/Trace evidence without
+  making a broader Cluster/profile claim or treating execution completion as
+  consumption or conformance.
 
 ## 0.31.1 (2026-07-13)
 

@@ -251,7 +251,11 @@ function createCliRunner(opts = {}) {
             : [
                 {
                   ...(plan.asset_ref || {}),
-                  asset_id: context.assetTarget || plan?.asset_ref?.asset_id,
+                  // A local lookup target is not the asset's protocol identity.
+                  // Keep both so Host requests and Trace never leak or substitute
+                  // a machine-specific path for the canonical asset_id.
+                  asset_id: plan?.asset_ref?.asset_id || context.assetTarget,
+                  resolution_target: context.assetTarget || plan?.asset_ref?.asset_id,
                   role: 'primary',
                 },
               ];
@@ -274,10 +278,11 @@ function createCliRunner(opts = {}) {
         let tokenCountVerified = false;
         const warnings = [...(plan.warnings || [])];
         for (const ref of refs) {
-          const protocolName = String(ref.asset_id || '').match(/^kdna:([^:]+):(.+)$/);
+          const resolutionTarget = ref.resolution_target || ref.asset_id;
+          const protocolName = String(resolutionTarget || '').match(/^kdna:([^:]+):(.+)$/);
           const packageName = protocolName
             ? `@${protocolName[1]}/${protocolName[2]}`
-            : ref.asset_id;
+            : resolutionTarget;
           let resolved = resolveAsset(packageName);
           if (!resolved?.asset_path) {
             const expanded = String(packageName).replace(/^~/, process.env.HOME || '');
