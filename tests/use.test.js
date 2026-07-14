@@ -14,6 +14,7 @@ const FIXTURE_SOURCE = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
 const FIXTURE_TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-use-test-'));
 const FIXTURE = path.join(FIXTURE_TMP, 'v1-minimal.kdna');
 core.pack(FIXTURE_SOURCE, FIXTURE);
+const FIXTURE_ASSET_ID = core.inspect(FIXTURE).asset_id;
 const SECOND_FIXTURE = path.join(FIXTURE_TMP, 'v1-minimal-advisor.kdna');
 fs.copyFileSync(FIXTURE, SECOND_FIXTURE);
 const FIXTURE_DIGEST =
@@ -235,13 +236,16 @@ it('cli runner loads a real Runtime Capsule but does not claim task completion',
 });
 
 it('process Agent host can return an answer without proving Capsule consumption or conformance', () => {
+  const requestCapture = path.join(FIXTURE_TMP, 'single-agent-host-request.json');
   const host = writeAgentHost(
     'single-agent-host',
-    `let input = '';
+    `const fs = require('node:fs');
+let input = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (chunk) => { input += chunk; });
 process.stdin.on('end', () => {
   const request = JSON.parse(input);
+  fs.writeFileSync(${JSON.stringify(requestCapture)}, input);
   if (request.protocol !== 'kdna.agent-host/1') process.exit(11);
   if (request.phase !== 'single_judgment') process.exit(12);
   if (request.authority?.final_decision !== true) process.exit(13);
@@ -314,6 +318,12 @@ process.stdin.on('end', () => {
   assert.strictEqual(out.trace.attempts[0].status, 'completed');
   assert.match(out.trace.attempts[0].host_receipt.request_digest, /^sha256:[a-f0-9]{64}$/);
   assert.match(out.trace.attempts[0].host_receipt.response_digest, /^sha256:[a-f0-9]{64}$/);
+  const hostRequest = JSON.parse(fs.readFileSync(requestCapture, 'utf8'));
+  assert.strictEqual(hostRequest.authority.asset_id, FIXTURE_ASSET_ID);
+  assert.strictEqual(hostRequest.asset.asset_id, FIXTURE_ASSET_ID);
+  assert.strictEqual(out.trace.assets_loaded[0].asset_id, FIXTURE_ASSET_ID);
+  assert.strictEqual(JSON.stringify(hostRequest).includes(FIXTURE), false);
+  assert.strictEqual(JSON.stringify(out.trace).includes(FIXTURE), false);
 });
 
 it('process Agent host fails closed without claiming unconfirmed delivery', () => {
