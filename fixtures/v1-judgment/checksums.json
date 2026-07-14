@@ -1,7 +1,10 @@
 {
+  "digest_profile": "kdna-runtime-entry-set-v1",
+  "covered_entries": ["kdna.json", "payload.kdnab"],
   "algorithm": "sha256",
   "manifest_digest": "sha256:67c7e02718186297db2d819661c49e6408e1f5962e4de8caeca51f0bb50935b4",
   "payload_digest": "sha256:72842047725646cafc53daccf1f0b68574b09d558cd2f4b90f6871e31621b95a",
+  "entry_set_digest": "sha256:60d52dca68931b1d1d06d3e8d8a08f1abe363399d85a3ca5e17f37449c1eda32",
   "asset_digest": "sha256:60d52dca68931b1d1d06d3e8d8a08f1abe363399d85a3ca5e17f37449c1eda32",
   "entries": {
     "kdna.json": {

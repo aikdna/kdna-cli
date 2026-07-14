@@ -15,7 +15,7 @@ const { RegistryResolver } = require('../registry');
 const TMP_DIR = '/tmp';
 
 function downloadVersion(entry, version, destDir) {
-  const { execSync, execFileSync } = require('child_process');
+  const { execFileSync } = require('child_process');
   const tmpFile = `${destDir}.kdna.tmp`;
   try {
     execFileSync('curl', ['-fsSL', '--retry', '2', '-o', tmpFile, entry.asset_url], {
@@ -28,12 +28,15 @@ function downloadVersion(entry, version, destDir) {
   }
   fs.mkdirSync(destDir, { recursive: true });
   try {
-    execSync(`unzip -q -o "${tmpFile}" -d "${destDir}"`, { stdio: 'pipe' });
-  } catch {
-    const script = `import zipfile\nzf = zipfile.ZipFile(${JSON.stringify(tmpFile)}, 'r')\nzf.extractall(${JSON.stringify(destDir)})`;
-    execSync(`python3 -c ${JSON.stringify(script)}`, { stdio: 'pipe' });
+    try {
+      execFileSync('unzip', ['-q', '-o', tmpFile, '-d', destDir], { stdio: 'pipe' });
+    } catch {
+      const script = `import zipfile\nzf = zipfile.ZipFile(${JSON.stringify(tmpFile)}, 'r')\nzf.extractall(${JSON.stringify(destDir)})`;
+      execFileSync('python3', ['-c', script], { stdio: 'pipe' });
+    }
+  } finally {
+    fs.rmSync(tmpFile, { force: true });
   }
-  fs.unlinkSync(tmpFile);
   return destDir;
 }
 

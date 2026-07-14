@@ -1,7 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { execSync } = require('child_process');
 const { error, readJson, writeJson, EXIT } = require('./_common');
 const { packKdna } = require('../dev-pack');
 const KDNA_DOMAIN_FILES = new Set([
@@ -444,6 +443,12 @@ function crc32(buf) {
 }
 
 function cmdUnpack(filePath, force) {
+  if (Array.isArray(filePath)) {
+    const args = filePath;
+    filePath = args.find((arg) => !String(arg).startsWith('--'));
+    force = args.includes('--force');
+  }
+  if (!filePath) error('Usage: kdna domain unpack <file.kdna> [--force]', EXIT.INPUT_ERROR);
   const abs = path.resolve(filePath);
   if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) {
     error(`Not a file: ${abs}`, EXIT.INPUT_ERROR);
@@ -461,34 +466,12 @@ function cmdUnpack(filePath, force) {
     fs.rmSync(outDir, { recursive: true, force: true });
   }
 
-  fs.mkdirSync(outDir, { recursive: true });
-
-  // Unzip using python3 zipfile (built-in) — use temp file to avoid -c multiline escaping issues
-  const tmpUnpackPy = path.join(
-    fs.existsSync('/tmp') ? '/tmp' : require('os').tmpdir(),
-    `kdna-unpack-${Date.now()}.py`,
-  );
   try {
-    const script = `import zipfile, os
-zf = zipfile.ZipFile(${JSON.stringify(abs)}, 'r')
-zf.extractall(${JSON.stringify(outDir)})
-zf.close()
-`;
-    fs.writeFileSync(tmpUnpackPy, script);
-    execSync(`python3 ${tmpUnpackPy}`, { stdio: 'pipe' });
-  } catch {
-    // Fallback: use system unzip
-    try {
-      execSync(`unzip -q -o "${abs}" -d "${outDir}"`, { stdio: 'pipe' });
-    } catch {
-      error('Cannot unpack ZIP. Install python3 or unzip command.');
-    }
-  } finally {
-    try {
-      fs.unlinkSync(tmpUnpackPy);
-    } catch {
-      /* cleanup */
-    }
+    const { unpack } = require('@aikdna/kdna-core');
+    unpack(abs, outDir);
+  } catch (e) {
+    fs.rmSync(outDir, { recursive: true, force: true });
+    error(`Cannot unpack KDNA container: ${e.message}`, EXIT.VALIDATION_FAILED);
   }
 
   console.log(`✓ Unpacked: ${outDir}`);

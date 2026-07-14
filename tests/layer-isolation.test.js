@@ -92,23 +92,13 @@ const ALLOWLIST = [
   // diff.js — `recommendedVersionBump` internal var, semver calculation
   {
     file: 'src/diff.js',
-    line: 359,
+    line: 362,
     reason: 'function comment: "Determine recommended version bump" — semver calculation',
   },
   {
     file: 'src/diff.js',
-    line: 363,
+    line: 366,
     reason: 'internal var: `recommendedVersionBump` — semver calculation',
-  },
-  {
-    file: 'src/diff.js',
-    line: 364,
-    reason: 'internal var: `recommendedVersionBump`',
-  },
-  {
-    file: 'src/diff.js',
-    line: 365,
-    reason: 'internal var: `recommendedVersionBump`',
   },
   {
     file: 'src/diff.js',
@@ -117,7 +107,17 @@ const ALLOWLIST = [
   },
   {
     file: 'src/diff.js',
-    line: 384,
+    line: 368,
+    reason: 'internal var: `recommendedVersionBump`',
+  },
+  {
+    file: 'src/diff.js',
+    line: 370,
+    reason: 'internal var: `recommendedVersionBump`',
+  },
+  {
+    file: 'src/diff.js',
+    line: 387,
     reason:
       'output field: `recommended_version_bump: <semver>` — semver tool recommendation, not a content-trust claim',
   },
@@ -130,32 +130,32 @@ const ALLOWLIST = [
   // cmds/changelog.js — `recommendedBump` internal var, semver calculation
   {
     file: 'src/cmds/changelog.js',
-    line: 114,
+    line: 117,
     reason: 'internal var: `recommendedBump` — semver calculation',
   },
   {
     file: 'src/cmds/changelog.js',
-    line: 115,
+    line: 118,
     reason: 'internal var: `recommendedBump`',
   },
   {
     file: 'src/cmds/changelog.js',
-    line: 116,
+    line: 119,
     reason: 'internal var: `recommendedBump`',
   },
   {
     file: 'src/cmds/changelog.js',
-    line: 117,
+    line: 120,
     reason: 'internal var: `recommendedBump`',
   },
   {
     file: 'src/cmds/changelog.js',
-    line: 147,
+    line: 150,
     reason: 'output field: `recommended_version_bump: <semver>` — semver tool recommendation',
   },
   {
     file: 'src/cmds/changelog.js',
-    line: 191,
+    line: 194,
     reason:
       'output: "Recommended version bump: `<semver>`" — semver tool recommendation, not a content-trust claim',
   },

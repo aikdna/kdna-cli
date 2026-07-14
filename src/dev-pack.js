@@ -113,13 +113,17 @@ function packKdna(sourceDir, manifest, _options = {}) {
   const manifestDigest = sha256Hex(Buffer.from(manifestJson, 'utf8'));
   const payloadDigest = sha256Hex(payloadBuf);
   const combined = `kdna.json:${manifestDigest}\npayload.kdnab:${payloadDigest}`;
-  const assetDigest = sha256Hex(Buffer.from(combined, 'utf8'));
+  const entrySetDigest = `sha256:${sha256Hex(Buffer.from(combined, 'utf8'))}`;
   const checksumsJson = JSON.stringify(
     {
+      digest_profile: 'kdna-runtime-entry-set-v1',
+      covered_entries: ['kdna.json', 'payload.kdnab'],
       algorithm: 'sha256',
       manifest_digest: `sha256:${manifestDigest}`,
       payload_digest: `sha256:${payloadDigest}`,
-      asset_digest: `sha256:${assetDigest}`,
+      entry_set_digest: entrySetDigest,
+      // Deprecated v1 compatibility alias. This is not the final .kdna file hash.
+      asset_digest: entrySetDigest,
       entries: {
         'kdna.json': { algorithm: 'sha256', value: manifestDigest },
         'payload.kdnab': { algorithm: 'sha256', value: payloadDigest },

@@ -3,54 +3,23 @@
 
 const fs = require('fs');
 const crypto = require('crypto');
-const path = require('path');
 
 function sha256(data) {
   return crypto.createHash('sha256').update(data).digest('hex');
 }
 
-function computeAssetDigestFromFile(assetPath) {
-  if (!fs.existsSync(assetPath)) return null;
-  try {
-    // Read ZIP container and compute entry digests
-    const { execSync } = require('child_process');
-    const tmp = require('os').tmpdir();
-    const tmpDir = fs.mkdtempSync(path.join(tmp, 'kdna-cv-'));
-    execSync(`unzip -o "${assetPath}" -d "${tmpDir}" 2>/dev/null || true`, {
-      stdio: 'pipe',
-      timeout: 5000,
-    });
-
-    const manifestEntry = path.join(tmpDir, 'kdna.json');
-    const payloadEntry = path.join(tmpDir, 'payload.kdnab');
-
-    if (!fs.existsSync(manifestEntry) || !fs.existsSync(payloadEntry)) {
-      try {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
-      } catch {}
-      return null;
-    }
-
-    const manifestDigest = sha256(fs.readFileSync(manifestEntry));
-    const payloadDigest = sha256(fs.readFileSync(payloadEntry));
-    const combined = `kdna.json:${manifestDigest}\npayload.kdnab:${payloadDigest}`;
-    const assetDigest = `sha256:${sha256(Buffer.from(combined, 'utf8'))}`;
-
-    try {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
-    } catch {}
-    return assetDigest;
-  } catch {
-    return null;
+function computeEntrySetDigestFromFile(assetPath) {
+  const core = require('@aikdna/kdna-core');
+  const layout = core.readLayout(assetPath);
+  const manifestEntry = layout?.map?.['kdna.json'];
+  const payloadEntry = layout?.map?.['payload.kdnab'];
+  if (!Buffer.isBuffer(manifestEntry) || !Buffer.isBuffer(payloadEntry)) {
+    throw new Error('KDNA container is missing protected runtime entries');
   }
-}
-
-function computePayloadDigestFromFile(assetPath) {
-  const containerPath = assetPath;
-  if (!fs.existsSync(containerPath)) return null;
-  // Read the ZIP container and find payload.kdnab
-  // For simplicity, we rely on Core's verifyAsset to do the real verification
-  return null;
+  const manifestDigest = sha256(manifestEntry);
+  const payloadDigest = sha256(payloadEntry);
+  const combined = `kdna.json:${manifestDigest}\npayload.kdnab:${payloadDigest}`;
+  return `sha256:${sha256(Buffer.from(combined, 'utf8'))}`;
 }
 
 function verifyCapsule(capsulePath, options = {}) {
@@ -87,14 +56,16 @@ function verifyCapsule(capsulePath, options = {}) {
   // 3. Asset digest verification (when assetPath is provided)
   const assetPath = options.assetPath;
   if (assetPath && fs.existsSync(assetPath)) {
-    const actualDigest = computeAssetDigestFromFile(assetPath);
-    if (actualDigest && capsule.asset_digest) {
-      if (actualDigest !== capsule.asset_digest) {
+    try {
+      const actualEntrySetDigest = computeEntrySetDigestFromFile(assetPath);
+      if (capsule.asset_digest && actualEntrySetDigest !== capsule.asset_digest) {
         errors.push(
-          `Asset digest mismatch: capsule claims ${capsule.asset_digest}, ` +
-            `actual file digest is ${actualDigest}`,
+          `Entry-set digest mismatch: capsule claims ${capsule.asset_digest}, ` +
+            `actual protected runtime entry digest is ${actualEntrySetDigest}`,
         );
       }
+    } catch (e) {
+      errors.push(`Unable to verify protected runtime entries: ${e.message}`);
     }
   } else if (assetPath) {
     warnings.push(`Asset path not found: ${assetPath}. Cannot verify digest.`);
@@ -148,4 +119,4 @@ function verifyCapsule(capsulePath, options = {}) {
   };
 }
 
-module.exports = { verifyCapsule };
+module.exports = { verifyCapsule, computeEntrySetDigestFromFile };

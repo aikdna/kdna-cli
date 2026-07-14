@@ -107,6 +107,11 @@ function cmdDemo(args) {
     // Rebuild checksums after encryption
     const { buildChecksums } = require('@aikdna/kdna-core');
     const newChecksums = buildChecksums(outDir);
+    newChecksums.digest_profile = 'kdna-runtime-entry-set-v1';
+    newChecksums.covered_entries = ['kdna.json', 'payload.kdnab'];
+    if (!newChecksums.entry_set_digest && newChecksums.asset_digest) {
+      newChecksums.entry_set_digest = newChecksums.asset_digest;
+    }
     fs.writeFileSync(path.join(outDir, 'checksums.json'), JSON.stringify(newChecksums, null, 2));
 
     process.stdout.write(`  ${copied.length} file(s) copied, payload encrypted with password\n\n`);

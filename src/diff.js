@@ -18,7 +18,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync, execFileSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const { RegistryResolver } = require('./registry');
 const { EXIT } = require('./cmds/_common');
 const { getInstalled, readContainer } = require('./package-store');
@@ -88,14 +88,17 @@ function downloadAndExtract(url, destDir) {
 
   fs.mkdirSync(destDir, { recursive: true });
   try {
-    execSync(`unzip -q -o "${tmpFile}" -d "${destDir}"`, { stdio: 'pipe' });
-  } catch {
-    const script = `import zipfile
+    try {
+      execFileSync('unzip', ['-q', '-o', tmpFile, '-d', destDir], { stdio: 'pipe' });
+    } catch {
+      const script = `import zipfile
 zf = zipfile.ZipFile(${JSON.stringify(tmpFile)}, 'r')
 zf.extractall(${JSON.stringify(destDir)})`;
-    execSync(`python3 -c ${JSON.stringify(script)}`, { stdio: 'pipe' });
+      execFileSync('python3', ['-c', script], { stdio: 'pipe' });
+    }
+  } finally {
+    fs.rmSync(tmpFile, { force: true });
   }
-  fs.unlinkSync(tmpFile);
   return destDir;
 }
 
