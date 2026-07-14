@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.32.0 (2026-07-14)
+
+- Require the exact registry release `@aikdna/kdna-core@0.17.0`. The Golden
+  regression's pinned Core source ref remains a reproducible test-fixture
+  coordinate and is not reported as npm publication provenance.
 
 - Let `kdna use --runner=cli:default` invoke an explicit, provider-neutral
   process Agent host for one packaged asset. The CLI sends a versioned JSON
