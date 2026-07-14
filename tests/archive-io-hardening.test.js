@@ -481,19 +481,8 @@ test('safe extraction supports current runtime and historical authoring archives
     const runtimeDestination = path.join(tmp, 'runtime-out');
     extractKdnaArchive(runtimeArchive, runtimeDestination);
     assert.equal(fs.readFileSync(path.join(runtimeDestination, 'mimetype'), 'utf8'), core.MIMETYPE);
-
-    const conformanceArchive = path.resolve(
-      __dirname,
-      '..',
-      '..',
-      'kdna',
-      'fixtures',
-      'test_conformance.kdna',
-    );
-    const conformanceDestination = path.join(tmp, 'conformance-out');
-    extractKdnaArchive(conformanceArchive, conformanceDestination);
-    assert.equal(fs.existsSync(path.join(conformanceDestination, 'KDNA_Core.json')), true);
-    assert.equal(fs.existsSync(path.join(conformanceDestination, 'KDNA_Patterns.json')), true);
+    assert.equal(fs.existsSync(path.join(runtimeDestination, 'payload.kdnab')), true);
+    assert.equal(fs.existsSync(path.join(runtimeDestination, 'KDNA_Core.json')), false);
 
     const generatedArchive = makeHistoricalArchive(
       path.join(tmp, 'historical.kdna'),
@@ -502,6 +491,9 @@ test('safe extraction supports current runtime and historical authoring archives
     );
     const generatedDestination = path.join(tmp, 'historical-out');
     extractKdnaArchive(generatedArchive, generatedDestination);
+    assert.equal(fs.existsSync(path.join(generatedDestination, 'payload.kdnab')), false);
+    assert.equal(fs.existsSync(path.join(generatedDestination, 'KDNA_Core.json')), true);
+    assert.equal(fs.existsSync(path.join(generatedDestination, 'KDNA_Patterns.json')), true);
     const judgment = loadJudgment(generatedDestination);
     assert.equal(judgment.version, '1.2.3');
     assert.equal(judgment.axioms['judgment-core'].one_sentence, 'Historical authoring judgment');
