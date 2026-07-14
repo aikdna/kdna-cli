@@ -198,7 +198,10 @@ test('kdna install --local installs to ./.kdna/packages/ and adds an entry to ./
   const { proj, kdnaHome, env, root } = makeEnv();
   const asset = buildAsset(root, '@aikdna/writing');
 
-  const r = run(['install', asset, '--yes', '--local'], { env, cwd: proj });
+  const r = run(['install', asset, '--yes', '--allow-unverified', '--local'], {
+    env,
+    cwd: proj,
+  });
   assert.ok(r.ok, `kdna install --local failed: ${r.stderr}`);
 
   // Project index has the entry
@@ -226,7 +229,7 @@ test('kdna install (no flag) defaults to the user-global root', () => {
   const { proj, kdnaHome, env, root } = makeEnv();
   const asset = buildAsset(root, '@aikdna/writing');
 
-  const r = run(['install', asset, '--yes'], { env, cwd: proj });
+  const r = run(['install', asset, '--yes', '--allow-unverified'], { env, cwd: proj });
   assert.ok(r.ok, `kdna install failed: ${r.stderr}`);
 
   // Global index has the entry
@@ -324,9 +327,12 @@ test('package-store.getInstalled returns the project entry when both tiers have 
   const assetGlobal = buildAsset(root, '@aikdna/conflict', '1.0.0');
   const assetProject = buildAsset(root, '@aikdna/conflict', '2.0.0');
 
-  const g = run(['install', assetGlobal, '--yes'], { env, cwd: proj });
+  const g = run(['install', assetGlobal, '--yes', '--allow-unverified'], { env, cwd: proj });
   assert.ok(g.ok, `global install failed: ${g.stderr}`);
-  const p = run(['install', assetProject, '--yes', '--local'], { env, cwd: proj });
+  const p = run(['install', assetProject, '--yes', '--allow-unverified', '--local'], {
+    env,
+    cwd: proj,
+  });
   assert.ok(p.ok, `project install failed: ${p.stderr}`);
 
   const store = loadPackageStore(proj, kdnaHome);
@@ -350,13 +356,19 @@ test('package-store.listInstalled merges both tiers and project wins on name con
   const assetGlobal = buildAsset(root, '@aikdna/conflict', '1.0.0');
   const assetProject = buildAsset(root, '@aikdna/conflict', '2.0.0');
 
-  const r1 = run(['install', assetA, '--yes'], { env, cwd: proj });
+  const r1 = run(['install', assetA, '--yes', '--allow-unverified'], { env, cwd: proj });
   assert.ok(r1.ok, `install A failed: ${r1.stderr}\n${r1.stdout}`);
-  const r2 = run(['install', assetB, '--yes', '--local'], { env, cwd: proj });
+  const r2 = run(['install', assetB, '--yes', '--allow-unverified', '--local'], {
+    env,
+    cwd: proj,
+  });
   assert.ok(r2.ok, `install B failed: ${r2.stderr}\n${r2.stdout}`);
-  const r3 = run(['install', assetGlobal, '--yes'], { env, cwd: proj });
+  const r3 = run(['install', assetGlobal, '--yes', '--allow-unverified'], { env, cwd: proj });
   assert.ok(r3.ok, `install conflict global failed: ${r3.stderr}\n${r3.stdout}`);
-  const r4 = run(['install', assetProject, '--yes', '--local'], { env, cwd: proj });
+  const r4 = run(['install', assetProject, '--yes', '--allow-unverified', '--local'], {
+    env,
+    cwd: proj,
+  });
   assert.ok(r4.ok, `install conflict project failed: ${r4.stderr}\n${r4.stdout}`);
 
   const store = loadPackageStore(proj, kdnaHome);
@@ -390,8 +402,10 @@ test('package-store.removeInstalled removes the project entry (and leaves global
   const assetA = buildAsset(root, '@aikdna/pkg_local');
   const assetB = buildAsset(root, '@aikdna/pkg_global');
 
-  assert.ok(run(['install', assetA, '--yes', '--local'], { env, cwd: proj }).ok);
-  assert.ok(run(['install', assetB, '--yes'], { env, cwd: proj }).ok);
+  assert.ok(
+    run(['install', assetA, '--yes', '--allow-unverified', '--local'], { env, cwd: proj }).ok,
+  );
+  assert.ok(run(['install', assetB, '--yes', '--allow-unverified'], { env, cwd: proj }).ok);
 
   const store = loadPackageStore(proj, kdnaHome);
   const removed = store.removeInstalled('@aikdna/pkg_local');
@@ -411,8 +425,13 @@ test('package-store.removeInstalled on a conflict removes the project copy first
   const assetGlobal = buildAsset(root, '@aikdna/conflict', '1.0.0');
   const assetProject = buildAsset(root, '@aikdna/conflict', '2.0.0');
 
-  assert.ok(run(['install', assetGlobal, '--yes'], { env, cwd: proj }).ok);
-  assert.ok(run(['install', assetProject, '--yes', '--local'], { env, cwd: proj }).ok);
+  assert.ok(run(['install', assetGlobal, '--yes', '--allow-unverified'], { env, cwd: proj }).ok);
+  assert.ok(
+    run(['install', assetProject, '--yes', '--allow-unverified', '--local'], {
+      env,
+      cwd: proj,
+    }).ok,
+  );
 
   const store = loadPackageStore(proj, kdnaHome);
   const removed = store.removeInstalled('@aikdna/conflict');

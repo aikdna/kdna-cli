@@ -34,15 +34,24 @@ function loadCore() {
   );
 }
 
-function resolveAssetTarget(nameOrPath) {
+function resolveAssetReference(nameOrPath) {
   try {
     const { resolveAsset } = require('../package-store');
     const result = resolveAsset(nameOrPath);
-    if (result?.asset_path) return result.asset_path;
+    if (result?.asset_path) return result;
   } catch (_) {}
   const abs = path.resolve(nameOrPath);
-  if (fs.existsSync(abs)) return abs;
+  if (fs.existsSync(abs)) {
+    return {
+      asset_path: abs,
+      asset_digest: fs.statSync(abs).isFile() ? sha256(fs.readFileSync(abs)) : null,
+    };
+  }
   return null;
+}
+
+function resolveAssetTarget(nameOrPath) {
+  return resolveAssetReference(nameOrPath)?.asset_path || null;
 }
 
 function loadManifest(absPath) {
@@ -228,7 +237,17 @@ function generatePlanId(assetPath, task) {
 }
 
 function generateConsumptionPlan(opts) {
-  const { assetPath, task, taskFamily, budgetProfile, shape, manifest, loadPlan, mode } = opts;
+  const {
+    assetPath,
+    assetDigest,
+    task,
+    taskFamily,
+    budgetProfile,
+    shape,
+    manifest,
+    loadPlan,
+    mode,
+  } = opts;
 
   const abs = path.resolve(assetPath);
   const planId = generatePlanId(abs, task || '');
@@ -248,10 +267,7 @@ function generateConsumptionPlan(opts) {
     asset_ref: {
       asset_id: manifest?.asset_id || manifest?.name || path.basename(abs, '.kdna'),
       version: manifest?.version || '0.1.0',
-      digest:
-        manifest?.asset_digest || manifest?.content_digest
-          ? manifest.asset_digest || manifest.content_digest
-          : null,
+      digest: assetDigest || manifest?.asset_digest || manifest?.content_digest || null,
       access: manifest?.access || 'public',
     },
     task: {
@@ -289,8 +305,9 @@ function generateConsumptionPlan(opts) {
 
 function planSingleAsset(assetPath, opts = {}) {
   const { task, taskFamily, budgetProfile, shape } = opts;
-  const abs = resolveAssetTarget(assetPath);
-  if (!abs) error(`Asset not found: ${assetPath}`, EXIT.INPUT_ERROR);
+  const resolved = resolveAssetReference(assetPath);
+  if (!resolved?.asset_path) error(`Asset not found: ${assetPath}`, EXIT.INPUT_ERROR);
+  const abs = resolved.asset_path;
 
   const core = loadCore();
   const manifest = loadManifest(abs);
@@ -316,6 +333,7 @@ function planSingleAsset(assetPath, opts = {}) {
   // If loadPlan is blocked, still emit a plan — but with blocked status
   const plan = generateConsumptionPlan({
     assetPath: abs,
+    assetDigest: resolved.asset_digest || null,
     task,
     taskFamily,
     budgetProfile,
@@ -352,7 +370,7 @@ function cmdPlanUse(args) {
 
   if (!target || args.includes('--help') || args.includes('-h')) {
     process.stderr.write(
-      'Usage: kdna plan-use <asset.kdna|kdna.cluster.json> [options]\n\n' +
+      'Usage: kdna plan-use <name[@version]|asset.kdna|kdna.cluster.json> [options]\n\n' +
         'Generate a deterministic ConsumptionPlan without model execution.\n\n' +
         'Options:\n' +
         '  --task=<text>         Task description\n' +

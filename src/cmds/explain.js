@@ -18,7 +18,7 @@ function cmdExplain(args) {
     error(`Invalid domain name: ${target}`, EXIT.INPUT_ERROR);
   }
 
-  const installed = getInstalled(parsed.full);
+  const installed = getInstalled(parsed.reference || parsed.full);
   if (!installed) {
     error(`${parsed.full} is not installed.\nRun: kdna install ${target}`, EXIT.INPUT_ERROR);
   }

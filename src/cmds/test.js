@@ -38,7 +38,7 @@ function cmdTestRun(args = []) {
 
   const parsed = parseName(domain);
   if (!parsed) error(`Invalid name "${domain}".`, EXIT.INPUT_ERROR);
-  const installed = getInstalled(parsed.full);
+  const installed = getInstalled(parsed.reference || parsed.full);
   if (!installed) {
     error(`${parsed.full} not installed. Run: kdna install ${domain}`, EXIT.INPUT_ERROR);
   }

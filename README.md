@@ -138,11 +138,27 @@ Staged Cluster execution remains an explicit, disabled advanced path.
 
 ## Asset Management
 
-| Command                        | Purpose                                            |
-| ------------------------------ | -------------------------------------------------- |
-| `kdna install <file.kdna>`     | Install to local asset store (`~/.kdna/packages/`) |
-| `kdna list`                    | List installed assets                              |
-| `kdna remove <name>[@version]` | Remove an installed asset                          |
+| Command                                    | Purpose                                                       |
+| ------------------------------------------ | ------------------------------------------------------------- |
+| `kdna install <file.kdna>`                 | Validate and install one immutable version                    |
+| `kdna list`                                | List every installed version and mark the active one          |
+| `kdna inspect <name>[@version]`            | Inspect the active or an exact installed version              |
+| `kdna plan-use <name>[@version]`           | Pin a deterministic plan to the active or exact version       |
+| `kdna use <name>[@version]`                | Execute with the active or exact installed version            |
+| `kdna remove <name>[@version]`             | Remove an exact version, or the active version when omitted   |
+| `kdna update <name>` / `kdna update --all` | Refresh unpinned active versions from the configured registry |
+
+The package index keeps immutable versions under one name and records one
+`active_version`. Installing a version makes it active. Unversioned commands
+resolve that active version; `name@version` is an exact pin. Removing the active
+version selects the highest remaining installed version, so rollback does not
+require reacquiring the old asset. Existing v2 indexes migrate on the next
+write without moving stored assets.
+
+Local installation fails closed when Core validation reports an invalid format
+or digest. `--allow-unverified` is an explicit development-only override; JSON
+output includes the failed verification state so automation cannot confuse it
+with a verified install.
 
 ## Identity, Signing & Revocation
 

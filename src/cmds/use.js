@@ -72,7 +72,7 @@ function cmdUse(args) {
 
   if (!target || args.includes('--help') || args.includes('-h')) {
     process.stderr.write(
-      'Usage: kdna use <asset.kdna> [options]\n\n' +
+      'Usage: kdna use <name[@version]|asset.kdna> [options]\n\n' +
         'Run a KDNA asset through a registered Runner.\n\n' +
         'Options:\n' +
         '  --task=<text>           Task description\n' +

@@ -147,7 +147,7 @@ test('kdna list after install shows the installed package in human format', () =
   const { env } = makeEnv();
   const asset = buildAsset(tmpRoot);
 
-  const install = run(['install', asset, '--yes'], { env });
+  const install = run(['install', asset, '--yes', '--allow-unverified'], { env });
   assert.ok(install.ok, `kdna install failed: ${install.stderr}`);
 
   const r = run(['list'], { env });
@@ -165,7 +165,7 @@ test('kdna list --json after install returns one entry with the expected fields'
   const { env } = makeEnv();
   const asset = buildAsset(tmpRoot);
 
-  const install = run(['install', asset, '--yes'], { env });
+  const install = run(['install', asset, '--yes', '--allow-unverified'], { env });
   assert.ok(install.ok, `kdna install failed: ${install.stderr}`);
 
   const r = run(['list', '--json'], { env });
@@ -189,7 +189,7 @@ test('kdna remove with no name prints a usage error', () => {
   const { env } = makeEnv();
   const r = run(['remove'], { env });
   assert.equal(r.code, 2, 'expected usage error exit 2');
-  assert.match(r.stderr, /Usage: kdna remove <@scope\/name>/);
+  assert.match(r.stderr, /Usage: kdna remove <@scope\/name\[@version\]>/);
 });
 
 test('kdna remove on an uninstalled package prints "is not installed"', () => {
@@ -204,7 +204,7 @@ test('kdna remove on an installed package deletes it and the index entry', () =>
   const { kdnaHome, env } = makeEnv();
   const asset = buildAsset(tmpRoot);
 
-  const install = run(['install', asset, '--yes'], { env });
+  const install = run(['install', asset, '--yes', '--allow-unverified'], { env });
   assert.ok(install.ok, `kdna install failed: ${install.stderr}`);
 
   // Pre-conditions: index.json has the entry, asset file exists
@@ -243,9 +243,9 @@ test('kdna remove followed by re-install leaves the index in a clean state', () 
   const { kdnaHome, env } = makeEnv();
   const asset = buildAsset(tmpRoot);
 
-  run(['install', asset, '--yes'], { env });
+  run(['install', asset, '--yes', '--allow-unverified'], { env });
   run(['remove', '@aikdna/writing'], { env });
-  const reinstall = run(['install', asset, '--yes'], { env });
+  const reinstall = run(['install', asset, '--yes', '--allow-unverified'], { env });
   assert.ok(reinstall.ok, `re-install failed: ${reinstall.stderr}`);
 
   const index = JSON.parse(fs.readFileSync(path.join(kdnaHome, 'index.json'), 'utf8'));

@@ -1,6 +1,6 @@
 {
   "name": "@aikdna/kdna-cli",
-  "version": "0.32.0",
+  "version": "0.32.1",
   "description": "KDNA CLI — runtime control plane for inspecting, validating, planning, packing, unpacking, and loading local .kdna assets.",
   "type": "commonjs",
   "bin": {
@@ -29,7 +29,7 @@
     "test:all": "npm run test:v1 && npm run test:smoke",
     "test:core-smoke": "node scripts/pretest-smoke.js",
     "release:preflight": "node scripts/release-preflight.js",
-    "test:v1": "node --test tests/external-entitlement.test.js tests/external-activation-flow.test.js tests/kdf-spec.test.js tests/common-utils.test.js tests/single-format-regression.test.js tests/dev-pack.test.js tests/two-tier-store.test.js tests/remove-list-cli.test.js tests/layer-isolation.test.js tests/v1-global-cli.test.js tests/v1-demo-minimal.test.js tests/cli-smoke.test.js tests/setup.test.js tests/secret-store.test.js tests/license-redaction.test.js tests/validate-bundle.test.js tests/story5-bundle.test.js tests/story6-dependencies.test.js tests/story8-context-budget.test.js tests/story9-conflict-analysis.test.js tests/story10-audit-log.test.js tests/story11-rag-namespace.test.js tests/story12-asset-inheritance.test.js tests/story13-trust-deprecation.test.js tests/story19-sign-verify-identity.test.js tests/story20-revocation.test.js tests/story21-watermarking.test.js tests/critical-2-remote-mode-client.test.js tests/eval-consumption.test.js tests/eval-asset.test.js tests/eval-cluster.test.js tests/project.test.js tests/route.test.js tests/compose.test.js tests/compose-review.test.js tests/asset-evidence.test.js tests/plan-use.test.js tests/use.test.js tests/cluster.test.js",
+    "test:v1": "node --test tests/external-entitlement.test.js tests/external-activation-flow.test.js tests/kdf-spec.test.js tests/common-utils.test.js tests/single-format-regression.test.js tests/dev-pack.test.js tests/two-tier-store.test.js tests/remove-list-cli.test.js tests/versioned-asset-lifecycle.test.js tests/layer-isolation.test.js tests/v1-global-cli.test.js tests/v1-demo-minimal.test.js tests/cli-smoke.test.js tests/setup.test.js tests/secret-store.test.js tests/license-redaction.test.js tests/validate-bundle.test.js tests/story5-bundle.test.js tests/story6-dependencies.test.js tests/story8-context-budget.test.js tests/story9-conflict-analysis.test.js tests/story10-audit-log.test.js tests/story11-rag-namespace.test.js tests/story12-asset-inheritance.test.js tests/story13-trust-deprecation.test.js tests/story19-sign-verify-identity.test.js tests/story20-revocation.test.js tests/story21-watermarking.test.js tests/critical-2-remote-mode-client.test.js tests/eval-consumption.test.js tests/eval-asset.test.js tests/eval-cluster.test.js tests/project.test.js tests/route.test.js tests/compose.test.js tests/compose-review.test.js tests/asset-evidence.test.js tests/plan-use.test.js tests/use.test.js tests/cluster.test.js",
     "test:smoke": "npm run test:core-smoke",
     "test:demo": "node --test tests/v1-demo-minimal.test.js",
     "prepublishOnly": "npm test && npm run release:check",

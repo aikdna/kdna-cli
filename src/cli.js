@@ -39,7 +39,7 @@ const { cmdTrace, cmdHistory } = require('./cmds/trace');
 const { cmdCluster } = require('./cmds/cluster');
 const { cmdProtect, cmdUnlock, cmdRecover } = require('./cmds/protect');
 const { cmdAvailable, cmdMatch } = require('./agent');
-const { cmdInstallExtended, cmdRemove, cmdList } = require('./install');
+const { cmdInstallExtended, cmdRemove, cmdList, cmdUpdate, cmdUpdateAll } = require('./install');
 const { cmdPublish, cmdPublishCheck } = require('./publish');
 const { cmdChangelog } = require('./cmds/changelog');
 const { cmdExplain } = require('./cmds/explain');
@@ -161,13 +161,13 @@ if (args.includes('--exit-code')) setExitCodeOnly(true);
 function showHelp() {
   const v = require('../package.json').version;
   console.log(`kdna v${v} — KDNA runtime CLI
-  inspect   <file.kdna>              Inspect a .kdna container
+  inspect   <name[@version]|file>    Inspect an installed or local .kdna asset
   validate  <file.kdna>              Validate a .kdna container
   validate  <path> --runtime         Validate and require LoadPlan readiness
   validate  <bundle.json> --bundle   Validate a kdna.bundle.json manifest
                                      (component resolution + stub; Story 3)
-  plan-load <file.kdna>              Return a LoadPlan before runtime load
-  load      <file.kdna>              Render agent-ready judgment context
+  plan-load <name[@version]|file>    Return a LoadPlan before runtime load
+  load      <name[@version]|file>    Render agent-ready judgment context
                                      --profile=<index|compact|scenario|full>
                                      --as=<json|prompt|raw>
                                      --namespace=<component-id>
@@ -306,7 +306,10 @@ Diagnostics:
   available                            List available installed domains
   match     "<task>"                  Find the best-matching domain for a task
   install   <name|@scope/name|file>   Install a .kdna asset from local/registry
-  remove    <@scope/name>             Uninstall a package and remove it from the index
+                                      --allow-unverified permits an invalid local
+                                      asset only for an explicit dev workflow
+  remove    <@scope/name[@version]>   Remove one installed version
+  update    <@scope/name|--all>       Update installed assets from their registry
   list      [--json]                  List installed packages (human or JSON)
 Authoring & Publishing:
   publish  <file.kdna>               Publish a .kdna asset (see also --check)
@@ -660,14 +663,15 @@ switch (cmd) {
       const target = args.filter((a) => !a.startsWith('--'))[1];
       if (!target) error('Usage: kdna inspect <path> [--json] [--locale zh-CN]');
       const { isKdnaSourceDir, detectContainerFormat, inspect } = require('@aikdna/kdna-core');
-      const abs = require('node:path').resolve(target);
+      const resolvedAsset = resolveAsset(target);
+      const abs = resolvedAsset?.asset_path || require('node:path').resolve(target);
       if (!fs.existsSync(abs)) error(`File not found: ${target}`, EXIT.INPUT_ERROR);
       const containerFmt = detectContainerFormat(abs);
       const isKdna = isKdnaSourceDir(abs) || containerFmt === 'kdna';
       if (!isKdna) {
         error(`Not a valid KDNA container or source directory: ${target}`, EXIT.INPUT_ERROR);
       }
-      const out = inspect(target);
+      const out = inspect(abs);
       console.log(JSON.stringify(out, null, 2));
       return;
     } catch (e) {
@@ -1330,11 +1334,21 @@ switch (cmd) {
     break;
   }
   case 'remove': {
-    // kdna remove <@scope/name> — uninstall a package from
-    // ~/.kdna/packages/ and remove the entry from index.json.
+    // Without @version, remove the active version. If another version remains,
+    // the highest installed version becomes active.
     const removeInput = args.slice(1).find((a) => !a.startsWith('--')) || '';
-    if (!removeInput) error('Usage: kdna remove <@scope/name>', EXIT.INPUT_ERROR);
+    if (!removeInput) error('Usage: kdna remove <@scope/name[@version]>', EXIT.INPUT_ERROR);
     cmdRemove(removeInput);
+    break;
+  }
+  case 'update': {
+    if (args.includes('--all')) {
+      cmdUpdateAll();
+      break;
+    }
+    const updateInput = args.slice(1).find((a) => !a.startsWith('--')) || '';
+    if (!updateInput) error('Usage: kdna update <@scope/name|--all>', EXIT.INPUT_ERROR);
+    cmdUpdate(updateInput);
     break;
   }
   case 'list': {

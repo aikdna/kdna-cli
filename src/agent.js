@@ -898,7 +898,7 @@ function cmdPostvalidate(args = []) {
     console.error(`Invalid name "${input}".`);
     process.exit(2);
   }
-  const installed = getInstalled(parsed.full);
+  const installed = getInstalled(parsed.reference || parsed.full);
   if (!installed) {
     console.error(`${parsed.full} is not installed.`);
     process.exit(2);

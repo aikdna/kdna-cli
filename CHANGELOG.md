@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.32.1 (2026-07-14)
+
+- Add exact `@scope/name@version` resolution across installed-name inspect,
+  planning, loading, execution, verification, tests, explanations, and removal.
+  Unversioned references continue to resolve the active version.
+- Evolve the local package index to v3 with immutable `versions` and one
+  `active_version`, while preserving active-entry fields for compatibility and
+  migrating v2 indexes on the next write.
+- List every installed version and mark the active one. Removing the active
+  version deterministically selects the highest remaining installed version;
+  removing an explicit version leaves other versions intact.
+- Fail closed when a local asset does not pass Core validation. Development
+  workflows must opt in with `--allow-unverified`, whose JSON receipt includes
+  the failed verification state. Blocked assets remain non-executable.
+- Pin `ConsumptionPlan.asset_ref.digest` before execution and wire installed-name
+  `inspect` plus registry-backed `update` into the top-level CLI.
+- Resolve unpinned registry names by full SemVer precedence and only from
+  non-yanked exact releases. Invalid or entirely yanked release sets now fail
+  closed instead of falling back to registry order.
+- Commit package directories and index files atomically, serialize per-tier
+  mutations across processes, merge stale index writers, and recover validated
+  receipt-backed versions after an interrupted index commit.
+- Recheck installed bytes, content digests, and receipts before same-version
+  reinstall or update. Corrupted installs fail closed with an explicit
+  remove-and-reinstall recovery command.
+- Keep registry updates in the tier that supplied the active asset, including
+  project-local assets that override a global installation. `update --all`
+  continues after individual failures and returns a non-zero summary afterward.
+
 ## 0.32.0 (2026-07-14)
 
 - Require the exact registry release `@aikdna/kdna-core@0.17.0`. The Golden

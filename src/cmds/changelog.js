@@ -70,7 +70,7 @@ function cmdChangelog(args = []) {
   const resolver = new RegistryResolver({ allowNetwork: true });
   let entry;
   try {
-    ({ entry } = resolver.resolve(parsed.full));
+    ({ entry } = resolver.resolve(parsed.reference || parsed.full));
   } catch (e) {
     error(e.message, EXIT.REGISTRY_ERROR);
   }

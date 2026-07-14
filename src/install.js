@@ -4,7 +4,7 @@
  * Sources (priority order):
  *   kdna install <bare>                     → @aikdna/<bare>, from registry
  *   kdna install @scope/name                → from registry (any scope)
- *   kdna install @scope/name@1.2.3          → version pinned (TODO post-v0.7.0)
+ *   kdna install @scope/name@1.2.3          → exact registry version
  *   kdna install ./file.kdna                → local .kdna file
  *
  * Removed in v0.7 (breaking): github:user/repo, --from-git, cluster:github:...,
@@ -15,7 +15,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { execFileSync, spawnSync } = require('child_process');
 const core = require('@aikdna/kdna-core');
 const { RegistryResolver, nameFromAssetId, parseName } = require('./registry');
 const { EXIT, error } = require('./cmds/_common');
@@ -29,6 +29,7 @@ const {
   readContainer,
   readContainerJson,
   verifyAsset,
+  assertInstalledIntegrity,
 } = require('./package-store');
 
 const USER_KDNA_DIR = PATHS.root;
@@ -301,6 +302,7 @@ function cmdInstallExtended(input, args = []) {
   const yes = args.includes('--yes');
   const jsonMode = args.includes('--json');
   const trusted = args.includes('--trusted');
+  const allowUnverified = args.includes('--allow-unverified');
   const local = args.includes('--local');
   const source = parseSource(input);
 
@@ -308,7 +310,7 @@ function cmdInstallExtended(input, args = []) {
     case 'registry':
       return installFromRegistry(source.parsed, yes, jsonMode, local);
     case 'local-file':
-      return installFromLocalFile(source.path, yes, jsonMode, trusted, local);
+      return installFromLocalFile(source.path, yes, jsonMode, trusted, local, allowUnverified);
   }
 }
 
@@ -358,7 +360,7 @@ function installFromRegistry(parsed, yes, jsonMode = false, local = false) {
   const resolver = new RegistryResolver({ allowNetwork: true });
   let scope, entry;
   try {
-    ({ scope, entry } = resolver.resolve(parsed.full));
+    ({ scope, entry } = resolver.resolve(parsed.reference || parsed.full));
   } catch (e) {
     error(e.message, EXIT.REGISTRY_ERROR);
   }
@@ -511,7 +513,14 @@ function installCluster(clusterEntry, resolver, _yes, jsonMode = false) {
   }
 }
 
-function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false, local = false) {
+function installFromLocalFile(
+  filePath,
+  yes,
+  jsonMode = false,
+  trusted = false,
+  local = false,
+  allowUnverified = false,
+) {
   const abs = path.resolve(filePath);
   if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) error(`Not a file: ${abs}`);
   if (!abs.endsWith('.kdna')) error(`Not a .kdna asset: ${abs}`, EXIT.INPUT_ERROR);
@@ -547,7 +556,7 @@ function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false, 
     const reasons = trustLevel.issues.map((i) => `  - ${i}`).join('\n');
     error(
       `Signature/provenance verification failed for local .kdna asset:\n${reasons}\n\n` +
-        `Use 'kdna install <file.kdna>' without --trusted to install anyway (unverified local asset).`,
+        'Fix the asset, or use --allow-unverified only for an explicit development workflow.',
       EXIT.TRUST_FAILED,
     );
   }
@@ -570,6 +579,15 @@ function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false, 
       `--trusted requires Studio-compatible authoring provenance for quality_badge "${manifest.quality_badge}".\n` +
         'This asset lacks compiler provenance. Re-publish through Studio pipeline.',
       EXIT.TRUST_FAILED,
+    );
+  }
+
+  if (trustLevel.issues.length > 0 && !allowUnverified) {
+    const reasons = trustLevel.issues.map((issue) => `  - ${issue}`).join('\n');
+    error(
+      `Local asset validation failed; refusing to install:\n${reasons}\n\n` +
+        'Fix the asset, or use --allow-unverified only for an explicit development workflow.',
+      EXIT.VALIDATION_FAILED,
     );
   }
 
@@ -606,6 +624,12 @@ function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false, 
         receipt_path: installed.receipt_path,
         asset_digest: installed.asset_digest,
         content_digest: installed.content_digest,
+        verification: {
+          status: trustLevel.label,
+          valid: trustLevel.issues.length === 0,
+          issues: trustLevel.issues,
+          allow_unverified: allowUnverified,
+        },
         source: 'local-file',
         source_path: abs,
       }),
@@ -621,12 +645,13 @@ function installFromLocalFile(filePath, yes, jsonMode = false, trusted = false, 
 function cmdRemove(input) {
   const parsed = parseName(input);
   if (!parsed) error(`Invalid name "${input}". Use @scope/name or bare name.`);
-  auditLog('remove', { name: parsed.full });
-  if (!removeInstalled(parsed.full)) {
-    console.log(`${parsed.full} is not installed.`);
+  const reference = parsed.version ? `${parsed.full}@${parsed.version}` : parsed.full;
+  auditLog('remove', { name: parsed.full, version: parsed.version || null });
+  if (!removeInstalled(reference)) {
+    console.log(`${reference} is not installed.`);
     return;
   }
-  console.log(`✓ Removed ${parsed.full}`);
+  console.log(`✓ Removed ${reference}`);
 }
 
 // ─── List ───────────────────────────────────────────────────────────────
@@ -637,7 +662,7 @@ function cmdRemove(input) {
 // "what is installed on this machine" question.
 function cmdList(args = []) {
   const jsonMode = args.includes('--json');
-  const installed = listInstalled();
+  const installed = listInstalled({ allVersions: true });
 
   if (jsonMode) {
     const out = installed.map((entry) => ({
@@ -648,6 +673,8 @@ function cmdList(args = []) {
       asset_path: entry.asset_path,
       asset_digest: entry.asset_digest || null,
       content_digest: entry.content_digest || null,
+      active: entry.active === true,
+      tier: entry.tier,
       installed_at: entry.installed_at || null,
     }));
     process.stdout.write(JSON.stringify(out, null, 2) + '\n');
@@ -663,7 +690,9 @@ function cmdList(args = []) {
   for (const entry of installed) {
     const access = entry.access || 'public';
     console.log('');
-    console.log(`  ${entry.full}  v${entry.version || '?'}  [${access}]`);
+    console.log(
+      `  ${entry.full}  v${entry.version || '?'}  [${access}]${entry.active ? ' [active]' : ''}`,
+    );
     if (entry.judgment_version) {
       console.log(`    judgment_version: ${entry.judgment_version}`);
     }
@@ -681,7 +710,7 @@ function cmdList(args = []) {
 function cmdInfo(input, jsonMode = false) {
   const parsed = parseName(input);
   if (!parsed) error(`Invalid name "${input}".`, EXIT.INPUT_ERROR);
-  const installed = getInstalled(parsed.full);
+  const installed = getInstalled(parsed.reference || parsed.full);
   if (!installed) error(`${parsed.full} is not installed.`, EXIT.INPUT_ERROR);
 
   const container = readContainer(installed.asset_path);
@@ -849,20 +878,26 @@ function cmdInfo(input, jsonMode = false) {
 
 // ─── Update ─────────────────────────────────────────────────────────────
 
-function cmdUpdate(input) {
+function cmdUpdate(input, options = {}) {
   const parsed = parseName(input);
   if (!parsed) error(`Invalid name "${input}".`);
-  const installed = getInstalled(parsed.full);
+  const findInstalled = options.getInstalled || getInstalled;
+  const installed = findInstalled(parsed.reference || parsed.full);
   if (!installed) {
     console.log(`${parsed.full} not installed. Run: kdna install ${input}`);
     return;
   }
   const installedVersion = installed.version || '?';
+  try {
+    assertInstalledIntegrity(installed, `${parsed.full}@${installedVersion}`);
+  } catch (integrityError) {
+    error(integrityError.message, EXIT.VALIDATION_FAILED);
+  }
 
-  const resolver = new RegistryResolver({ allowNetwork: true, refresh: true });
+  const resolver = options.resolver || new RegistryResolver({ allowNetwork: true, refresh: true });
   let entry;
   try {
-    ({ entry } = resolver.resolve(parsed.full));
+    ({ entry } = resolver.resolve(parsed.reference || parsed.full));
   } catch (e) {
     error(e.message, EXIT.REGISTRY_ERROR);
   }
@@ -872,22 +907,69 @@ function cmdUpdate(input) {
     return;
   }
   console.log(`Updating ${parsed.full}: ${installedVersion} → ${entry.version}`);
-  cmdInstallExtended(parsed.full, ['--yes']);
+  const install = options.install || cmdInstallExtended;
+  const installArgs = ['--yes'];
+  if (installed.tier === 'project') installArgs.push('--local');
+  install(`${entry.name}@${entry.version}`, installArgs);
 }
 
-function cmdUpdateAll() {
-  const installed = listInstalled();
+function runUpdateSubprocess(name) {
+  const result = spawnSync(process.execPath, [path.join(__dirname, 'cli.js'), 'update', name], {
+    encoding: 'utf8',
+    env: process.env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  return {
+    ok: result.status === 0,
+    code: result.status ?? 1,
+    stdout: result.stdout || '',
+    stderr: result.stderr || result.error?.message || '',
+  };
+}
+
+function cmdUpdateAll(options = {}) {
+  const installed = options.installed || listInstalled();
+  const runUpdate = options.runUpdate || runUpdateSubprocess;
   if (!installed.length) {
     console.log('No installs.');
-    return;
+    return { total: 0, succeeded: 0, failed: 0, results: [] };
   }
+  const results = [];
   for (const entry of installed) {
+    let result;
     try {
-      cmdUpdate(entry.full);
-    } catch (e) {
-      console.warn(`  ⚠ ${entry.full}: ${e.message.split('\n')[0]}`);
+      result = runUpdate(entry.full);
+    } catch (error) {
+      result = {
+        ok: false,
+        code: 1,
+        stdout: '',
+        stderr: error?.message || String(error),
+      };
     }
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (!result.ok) {
+      const message = String(result.stderr || `exit ${result.code}`)
+        .trim()
+        .split('\n')[0];
+      console.warn(`  ⚠ ${entry.full}: ${message}`);
+    }
+    results.push({ name: entry.full, ok: result.ok, code: result.code });
   }
+  const failed = results.filter((result) => !result.ok).length;
+  const summary = {
+    total: results.length,
+    succeeded: results.length - failed,
+    failed,
+    results,
+  };
+  console.log(
+    `Update summary: ${summary.succeeded}/${summary.total} completed, ${summary.failed} failed.`,
+  );
+  if (failed > 0 && options.setExitCode !== false) {
+    process.exitCode = 1;
+  }
+  return summary;
 }
 
 module.exports = {
@@ -897,5 +979,6 @@ module.exports = {
   cmdInfo,
   cmdUpdate,
   cmdUpdateAll,
+  runUpdateSubprocess,
   INSTALL_DIR,
 };

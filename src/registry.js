@@ -27,9 +27,69 @@ const DEFAULT_OFFICIAL_SCOPE = '@aikdna';
 const CANONICAL_REGISTRY_URL = process.env.KDNA_REGISTRY_URL || '';
 const REQUIRED_SCHEMA_VERSION = '3.0';
 
-const NAME_RE = /^@([a-z][a-z0-9-]*)\/([a-z][a-z0-9_-]*)$/;
-const BARE_NAME_RE = /^[a-z][a-z0-9_-]*$/;
+const VERSION_SOURCE =
+  '(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)' +
+  '(?:-([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?' +
+  '(?:\\+([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?';
+const NAME_RE = new RegExp(`^@([a-z][a-z0-9-]*)/([a-z][a-z0-9_-]*)(?:@(${VERSION_SOURCE}))?$`);
+const BARE_NAME_RE = new RegExp(`^([a-z][a-z0-9_-]*)(?:@(${VERSION_SOURCE}))?$`);
 const ASSET_ID_RE = /^kdna:([a-z][a-z0-9-]*):([a-z][a-z0-9_-]*)$/;
+
+function parseExactVersion(version) {
+  if (typeof version !== 'string') return null;
+  const match = version.match(new RegExp(`^${VERSION_SOURCE}$`));
+  if (!match) return null;
+  const prerelease = match[4] ? match[4].split('.') : [];
+  if (
+    prerelease.some((identifier) => /^[0-9]+$/.test(identifier) && /^0[0-9]+$/.test(identifier))
+  ) {
+    return null;
+  }
+  return {
+    major: BigInt(match[1]),
+    minor: BigInt(match[2]),
+    patch: BigInt(match[3]),
+    prerelease,
+  };
+}
+
+function compareExactVersions(a, b) {
+  const left = parseExactVersion(a);
+  const right = parseExactVersion(b);
+  if (!left || !right) return String(a).localeCompare(String(b), 'en', { numeric: true });
+
+  for (const field of ['major', 'minor', 'patch']) {
+    if (left[field] !== right[field]) return left[field] < right[field] ? -1 : 1;
+  }
+  if (left.prerelease.length === 0 && right.prerelease.length === 0) return 0;
+  if (left.prerelease.length === 0) return 1;
+  if (right.prerelease.length === 0) return -1;
+
+  const length = Math.max(left.prerelease.length, right.prerelease.length);
+  for (let index = 0; index < length; index += 1) {
+    const leftId = left.prerelease[index];
+    const rightId = right.prerelease[index];
+    if (leftId === undefined) return -1;
+    if (rightId === undefined) return 1;
+    if (leftId === rightId) continue;
+    const leftNumeric = /^[0-9]+$/.test(leftId);
+    const rightNumeric = /^[0-9]+$/.test(rightId);
+    if (leftNumeric && rightNumeric) return BigInt(leftId) < BigInt(rightId) ? -1 : 1;
+    if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1;
+    return leftId < rightId ? -1 : 1;
+  }
+  return 0;
+}
+
+function selectRegistryEntry(candidates, version = null) {
+  if (version) return candidates.find((candidate) => candidate.version === version) || null;
+  const nonYanked = candidates.filter((candidate) => candidate.yanked !== true);
+  return (
+    nonYanked
+      .filter((candidate) => parseExactVersion(candidate.version))
+      .sort((a, b) => compareExactVersions(b.version, a.version))[0] || null
+  );
+}
 
 function readJson(file) {
   try {
@@ -174,9 +234,11 @@ function isEntryRevoked(registry, entry) {
 // ─── Name parsing ───────────────────────────────────────────────────────
 
 /**
- * Parse a name string into { scope, ident, full }.
+ * Parse a name string into { scope, ident, full, version, reference }.
  * - "@aikdna/writing" → { scope: "@aikdna", ident: "writing", full: "@aikdna/writing" }
+ * - "@aikdna/writing@1.2.3" → the same canonical `full` plus version "1.2.3"
  * - "writing" → expanded to default official scope → @aikdna/writing
+ * - "writing@1.2.3" → @aikdna/writing pinned to version "1.2.3"
  * Returns null if invalid.
  */
 function parseName(input) {
@@ -185,20 +247,29 @@ function parseName(input) {
 
   const scoped = trimmed.match(NAME_RE);
   if (scoped) {
+    if (scoped[3] && !parseExactVersion(scoped[3])) return null;
+    const full = `@${scoped[1]}/${scoped[2]}`;
     return {
       scope: `@${scoped[1]}`,
       ident: scoped[2],
-      full: trimmed,
+      full,
+      version: scoped[3] || null,
+      reference: trimmed,
       wasShort: false,
     };
   }
 
-  if (BARE_NAME_RE.test(trimmed)) {
+  const bare = trimmed.match(BARE_NAME_RE);
+  if (bare) {
+    if (bare[2] && !parseExactVersion(bare[2])) return null;
     const scope = DEFAULT_OFFICIAL_SCOPE;
+    const full = `${scope}/${bare[1]}`;
     return {
       scope,
-      ident: trimmed,
-      full: `${scope}/${trimmed}`,
+      ident: bare[1],
+      full,
+      version: bare[2] || null,
+      reference: trimmed,
       wasShort: true,
     };
   }
@@ -346,8 +417,22 @@ class RegistryResolver {
       throw new Error(`Scope ${parsed.scope} not registered in registry.`);
     }
 
-    const entry = (registry.domains || []).find((d) => d.name === parsed.full);
+    const candidates = (registry.domains || []).filter((d) => d.name === parsed.full);
+    const entry = selectRegistryEntry(candidates, parsed.version);
     if (!entry) {
+      if (parsed.version && candidates.length > 0) {
+        const available = candidates.map((candidate) => candidate.version).filter(Boolean);
+        throw new Error(
+          `Domain ${parsed.full}@${parsed.version} not found in registry.` +
+            (available.length ? ` Available versions: ${available.join(', ')}` : ''),
+        );
+      }
+      if (candidates.length > 0) {
+        throw new Error(
+          `Domain ${parsed.full} has no installable release. ` +
+            'Unversioned installs require a non-yanked release with a valid exact SemVer.',
+        );
+      }
       const sameScope = (registry.domains || [])
         .filter((d) => d.name.startsWith(parsed.scope + '/'))
         .map((d) => d.name);
@@ -415,4 +500,6 @@ module.exports = {
   CANONICAL_REGISTRY_URL,
   REGISTRY_CACHE: path.join(REGISTRY_DIR, 'domains.json'),
   DEFAULT_OFFICIAL_SCOPE,
+  compareExactVersions,
+  selectRegistryEntry,
 };

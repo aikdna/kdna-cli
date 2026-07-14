@@ -740,7 +740,7 @@ function cmdVerify(input, args = []) {
       console.log(JSON.stringify({ ok: false, error: `Invalid name: ${input}` }));
       process.exit(EXIT.INPUT_ERROR);
     }
-    const installed = getInstalled(parsed.full);
+    const installed = getInstalled(parsed.reference || parsed.full);
     if (!installed) {
       console.log(JSON.stringify({ ok: false, error: `Domain not installed: ${input}` }));
       process.exit(EXIT.INPUT_ERROR);
@@ -801,7 +801,7 @@ function cmdVerify(input, args = []) {
     try {
       const resolver = new RegistryResolver({ allowNetwork: false });
       if (parsed) {
-        const r = resolver.resolve(parsed.full);
+        const r = resolver.resolve(parsed.reference || parsed.full);
         scope = r.scope;
         entry = r.entry;
         registry = r.registry;
