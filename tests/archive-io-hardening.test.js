@@ -9,8 +9,10 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const zlib = require('node:zlib');
 const core = require('@aikdna/kdna-core');
+const cbor = require('cbor-x');
 const { downloadVersion: downloadForDiff, loadJudgment } = require('../src/diff');
 const { downloadVersion: downloadForChangelog } = require('../src/cmds/changelog');
+const { assetDigest } = require('../src/package-store');
 const { extractKdnaArchive } = require('../src/safe-archive');
 
 const cli = path.join(__dirname, '..', 'src', 'cli.js');
@@ -43,7 +45,7 @@ function zipExtra(id, data = Buffer.alloc(0)) {
   return extra;
 }
 
-function buildStoredZip(entries) {
+function buildStoredZip(entries, options = {}) {
   const localChunks = [];
   const centralChunks = [];
   let offset = 0;
@@ -106,7 +108,10 @@ function buildStoredZip(entries) {
   eocd.writeUInt16LE(entries.length, 10);
   eocd.writeUInt32LE(centralSize, 12);
   eocd.writeUInt32LE(centralOffset, 16);
-  return Buffer.concat([...localChunks, ...centralChunks, eocd]);
+  const orderedCentral = options.centralOrder
+    ? options.centralOrder.map((index) => centralChunks[index])
+    : centralChunks;
+  return Buffer.concat([...localChunks, ...orderedCentral, eocd]);
 }
 
 function maliciousArchive(entry) {
@@ -130,7 +135,7 @@ function makeValidArchive(tmp) {
   return archive;
 }
 
-function makeHistoricalArchive(output, version, axiomText) {
+function makeHistoricalArchive(output, version, axiomText, options = {}) {
   const entries = [
     { name: 'mimetype', data: 'application/vnd.aikdna.kdna+zip' },
     {
@@ -138,27 +143,68 @@ function makeHistoricalArchive(output, version, axiomText) {
       method: 8,
       data: JSON.stringify({
         axioms: [{ id: 'judgment-core', one_sentence: axiomText }],
-        ontology: [],
+        ontology: options.ontology || [],
         stances: [],
       }),
     },
     {
       name: 'KDNA_Patterns.json',
       method: 8,
-      data: JSON.stringify({ misunderstandings: [], terminology: { banned_terms: [] } }),
+      data: JSON.stringify({
+        misunderstandings: [],
+        terminology: { banned_terms: options.bannedTerms || [] },
+      }),
     },
     {
       name: 'kdna.json',
       method: 8,
-      data: JSON.stringify({ version, judgment_version: version }),
+      data: JSON.stringify({
+        name: options.name || '@aikdna/archive-history',
+        version: options.manifestVersion || version,
+        judgment_version: options.manifestVersion || version,
+      }),
     },
   ];
   fs.writeFileSync(output, buildStoredZip(entries));
   return output;
 }
 
-function writeRegistryHome(entries) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-archive-registry-'));
+function makeRuntimeArchive(root, name, version, axiomText) {
+  const source = path.join(root, `runtime-source-${version}-${path.basename(name)}`);
+  fs.cpSync(path.join(__dirname, '..', 'fixtures', 'v1-judgment'), source, {
+    recursive: true,
+  });
+  const manifestPath = path.join(source, 'kdna.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const [scope, ident] = name.split('/');
+  manifest.asset_id = `kdna:${scope.slice(1)}:${ident}`;
+  delete manifest.name;
+  manifest.version = version;
+  manifest.judgment_version = version;
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  fs.writeFileSync(
+    path.join(source, 'payload.kdnab'),
+    cbor.encode({
+      profile: 'judgment-profile-v1',
+      core: {
+        highest_question: `Question ${version}`,
+        axioms: [{ id: 'judgment-core', one_sentence: axiomText }],
+        ontology: [],
+        stances: [],
+      },
+      patterns: [],
+    }),
+  );
+  fs.writeFileSync(
+    path.join(source, 'checksums.json'),
+    JSON.stringify(core.buildChecksums(source), null, 2) + '\n',
+  );
+  const output = path.join(root, `runtime-${version}-${path.basename(name)}.kdna`);
+  core.pack(source, output);
+  return output;
+}
+
+function writeRegistry(home, entries) {
   const registryDir = path.join(home, '.kdna', 'registry');
   fs.mkdirSync(registryDir, { recursive: true });
   fs.writeFileSync(
@@ -189,21 +235,23 @@ function writeRegistryHome(entries) {
       domains: entries,
     }),
   );
+}
+
+function writeRegistryHome(entries) {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-archive-registry-'));
+  writeRegistry(home, entries);
   return home;
 }
 
-function registryEntry(version, archive) {
+function registryEntry(name, version, archive, options = {}) {
   return {
-    name: '@aikdna/archive-history',
+    name,
     type: 'domain',
     version,
     status: 'experimental',
     access: 'open',
     asset_url: pathToFileURL(archive).href,
-    asset_digest: `sha256:${version
-      .replaceAll(/[^0-9]/g, '')
-      .padEnd(64, '0')
-      .slice(0, 64)}`,
+    asset_digest: options.assetDigest || assetDigest(archive),
     signature: 'ed25519:test',
     release_status: 'published_signed',
   };
@@ -347,6 +395,23 @@ test('downloaded archive preflight rejects path, encoding, collision, and file-t
       () => extractKdnaArchive(hierarchyCollision, path.join(tmp, 'hierarchy-out')),
       /path conflicts with an ordinary file/,
     );
+
+    const centralOrderBypass = path.join(tmp, 'central-order-bypass.kdna');
+    fs.writeFileSync(
+      centralOrderBypass,
+      buildStoredZip(
+        [
+          { name: 'kdna.json', data: '{}' },
+          { name: 'mimetype', data: core.MIMETYPE },
+          { name: 'payload.kdnab', data: '{}' },
+        ],
+        { centralOrder: [1, 0, 2] },
+      ),
+    );
+    assert.throws(
+      () => extractKdnaArchive(centralOrderBypass, path.join(tmp, 'central-order-out')),
+      /first physical local entry at offset 0/,
+    );
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -465,7 +530,139 @@ test('diff and changelog fail closed when a registry entry version does not matc
     () => downloadForChangelog(mismatched, '1.0.0', '/unused/changelog', options),
     /registry version mismatch/,
   );
+  assert.throws(
+    () =>
+      downloadForDiff(
+        { ...mismatched, version: '1.0.0', asset_digest: undefined },
+        '1.0.0',
+        '/unused/digest',
+        options,
+      ),
+    /no canonical asset_digest/,
+  );
+  const wrongResolvedIdentity = {
+    ...mismatched,
+    name: '@aikdna/wrong-registry-entry',
+    version: '1.0.0',
+    asset_digest: `sha256:${'0'.repeat(64)}`,
+  };
+  for (const downloadVersion of [downloadForDiff, downloadForChangelog]) {
+    assert.throws(
+      () =>
+        downloadVersion(wrongResolvedIdentity, '1.0.0', '/unused/identity', {
+          ...options,
+          expectedName: '@aikdna/archive-history',
+        }),
+      /registry identity mismatch/,
+    );
+  }
   assert.equal(downloadCalled, false);
+});
+
+test('registry downloads bind bytes, manifest identity, and manifest version before use', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-registry-binding-'));
+  try {
+    const name = '@aikdna/archive-history';
+    const sameUrl = makeHistoricalArchive(
+      path.join(tmp, 'same-url.kdna'),
+      '1.0.0',
+      'Original bytes',
+    );
+    const originalDigest = assetDigest(sameUrl);
+    const replacement = makeHistoricalArchive(
+      path.join(tmp, 'replacement.kdna'),
+      '1.0.0',
+      'Replaced bytes',
+    );
+    fs.copyFileSync(replacement, sameUrl);
+    assert.throws(
+      () =>
+        downloadForDiff(
+          {
+            name,
+            version: '1.0.0',
+            asset_url: pathToFileURL(sameUrl).href,
+            asset_digest: originalDigest,
+          },
+          '1.0.0',
+          path.join(tmp, 'same-url-out'),
+        ),
+      /do not match registry asset_digest/,
+    );
+
+    const valid = makeHistoricalArchive(
+      path.join(tmp, 'valid-binding.kdna'),
+      '1.0.0',
+      'Valid binding',
+    );
+    assert.throws(
+      () =>
+        downloadForChangelog(
+          {
+            name,
+            version: '1.0.0',
+            asset_url: pathToFileURL(valid).href,
+            asset_digest: `sha256:${'0'.repeat(64)}`,
+          },
+          '1.0.0',
+          path.join(tmp, 'fake-digest-out'),
+        ),
+      /do not match registry asset_digest/,
+    );
+
+    const wrongIdentity = makeHistoricalArchive(
+      path.join(tmp, 'wrong-identity.kdna'),
+      '1.0.0',
+      'Wrong identity',
+      { name: '@aikdna/not-the-registry-name' },
+    );
+    assert.throws(
+      () =>
+        downloadForDiff(
+          {
+            name,
+            version: '1.0.0',
+            asset_url: pathToFileURL(wrongIdentity).href,
+            asset_digest: assetDigest(wrongIdentity),
+          },
+          '1.0.0',
+          path.join(tmp, 'wrong-identity-out'),
+        ),
+      /identity does not match registry entry/,
+    );
+
+    const wrongVersion = makeHistoricalArchive(
+      path.join(tmp, 'wrong-version.kdna'),
+      '1.0.0',
+      'Wrong version',
+      { manifestVersion: '9.9.9' },
+    );
+    assert.throws(
+      () =>
+        downloadForChangelog(
+          {
+            name,
+            version: '1.0.0',
+            asset_url: pathToFileURL(wrongVersion).href,
+            asset_digest: assetDigest(wrongVersion),
+          },
+          '1.0.0',
+          path.join(tmp, 'wrong-version-out'),
+        ),
+      /version does not match registry entry/,
+    );
+
+    for (const destination of [
+      'same-url-out',
+      'fake-digest-out',
+      'wrong-identity-out',
+      'wrong-version-out',
+    ]) {
+      assert.equal(fs.existsSync(path.join(tmp, destination)), false);
+    }
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 });
 
 test('diff archive download accepts a valid KDNA and cleans its temporary download', () => {
@@ -475,7 +672,12 @@ test('diff archive download accepts a valid KDNA and cleans its temporary downlo
     const destination = path.join(tmp, 'diff-out');
     const downloads = [];
     downloadForDiff(
-      { version: '1.0.0', asset_url: 'https://invalid.example/asset-1.0.0.kdna' },
+      {
+        name: '@example/content-review',
+        version: '1.0.0',
+        asset_url: 'https://invalid.example/asset-1.0.0.kdna',
+        asset_digest: assetDigest(archive),
+      },
       '1.0.0',
       destination,
       { downloadFile: copyDownloader(archive, downloads) },
@@ -498,7 +700,12 @@ test('diff archive download rejects traversal without creating its destination',
     assert.throws(
       () =>
         downloadForDiff(
-          { version: '1.0.0', asset_url: 'https://invalid.example/asset-1.0.0.kdna' },
+          {
+            name: '@example/content-review',
+            version: '1.0.0',
+            asset_url: 'https://invalid.example/asset-1.0.0.kdna',
+            asset_digest: assetDigest(archive),
+          },
           '1.0.0',
           destination,
           { downloadFile: copyDownloader(archive, downloads) },
@@ -524,7 +731,12 @@ test('changelog archive download accepts valid KDNA and rejects link metadata', 
     const validArchive = makeValidArchive(tmp);
     const validDestination = path.join(tmp, 'changelog-valid');
     downloadForChangelog(
-      { version: '1.0.0', asset_url: 'https://invalid.example/asset.kdna' },
+      {
+        name: '@example/content-review',
+        version: '1.0.0',
+        asset_url: 'https://invalid.example/asset.kdna',
+        asset_digest: assetDigest(validArchive),
+      },
       '1.0.0',
       validDestination,
       { downloadFile: copyDownloader(validArchive) },
@@ -544,7 +756,12 @@ test('changelog archive download accepts valid KDNA and rejects link metadata', 
     assert.throws(
       () =>
         downloadForChangelog(
-          { version: '1.0.0', asset_url: 'https://invalid.example/asset.kdna' },
+          {
+            name: '@example/content-review',
+            version: '1.0.0',
+            asset_url: 'https://invalid.example/asset.kdna',
+            asset_digest: assetDigest(malicious),
+          },
           '1.0.0',
           rejectedDestination,
           { downloadFile: copyDownloader(malicious) },
@@ -557,46 +774,37 @@ test('changelog archive download accepts valid KDNA and rejects link metadata', 
   }
 });
 
-test('diff and changelog resolve and compare two exact registry versions', () => {
+test('diff and changelog read real semantic changes from two exact runtime payloads', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-exact-version-'));
   let home;
   try {
-    const oldArchive = makeHistoricalArchive(
-      path.join(tmp, 'archive-1.0.0.kdna'),
-      '1.0.0',
-      'Old judgment',
-    );
-    const newArchive = makeHistoricalArchive(
-      path.join(tmp, 'archive-2.0.0.kdna'),
-      '2.0.0',
-      'New judgment',
+    const name = '@aikdna/runtime-history';
+    const oldArchive = makeRuntimeArchive(tmp, name, '1.0.0', 'Old runtime judgment');
+    const newArchive = makeRuntimeArchive(tmp, name, '2.0.0', 'New runtime judgment');
+    const directRuntimeJudgment = loadJudgment(oldArchive);
+    assert.equal(directRuntimeJudgment.version, '1.0.0');
+    assert.equal(
+      directRuntimeJudgment.axioms['judgment-core']?.one_sentence,
+      'Old runtime judgment',
     );
     home = writeRegistryHome([
-      registryEntry('1.0.0', oldArchive),
-      registryEntry('2.0.0', newArchive),
+      registryEntry(name, '1.0.0', oldArchive),
+      registryEntry(name, '2.0.0', newArchive),
     ]);
     const commandTmp = path.join(tmp, 'command-tmp');
     fs.mkdirSync(commandTmp);
     const env = { HOME: home, TMPDIR: commandTmp };
 
-    const diff = runCli(
-      [
-        'quality',
-        'diff',
-        '@aikdna/archive-history@1.0.0',
-        '@aikdna/archive-history@2.0.0',
-        '--json',
-      ],
-      env,
-    );
+    const diff = runCli(['quality', 'diff', `${name}@1.0.0`, `${name}@2.0.0`, '--json'], env);
     assert.equal(diff.status, 0, diff.stderr);
     const diffOutput = JSON.parse(diff.stdout);
     assert.equal(diffOutput.old_version, '1.0.0');
     assert.equal(diffOutput.new_version, '2.0.0');
+    assert.ok(diffOutput.changed_axioms[0], diff.stdout);
     assert.equal(diffOutput.changed_axioms[0].id, 'judgment-core');
 
     const changelog = runCli(
-      ['changelog', '@aikdna/archive-history', '--from', '1.0.0', '--to', '2.0.0', '--json'],
+      ['changelog', name, '--from', '1.0.0', '--to', '2.0.0', '--json'],
       env,
     );
     assert.equal(changelog.status, 0, changelog.stderr);
@@ -604,6 +812,131 @@ test('diff and changelog resolve and compare two exact registry versions', () =>
     assert.equal(changelogOutput.from, '1.0.0');
     assert.equal(changelogOutput.to, '2.0.0');
     assert.equal(changelogOutput.changes.axioms['judgment-core'].status, 'changed');
+    assert.deepEqual(fs.readdirSync(commandTmp), []);
+  } finally {
+    if (home) fs.rmSync(home, { recursive: true, force: true });
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('single-argument diff uses the verified installed asset without resolving its old registry entry', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-installed-diff-'));
+  let home;
+  try {
+    const name = '@aikdna/installed-history';
+    const oldArchive = makeRuntimeArchive(tmp, name, '1.0.0', 'Installed old judgment');
+    const newArchive = makeRuntimeArchive(tmp, name, '2.0.0', 'Registry new judgment');
+    home = writeRegistryHome([registryEntry(name, '2.0.0', newArchive)]);
+    const commandTmp = path.join(tmp, 'command-tmp');
+    const project = path.join(tmp, 'project');
+    fs.mkdirSync(commandTmp);
+    fs.mkdirSync(project);
+    const env = {
+      HOME: home,
+      KDNA_HOME: path.join(home, '.kdna'),
+      KDNA_PROJECT_ROOT: project,
+      TMPDIR: commandTmp,
+    };
+
+    const install = runCli(['install', oldArchive, '--yes', '--json', '--allow-unverified'], env);
+    assert.equal(install.status, 0, install.stderr);
+    const installed = JSON.parse(install.stdout);
+
+    // The registry contains only v2. A successful comparison proves v1 came
+    // from the installed package rather than a stale/yanked registry record.
+    const diff = runCli(['quality', 'diff', name, '--json'], env);
+    assert.equal(diff.status, 0, diff.stderr);
+    const output = JSON.parse(diff.stdout);
+    assert.equal(output.old_version, '1.0.0');
+    assert.equal(output.new_version, '2.0.0');
+    assert.equal(output.changed_axioms[0].id, 'judgment-core');
+    assert.deepEqual(fs.readdirSync(commandTmp), []);
+
+    fs.appendFileSync(installed.path, 'tamper');
+    const tampered = runCli(['quality', 'diff', name, '--json'], env);
+    assert.notEqual(tampered.status, 0, tampered.stderr);
+    assert.match(tampered.stderr, /failed integrity/i);
+    assert.deepEqual(fs.readdirSync(commandTmp), []);
+  } finally {
+    if (home) fs.rmSync(home, { recursive: true, force: true });
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('changelog counts ontology and banned-term changes and reserves no-change for semantic zero', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-changelog-semantics-'));
+  let home;
+  try {
+    const name = '@aikdna/changelog-semantics';
+    const oldArchive = makeHistoricalArchive(
+      path.join(tmp, 'changelog-1.0.0.kdna'),
+      '1.0.0',
+      'Stable axiom',
+      {
+        name,
+        ontology: [
+          { id: 'removed-concept', concept: 'Removed concept' },
+          { id: 'changed-concept', concept: 'Old concept meaning' },
+        ],
+        bannedTerms: [
+          { term: 'removed-term', reason: 'Old prohibition' },
+          { term: 'changed-term', reason: 'Old reason' },
+        ],
+      },
+    );
+    const newArchive = makeHistoricalArchive(
+      path.join(tmp, 'changelog-2.0.0.kdna'),
+      '2.0.0',
+      'Stable axiom',
+      {
+        name,
+        ontology: [
+          { id: 'changed-concept', concept: 'New concept meaning' },
+          { id: 'added-concept', concept: 'Added concept' },
+        ],
+        bannedTerms: [
+          { term: 'changed-term', reason: 'New reason' },
+          { term: 'added-term', reason: 'New prohibition' },
+        ],
+      },
+    );
+    const sameA = makeHistoricalArchive(
+      path.join(tmp, 'changelog-3.0.0.kdna'),
+      '3.0.0',
+      'Identical semantic judgment',
+      { name },
+    );
+    const sameB = makeHistoricalArchive(
+      path.join(tmp, 'changelog-4.0.0.kdna'),
+      '4.0.0',
+      'Identical semantic judgment',
+      { name },
+    );
+    home = writeRegistryHome([
+      registryEntry(name, '1.0.0', oldArchive),
+      registryEntry(name, '2.0.0', newArchive),
+      registryEntry(name, '3.0.0', sameA),
+      registryEntry(name, '4.0.0', sameB),
+    ]);
+    const commandTmp = path.join(tmp, 'command-tmp');
+    fs.mkdirSync(commandTmp);
+    const env = { HOME: home, TMPDIR: commandTmp };
+
+    const changed = runCli(['changelog', name, '--from', '1.0.0', '--to', '2.0.0', '--json'], env);
+    assert.equal(changed.status, 0, changed.stderr);
+    const output = JSON.parse(changed.stdout);
+    assert.equal(output.changes.ontology['removed-concept'].status, 'removed');
+    assert.equal(output.changes.ontology['changed-concept'].status, 'changed');
+    assert.equal(output.changes.ontology['added-concept'].status, 'added');
+    assert.deepEqual(output.changes.banned_terms.removed, ['removed-term']);
+    assert.deepEqual(output.changes.banned_terms.changed, ['changed-term']);
+    assert.deepEqual(output.changes.banned_terms.added, ['added-term']);
+    assert.equal(output.recommended_version_bump, 'major');
+
+    const unchanged = runCli(['changelog', name, '--from', '3.0.0', '--to', '4.0.0'], env);
+    assert.equal(unchanged.status, 0, unchanged.stderr);
+    assert.match(unchanged.stdout, /No judgment changes detected\./);
+    assert.doesNotMatch(unchanged.stdout, /Recommended version bump/);
     assert.deepEqual(fs.readdirSync(commandTmp), []);
   } finally {
     if (home) fs.rmSync(home, { recursive: true, force: true });
@@ -622,8 +955,10 @@ test('diff and changelog report download failures as provider errors and clean t
     );
     const missingArchive = path.join(tmp, 'missing-2.0.0.kdna');
     home = writeRegistryHome([
-      registryEntry('1.0.0', oldArchive),
-      registryEntry('2.0.0', missingArchive),
+      registryEntry('@aikdna/archive-history', '1.0.0', oldArchive),
+      registryEntry('@aikdna/archive-history', '2.0.0', missingArchive, {
+        assetDigest: `sha256:${'f'.repeat(64)}`,
+      }),
     ]);
     for (const [label, args] of [
       [

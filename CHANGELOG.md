@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- Bind registry-backed `quality diff` and `changelog` inputs to the exact
+  registry digest, manifest identity, and version before reading judgment
+  content. Single-argument diff now compares the integrity-checked installed
+  asset directly with the current registry release.
+- Read formal `payload.kdnab` judgment fields as well as historical authoring
+  JSON, and include ontology and banned-term changes in changelog output and
+  version-bump recommendations.
+- Harden network-fetched diff/changelog archive extraction. The command safety
+  policy limits each uncompressed entry to 5 MiB and the total uncompressed
+  archive content to 12 MiB; these are command download limits, not KDNA format
+  limits.
+
 ## 0.32.1 (2026-07-14)
 
 - Add exact `@scope/name@version` resolution across installed-name inspect,

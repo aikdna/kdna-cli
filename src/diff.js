@@ -21,7 +21,7 @@ const os = require('os');
 const path = require('path');
 const { RegistryResolver } = require('./registry');
 const { EXIT } = require('./cmds/_common');
-const { getInstalled, readContainer } = require('./package-store');
+const { assertInstalledIntegrity, getInstalled, readContainer } = require('./package-store');
 const { downloadAndExtractKdna } = require('./safe-archive');
 
 function error(msg, code = EXIT.VALIDATION_FAILED) {
@@ -56,24 +56,59 @@ function parseNameVersion(input) {
 // ─── Download specific version ────────────────────────────────────────
 
 function downloadVersion(entry, version, destDir, options = {}) {
+  const { expectedName = entry?.name, ...downloadOptions } = options;
   if (!entry || entry.version !== version) {
     throw new Error(
       `registry version mismatch: requested ${version}, resolved ${entry?.version || 'none'}`,
     );
   }
+  if (typeof expectedName !== 'string' || entry.name !== expectedName) {
+    throw new Error(
+      `registry identity mismatch: requested ${expectedName || 'none'}, resolved ${entry.name || 'none'}`,
+    );
+  }
   if (typeof entry.asset_url !== 'string' || entry.asset_url.length === 0) {
     throw new Error(`registry entry ${entry.name || 'unknown'}@${version} has no asset_url`);
   }
+  if (!/^sha256:[0-9a-f]{64}$/.test(entry.asset_digest || '')) {
+    throw new Error(
+      `registry entry ${entry.name || 'unknown'}@${version} has no canonical asset_digest`,
+    );
+  }
   const assetUrl = entry.asset_url;
-  return downloadAndExtractKdna(assetUrl, destDir, options);
+  return downloadAndExtractKdna(assetUrl, destDir, {
+    ...downloadOptions,
+    expected: {
+      name: expectedName,
+      version,
+      assetDigest: entry.asset_digest,
+    },
+  });
 }
 
 // ─── Extract judgment artifacts ────────────────────────────────────────
 
 function loadJudgment(domainDir) {
-  const core = readJson(path.join(domainDir, 'KDNA_Core.json')) || {};
-  const pat = readJson(path.join(domainDir, 'KDNA_Patterns.json')) || {};
-  const manifest = readJson(path.join(domainDir, 'kdna.json')) || {};
+  let core;
+  let pat;
+  let manifest;
+  if (fs.existsSync(domainDir) && fs.statSync(domainDir).isFile()) {
+    const container = readContainer(domainDir);
+    core = container.core || {};
+    pat = container.patterns || {};
+    manifest = container.manifest || {};
+  } else {
+    core = readJson(path.join(domainDir, 'KDNA_Core.json')) || {};
+    pat = readJson(path.join(domainDir, 'KDNA_Patterns.json')) || {};
+    manifest = readJson(path.join(domainDir, 'kdna.json')) || {};
+  }
+
+  const misunderstandings = Array.isArray(pat)
+    ? []
+    : Array.isArray(pat.misunderstandings)
+      ? pat.misunderstandings
+      : [];
+  const bannedTerms = Array.isArray(pat) ? [] : pat.terminology?.banned_terms || [];
 
   return {
     version: manifest.version || '?',
@@ -83,8 +118,8 @@ function loadJudgment(domainDir) {
     stances: (core.stances || [])
       .map((s) => (typeof s === 'string' ? s : s.stance))
       .filter(Boolean),
-    misunderstandings: Object.fromEntries((pat.misunderstandings || []).map((m) => [m.id, m])),
-    banned_terms: Object.fromEntries((pat.terminology?.banned_terms || []).map((t) => [t.term, t])),
+    misunderstandings: Object.fromEntries(misunderstandings.map((m) => [m.id, m])),
+    banned_terms: Object.fromEntries(bannedTerms.map((t) => [t.term, t])),
   };
 }
 
@@ -190,6 +225,7 @@ async function cmdDiff(a, b, args = []) {
 
   // Determine targets
   let oldVersion, newVersion, oldEntry, newEntry;
+  let oldJ = null;
   if (bParsed) {
     let entryB;
     try {
@@ -209,8 +245,13 @@ async function cmdDiff(a, b, args = []) {
     if (!installed) {
       error(`${aParsed.full} not installed. Run: kdna install ${aParsed.full}`, EXIT.INPUT_ERROR);
     }
-    const localManifest = readContainer(installed.asset_path).manifest || {};
-    oldVersion = localManifest?.version || '?';
+    try {
+      assertInstalledIntegrity(installed, `${aParsed.full}@${installed.version}`);
+      oldJ = loadJudgment(installed.asset_path);
+    } catch (integrityError) {
+      error(integrityError.message, EXIT.VALIDATION_FAILED);
+    }
+    oldVersion = installed.version;
     newVersion = entryA.version;
     newEntry = entryA;
     if (oldVersion === newVersion) {
@@ -226,11 +267,6 @@ async function cmdDiff(a, b, args = []) {
       );
       return;
     }
-    try {
-      ({ entry: oldEntry } = resolver.resolve(`${aParsed.full}@${oldVersion}`));
-    } catch (e) {
-      error(e.message, EXIT.REGISTRY_ERROR);
-    }
   }
 
   if (!jsonMode) {
@@ -244,17 +280,26 @@ async function cmdDiff(a, b, args = []) {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-diff-'));
   const tmpOld = path.join(tempRoot, 'old');
   const tmpNew = path.join(tempRoot, 'new');
-  let oldJ;
   let newJ;
   let fetching = `${aParsed.full}@${oldVersion}`;
   try {
-    if (!jsonMode) console.log('Downloading old version...');
-    downloadVersion(oldEntry, oldVersion, tmpOld);
+    if (oldEntry) {
+      if (!jsonMode) console.log('Downloading old version...');
+      downloadVersion(oldEntry, oldVersion, tmpOld, {
+        expectedName: aParsed.full,
+        onVerifiedArchive(archivePath) {
+          oldJ = loadJudgment(archivePath);
+        },
+      });
+    }
     fetching = `${aParsed.full}@${newVersion}`;
     if (!jsonMode) console.log('Downloading new version...');
-    downloadVersion(newEntry, newVersion, tmpNew);
-    oldJ = loadJudgment(tmpOld);
-    newJ = loadJudgment(tmpNew);
+    downloadVersion(newEntry, newVersion, tmpNew, {
+      expectedName: aParsed.full,
+      onVerifiedArchive(archivePath) {
+        newJ = loadJudgment(archivePath);
+      },
+    });
   } catch (downloadError) {
     fs.rmSync(tempRoot, { recursive: true, force: true });
     error(`Failed to download ${fetching}: ${downloadError.message}`, EXIT.PROVIDER_ERROR);

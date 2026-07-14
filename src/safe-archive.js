@@ -1,16 +1,20 @@
 'use strict';
 
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { TextDecoder } = require('node:util');
 const zlib = require('node:zlib');
+const { nameFromAssetId } = require('./registry');
 
 const EOCD_SIGNATURE = 0x06054b50;
 const CENTRAL_SIGNATURE = 0x02014b50;
 const LOCAL_SIGNATURE = 0x04034b50;
 const MAX_EOCD_SEARCH = 65557;
+// Network safety policy for the legacy `kdna quality diff` and `kdna changelog`
+// download surface. These are extraction limits, not general KDNA format limits.
 const MAX_ARCHIVE_BYTES = 25 * 1024 * 1024;
 const MAX_ENTRIES = 128;
 const MAX_ENTRY_BYTES = 5 * 1024 * 1024;
@@ -262,6 +266,7 @@ function preflightKdnaArchive(archivePath) {
       crc,
       compressedSize,
       uncompressedSize,
+      localOffset,
       compressed: buffer.subarray(dataStart, dataEnd),
     });
     cursor += entryLength;
@@ -285,6 +290,18 @@ function preflightKdnaArchive(archivePath) {
         fail(`entry path conflicts with an ordinary file: ${name}`);
       }
     }
+  }
+
+  const physicalFirst = descriptors.find(
+    (descriptor) => descriptor.localOffset === localRanges[0]?.start,
+  );
+  if (
+    !physicalFirst ||
+    physicalFirst.localOffset !== 0 ||
+    physicalFirst.name !== 'mimetype' ||
+    physicalFirst.method !== 0
+  ) {
+    fail('first physical local entry at offset 0 must be an uncompressed mimetype file');
   }
 
   let declaredTotal = 0;
@@ -333,13 +350,69 @@ function preflightKdnaArchive(archivePath) {
     entries.push({ name: descriptor.name, data });
   }
 
-  if (entries.length === 0 || entries[0].name !== 'mimetype' || descriptors[0].method !== 0) {
-    fail('first entry must be an uncompressed mimetype file');
-  }
-  const mimetype = entries[0].data.toString('utf8');
+  const mimetypeEntry = entries.find((entry) => entry.name === 'mimetype');
+  const mimetype = mimetypeEntry.data.toString('utf8');
   if (!KDNA_MIMETYPES.has(mimetype)) fail(`unsupported KDNA mimetype: ${mimetype}`);
 
-  return { entries, mimetype };
+  return {
+    entries,
+    mimetype,
+    archiveDigest: `sha256:${crypto.createHash('sha256').update(buffer).digest('hex')}`,
+  };
+}
+
+function verifyRegistryBinding(verified, expected) {
+  if (!expected || typeof expected !== 'object') {
+    fail('diff/changelog registry download is missing expected identity metadata');
+  }
+  if (!/^sha256:[0-9a-f]{64}$/.test(expected.assetDigest || '')) {
+    fail('diff/changelog registry asset_digest is missing or not canonical');
+  }
+  if (verified.archiveDigest !== expected.assetDigest) {
+    fail(
+      `downloaded bytes do not match registry asset_digest for ${expected.name || 'unknown'}@${expected.version || 'unknown'}`,
+    );
+  }
+  if (typeof expected.name !== 'string' || typeof expected.version !== 'string') {
+    fail('diff/changelog registry download is missing expected name or version');
+  }
+
+  const manifestEntry = verified.entries.find((entry) => entry.name === 'kdna.json');
+  if (!manifestEntry) fail('downloaded KDNA archive has no kdna.json manifest');
+  let manifest;
+  try {
+    manifest = JSON.parse(manifestEntry.data.toString('utf8'));
+  } catch {
+    fail('downloaded KDNA archive has an invalid kdna.json manifest');
+  }
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+    fail('downloaded KDNA archive manifest is not a JSON object');
+  }
+
+  const identities = [];
+  if (typeof manifest.name === 'string' && manifest.name.length > 0) identities.push(manifest.name);
+  if (manifest.asset_id !== undefined) {
+    const assetName = nameFromAssetId(manifest.asset_id);
+    if (!assetName) fail('downloaded KDNA manifest has an invalid asset_id');
+    const separator = assetName.indexOf('/');
+    const canonicalAssetId = `kdna:${assetName.slice(1, separator)}:${assetName.slice(separator + 1)}`;
+    if (manifest.asset_id !== canonicalAssetId) {
+      fail('downloaded KDNA manifest asset_id is not canonical');
+    }
+    identities.push(assetName);
+  }
+  if (identities.length === 0) fail('downloaded KDNA manifest has no name or asset_id');
+  if (identities.some((identity) => identity !== expected.name)) {
+    fail(
+      `downloaded KDNA identity does not match registry entry ${expected.name}: ${identities.join(', ')}`,
+    );
+  }
+  if (manifest.version !== expected.version) {
+    fail(
+      `downloaded KDNA version does not match registry entry ${expected.version}: ${manifest.version || 'none'}`,
+    );
+  }
+  return manifest;
 }
 
 function assertOrdinaryTree(root) {
@@ -359,9 +432,13 @@ function assertOrdinaryTree(root) {
   }
 }
 
-function extractKdnaArchive(archivePath, destination) {
+function extractKdnaArchive(archivePath, destination, options = {}) {
   const absoluteDestination = path.resolve(destination);
   const verified = preflightKdnaArchive(archivePath);
+  if (options.expected) verifyRegistryBinding(verified, options.expected);
+  if (typeof options.onVerifiedArchive === 'function') {
+    options.onVerifiedArchive(archivePath, verified);
+  }
   if (fs.existsSync(absoluteDestination)) {
     throw new Error(`refusing to replace existing extraction destination: ${absoluteDestination}`);
   }
@@ -403,7 +480,7 @@ function downloadAndExtractKdna(url, destination, options = {}) {
   const archivePath = path.join(temporaryDirectory, 'asset.kdna');
   try {
     downloadFile(url, archivePath);
-    return extractKdnaArchive(archivePath, destination);
+    return extractKdnaArchive(archivePath, destination, options);
   } finally {
     fs.rmSync(temporaryDirectory, { recursive: true, force: true });
   }
@@ -413,4 +490,5 @@ module.exports = {
   downloadAndExtractKdna,
   extractKdnaArchive,
   preflightKdnaArchive,
+  verifyRegistryBinding,
 };

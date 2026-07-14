@@ -495,7 +495,9 @@ function readContainer(kdnaPath, options = {}) {
   const asset = assetReader.openSync(kdnaPath);
   const dataMap = readDataMapCompatSync(asset, options);
   return {
-    manifest: dataMap['kdna.json'] || {},
+    manifest: asset.entries.has('kdna.json')
+      ? assetReader.readJsonSync(asset, 'kdna.json', options)
+      : {},
     core: dataMap['KDNA_Core.json'] || {},
     patterns: dataMap['KDNA_Patterns.json'] || {},
     scenarios: dataMap['KDNA_Scenarios.json'] || null,
@@ -508,29 +510,46 @@ function readContainer(kdnaPath, options = {}) {
 
 function readDataMapCompatSync(asset, options = {}) {
   try {
-    return assetReader.readDataMapSync(asset, options);
-  } catch (e) {
-    if (asset.entries.has('payload.kdnab')) {
-      try {
-        const payload = cbor.decode(assetReader.readEntrySync(asset, 'payload.kdnab'));
-        if (payload && typeof payload === 'object') {
-          const judgment = payload.judgment || payload;
-          return {
-            ...(judgment.core ? { 'KDNA_Core.json': judgment.core } : {}),
-            ...(judgment.patterns ? { 'KDNA_Patterns.json': judgment.patterns } : {}),
-            ...(judgment.scenarios ? { 'KDNA_Scenarios.json': judgment.scenarios } : {}),
-            ...(judgment.cases ? { 'KDNA_Cases.json': judgment.cases } : {}),
-            ...(judgment.reasoning ? { 'KDNA_Reasoning.json': judgment.reasoning } : {}),
-            ...(judgment.evolution ? { 'KDNA_Evolution.json': judgment.evolution } : {}),
-          };
-        }
-      } catch {
-        /* Preserve the original reader error below. */
-      }
+    const projected = assetReader.readDataMapSync(asset, options);
+    // Core 0.17 projects only the historical payload.judgment envelope and
+    // returns an empty map for the formal top-level payload shape. Newer Core
+    // deliberately rejects this legacy projection API. In either case, use
+    // the same payload bytes to provide package-store's compatibility view.
+    if (Object.keys(projected || {}).length > 0 || !asset.entries.has('payload.kdnab')) {
+      return projected || {};
     }
-    if (!String(e?.message || '').includes('missing payload.kdnab')) {
+  } catch (e) {
+    const message = String(e?.message || '');
+    const canProjectCurrentPayload =
+      asset.entries.has('payload.kdnab') &&
+      (e?.code === 'KDNA_LEGACY_DATA_MAP_UNSUPPORTED' ||
+        message.includes('legacy source-tree API'));
+    const canReadHistoricalEntries =
+      !asset.entries.has('payload.kdnab') && message.includes('payload.kdnab');
+    if (!canProjectCurrentPayload && !canReadHistoricalEntries) {
       throw e;
     }
+  }
+
+  if (asset.entries.has('payload.kdnab')) {
+    let payload;
+    try {
+      payload = cbor.decode(assetReader.readEntrySync(asset, 'payload.kdnab'));
+    } catch (e) {
+      throw new Error(`payload.kdnab could not be decoded: ${e.message}`);
+    }
+    if (!payload || typeof payload !== 'object') {
+      throw new Error('payload.kdnab did not decode to a KDNA judgment object');
+    }
+    const judgment = payload.judgment || payload;
+    return {
+      ...(judgment.core ? { 'KDNA_Core.json': judgment.core } : {}),
+      ...(judgment.patterns ? { 'KDNA_Patterns.json': judgment.patterns } : {}),
+      ...(judgment.scenarios ? { 'KDNA_Scenarios.json': judgment.scenarios } : {}),
+      ...(judgment.cases ? { 'KDNA_Cases.json': judgment.cases } : {}),
+      ...(judgment.reasoning ? { 'KDNA_Reasoning.json': judgment.reasoning } : {}),
+      ...(judgment.evolution ? { 'KDNA_Evolution.json': judgment.evolution } : {}),
+    };
   }
 
   const dataMap = {};

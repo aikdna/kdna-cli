@@ -15,15 +15,33 @@ const { RegistryResolver } = require('../registry');
 const { downloadAndExtractKdna } = require('../safe-archive');
 
 function downloadVersion(entry, version, destDir, options = {}) {
+  const { expectedName = entry?.name, ...downloadOptions } = options;
   if (!entry || entry.version !== version) {
     throw new Error(
       `registry version mismatch: requested ${version}, resolved ${entry?.version || 'none'}`,
     );
   }
+  if (typeof expectedName !== 'string' || entry.name !== expectedName) {
+    throw new Error(
+      `registry identity mismatch: requested ${expectedName || 'none'}, resolved ${entry.name || 'none'}`,
+    );
+  }
   if (typeof entry.asset_url !== 'string' || entry.asset_url.length === 0) {
     throw new Error(`registry entry ${entry.name || 'unknown'}@${version} has no asset_url`);
   }
-  return downloadAndExtractKdna(entry.asset_url, destDir, options);
+  if (!/^sha256:[0-9a-f]{64}$/.test(entry.asset_digest || '')) {
+    throw new Error(
+      `registry entry ${entry.name || 'unknown'}@${version} has no canonical asset_digest`,
+    );
+  }
+  return downloadAndExtractKdna(entry.asset_url, destDir, {
+    ...downloadOptions,
+    expected: {
+      name: expectedName,
+      version,
+      assetDigest: entry.asset_digest,
+    },
+  });
 }
 
 function cmdChangelog(args = []) {
@@ -75,12 +93,20 @@ function cmdChangelog(args = []) {
   let fetching = `${parsed.full}@${fromVersion}`;
   try {
     if (!jsonMode) console.log(`Fetching ${fetching}...`);
-    downloadVersion(oldEntry, fromVersion, tmpOld);
+    downloadVersion(oldEntry, fromVersion, tmpOld, {
+      expectedName: parsed.full,
+      onVerifiedArchive(archivePath) {
+        oldJ = loadJudgment(archivePath);
+      },
+    });
     fetching = `${parsed.full}@${toVersion}`;
     if (!jsonMode) console.log(`Fetching ${fetching}...`);
-    downloadVersion(newEntry, toVersion, tmpNew);
-    oldJ = loadJudgment(tmpOld);
-    newJ = loadJudgment(tmpNew);
+    downloadVersion(newEntry, toVersion, tmpNew, {
+      expectedName: parsed.full,
+      onVerifiedArchive(archivePath) {
+        newJ = loadJudgment(archivePath);
+      },
+    });
   } catch (downloadError) {
     fs.rmSync(tempRoot, { recursive: true, force: true });
     error(`Failed to download ${fetching}: ${downloadError.message}`, EXIT.PROVIDER_ERROR);
@@ -98,19 +124,27 @@ function cmdChangelog(args = []) {
   const bannedTerms = diffList(
     Object.keys(oldJ.banned_terms || {}),
     Object.keys(newJ.banned_terms || {}),
+    oldJ.banned_terms || {},
+    newJ.banned_terms || {},
   );
   const stances = diffList(oldJ.stances || [], newJ.stances || []);
 
   // Version bump suggestion
   const hasRemoved =
     Object.values(axioms).some((a) => a.status === 'removed') ||
-    Object.values(misunderstandings).some((m) => m.status === 'removed');
+    Object.values(ontology).some((o) => o.status === 'removed') ||
+    Object.values(misunderstandings).some((m) => m.status === 'removed') ||
+    bannedTerms.removed.length > 0;
   const hasAdded =
     Object.values(axioms).some((a) => a.status === 'added') ||
-    Object.values(misunderstandings).some((m) => m.status === 'added');
+    Object.values(ontology).some((o) => o.status === 'added') ||
+    Object.values(misunderstandings).some((m) => m.status === 'added') ||
+    bannedTerms.added.length > 0;
   const hasChanged =
     Object.values(axioms).some((a) => a.status === 'changed') ||
-    Object.values(misunderstandings).some((m) => m.status === 'changed');
+    Object.values(ontology).some((o) => o.status === 'changed') ||
+    Object.values(misunderstandings).some((m) => m.status === 'changed') ||
+    bannedTerms.changed.length > 0;
   let recommendedBump = 'none';
   if (hasRemoved) recommendedBump = 'major';
   else if (hasAdded || hasChanged) recommendedBump = 'minor';
@@ -154,10 +188,11 @@ function cmdChangelog(args = []) {
   renderSection('Axioms', axioms);
   renderSection('Ontology', ontology);
   renderSection('Misunderstandings', misunderstandings);
-  if (bannedTerms.added.length || bannedTerms.removed.length) {
+  if (bannedTerms.added.length || bannedTerms.removed.length || bannedTerms.changed.length) {
     console.log('### Banned Terms');
     for (const t of bannedTerms.added) console.log(`- **Added:** "${t}"`);
     for (const t of bannedTerms.removed) console.log(`- **Removed:** "${t}"`);
+    for (const t of bannedTerms.changed) console.log(`- **Changed:** "${t}"`);
     console.log('');
   }
   if (stances.added.length || stances.removed.length) {
@@ -167,10 +202,12 @@ function cmdChangelog(args = []) {
     console.log('');
   }
 
-  const changeCount = Object.values(changelog.changes).reduce((sum, v) => {
-    if (Array.isArray(v)) return sum + (v.added?.length || 0) + (v.removed?.length || 0);
-    return sum + Object.values(v || {}).filter((x) => x.status !== 'unchanged').length;
-  }, 0);
+  const changeCount =
+    countSummaryChanges(axioms) +
+    countSummaryChanges(ontology) +
+    countSummaryChanges(misunderstandings) +
+    countListChanges(bannedTerms) +
+    countListChanges(stances);
 
   console.log(`---`);
   if (changeCount === 0) {
@@ -208,13 +245,32 @@ function diffSummary(oldMap, newMap, labelField) {
   return result;
 }
 
-function diffList(oldList, newList) {
+function diffList(oldList, newList, oldMap = null, newMap = null) {
   const oldSet = new Set(oldList);
   const newSet = new Set(newList);
   return {
     added: newList.filter((s) => !oldSet.has(s)),
     removed: oldList.filter((s) => !newSet.has(s)),
+    changed:
+      oldMap && newMap
+        ? newList.filter(
+            (value) =>
+              oldSet.has(value) && JSON.stringify(oldMap[value]) !== JSON.stringify(newMap[value]),
+          )
+        : [],
   };
+}
+
+function countSummaryChanges(summary) {
+  return Object.values(summary || {}).filter((entry) => entry.status !== 'unchanged').length;
+}
+
+function countListChanges(changes) {
+  return (
+    (changes?.added?.length || 0) +
+    (changes?.removed?.length || 0) +
+    (changes?.changed?.length || 0)
+  );
 }
 
 function renderSection(title, items) {
