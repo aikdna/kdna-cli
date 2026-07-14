@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- Let `kdna use --runner=cli:default` invoke an explicit, provider-neutral
+  process Agent host for one packaged asset. The CLI sends a versioned JSON
+  request, requires a correlated response, and fails closed on timeout,
+  oversized output, process failure, malformed protocol, or an empty judgment.
+- Execution-completed traces keep delivery, consumption, execution,
+  conformance, and evidence states separate. Model identity, model calls, and
+  token usage remain explicitly host-reported.
+- Correlated process responses record `projection_chars_delivered` as a Runtime
+  delivery observation while leaving `chars_consumed` at zero with a
+  `not_observed` basis. Host execution completion is not treated as proof that
+  the Capsule was read or semantically consumed.
+- Trace count fields require non-negative integers, and delivery/consumption
+  basis fields reject unknown or malformed values in both Schema and runtime
+  validation.
+
 ## 0.31.1 (2026-07-13)
 
 - Add explicit per-domain `routing_signals` for bounded Cluster routing,

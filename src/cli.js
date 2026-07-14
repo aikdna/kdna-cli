@@ -210,6 +210,8 @@ function showHelp() {
   use <asset.kdna>                   Run through a registered Runner
                                       --task=<text>      Task description
                                       --runner=<type:id> Runner (default: mock:default)
+                                      --agent-host=<cmd> Process host for cli:default
+                                      --agent-host-arg=<arg> Repeatable exact argument
                                       --as=json|trace    Output format
                                       --list-runners     List registered runners
                                       --mode=<list>      Replay modes (comma

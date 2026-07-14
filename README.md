@@ -115,10 +115,26 @@ asset or a replacement for independent review.
 The built-in `mock` Runner never claims an asset was loaded. The built-in
 `cli` Runner calls KDNA Core `load`, returns the resulting Runtime Capsules,
 and records their measured projection size separately from consumed context.
-Because it does not invoke an Agent
-or model, it returns `partial` and never claims a task judgment was completed.
-A registered Agent, app, or API Runner must consume those Capsules to produce a
-task result.
+Without an Agent host it returns `partial` and never claims a task judgment was
+completed. A provider-neutral process host can be attached explicitly for one
+packaged asset:
+
+```bash
+kdna use ./asset.kdna \
+  --task "Review this decision" \
+  --runner cli:default \
+  --agent-host node \
+  --agent-host-arg ./my-agent-host.js
+```
+
+The executable is spawned directly, without a shell. It receives one
+`kdna.agent-host/1` JSON request on standard input and must return one
+correlated JSON response on standard output. See
+[`docs/consumption-runtime.md`](docs/consumption-runtime.md) for the contract.
+The correlated response completes execution only; it does not certify semantic
+consumption, judgment fidelity, or conformance. Those facts remain separate in
+Trace, and model identity and usage remain host-reported.
+Staged Cluster execution remains an explicit, disabled advanced path.
 
 ## Asset Management
 

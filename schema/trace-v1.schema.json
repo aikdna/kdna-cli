@@ -59,9 +59,39 @@
     "cost": {
       "type": "object",
       "properties": {
-        "tokens_consumed": { "type": "integer" },
-        "chars_consumed": { "type": "integer" },
-        "assets_loaded": { "type": "integer" },
+        "tokens_consumed": { "type": "integer", "minimum": 0 },
+        "chars_consumed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Characters independently observed or explicitly reported as consumed. Delivery alone must not increment this value."
+        },
+        "chars_consumed_basis": {
+          "type": "string",
+          "enum": ["not_observed", "agent_host_report", "independent_measurement"],
+          "description": "Evidence basis for chars_consumed, for example not_observed or agent_host_report."
+        },
+        "projection_chars": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Characters in the prepared serialized projection before delivery."
+        },
+        "projection_chars_delivered": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Prepared projection characters delivered to a correlated Agent host. This is not a consumption claim."
+        },
+        "projection_char_delivery_basis": {
+          "type": "string",
+          "enum": [
+            "runtime_serialized_projection",
+            "not_delivered",
+            "delivery_unconfirmed",
+            "withheld_by_budget",
+            "not_reported"
+          ],
+          "description": "Runtime observation basis for projection_chars_delivered."
+        },
+        "assets_loaded": { "type": "integer", "minimum": 0 },
         "over_budget": { "type": "boolean" }
       }
     },

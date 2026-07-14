@@ -16,6 +16,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { error, EXIT, readJson } = require('./_common');
 const { planSingleAsset } = require('./plan-use');
+const { createProcessAgentHost } = require('../agent-host-process');
 const {
   executePlan,
   buildTraceFromResult,
@@ -44,6 +45,19 @@ function cmdUse(args) {
     const idx = args.indexOf(name);
     return idx >= 0 && args[idx + 1] && !args[idx + 1].startsWith('--') ? args[idx + 1] : null;
   };
+  const getFlags = (name) => {
+    const values = [];
+    for (let index = 0; index < args.length; index += 1) {
+      const value = args[index];
+      if (value.startsWith(`${name}=`)) {
+        values.push(value.slice(name.length + 1));
+      } else if (value === name && args[index + 1] !== undefined) {
+        values.push(args[index + 1]);
+        index += 1;
+      }
+    }
+    return values;
+  };
 
   const posArgs = args.filter((a) => !a.startsWith('--'));
   const target = posArgs[0];
@@ -64,6 +78,8 @@ function cmdUse(args) {
         '  --task=<text>           Task description\n' +
         '  --task-family=<name>    Task family (default: general)\n' +
         '  --runner=<type:id>      Runner to use (default: mock:default)\n' +
+        '  --agent-host=<command>  Invoke a JSON process host with cli:default\n' +
+        '  --agent-host-arg=<arg>  Add one exact process argument (repeatable)\n' +
         '  --budget=<profile>      interactive|code-review|offline-audit\n' +
         '  --shape=<name>          answer-pattern|compact|scenario|full\n' +
         '  --timeout=<ms>          Execution timeout in ms (default: 30000)\n' +
@@ -75,6 +91,7 @@ function cmdUse(args) {
         '\n' +
         'Examples:\n' +
         '  kdna use asset.kdna --task "Should we deploy?" --runner mock:default\n' +
+        '  kdna use asset.kdna --task "Review this" --runner cli:default --agent-host ./host\n' +
         '  kdna use asset.kdna --task "Review this PR" --as trace\n' +
         '  kdna use asset.kdna --list-runners\n',
     );
@@ -85,6 +102,8 @@ function cmdUse(args) {
   const task = getFlag('--task') || '';
   const taskFamily = getFlag('--task-family') || 'general';
   const runnerSpec = getFlag('--runner') || 'mock:default';
+  const agentHostCommand = getFlag('--agent-host');
+  const agentHostArgs = getFlags('--agent-host-arg');
   const budgetProfile = getFlag('--budget') || 'code-review';
   const shape = getFlag('--shape') || 'compact';
   const timeoutMs = parseInt(getFlag('--timeout') || '30000', 10);
@@ -92,6 +111,25 @@ function cmdUse(args) {
   const outPath = getFlag('--out');
   const planOnly = args.includes('--plan-only');
   const dryRun = args.includes('--dry-run');
+
+  if (agentHostArgs.length > 0 && !agentHostCommand) {
+    error('--agent-host-arg requires --agent-host.', EXIT.INPUT_ERROR);
+  }
+  if (agentHostCommand && runnerSpec !== 'cli:default') {
+    error('--agent-host requires --runner=cli:default.', EXIT.INPUT_ERROR);
+  }
+  let processAgentHost = null;
+  if (agentHostCommand) {
+    try {
+      processAgentHost = createProcessAgentHost({
+        command: agentHostCommand,
+        args: agentHostArgs,
+        timeoutMs,
+      });
+    } catch (hostError) {
+      error(`Invalid Agent host configuration: ${hostError.message}`, EXIT.INPUT_ERROR);
+    }
+  }
 
   // Phase 1: Generate plan (deterministic)
   // Detect cluster manifest vs single asset
@@ -120,6 +158,13 @@ function cmdUse(args) {
     }
   } else {
     plan = planSingleAsset(target, { task, taskFamily, budgetProfile, shape });
+  }
+
+  if (processAgentHost && plan.mode !== 'single') {
+    error(
+      '--agent-host currently supports one packaged asset; staged Cluster execution remains disabled.',
+      EXIT.INPUT_ERROR,
+    );
   }
 
   if (planOnly) {
@@ -219,6 +264,7 @@ function cmdUse(args) {
     task,
     taskFamily,
     assetTarget: target,
+    runStage: processAgentHost ? (request) => processAgentHost.runStage(request) : undefined,
   })
     .then((runnerResult) => {
       // Phase 4: Build trace — use cluster trace if in cluster mode
@@ -235,7 +281,10 @@ function cmdUse(args) {
         trace = buildTraceFromResult(plan, runnerResult);
       }
 
-      const exitCode = runnerResult.status === 'completed' ? 0 : EXIT.VALIDATION_FAILED;
+      const exitCode =
+        runnerResult.execution_status === 'completed' || runnerResult.status === 'completed'
+          ? 0
+          : EXIT.VALIDATION_FAILED;
 
       if (outPath) {
         const absOut = path.resolve(outPath);

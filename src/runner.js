@@ -15,7 +15,7 @@
  *   1. Every runner must accept a ConsumptionPlan and return a RunnerResult
  *   2. Runners are registered by type and id
  *   3. Runners must not modify the plan
- *   4. Runners must report status: completed, cancelled, timed_out, error, partial
+ *   4. Runners must report delivery, consumption, execution, conformance, and evidence separately
  *   5. A runner that cannot execute must return status: runner_error with an error message
  *   6. Runner outputs must conform to expected_outcome shape from the plan
  */
@@ -74,6 +74,8 @@ function listRunners() {
  * @property {function(string): void} onProgress — progress callback
  * @property {function(string, object): (number|Promise<number>)} countTokens — optional
  *   Agent-host tokenizer for the exact serialized projection and selected model
+ * @property {function(object): (object|Promise<object>)} runStage — optional
+ *   Agent-host adapter that consumes a Runtime Capsule and returns a judgment
  */
 
 /**
@@ -83,7 +85,12 @@ function listRunners() {
  * @property {string} plan_id
  * @property {string} runner_id
  * @property {string} runner_version
- * @property {string} status — completed, cancelled, timed_out, runner_error, partial
+ * @property {string} status — overall lifecycle state such as execution_completed, execution_failed, cancelled, timed_out, runner_error, or partial
+ * @property {string} delivery_status — observed delivery state only
+ * @property {string} consumption_status — consumption evidence state only
+ * @property {string} execution_status — execution lifecycle state only
+ * @property {string} conformance_status — never inferred from execution completion
+ * @property {string} evidence_status — evidence recorded at this layer
  * @property {string} started_at
  * @property {string} completed_at
  * @property {number} duration_ms
@@ -198,8 +205,8 @@ function createMockRunner(opts = {}) {
 
 /**
  * Create a CLI runner that loads Runtime Capsules for handoff to an Agent host.
- * It deliberately does not claim task completion because it does not invoke a
- * model or otherwise consume the Capsule to produce judgment.
+ * Without a host it stops at partial. A correlated, validated host response can
+ * complete execution, but does not establish semantic consumption or conformance.
  *
  * @param {object} opts
  * @returns {Runner}
@@ -435,11 +442,146 @@ function createCliRunner(opts = {}) {
 
         const primary = observations.find((item) => item.role === 'primary') || observations[0];
 
+        if (plan?.mode === 'single' && typeof context.runStage === 'function') {
+          const primaryCapsule = capsules.find((item) => item.role === 'primary') || capsules[0];
+          const attempt = {
+            attempt: 1,
+            phase: 'single_judgment',
+            asset_id: primary.asset_id,
+            status: 'running',
+          };
+          let projectionCharsDelivered = 0;
+          let agentHostCalls = 0;
+          let agentHostCallsObserved = false;
+          primary.handoff_status = 'delivery_attempted';
+
+          try {
+            const stageResponse = await context.runStage({
+              phase: 'single_judgment',
+              task: cloneJson(plan.task),
+              authority: {
+                asset_id: primary.asset_id,
+                role: 'primary',
+                final_decision: true,
+              },
+              asset: { asset_id: primary.asset_id, role: 'primary' },
+              capsule: cloneJson(primaryCapsule.capsule),
+            });
+            const { outcome, receipt } = unwrapAgentHostResponse(stageResponse);
+            agentHostCalls = 1;
+            agentHostCallsObserved = true;
+            projectionCharsDelivered = projectionChars;
+            primary.handoff_status = 'delivered_to_agent_host';
+            if (receipt) attempt.host_receipt = cloneJson(receipt);
+
+            const judgment = normalizeSingleJudgment(outcome?.judgment);
+            const usage = readAgentHostUsage(outcome?.usage);
+            const reportedModel =
+              typeof outcome.model === 'string' && outcome.model.trim()
+                ? outcome.model.trim()
+                : null;
+            primary.handoff_status = 'host_response_received';
+            primary.contribution_fulfilled = null;
+            attempt.status = 'completed';
+            attempt.delivery_status = 'correlated_response';
+            attempt.consumption_status = 'not_independently_verified';
+            attempt.execution_status = 'completed';
+            attempt.conformance_status = 'not_evaluated';
+
+            return {
+              plan_id: plan.plan_id,
+              runner_id: `${this.type}:${id}`,
+              runner_version: version,
+              status: 'execution_completed',
+              delivery_status: 'correlated_response',
+              consumption_status: 'not_independently_verified',
+              execution_status: 'completed',
+              conformance_status: 'not_evaluated',
+              evidence_status: 'runtime_observations_recorded',
+              started_at: new Date(startTime).toISOString(),
+              completed_at: new Date().toISOString(),
+              duration_ms: Date.now() - startTime,
+              model: null,
+              reported_model: reportedModel,
+              model_identity_basis: reportedModel ? 'agent_host_report' : 'not_reported',
+              result: {
+                shape: 'kdna-single-judgment',
+                answer: judgment.answer,
+                task_result: judgment,
+                reasoning: judgment.reasoning || [],
+                confidence: judgment.confidence || null,
+                authority: { asset_id: primary.asset_id, role: 'primary' },
+                sources: [
+                  {
+                    asset_id: primary.asset_id,
+                    role: 'primary',
+                    capsule_digest: primary.capsule_digest,
+                  },
+                ],
+              },
+              cost: {
+                tokens_used: usage.tokensUsed,
+                token_usage_basis: usage.reported ? 'agent_host_report' : 'not_reported',
+                model_calls: usage.modelCalls,
+                model_call_count_basis: usage.reported ? 'agent_host_report' : 'not_reported',
+                agent_host_calls: agentHostCalls,
+                agent_host_calls_observed: agentHostCallsObserved,
+                chars_consumed: 0,
+                chars_consumed_basis: 'not_observed',
+                projection_chars: projectionChars,
+                projection_chars_delivered: projectionCharsDelivered,
+                projection_char_delivery_basis: 'runtime_serialized_projection',
+                projection_tokens: projectionTokens,
+                estimated_projection_tokens: tokenCountVerified ? 0 : projectionTokens,
+                token_count_basis: tokenCountBasis,
+                token_count_verified: tokenCountVerified,
+              },
+              budget: buildProjectionBudgetReport(plan.budget, {
+                status: 'within_budget',
+                chars: projectionChars,
+                tokens: projectionTokens,
+                tokenCountBasis,
+                tokenCountVerified,
+                exceeded: [],
+              }),
+              errors: [],
+              warnings,
+              attempts: [attempt],
+              assets_loaded: observations,
+              digest: primary.digest,
+              digest_verified: primary.digest_verified === true,
+            };
+          } catch (error) {
+            attempt.status = 'failed';
+            attempt.error = error.message;
+            if (!agentHostCallsObserved) {
+              primary.handoff_status = 'delivery_unconfirmed';
+            }
+            return buildSingleExecutionError(plan, id, version, startTime, error.message, {
+              observations,
+              projectionChars,
+              projectionTokens,
+              tokenCountBasis,
+              tokenCountVerified,
+              projectionCharsDelivered,
+              agentHostCalls,
+              agentHostCallsObserved,
+              warnings,
+              attempts: [attempt],
+            });
+          }
+        }
+
         return {
           plan_id: plan.plan_id,
           runner_id: `${this.type}:${id}`,
           runner_version: version,
           status: 'partial',
+          delivery_status: 'not_delivered',
+          consumption_status: 'not_started',
+          execution_status: 'not_started',
+          conformance_status: 'not_evaluated',
+          evidence_status: 'runtime_observations_recorded',
           started_at: new Date(startTime).toISOString(),
           completed_at: new Date().toISOString(),
           duration_ms: Date.now() - startTime,
@@ -454,7 +596,10 @@ function createCliRunner(opts = {}) {
             tokens_used: 0,
             model_calls: 0,
             chars_consumed: 0,
+            chars_consumed_basis: 'not_observed',
             projection_chars: projectionChars,
+            projection_chars_delivered: 0,
+            projection_char_delivery_basis: 'not_delivered',
             projection_tokens: projectionTokens,
             estimated_projection_tokens: tokenCountVerified ? 0 : projectionTokens,
             token_count_basis: tokenCountBasis,
@@ -497,6 +642,68 @@ function createCliRunner(opts = {}) {
 }
 
 // ── Result Builders ──────────────────────────────────────────────────
+
+function cloneJson(value) {
+  return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+}
+
+function unwrapAgentHostResponse(value) {
+  if (
+    value &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    value.outcome &&
+    typeof value.outcome === 'object' &&
+    !Array.isArray(value.outcome)
+  ) {
+    return {
+      outcome: value.outcome,
+      receipt:
+        value.receipt && typeof value.receipt === 'object' && !Array.isArray(value.receipt)
+          ? value.receipt
+          : null,
+    };
+  }
+  return { outcome: value, receipt: null };
+}
+
+function normalizeSingleJudgment(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Agent host must return a judgment object.');
+  }
+  if (typeof value.answer !== 'string' || value.answer.trim().length === 0) {
+    throw new Error('Agent host judgment must contain a non-empty answer.');
+  }
+  if (
+    value.reasoning !== undefined &&
+    (!Array.isArray(value.reasoning) || value.reasoning.some((item) => typeof item !== 'string'))
+  ) {
+    throw new Error('Agent host judgment reasoning must be an array of strings.');
+  }
+  if (value.confidence !== undefined && typeof value.confidence !== 'string') {
+    throw new Error('Agent host judgment confidence must be a string.');
+  }
+  return cloneJson({
+    ...value,
+    answer: value.answer.trim(),
+  });
+}
+
+function readAgentHostUsage(value) {
+  if (value === undefined) return { tokensUsed: 0, modelCalls: 0, reported: false };
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Agent host usage must be an object when provided.');
+  }
+  const tokensUsed = value.tokens_used === undefined ? 0 : value.tokens_used;
+  const modelCalls = value.model_calls === undefined ? 0 : value.model_calls;
+  if (!Number.isInteger(tokensUsed) || tokensUsed < 0) {
+    throw new Error('Agent host usage.tokens_used must be a non-negative integer.');
+  }
+  if (!Number.isInteger(modelCalls) || modelCalls < 0) {
+    throw new Error('Agent host usage.model_calls must be a non-negative integer.');
+  }
+  return { tokensUsed, modelCalls, reported: true };
+}
 
 /**
  * Deterministic fallback only. This is deliberately labelled as an estimate:
@@ -557,6 +764,64 @@ function buildProjectionBudgetReport(budget = {}, measurement) {
   };
 }
 
+function buildSingleExecutionError(plan, id, version, startTime, message, details) {
+  const primary =
+    details.observations.find((item) => item.role === 'primary') || details.observations[0];
+  const errorMessage = `Single Agent host execution failed: ${message}`;
+  return {
+    plan_id: plan?.plan_id || 'unknown',
+    runner_id: `cli:${id}`,
+    runner_version: version,
+    status: 'execution_failed',
+    delivery_status: details.agentHostCallsObserved ? 'correlated_response' : 'unconfirmed',
+    consumption_status: 'not_verified',
+    execution_status: 'failed',
+    conformance_status: 'not_evaluated',
+    evidence_status: 'runtime_observations_recorded',
+    started_at: new Date(startTime).toISOString(),
+    completed_at: new Date().toISOString(),
+    duration_ms: Date.now() - startTime,
+    model: null,
+    reported_model: null,
+    model_identity_basis: 'not_reported',
+    result: null,
+    cost: {
+      tokens_used: 0,
+      token_usage_basis: null,
+      model_calls: 0,
+      model_call_count_basis: null,
+      agent_host_calls: details.agentHostCalls,
+      agent_host_calls_observed: details.agentHostCallsObserved,
+      chars_consumed: 0,
+      chars_consumed_basis: 'not_observed',
+      projection_chars: details.projectionChars,
+      projection_chars_delivered: details.projectionCharsDelivered || 0,
+      projection_char_delivery_basis:
+        details.projectionCharsDelivered > 0
+          ? 'runtime_serialized_projection'
+          : 'delivery_unconfirmed',
+      projection_tokens: details.projectionTokens,
+      estimated_projection_tokens: details.tokenCountVerified ? 0 : details.projectionTokens,
+      token_count_basis: details.tokenCountBasis,
+      token_count_verified: details.tokenCountVerified,
+    },
+    budget: buildProjectionBudgetReport(plan?.budget, {
+      status: 'within_budget',
+      chars: details.projectionChars,
+      tokens: details.projectionTokens,
+      tokenCountBasis: details.tokenCountBasis,
+      tokenCountVerified: details.tokenCountVerified,
+      exceeded: [],
+    }),
+    errors: [errorMessage],
+    warnings: details.warnings,
+    attempts: details.attempts,
+    assets_loaded: details.observations,
+    digest: primary?.digest || null,
+    digest_verified: primary?.digest_verified === true,
+  };
+}
+
 function buildBudgetBlockedResult(plan, id, version, startTime, details) {
   const tokenQualifier = details.tokenCountVerified ? 'token' : 'estimated token';
   const exceededLabels = details.exceeded.map((limit) =>
@@ -574,6 +839,11 @@ function buildBudgetBlockedResult(plan, id, version, startTime, details) {
     runner_id: `cli:${id}`,
     runner_version: version,
     status: 'runner_error',
+    delivery_status: 'withheld_by_budget',
+    consumption_status: 'not_started',
+    execution_status: 'blocked',
+    conformance_status: 'not_evaluated',
+    evidence_status: 'runtime_observations_recorded',
     started_at: new Date(startTime).toISOString(),
     completed_at: new Date().toISOString(),
     duration_ms: Date.now() - startTime,
@@ -583,7 +853,10 @@ function buildBudgetBlockedResult(plan, id, version, startTime, details) {
       tokens_used: 0,
       model_calls: 0,
       chars_consumed: 0,
+      chars_consumed_basis: 'not_observed',
       projection_chars: details.projectionChars,
+      projection_chars_delivered: 0,
+      projection_char_delivery_basis: 'withheld_by_budget',
       projection_tokens: details.projectionTokens,
       estimated_projection_tokens: details.tokenCountVerified ? 0 : details.projectionTokens,
       token_count_basis: details.tokenCountBasis,
@@ -612,6 +885,11 @@ function buildErrorResult(plan, id, version, startTime, errorMessage) {
     runner_id: `cli:${id}`,
     runner_version: version,
     status: 'runner_error',
+    delivery_status: 'not_delivered',
+    consumption_status: 'not_started',
+    execution_status: 'failed',
+    conformance_status: 'not_evaluated',
+    evidence_status: 'runtime_observations_recorded',
     started_at: new Date(startTime).toISOString(),
     completed_at: new Date().toISOString(),
     duration_ms: Date.now() - startTime,
@@ -632,6 +910,11 @@ function buildCancelledResult(plan, id, version, startTime) {
     runner_id: `runner:${id}`,
     runner_version: version,
     status: 'cancelled',
+    delivery_status: 'not_delivered',
+    consumption_status: 'not_started',
+    execution_status: 'cancelled',
+    conformance_status: 'not_evaluated',
+    evidence_status: 'runtime_observations_recorded',
     started_at: new Date(startTime).toISOString(),
     completed_at: new Date().toISOString(),
     duration_ms: Date.now() - startTime,
@@ -710,6 +993,9 @@ function buildTraceFromResult(plan, result) {
       (w) =>
         w.includes('not loaded') || w.includes('not locally available') || w.includes('not found'),
     );
+  const observedAsset = Array.isArray(result.assets_loaded) ? result.assets_loaded[0] : null;
+  const observedProjectionShape = observedAsset?.projection_profile || null;
+  const observedProjectionDigest = observedAsset?.capsule_digest || null;
 
   const trace = {
     trace_version: '0.9.0',
@@ -717,6 +1003,12 @@ function buildTraceFromResult(plan, result) {
     plan_id: plan.plan_id,
     mode: plan.mode || 'single',
     timestamp: new Date().toISOString(),
+    overall_status: result.status,
+    delivery_status: result.delivery_status || 'not_reported',
+    consumption_status: result.consumption_status || 'not_reported',
+    execution_status: result.execution_status || result.status,
+    conformance_status: result.conformance_status || 'not_evaluated',
+    evidence_status: 'trace_recorded',
     asset_identity:
       plan.mode === 'single'
         ? {
@@ -734,21 +1026,29 @@ function buildTraceFromResult(plan, result) {
           }
         : undefined,
     applicability_actual: {
-      decision: plan.applicability.decision,
-      confidence: plan.applicability.confidence,
-      boundary_respected: true,
-      deviated_from_plan: false,
+      decision: 'not_observed',
+      confidence: 'not_observed',
+      boundary_respected: null,
+      deviated_from_plan: null,
+      planned_decision: plan.applicability.decision,
+      observation_basis: 'none',
     },
     projection_actual: {
-      shape: plan.projection_ref?.shape || 'compact',
-      content_digest: plan.projection_ref?.content_digest || null,
-      shape_deviated_from_plan: false,
+      shape: observedProjectionShape,
+      content_digest: observedProjectionDigest,
+      shape_deviated_from_plan: observedProjectionShape
+        ? observedProjectionShape !== (plan.projection_ref?.shape || 'compact')
+        : null,
+      observation_basis: observedProjectionDigest ? 'runtime_capsule_digest' : 'none',
     },
     execution: {
-      status: result.status,
+      status: result.execution_status || result.status,
+      overall_status: result.status,
       runner_id: result.runner_id,
       runner_version: result.runner_version,
       model: result.model,
+      reported_model: result.reported_model || null,
+      model_identity_basis: result.model_identity_basis || 'not_reported',
       started_at: result.started_at,
       completed_at: result.completed_at,
       duration_ms: result.duration_ms,
@@ -761,13 +1061,17 @@ function buildTraceFromResult(plan, result) {
             crypto.createHash('sha256').update(JSON.stringify(result.result)).digest('hex'),
           result_shape: result.result.shape || 'answer-pattern',
           answer_summary: (result.result.answer || '').slice(0, 200),
-          result_stored: result.status === 'completed',
+          result_stored: result.execution_status === 'completed' || result.status === 'completed',
         }
       : undefined,
     cost: {
       tokens_used: result.cost?.tokens_used || 0,
+      token_usage_basis: result.cost?.token_usage_basis || null,
       chars_consumed: result.cost?.chars_consumed || 0,
+      chars_consumed_basis: result.cost?.chars_consumed_basis || 'not_observed',
       projection_chars: result.cost?.projection_chars || 0,
+      projection_chars_delivered: result.cost?.projection_chars_delivered || 0,
+      projection_char_delivery_basis: result.cost?.projection_char_delivery_basis || 'not_reported',
       projection_tokens: result.cost?.projection_tokens || 0,
       estimated_projection_tokens: result.cost?.estimated_projection_tokens || 0,
       token_count_basis: result.cost?.token_count_basis || null,
@@ -778,6 +1082,9 @@ function buildTraceFromResult(plan, result) {
           ? 1
           : 0,
       model_calls: result.cost?.model_calls || 0,
+      model_call_count_basis: result.cost?.model_call_count_basis || null,
+      agent_host_calls: result.cost?.agent_host_calls || 0,
+      agent_host_calls_observed: result.cost?.agent_host_calls_observed === true,
       budget_profile: plan.budget?.profile || 'code-review',
       over_budget:
         result.budget?.status === 'blocked' ||
@@ -787,6 +1094,8 @@ function buildTraceFromResult(plan, result) {
           (result.cost?.projection_chars || 0) > plan.budget.max_chars),
     },
     budget: result.budget,
+    attempts: Array.isArray(result.attempts) ? cloneJson(result.attempts) : [],
+    assets_loaded: Array.isArray(result.assets_loaded) ? cloneJson(result.assets_loaded) : [],
     evaluation: {
       self_checks: [],
       violations: [],

@@ -4,6 +4,7 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
+const { loadSchema, validateTrace } = require('../schema/trace-validator');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
@@ -47,6 +48,21 @@ function makePoliciesFile(dir) {
     }) + '\n',
   );
   return p;
+}
+
+function traceWithCost(cost) {
+  return {
+    kdna_trace: '1.0.0',
+    trace_id: '0123456789abcdef0123456789abcdef',
+    timestamp: '2026-07-14T00:00:00.000Z',
+    operation: 'review',
+    decision: {
+      primary: { domain_id: 'golden', weight: 1, reason: 'fixture' },
+      rejected: [],
+      budget_profile: 'code-review',
+    },
+    cost,
+  };
 }
 
 test('kdna route --help shows usage', () => {
@@ -150,6 +166,60 @@ test('kdna route cost fields are present', () => {
   assert.ok('chars_consumed' in out.cost);
   assert.ok('assets_loaded' in out.cost);
   assert.ok('over_budget' in out.cost);
+});
+
+test('Trace delivery schema constrains counts and evidence bases', () => {
+  const cost = loadSchema().properties.cost.properties;
+  for (const field of [
+    'tokens_consumed',
+    'chars_consumed',
+    'projection_chars',
+    'projection_chars_delivered',
+    'assets_loaded',
+  ]) {
+    assert.equal(cost[field].type, 'integer');
+    assert.equal(cost[field].minimum, 0);
+  }
+  assert.deepEqual(cost.chars_consumed_basis.enum, [
+    'not_observed',
+    'agent_host_report',
+    'independent_measurement',
+  ]);
+  assert.ok(cost.projection_char_delivery_basis.enum.includes('runtime_serialized_projection'));
+});
+
+test('Trace validator rejects invalid delivery and consumption bases', () => {
+  for (const invalidCost of [
+    { chars_consumed: 0, chars_consumed_basis: 42 },
+    { chars_consumed: 0, chars_consumed_basis: 'runtime_guess' },
+    {
+      projection_chars_delivered: 0,
+      projection_char_delivery_basis: false,
+    },
+    {
+      projection_chars_delivered: 0,
+      projection_char_delivery_basis: 'host_says_so',
+    },
+  ]) {
+    const result = validateTrace(traceWithCost(invalidCost));
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((error) => error.includes('basis must be one of')));
+  }
+});
+
+test('Trace validator rejects negative and fractional delivery counts', () => {
+  for (const projectionCharsDelivered of [-1, 0.5]) {
+    const result = validateTrace(
+      traceWithCost({
+        projection_chars_delivered: projectionCharsDelivered,
+        projection_char_delivery_basis: 'runtime_serialized_projection',
+      }),
+    );
+    assert.equal(result.valid, false);
+    assert.ok(
+      result.errors.includes('cost.projection_chars_delivered must be a non-negative integer'),
+    );
+  }
 });
 
 test('kdna route provenance fields are present', () => {
