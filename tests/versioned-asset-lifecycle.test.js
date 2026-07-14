@@ -488,6 +488,24 @@ test('project tier remains the update target when a newer global version also ex
   assert.deepEqual(requests, [{ reference: `${NAME}@1.1.0`, args: ['--yes', '--local'] }]);
 });
 
+test('update never downgrades an installed version that is newer than the registry release', () => {
+  const { root, project, env } = makeEnv();
+  const v2 = buildAsset(root, '2.0.0');
+  const installed = run(['install', v2.asset, '--yes', '--json'], { env, cwd: project });
+  assert.ok(installed.ok, installed.stderr);
+
+  const requests = [];
+  withFreshInstallModule(env, ({ cmdUpdate }) => {
+    cmdUpdate(NAME, {
+      resolver: {
+        resolve: () => ({ entry: { name: NAME, version: '1.1.0' } }),
+      },
+      install: (reference, args) => requests.push({ reference, args }),
+    });
+  });
+  assert.deepEqual(requests, []);
+});
+
 test('tampered installed bytes make update and same-version reinstall fail closed', () => {
   const { root, kdnaHome, project, env } = makeEnv();
   const v1 = buildAsset(root, '1.0.0');

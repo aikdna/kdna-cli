@@ -27,7 +27,8 @@
   remove-and-reinstall recovery command.
 - Keep registry updates in the tier that supplied the active asset, including
   project-local assets that override a global installation. `update --all`
-  continues after individual failures and returns a non-zero summary afterward.
+  continues after individual failures and returns a non-zero summary afterward;
+  an older registry release never downgrades a newer local installation.
 
 ## 0.32.0 (2026-07-14)
 

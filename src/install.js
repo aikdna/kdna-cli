@@ -17,7 +17,12 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync, spawnSync } = require('child_process');
 const core = require('@aikdna/kdna-core');
-const { RegistryResolver, nameFromAssetId, parseName } = require('./registry');
+const {
+  RegistryResolver,
+  nameFromAssetId,
+  parseName,
+  compareExactVersions,
+} = require('./registry');
 const { EXIT, error } = require('./cmds/_common');
 const PATHS = require('./paths');
 const {
@@ -902,8 +907,15 @@ function cmdUpdate(input, options = {}) {
     error(e.message, EXIT.REGISTRY_ERROR);
   }
 
-  if (entry.version === installedVersion) {
+  const versionOrder = compareExactVersions(entry.version, installedVersion);
+  if (versionOrder === 0) {
     console.log(`${parsed.full}@${installedVersion} is up to date.`);
+    return;
+  }
+  if (versionOrder < 0) {
+    console.log(
+      `${parsed.full}@${installedVersion} is newer than registry release ${entry.version}; no change.`,
+    );
     return;
   }
   console.log(`Updating ${parsed.full}: ${installedVersion} → ${entry.version}`);
