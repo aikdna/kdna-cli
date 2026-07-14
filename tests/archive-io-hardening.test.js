@@ -169,7 +169,7 @@ function makeHistoricalArchive(output, version, axiomText, options = {}) {
   return output;
 }
 
-function makeRuntimeArchive(root, name, version, axiomText) {
+function makeRuntimeArchive(root, name, version, axiomText, options = {}) {
   const source = path.join(root, `runtime-source-${version}-${path.basename(name)}`);
   fs.cpSync(path.join(__dirname, '..', 'fixtures', 'v1-judgment'), source, {
     recursive: true,
@@ -189,8 +189,8 @@ function makeRuntimeArchive(root, name, version, axiomText) {
       core: {
         highest_question: `Question ${version}`,
         axioms: [{ id: 'judgment-core', one_sentence: axiomText }],
-        ontology: [],
-        stances: [],
+        ontology: options.ontology || [],
+        stances: options.stances || [],
       },
       patterns: [],
     }),
@@ -779,8 +779,25 @@ test('diff and changelog read real semantic changes from two exact runtime paylo
   let home;
   try {
     const name = '@aikdna/runtime-history';
-    const oldArchive = makeRuntimeArchive(tmp, name, '1.0.0', 'Old runtime judgment');
-    const newArchive = makeRuntimeArchive(tmp, name, '2.0.0', 'New runtime judgment');
+    const ontology = (id, oneSentence) => ({
+      id,
+      one_sentence: oneSentence,
+      essence: `${oneSentence} essence`,
+      boundary: `${oneSentence} boundary`,
+      trigger_signal: `${oneSentence} trigger`,
+    });
+    const oldArchive = makeRuntimeArchive(tmp, name, '1.0.0', 'Old runtime judgment', {
+      ontology: [
+        ontology('removed-concept', 'Removed runtime concept'),
+        ontology('changed-concept', 'Old runtime concept'),
+      ],
+    });
+    const newArchive = makeRuntimeArchive(tmp, name, '2.0.0', 'New runtime judgment', {
+      ontology: [
+        ontology('changed-concept', 'New runtime concept'),
+        ontology('added-concept', 'Added runtime concept'),
+      ],
+    });
     const directRuntimeJudgment = loadJudgment(oldArchive);
     assert.equal(directRuntimeJudgment.version, '1.0.0');
     assert.equal(
@@ -802,6 +819,29 @@ test('diff and changelog read real semantic changes from two exact runtime paylo
     assert.equal(diffOutput.new_version, '2.0.0');
     assert.ok(diffOutput.changed_axioms[0], diff.stdout);
     assert.equal(diffOutput.changed_axioms[0].id, 'judgment-core');
+    assert.deepEqual(diffOutput.changes.ontology.removed, ['removed-concept']);
+    assert.deepEqual(diffOutput.changes.ontology.changed, ['changed-concept']);
+    assert.deepEqual(diffOutput.changes.ontology.added, ['added-concept']);
+    assert.equal(
+      diffOutput.changes.ontology.changed_details[0].before.one_sentence,
+      'Old runtime concept',
+    );
+    assert.equal(
+      diffOutput.changes.ontology.changed_details[0].after.one_sentence,
+      'New runtime concept',
+    );
+    assert.equal(diffOutput.recommended_version_bump, 'major');
+
+    for (const references of [
+      ['runtime-history@1.0.0', 'runtime-history@2.0.0'],
+      ['runtime-history@1.0.0', `${name}@2.0.0`],
+    ]) {
+      const canonicalized = runCli(['quality', 'diff', ...references, '--json'], env);
+      assert.equal(canonicalized.status, 0, canonicalized.stderr);
+      const canonicalizedOutput = JSON.parse(canonicalized.stdout);
+      assert.equal(canonicalizedOutput.domain, name);
+      assert.equal(canonicalizedOutput.changed_axioms[0].id, 'judgment-core');
+    }
 
     const changelog = runCli(
       ['changelog', name, '--from', '1.0.0', '--to', '2.0.0', '--json'],
@@ -812,6 +852,64 @@ test('diff and changelog read real semantic changes from two exact runtime paylo
     assert.equal(changelogOutput.from, '1.0.0');
     assert.equal(changelogOutput.to, '2.0.0');
     assert.equal(changelogOutput.changes.axioms['judgment-core'].status, 'changed');
+    assert.equal(changelogOutput.changes.ontology['removed-concept'].status, 'removed');
+    assert.equal(changelogOutput.recommended_version_bump, 'major');
+    assert.deepEqual(fs.readdirSync(commandTmp), []);
+  } finally {
+    if (home) fs.rmSync(home, { recursive: true, force: true });
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('diff canonicalizes bare registry names but still rejects mismatched identities', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-bare-identity-'));
+  let home;
+  try {
+    const name = '@aikdna/bare-identity';
+    const oldArchive = makeHistoricalArchive(
+      path.join(tmp, 'bare-identity-1.0.0.kdna'),
+      '1.0.0',
+      'Old judgment',
+      { name },
+    );
+    const wrongArchive = makeHistoricalArchive(
+      path.join(tmp, 'bare-identity-2.0.0.kdna'),
+      '2.0.0',
+      'New judgment',
+      { name: '@aikdna/not-bare-identity' },
+    );
+    const otherName = '@aikdna/other-identity';
+    const otherArchive = makeHistoricalArchive(
+      path.join(tmp, 'other-identity-2.0.0.kdna'),
+      '2.0.0',
+      'Other judgment',
+      { name: otherName },
+    );
+    home = writeRegistryHome([
+      registryEntry(name, '1.0.0', oldArchive),
+      registryEntry(name, '2.0.0', wrongArchive),
+      registryEntry(otherName, '2.0.0', otherArchive),
+    ]);
+    const commandTmp = path.join(tmp, 'command-tmp');
+    fs.mkdirSync(commandTmp);
+    const env = { HOME: home, TMPDIR: commandTmp };
+
+    const wrongAsset = runCli(
+      ['quality', 'diff', 'bare-identity@1.0.0', 'bare-identity@2.0.0', '--json'],
+      env,
+    );
+    assert.notEqual(wrongAsset.status, 0);
+    assert.match(
+      wrongAsset.stderr,
+      /identity does not match registry entry @aikdna\/bare-identity/,
+    );
+
+    const differentDomain = runCli(
+      ['quality', 'diff', 'bare-identity@1.0.0', `${otherName}@2.0.0`, '--json'],
+      env,
+    );
+    assert.notEqual(differentDomain.status, 0);
+    assert.match(differentDomain.stderr, /Comparing across different domains is not supported/);
     assert.deepEqual(fs.readdirSync(commandTmp), []);
   } finally {
     if (home) fs.rmSync(home, { recursive: true, force: true });
@@ -912,11 +1010,39 @@ test('changelog counts ontology and banned-term changes and reserves no-change f
       'Identical semantic judgment',
       { name },
     );
+    const minorA = makeHistoricalArchive(
+      path.join(tmp, 'changelog-5.0.0.kdna'),
+      '5.0.0',
+      'Stable axiom',
+      {
+        name,
+        ontology: [{ id: 'kept-concept', concept: 'Old concept meaning' }],
+        bannedTerms: [{ term: 'kept-term', reason: 'Old prohibition' }],
+      },
+    );
+    const minorB = makeHistoricalArchive(
+      path.join(tmp, 'changelog-6.0.0.kdna'),
+      '6.0.0',
+      'Stable axiom',
+      {
+        name,
+        ontology: [
+          { id: 'kept-concept', concept: 'New concept meaning' },
+          { id: 'added-concept', concept: 'Added concept' },
+        ],
+        bannedTerms: [
+          { term: 'kept-term', reason: 'New prohibition' },
+          { term: 'added-term', reason: 'Added prohibition' },
+        ],
+      },
+    );
     home = writeRegistryHome([
       registryEntry(name, '1.0.0', oldArchive),
       registryEntry(name, '2.0.0', newArchive),
       registryEntry(name, '3.0.0', sameA),
       registryEntry(name, '4.0.0', sameB),
+      registryEntry(name, '5.0.0', minorA),
+      registryEntry(name, '6.0.0', minorB),
     ]);
     const commandTmp = path.join(tmp, 'command-tmp');
     fs.mkdirSync(commandTmp);
@@ -932,6 +1058,29 @@ test('changelog counts ontology and banned-term changes and reserves no-change f
     assert.deepEqual(output.changes.banned_terms.changed, ['changed-term']);
     assert.deepEqual(output.changes.banned_terms.added, ['added-term']);
     assert.equal(output.recommended_version_bump, 'major');
+
+    const qualityDiff = runCli(
+      ['quality', 'diff', `${name}@1.0.0`, `${name}@2.0.0`, '--json'],
+      env,
+    );
+    assert.equal(qualityDiff.status, 0, qualityDiff.stderr);
+    const qualityOutput = JSON.parse(qualityDiff.stdout);
+    assert.deepEqual(qualityOutput.changes.ontology.removed, ['removed-concept']);
+    assert.deepEqual(qualityOutput.changes.ontology.changed, ['changed-concept']);
+    assert.deepEqual(qualityOutput.changes.ontology.added, ['added-concept']);
+    assert.deepEqual(qualityOutput.changes.banned_terms.removed, ['removed-term']);
+    assert.deepEqual(qualityOutput.changes.banned_terms.changed, ['changed-term']);
+    assert.deepEqual(qualityOutput.changes.banned_terms.added, ['added-term']);
+    assert.equal(qualityOutput.recommended_version_bump, 'major');
+
+    for (const command of [
+      ['quality', 'diff', `${name}@5.0.0`, `${name}@6.0.0`, '--json'],
+      ['changelog', name, '--from', '5.0.0', '--to', '6.0.0', '--json'],
+    ]) {
+      const result = runCli(command, env);
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(JSON.parse(result.stdout).recommended_version_bump, 'minor');
+    }
 
     const unchanged = runCli(['changelog', name, '--from', '3.0.0', '--to', '4.0.0'], env);
     assert.equal(unchanged.status, 0, unchanged.stderr);

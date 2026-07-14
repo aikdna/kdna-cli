@@ -13,6 +13,7 @@ const { error, EXIT } = require('./_common');
 const { loadJudgment } = require('../diff');
 const { RegistryResolver } = require('../registry');
 const { downloadAndExtractKdna } = require('../safe-archive');
+const { judgmentChanges, recommendedVersionBump } = require('../judgment-diff');
 
 function downloadVersion(entry, version, destDir, options = {}) {
   const { expectedName = entry?.name, ...downloadOptions } = options;
@@ -113,42 +114,28 @@ function cmdChangelog(args = []) {
   }
   fs.rmSync(tempRoot, { recursive: true, force: true });
 
-  // Diff maps
-  const axioms = diffSummary(oldJ.axioms || {}, newJ.axioms || {}, 'one_sentence');
-  const ontology = diffSummary(oldJ.ontology || {}, newJ.ontology || {}, 'concept');
+  const changes = judgmentChanges(oldJ, newJ);
+  const axioms = diffSummary(
+    oldJ.axioms || {},
+    newJ.axioms || {},
+    ['one_sentence'],
+    changes.axioms,
+  );
+  const ontology = diffSummary(
+    oldJ.ontology || {},
+    newJ.ontology || {},
+    ['one_sentence', 'concept'],
+    changes.ontology,
+  );
   const misunderstandings = diffSummary(
     oldJ.misunderstandings || {},
     newJ.misunderstandings || {},
-    'wrong',
+    ['wrong'],
+    changes.misunderstandings,
   );
-  const bannedTerms = diffList(
-    Object.keys(oldJ.banned_terms || {}),
-    Object.keys(newJ.banned_terms || {}),
-    oldJ.banned_terms || {},
-    newJ.banned_terms || {},
-  );
-  const stances = diffList(oldJ.stances || [], newJ.stances || []);
-
-  // Version bump suggestion
-  const hasRemoved =
-    Object.values(axioms).some((a) => a.status === 'removed') ||
-    Object.values(ontology).some((o) => o.status === 'removed') ||
-    Object.values(misunderstandings).some((m) => m.status === 'removed') ||
-    bannedTerms.removed.length > 0;
-  const hasAdded =
-    Object.values(axioms).some((a) => a.status === 'added') ||
-    Object.values(ontology).some((o) => o.status === 'added') ||
-    Object.values(misunderstandings).some((m) => m.status === 'added') ||
-    bannedTerms.added.length > 0;
-  const hasChanged =
-    Object.values(axioms).some((a) => a.status === 'changed') ||
-    Object.values(ontology).some((o) => o.status === 'changed') ||
-    Object.values(misunderstandings).some((m) => m.status === 'changed') ||
-    bannedTerms.changed.length > 0;
-  let recommendedBump = 'none';
-  if (hasRemoved) recommendedBump = 'major';
-  else if (hasAdded || hasChanged) recommendedBump = 'minor';
-  else if (stances.added.length || stances.removed.length) recommendedBump = 'patch';
+  const bannedTerms = listJsonChanges(changes.banned_terms);
+  const stances = listJsonChanges(changes.stances);
+  const recommendedBump = recommendedVersionBump(changes);
 
   // Output
   const changelog = {
@@ -217,47 +204,48 @@ function cmdChangelog(args = []) {
   }
 }
 
-function diffSummary(oldMap, newMap, labelField) {
+function itemLabel(item, labelFields, fallback) {
+  for (const field of labelFields) {
+    if (item?.[field]) return item[field];
+  }
+  return fallback;
+}
+
+function diffSummary(oldMap, newMap, labelFields, facts) {
   const result = {};
   const oldIds = new Set(Object.keys(oldMap));
   const newIds = new Set(Object.keys(newMap));
+  const addedIds = new Set(facts.added);
+  const removedIds = new Set(facts.removed);
+  const changedIds = new Set(facts.changed);
 
   for (const id of newIds) {
-    if (!oldIds.has(id)) {
+    if (addedIds.has(id)) {
       const item = newMap[id];
-      result[id] = { status: 'added', label: item[labelField] || id };
+      result[id] = { status: 'added', label: itemLabel(item, labelFields, id) };
     }
   }
   for (const id of oldIds) {
-    if (!newIds.has(id)) {
+    if (removedIds.has(id)) {
       const item = oldMap[id];
-      result[id] = { status: 'removed', label: item[labelField] || id };
+      result[id] = { status: 'removed', label: itemLabel(item, labelFields, id) };
     } else {
-      const oldItem = oldMap[id];
       const newItem = newMap[id];
-      if (JSON.stringify(oldItem) !== JSON.stringify(newItem)) {
-        result[id] = { status: 'changed', label: newItem[labelField] || id };
+      if (changedIds.has(id)) {
+        result[id] = { status: 'changed', label: itemLabel(newItem, labelFields, id) };
       } else {
-        result[id] = { status: 'unchanged', label: newItem[labelField] || id };
+        result[id] = { status: 'unchanged', label: itemLabel(newItem, labelFields, id) };
       }
     }
   }
   return result;
 }
 
-function diffList(oldList, newList, oldMap = null, newMap = null) {
-  const oldSet = new Set(oldList);
-  const newSet = new Set(newList);
+function listJsonChanges(facts) {
   return {
-    added: newList.filter((s) => !oldSet.has(s)),
-    removed: oldList.filter((s) => !newSet.has(s)),
-    changed:
-      oldMap && newMap
-        ? newList.filter(
-            (value) =>
-              oldSet.has(value) && JSON.stringify(oldMap[value]) !== JSON.stringify(newMap[value]),
-          )
-        : [],
+    added: facts.added,
+    removed: facts.removed,
+    changed: facts.changed,
   };
 }
 

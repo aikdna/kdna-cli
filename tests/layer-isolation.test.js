@@ -89,37 +89,33 @@ const ALLOWLIST = [
     reason:
       'docstring: "This is the recommended [way]..." — tool-usage recommendation, not a content-trust claim',
   },
-  // diff.js — `recommendedVersionBump` internal var, semver calculation
+  // diff.js — shared semver calculation and output field
   {
     file: 'src/diff.js',
-    line: 375,
-    reason: 'function comment: "Determine recommended version bump" — semver calculation',
+    line: 31,
+    reason: 'shared `recommendedVersionBump` helper import — semver calculation',
   },
   {
     file: 'src/diff.js',
-    line: 379,
-    reason: 'internal var: `recommendedVersionBump` — semver calculation',
+    line: 372,
+    reason: 'shared `recommendedVersionBump` helper call — semver calculation',
   },
   {
     file: 'src/diff.js',
-    line: 380,
-    reason: 'internal var: `recommendedVersionBump`',
-  },
-  {
-    file: 'src/diff.js',
-    line: 381,
-    reason: 'internal var: `recommendedVersionBump`',
-  },
-  {
-    file: 'src/diff.js',
-    line: 383,
-    reason: 'internal var: `recommendedVersionBump`',
-  },
-  {
-    file: 'src/diff.js',
-    line: 400,
+    line: 390,
     reason:
       'output field: `recommended_version_bump: <semver>` — semver tool recommendation, not a content-trust claim',
+  },
+  // judgment-diff.js — shared semver calculation
+  {
+    file: 'src/judgment-diff.js',
+    line: 49,
+    reason: 'shared `recommendedVersionBump` function — semver calculation',
+  },
+  {
+    file: 'src/judgment-diff.js',
+    line: 90,
+    reason: 'shared `recommendedVersionBump` export — semver calculation',
   },
   // cmds/demo.js — tool-usage recommendation
   {
@@ -127,35 +123,25 @@ const ALLOWLIST = [
     line: 24,
     reason: 'tool-usage message: "(recommended first-run)" — which demo to run first',
   },
-  // cmds/changelog.js — `recommendedBump` internal var, semver calculation
+  // cmds/changelog.js — shared semver calculation and output
   {
     file: 'src/cmds/changelog.js',
-    line: 148,
-    reason: 'internal var: `recommendedBump` — semver calculation',
+    line: 16,
+    reason: 'shared `recommendedVersionBump` helper import — semver calculation',
   },
   {
     file: 'src/cmds/changelog.js',
-    line: 149,
-    reason: 'internal var: `recommendedBump`',
+    line: 138,
+    reason: 'internal var from `recommendedVersionBump` — semver calculation',
   },
   {
     file: 'src/cmds/changelog.js',
-    line: 150,
-    reason: 'internal var: `recommendedBump`',
-  },
-  {
-    file: 'src/cmds/changelog.js',
-    line: 151,
-    reason: 'internal var: `recommendedBump`',
-  },
-  {
-    file: 'src/cmds/changelog.js',
-    line: 169,
+    line: 156,
     reason: 'output field: `recommended_version_bump: <semver>` — semver tool recommendation',
   },
   {
     file: 'src/cmds/changelog.js',
-    line: 216,
+    line: 203,
     reason:
       'output: "Recommended version bump: `<semver>`" — semver tool recommendation, not a content-trust claim',
   },

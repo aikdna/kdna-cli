@@ -7,8 +7,13 @@
   content. Single-argument diff now compares the integrity-checked installed
   asset directly with the current registry release.
 - Read formal `payload.kdnab` judgment fields as well as historical authoring
-  JSON, and include ontology and banned-term changes in changelog output and
-  version-bump recommendations.
+  JSON. Structured quality-diff and changelog output now include ontology and
+  banned-term additions, removals, and modifications, and share one version
+  rule: removals require a major bump while additions or modifications require
+  a minor bump.
+- Canonicalize bare registry references before binding registry and archive
+  identity, so `name@version` and `@aikdna/name@version` compare as the same
+  asset while mismatched registry or manifest identities still fail closed.
 - Harden network-fetched diff/changelog archive extraction. The command safety
   policy limits each uncompressed entry to 5 MiB and the total uncompressed
   archive content to 12 MiB; these are command download limits, not KDNA format

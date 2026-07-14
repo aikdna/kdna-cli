@@ -23,6 +23,13 @@ const { RegistryResolver } = require('./registry');
 const { EXIT } = require('./cmds/_common');
 const { assertInstalledIntegrity, getInstalled, readContainer } = require('./package-store');
 const { downloadAndExtractKdna } = require('./safe-archive');
+const {
+  judgmentChanges,
+  jsonChanges,
+  listChanges,
+  mapChanges,
+  recommendedVersionBump,
+} = require('./judgment-diff');
 
 function error(msg, code = EXIT.VALIDATION_FAILED) {
   console.error(`Error: ${msg}`);
@@ -125,30 +132,9 @@ function loadJudgment(domainDir) {
 
 // ─── Set diff helpers ─────────────────────────────────────────────────
 
-function diffMaps(label, oldMap, newMap, render, jsonMode = false) {
-  const oldIds = new Set(Object.keys(oldMap));
-  const newIds = new Set(Object.keys(newMap));
-  const added = [...newIds].filter((id) => !oldIds.has(id));
-  const removed = [...oldIds].filter((id) => !newIds.has(id));
-  const both = [...newIds].filter((id) => oldIds.has(id));
-  const changed = both.filter((id) => JSON.stringify(oldMap[id]) !== JSON.stringify(newMap[id]));
-
-  // Collect boundary-level diffs for JSON output
-  const changedDetails = changed.map((id) => {
-    const a = oldMap[id],
-      b = newMap[id];
-    const boundaryChanges = {};
-    for (const field of ['applies_when', 'does_not_apply_when', 'failure_risk', 'confidence']) {
-      const before = a[field] ?? null;
-      const after = b[field] ?? null;
-      if (JSON.stringify(before) !== JSON.stringify(after)) {
-        boundaryChanges[field] = { before, after };
-      }
-    }
-    return { id, before: a, after: b, boundary_changes: boundaryChanges };
-  });
-
-  const out = { label, added, removed, changed, changedDetails };
+function diffMaps(label, oldMap, newMap, render, jsonMode = false, facts = null) {
+  const out = { label, ...(facts || mapChanges(oldMap, newMap)) };
+  const { added, removed, changed } = out;
 
   if (jsonMode) return out;
 
@@ -187,12 +173,9 @@ function diffMaps(label, oldMap, newMap, render, jsonMode = false) {
   return out;
 }
 
-function diffStanceList(oldList, newList, jsonMode = false) {
-  const oldSet = new Set(oldList);
-  const newSet = new Set(newList);
-  const added = newList.filter((s) => !oldSet.has(s));
-  const removed = oldList.filter((s) => !newSet.has(s));
-  const out = { added, removed };
+function diffStanceList(oldList, newList, jsonMode = false, facts = null) {
+  const out = facts || listChanges(oldList, newList);
+  const { added, removed } = out;
   if (jsonMode) return out;
   console.log('');
   console.log('─'.repeat(64));
@@ -216,37 +199,40 @@ async function cmdDiff(a, b, args = []) {
   if (b && !bParsed) error(`Cannot parse "${b}"`, EXIT.INPUT_ERROR);
 
   const resolver = new RegistryResolver({ allowNetwork: true });
+  let resolvedA;
   let entryA;
   try {
-    ({ entry: entryA } = resolver.resolve(a));
+    resolvedA = resolver.resolve(a);
+    entryA = resolvedA.entry;
   } catch (e) {
     error(e.message, EXIT.REGISTRY_ERROR);
   }
+  const canonicalName = resolvedA.parsed.full;
 
   // Determine targets
   let oldVersion, newVersion, oldEntry, newEntry;
   let oldJ = null;
   if (bParsed) {
-    let entryB;
+    let resolvedB;
     try {
-      ({ entry: entryB } = resolver.resolve(b));
+      resolvedB = resolver.resolve(b);
     } catch (e) {
       error(e.message, EXIT.REGISTRY_ERROR);
     }
-    if (aParsed.full !== bParsed.full)
+    if (canonicalName !== resolvedB.parsed.full)
       error('Comparing across different domains is not supported.', EXIT.INPUT_ERROR);
-    oldVersion = aParsed.version || entryA.version;
-    newVersion = bParsed.version || entryB.version;
+    oldVersion = resolvedA.parsed.version || entryA.version;
+    newVersion = resolvedB.parsed.version || resolvedB.entry.version;
     oldEntry = entryA;
-    newEntry = entryB;
+    newEntry = resolvedB.entry;
   } else {
     // single-arg form: installed vs registry-current
-    const installed = getInstalled(aParsed.full);
+    const installed = getInstalled(canonicalName);
     if (!installed) {
-      error(`${aParsed.full} not installed. Run: kdna install ${aParsed.full}`, EXIT.INPUT_ERROR);
+      error(`${canonicalName} not installed. Run: kdna install ${canonicalName}`, EXIT.INPUT_ERROR);
     }
     try {
-      assertInstalledIntegrity(installed, `${aParsed.full}@${installed.version}`);
+      assertInstalledIntegrity(installed, `${canonicalName}@${installed.version}`);
       oldJ = loadJudgment(installed.asset_path);
     } catch (integrityError) {
       error(integrityError.message, EXIT.VALIDATION_FAILED);
@@ -257,13 +243,13 @@ async function cmdDiff(a, b, args = []) {
     if (oldVersion === newVersion) {
       if (jsonMode) {
         console.log(
-          JSON.stringify({ error: `${aParsed.full}@${oldVersion}: only one version found.` }),
+          JSON.stringify({ error: `${canonicalName}@${oldVersion}: only one version found.` }),
         );
         process.exit(EXIT.OK);
       }
       console.log(
-        `${aParsed.full}@${oldVersion}: only one version found.\n` +
-          `To compare across versions, specify two: kdna diff ${aParsed.full}@${oldVersion} ${aParsed.full}@<other>`,
+        `${canonicalName}@${oldVersion}: only one version found.\n` +
+          `To compare across versions, specify two: kdna diff ${canonicalName}@${oldVersion} ${canonicalName}@<other>`,
       );
       return;
     }
@@ -271,7 +257,7 @@ async function cmdDiff(a, b, args = []) {
 
   if (!jsonMode) {
     console.log('═'.repeat(64));
-    console.log(`  kdna diff  ${aParsed.full}`);
+    console.log(`  kdna diff  ${canonicalName}`);
     console.log(`  ${oldVersion}  →  ${newVersion}`);
     console.log('═'.repeat(64));
   }
@@ -281,21 +267,21 @@ async function cmdDiff(a, b, args = []) {
   const tmpOld = path.join(tempRoot, 'old');
   const tmpNew = path.join(tempRoot, 'new');
   let newJ;
-  let fetching = `${aParsed.full}@${oldVersion}`;
+  let fetching = `${canonicalName}@${oldVersion}`;
   try {
     if (oldEntry) {
       if (!jsonMode) console.log('Downloading old version...');
       downloadVersion(oldEntry, oldVersion, tmpOld, {
-        expectedName: aParsed.full,
+        expectedName: canonicalName,
         onVerifiedArchive(archivePath) {
           oldJ = loadJudgment(archivePath);
         },
       });
     }
-    fetching = `${aParsed.full}@${newVersion}`;
+    fetching = `${canonicalName}@${newVersion}`;
     if (!jsonMode) console.log('Downloading new version...');
     downloadVersion(newEntry, newVersion, tmpNew, {
-      expectedName: aParsed.full,
+      expectedName: canonicalName,
       onVerifiedArchive(archivePath) {
         newJ = loadJudgment(archivePath);
       },
@@ -316,29 +302,40 @@ async function cmdDiff(a, b, args = []) {
     );
   }
 
+  const changes = judgmentChanges(oldJ, newJ);
   const axiomsDiff = diffMaps(
     'axioms',
     oldJ.axioms,
     newJ.axioms,
     (a) => a.one_sentence || a.id,
     jsonMode,
+    changes.axioms,
   );
-  diffMaps('ontology', oldJ.ontology, newJ.ontology, (o) => o.one_sentence || o.id, jsonMode);
+  diffMaps(
+    'ontology',
+    oldJ.ontology,
+    newJ.ontology,
+    (o) => o.one_sentence || o.concept || o.id,
+    jsonMode,
+    changes.ontology,
+  );
   const misunderstandingsDiff = diffMaps(
     'misunderstandings',
     oldJ.misunderstandings,
     newJ.misunderstandings,
     (m) => m.wrong || m.id,
     jsonMode,
+    changes.misunderstandings,
   );
-  const bannedDiff = diffMaps(
+  diffMaps(
     'banned_terms',
     oldJ.banned_terms,
     newJ.banned_terms,
     (t) => t.term || '',
     jsonMode,
+    changes.banned_terms,
   );
-  const stancesDiff = diffStanceList(oldJ.stances, newJ.stances, jsonMode);
+  diffStanceList(oldJ.stances, newJ.stances, jsonMode, changes.stances);
 
   // Derive structured JSON fields
   const changedAxioms = axiomsDiff.changedDetails.map((d) => ({
@@ -372,19 +369,11 @@ async function cmdDiff(a, b, args = []) {
       does_not_apply_when: d.boundary_changes.does_not_apply_when || null,
     }));
 
-  // Determine recommended version bump
-  const hasRemoved = axiomsDiff.removed.length > 0 || misunderstandingsDiff.removed.length > 0;
-  const hasAdded = axiomsDiff.added.length > 0 || misunderstandingsDiff.added.length > 0;
-  const hasChanged = axiomsDiff.changed.length > 0 || bannedDiff.changed.length > 0;
-  let recommendedVersionBump = 'none';
-  if (hasRemoved) recommendedVersionBump = 'major';
-  else if (hasAdded || hasChanged) recommendedVersionBump = 'minor';
-  else if (stancesDiff.added.length > 0 || stancesDiff.removed.length > 0)
-    recommendedVersionBump = 'patch';
+  const versionBump = recommendedVersionBump(changes);
 
   if (jsonMode) {
     const result = {
-      domain: aParsed.full,
+      domain: canonicalName,
       old_version: oldVersion,
       new_version: newVersion,
       judgment_version: {
@@ -397,7 +386,8 @@ async function cmdDiff(a, b, args = []) {
       deprecated_self_checks: deprecatedSelfChecks,
       risk_model_changes: riskModelChanges,
       affected_scenarios: affectedScenarios,
-      recommended_version_bump: recommendedVersionBump,
+      changes: jsonChanges(changes),
+      recommended_version_bump: versionBump,
     };
     console.log(JSON.stringify(result, null, 2));
   } else {

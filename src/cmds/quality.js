@@ -42,7 +42,7 @@ function cmdDiff(args) {
         '  kdna diff <name> [--json]            Installed vs registry-current\n' +
         '\n' +
         'Surfaces judgment-level diff: added/removed/changed axioms,\n' +
-        'misunderstandings, banned terms, stances.',
+        'ontology, misunderstandings, banned terms, and stances.',
       EXIT.INPUT_ERROR,
     );
   }
