@@ -18,10 +18,10 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execFileSync } = require('child_process');
 const { RegistryResolver } = require('./registry');
 const { EXIT } = require('./cmds/_common');
 const { getInstalled, readContainer } = require('./package-store');
+const { downloadAndExtractKdna } = require('./safe-archive');
 
 const TMP_DIR = '/tmp';
 
@@ -56,12 +56,12 @@ function parseNameVersion(input) {
 
 // ─── Download specific version ────────────────────────────────────────
 
-function downloadVersion(entry, version, destDir) {
+function downloadVersion(entry, version, destDir, options = {}) {
   const assetUrl = entry.asset_url;
   // assetUrl is for the registry-current version. For older versions
   // we infer the URL pattern from the registry-current URL.
   if (entry.version === version) {
-    return downloadAndExtract(assetUrl, destDir);
+    return downloadAndExtractKdna(assetUrl, destDir, options);
   }
 
   // Infer pattern: replace v<current> in the URL with v<requested>
@@ -69,37 +69,7 @@ function downloadVersion(entry, version, destDir) {
     .replace(`/v${entry.version}/`, `/v${version}/`)
     .replace(`-${entry.version}.kdna`, `-${version}.kdna`);
 
-  return downloadAndExtract(inferredUrl, destDir);
-}
-
-function downloadAndExtract(url, destDir) {
-  const tmpFile = `${destDir}.kdna.tmp`;
-  try {
-    execFileSync('curl', ['-fsSL', '--retry', '2', '-o', tmpFile, url], {
-      timeout: 60000,
-      stdio: 'pipe',
-    });
-  } catch (e) {
-    error(
-      `Failed to download ${url}: ${e.stderr?.toString().trim() || e.message}`,
-      EXIT.PROVIDER_ERROR,
-    );
-  }
-
-  fs.mkdirSync(destDir, { recursive: true });
-  try {
-    try {
-      execFileSync('unzip', ['-q', '-o', tmpFile, '-d', destDir], { stdio: 'pipe' });
-    } catch {
-      const script = `import zipfile
-zf = zipfile.ZipFile(${JSON.stringify(tmpFile)}, 'r')
-zf.extractall(${JSON.stringify(destDir)})`;
-      execFileSync('python3', ['-c', script], { stdio: 'pipe' });
-    }
-  } finally {
-    fs.rmSync(tmpFile, { force: true });
-  }
-  return destDir;
+  return downloadAndExtractKdna(inferredUrl, destDir, options);
 }
 
 // ─── Extract judgment artifacts ────────────────────────────────────────
@@ -400,4 +370,4 @@ async function cmdDiff(a, b, args = []) {
   }
 }
 
-module.exports = { cmdDiff, loadJudgment, parseNameVersion };
+module.exports = { cmdDiff, downloadVersion, loadJudgment, parseNameVersion };

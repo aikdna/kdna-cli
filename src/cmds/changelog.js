@@ -11,33 +11,12 @@ const path = require('path');
 const { error, EXIT } = require('./_common');
 const { loadJudgment } = require('../diff');
 const { RegistryResolver } = require('../registry');
+const { downloadAndExtractKdna } = require('../safe-archive');
 
 const TMP_DIR = '/tmp';
 
-function downloadVersion(entry, version, destDir) {
-  const { execFileSync } = require('child_process');
-  const tmpFile = `${destDir}.kdna.tmp`;
-  try {
-    execFileSync('curl', ['-fsSL', '--retry', '2', '-o', tmpFile, entry.asset_url], {
-      timeout: 60000,
-      stdio: 'pipe',
-    });
-  } catch (e) {
-    const stderr = e.stderr?.toString().trim() || e.message;
-    error(`Failed to download: ${stderr}`, EXIT.PROVIDER_ERROR);
-  }
-  fs.mkdirSync(destDir, { recursive: true });
-  try {
-    try {
-      execFileSync('unzip', ['-q', '-o', tmpFile, '-d', destDir], { stdio: 'pipe' });
-    } catch {
-      const script = `import zipfile\nzf = zipfile.ZipFile(${JSON.stringify(tmpFile)}, 'r')\nzf.extractall(${JSON.stringify(destDir)})`;
-      execFileSync('python3', ['-c', script], { stdio: 'pipe' });
-    }
-  } finally {
-    fs.rmSync(tmpFile, { force: true });
-  }
-  return destDir;
+function downloadVersion(entry, version, destDir, options = {}) {
+  return downloadAndExtractKdna(entry.asset_url, destDir, options);
 }
 
 function cmdChangelog(args = []) {
@@ -246,4 +225,4 @@ function renderSection(title, items) {
   console.log('');
 }
 
-module.exports = { cmdChangelog };
+module.exports = { cmdChangelog, downloadVersion };
