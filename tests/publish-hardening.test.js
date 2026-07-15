@@ -25,6 +25,8 @@ const {
 
 const ROOT = path.resolve(__dirname, '..');
 const HASH = 'a'.repeat(40);
+const CHECKOUT_V7_SHA = ['9c091bb21b7c1c1d1991b', 'b908d89e4e9dddfe3e0'].join('');
+const SETUP_NODE_V6_SHA = ['249970729cb0ef3589644e', '2896645e5dc5ba9c38'].join('');
 
 function releaseInput(overrides = {}) {
   const version = overrides.pkg?.version || '1.2.3';
@@ -114,6 +116,10 @@ test('publish workflow has one canonical release-only path and publishes the ver
   const workflow = fs.readFileSync(path.join(ROOT, '.github/workflows/publish.yml'), 'utf8');
   assert.doesNotMatch(workflow, /workflow_dispatch/);
   assert.match(workflow, /release:\n\s+types: \[published\]/);
+  assert.match(
+    workflow,
+    /concurrency:\n\s+group: \$\{\{ github\.workflow \}\}-\$\{\{ github\.event\.release\.tag_name \}\}\n\s+cancel-in-progress: false/,
+  );
   assert.match(workflow, /release\.draft == false/);
   assert.match(workflow, /release\.prerelease == false/);
   assert.match(workflow, /startsWith\(github\.event\.release\.tag_name, 'v'\)/);
@@ -123,6 +129,8 @@ test('publish workflow has one canonical release-only path and publishes the ver
   );
   assert.match(workflow, /npm --version \| grep -Fx 11\.17\.0/);
   assert.match(workflow, /npm ci --ignore-scripts/);
+  assert.match(workflow, new RegExp(`actions/checkout@${CHECKOUT_V7_SHA} # v7`));
+  assert.match(workflow, new RegExp(`actions/setup-node@${SETUP_NODE_V6_SHA} # v6`));
   assert.match(workflow, /npm run release:check/);
   assert.match(workflow, /npm run release:preflight/);
   assert.match(workflow, /generate-release-evidence\.js/);
