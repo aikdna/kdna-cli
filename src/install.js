@@ -396,7 +396,7 @@ function installFromRegistry(parsed, yes, jsonMode = false, local = false) {
     error(
       `${entry.name}@${entry.version} has no asset_url in registry.\n` +
         `release_status: ${entry.release_status || 'unknown'}\n` +
-        `(Registry v3 publishes canonical .kdna assets through asset_url only.)`,
+        `(Current registry metadata publishes canonical .kdna assets through asset_url only.)`,
       EXIT.REGISTRY_ERROR,
     );
   }

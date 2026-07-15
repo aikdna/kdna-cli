@@ -65,7 +65,7 @@ function writeRegistryHome(options = {}) {
         registry_version: '3.0.0-test',
         updated: '2026-05-27T00:00:00Z',
         trust: {
-          model: 'kdna-registry-v1',
+          model: 'kdna.registry.snapshot',
           snapshot: {
             registry_version: '3.0.0-test',
             generated_at: '2026-05-27T00:00:00Z',
@@ -174,7 +174,7 @@ test('kdna search hides yanked registry entries by default', () => {
   assert.doesNotMatch(r.stdout, /@aikdna\/writing/);
 });
 
-test('kdna search rejects pre-v3 registry metadata', () => {
+test('kdna search rejects predecessor registry metadata', () => {
   const r = run(['search', 'writing'], { env: writeOldRegistryHome() });
   assert.ok(!r.ok, 'old registry schema must fail closed');
   assert.match(r.stderr, /Registry trust check failed/);

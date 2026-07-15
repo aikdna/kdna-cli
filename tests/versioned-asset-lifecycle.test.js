@@ -298,13 +298,13 @@ test('version-aware install, migration, inspect, plan, use, remove and rollback'
   );
 
   const inspectBase = run(['inspect', NAME, '--json'], { env, cwd: project });
-  const inspectV1 = run(['inspect', `${NAME}@1.0.0`, '--json'], { env, cwd: project });
+  const inspectPinned = run(['inspect', `${NAME}@1.0.0`, '--json'], { env, cwd: project });
   assert.ok(inspectBase.ok, inspectBase.stderr);
-  assert.ok(inspectV1.ok, inspectV1.stderr);
+  assert.ok(inspectPinned.ok, inspectPinned.stderr);
   assert.equal(JSON.parse(inspectBase.stdout).version, '1.1.0');
-  assert.equal(JSON.parse(inspectV1.stdout).version, '1.0.0');
+  assert.equal(JSON.parse(inspectPinned.stdout).version, '1.0.0');
 
-  const plannedV1 = run(
+  const plannedPinned = run(
     [
       'plan-use',
       `${NAME}@1.0.0`,
@@ -314,15 +314,15 @@ test('version-aware install, migration, inspect, plan, use, remove and rollback'
     ],
     { env, cwd: project },
   );
-  assert.ok(plannedV1.ok, plannedV1.stderr);
-  const plan = JSON.parse(plannedV1.stdout);
+  assert.ok(plannedPinned.ok, plannedPinned.stderr);
+  const plan = JSON.parse(plannedPinned.stdout);
   assert.equal(plan.asset_ref.version, '1.0.0');
   assert.equal(plan.asset_ref.expected_digests.asset.value, sha256(v1.asset));
   assert.equal(plan.type, 'kdna.consumption-plan');
   assert.equal(plan.contract_version, '0.1.0');
 
   const agentHost = currentAgentHost(root);
-  const usedV1 = run(
+  const usedPinned = run(
     [
       'use',
       `${NAME}@1.0.0`,
@@ -336,8 +336,8 @@ test('version-aware install, migration, inspect, plan, use, remove and rollback'
     ],
     { env, cwd: project },
   );
-  assert.ok(usedV1.ok, usedV1.stderr);
-  const trace = JSON.parse(usedV1.stdout);
+  assert.ok(usedPinned.ok, usedPinned.stderr);
+  const trace = JSON.parse(usedPinned.stdout);
   assert.equal(trace.asset_identity.version, '1.0.0');
   assert.equal(trace.digest_evidence.asset.value, sha256(v1.asset));
 

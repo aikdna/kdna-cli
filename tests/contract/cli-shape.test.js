@@ -1,5 +1,5 @@
 /**
- * cli-shape.test.js — Contract test for kdna-cli v1 Core surface.
+ * cli-shape.test.js — Contract test for the current minimal CLI surface.
  *
  * Fails CI if any deleted command name appears in the CLI source
  * or if the help output exceeds the contracted line count.
@@ -110,7 +110,7 @@ test('no deleted command names appear in src/cli.js routing', () => {
   assert.deepEqual(hits, [], `deleted commands still routed: ${hits.join(', ')}`);
 });
 
-test('kdna --help contains only v1 Core commands', () => {
+test('kdna --help contains only the current Core commands', () => {
   const r = runCli(['--help']);
   const help = r.stdout;
   // Must have core commands

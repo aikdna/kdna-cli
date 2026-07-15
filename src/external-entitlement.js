@@ -13,7 +13,10 @@ const secretStore = require('./secret-store');
 const PATHS = require('./paths');
 const { resolveAsset } = require('./package-store');
 
-const PROFILE = 'kdna-key-grant-v1';
+const PROFILE = 'kdna.entitlement.external-key';
+const PROFILE_VERSION = '0.1.0';
+const ACTIVATION_PROOF_PROFILE = 'kdna.proof.device-activation';
+const SYNC_PROOF_PROFILE = 'kdna.proof.device-sync';
 
 class ExternalEntitlementError extends Error {
   constructor(code, message) {
@@ -121,7 +124,8 @@ function rawPrivateKey(crv, privateValue, publicValue) {
 
 function activationProof({ activationId, challenge, device }) {
   const payload = {
-    profile: 'kdna-device-activation-proof-v1',
+    profile: ACTIVATION_PROOF_PROFILE,
+    profile_version: PROFILE_VERSION,
     activation_id: activationId,
     challenge,
     device_public_key: device.agreement.public_key,
@@ -134,7 +138,8 @@ function activationProof({ activationId, challenge, device }) {
 
 function syncProof({ entitlementId, deviceId, challenge, device }) {
   const payload = {
-    profile: 'kdna-device-sync-proof-v1',
+    profile: SYNC_PROOF_PROFILE,
+    profile_version: PROFILE_VERSION,
     entitlement_id: entitlementId,
     device_id: deviceId,
     challenge,

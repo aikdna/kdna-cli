@@ -176,7 +176,7 @@ The package index keeps immutable versions under one name and records one
 `active_version`. Installing a version makes it active. Unversioned commands
 resolve that active version; `name@version` is an exact pin. Removing the active
 version selects the highest remaining installed version, so rollback does not
-require reacquiring the old asset. Existing v2 indexes migrate on the next
+require reacquiring the old asset. Existing predecessor indexes migrate on the next
 write without moving stored assets.
 
 Local installation fails closed when Core validation reports an invalid format

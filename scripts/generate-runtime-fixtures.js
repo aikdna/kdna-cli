@@ -31,9 +31,7 @@ function currentManifest(value) {
     profile_version: PROTOCOL_VERSION,
   };
   if (typeof manifest.summary === 'string') {
-    manifest.summary = manifest.summary
-      .replace(/Phase 1 /g, '')
-      .replace(/KDNA v1 asset/g, 'KDNA asset');
+    manifest.summary = manifest.summary.replace(/Phase 1 /g, '');
   }
   return manifest;
 }

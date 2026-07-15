@@ -429,7 +429,7 @@ function signAsset(assetPath, opts = {}) {
   const loaded = loadAssetForSigning(assetPath);
   // Ed25519 in Node.js signs arbitrary bytes (the message). We sign
   // the asset digest bytes directly — equivalent to signing the
-  // canonical serialization "kdna-envelope-aead-v1\n<digest>" but
+  // canonical identity-envelope serialization followed by the digest, but
   // simpler and just as verifiable.
   const sigBytes = crypto.sign(null, loaded.assetDigestBytes, privateKeyObj);
 

@@ -80,7 +80,7 @@ function makeFixture(tmpDir, access = 'public') {
     // Note: no `entitlement` block is set. With no
     // entitlement_profile, the planLoad path falls through
     // to the "active entitlement → can_load_now = true" branch
-    // (kda-core v1/index.js ~line 1441) when the consumer
+    // in the current Core planning route when the consumer
     // passes --entitlement-status. Setting a profile here
     // (e.g. 'account') would route the plan into a
     // "needs_account" path that ignores --entitlement-status.

@@ -10,11 +10,11 @@ const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const core = require('@aikdna/kdna-core');
 
 // Gate: skip if installed kdna-core lacks B4 decryption primitives
 let HAS_B4_CORE = false;
 try {
-  const core = require('@aikdna/kdna-core');
   HAS_B4_CORE =
     typeof core.decryptProtectedEntry === 'function' &&
     typeof core.encryptProtectedEntry === 'function';
@@ -54,7 +54,8 @@ test.before(() => {
   // Verify payload is NOT plaintext JSON
   const payloadRaw = fs.readFileSync(path.join(demoDir, 'payload.kdnab'), 'utf8');
   assert.ok(
-    payloadRaw.includes('"profile":') && payloadRaw.includes('"kdna-password-protected-v1"'),
+    payloadRaw.includes('"profile":') &&
+      payloadRaw.includes(JSON.stringify(core.PASSWORD_PROTECTED_PROFILE)),
     'payload should be an encrypted envelope, not plaintext JSON',
   );
 

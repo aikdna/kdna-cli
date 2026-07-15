@@ -149,6 +149,13 @@ test('publish workflow has one canonical release-only path and publishes the ver
   assert.ok(
     workflow.indexOf('registry-duplicate-guard') < workflow.indexOf('publish-verified-artifact'),
   );
+
+  const preflight = fs.readFileSync(path.join(ROOT, 'scripts/release-preflight.js'), 'utf8');
+  assert.match(preflight, /scripts\/check-public-surface\.mjs/);
+  assert.match(preflight, /scripts\/check-current-protocol-names\.js/);
+
+  const ci = fs.readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8');
+  assert.match(ci, /npm run check:public-surface/);
 });
 
 test('release context binds event, tag ref, package, changelog, HEAD, and workflow commit', () => {
@@ -374,6 +381,18 @@ test('pack policy requires the current runtime surface and rejects retired or pr
     () => validatePackedFilePolicy([...required, { path: 'tests/private.test.js', size: 1 }]),
     /unexpected packed file/,
   );
+  for (const hostilePath of [
+    'src/AGENTS.md',
+    'src/WORKLOG.md',
+    'templates/private-launch-plan.md',
+    'skills/kdna-loader/credentials.txt',
+  ]) {
+    assert.throws(
+      () => validatePackedFilePolicy([...required, { path: hostilePath, size: 1 }]),
+      /private coordination file|sensitive-category file/,
+      hostilePath,
+    );
+  }
   assert.throws(
     () => validatePackedFilePolicy([...required, { path: 'src/runner.js', size: 1 }]),
     /retired implementation was packed/,

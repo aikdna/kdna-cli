@@ -17,17 +17,17 @@ const AGENTS = [
   },
 ];
 
-const V2_1_MARKER = 'kdna available';
+const CURRENT_SKILL_MARKER = 'kdna available';
 function checkAgentSkill(agent) {
   const skillPath = path.join(agent.dir, agent.skillsDir, 'kdna-loader', 'SKILL.md');
   if (!fs.existsSync(skillPath)) return { installed: false, version: null, path: skillPath };
 
   try {
     const content = fs.readFileSync(skillPath, 'utf8');
-    const isV2 = content.includes(V2_1_MARKER);
+    const isCurrent = content.includes(CURRENT_SKILL_MARKER);
     return {
       installed: true,
-      version: isV2 ? 'v2026.05' : 'outdated',
+      version: isCurrent ? '2026.05' : 'outdated',
       path: skillPath,
     };
   } catch {

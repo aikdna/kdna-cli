@@ -152,6 +152,37 @@ test('CLI pack/unpack round-trip produces current mimetype', () => {
   }
 });
 
+test('Core detects current source directories and rejects unrelated directories', () => {
+  assert.equal(core.isKdnaSourceDir(path.join(__dirname, '..', 'fixtures', 'minimal')), true);
+  const unrelated = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-unrelated-'));
+  try {
+    assert.equal(core.isKdnaSourceDir(unrelated), false);
+  } finally {
+    fs.rmSync(unrelated, { recursive: true, force: true });
+  }
+});
+
+test('CLI inspect rejects a packaged container with a predecessor mimetype', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-old-mime-'));
+  try {
+    const packed = path.join(tmp, 'old-mime.kdna');
+    const packedResult = run(['pack', path.join(__dirname, '..', 'fixtures', 'minimal'), packed]);
+    assert.equal(packedResult.status, 0, packedResult.stderr);
+    const bytes = fs.readFileSync(packed);
+    const current = Buffer.from('application/vnd.kdna.asset');
+    const offset = bytes.indexOf(current);
+    assert.ok(offset >= 0, 'current mimetype entry not found');
+    Buffer.from(LEGACY_MIMETYPE.padEnd(current.length)).copy(bytes, offset, 0, current.length);
+    fs.writeFileSync(packed, bytes);
+
+    assert.equal(core.detectContainerFormat(packed), null);
+    const inspected = run(['inspect', packed, '--json']);
+    assert.notEqual(inspected.status, 0);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('CLI rejects source dir with legacy mimetype', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-reg-'));
   try {

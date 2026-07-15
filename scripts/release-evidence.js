@@ -41,6 +41,15 @@ const ALLOWED_PACK_FILES = new Set([
   'package.json',
 ]);
 const FORBIDDEN_PACK_FILES = new Set(['src/loader.js', 'src/runner.js', 'src/verify.js']);
+const FORBIDDEN_COORDINATION_FILES = new Set(['agents.md', 'worklog.md']);
+const SENSITIVE_PACK_NAME_PATTERNS = Object.freeze([
+  /(?:^|[-_.])(private|internal|confidential)(?:[-_.]|$)/i,
+  /(?:^|[-_.])launch[-_.]?plan(?:[-_.]|$)/i,
+  /(?:^|[-_.])(credentials?|tokens?)(?:[-_.]|$)/i,
+  /^\.env(?:\.|$)/i,
+  /\.(?:pem|key|p12|pfx)$/i,
+]);
+const SENSITIVE_DATA_NAME_PATTERN = /(?:^|[-_.])secrets?(?:[-_.]|$)/i;
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -176,6 +185,19 @@ function validatePackedFilePolicy(files) {
       ALLOWED_PACK_ROOTS.some((prefix) => file.path.startsWith(prefix));
     assert(allowed, `unexpected packed file: ${file.path}`);
     assert(!FORBIDDEN_PACK_FILES.has(file.path), `retired implementation was packed: ${file.path}`);
+    const basename = path.posix.basename(file.path);
+    assert(
+      !FORBIDDEN_COORDINATION_FILES.has(basename.toLowerCase()),
+      `private coordination file was packed: ${file.path}`,
+    );
+    assert(
+      !SENSITIVE_PACK_NAME_PATTERNS.some((pattern) => pattern.test(basename)) &&
+        !(
+          path.posix.extname(basename).toLowerCase() !== '.js' &&
+          SENSITIVE_DATA_NAME_PATTERN.test(basename)
+        ),
+      `sensitive-category file was packed: ${file.path}`,
+    );
     assert(!file.path.endsWith('.tgz'), `nested package artifact was packed: ${file.path}`);
     assert(!file.path.includes('.DS_Store'), `local metadata was packed: ${file.path}`);
   }

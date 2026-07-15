@@ -2,9 +2,11 @@
 'use strict';
 
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 
-const SHIPPED_ROOTS = Object.freeze([
+const PACKAGED_ROOTS = Object.freeze([
   'src',
   'validators',
   'templates',
@@ -12,12 +14,18 @@ const SHIPPED_ROOTS = Object.freeze([
   'schema',
   'fixtures',
 ]);
-const SHIPPED_FILES = Object.freeze(['package.json', 'README.md', 'SECURITY.md', 'NOTICE']);
+const PACKAGED_FILES = Object.freeze(['package.json', 'README.md', 'SECURITY.md', 'NOTICE']);
+const REPOSITORY_ROOTS = Object.freeze([...PACKAGED_ROOTS, 'scripts', 'tests', '.github']);
+const REPOSITORY_FILES = Object.freeze([...PACKAGED_FILES]);
 const TEXT_EXTENSIONS = new Set(['.js', '.json', '.md', '.txt', '.yml', '.yaml']);
 const FORBIDDEN_FILES = new Set(['src/loader.js', 'src/runner.js', 'src/verify.js']);
 
 function joinedPattern(...parts) {
   return new RegExp(parts.join(''));
+}
+
+function joinedInsensitivePattern(...parts) {
+  return new RegExp(parts.join(''), 'i');
 }
 
 const FORBIDDEN_DECLARATIONS = Object.freeze([
@@ -31,6 +39,34 @@ const FORBIDDEN_DECLARATIONS = Object.freeze([
   ['obsolete bundle format', joinedPattern('kdna-bundle', '-v1')],
   ['obsolete capability fallback', joinedPattern('legacy', '_assumption')],
   ['duplicate loading route', /\bquality\s+load\b/],
+  [
+    'generation suffix on a KDNA-owned name',
+    joinedInsensitivePattern('\\bkdna[a-z0-9_.:-]*[-_.]', 'v', '[0-9]+(?![0-9.])'),
+  ],
+  [
+    'generation label after a KDNA-owned concept',
+    joinedInsensitivePattern(
+      '\\b(?:kdna|core|registry|indexes?|bundle|capsule|runtime|manifest|profile|grant|proof|envelope|container|format|protocol)\\s+',
+      'v',
+      '[0-9]+(?![0-9.])',
+    ),
+  ],
+  [
+    'generation label before a KDNA-owned concept',
+    joinedInsensitivePattern(
+      '\\b',
+      'v',
+      '[0-9]+\\s+(?:kdna|core|registry|indexes?|bundle|capsule|runtime|manifest|profile|grant|proof|envelope|container|format|protocol)\\b',
+    ),
+  ],
+  [
+    'generation encoded in an implementation identifier',
+    joinedPattern(
+      '\\b(?:is|has|use|load|validate|inspect|format|protocol|profile|registry|index)',
+      'V',
+      '[0-9]+\\b',
+    ),
+  ],
 ]);
 
 function listFiles(root, relative) {
@@ -52,10 +88,10 @@ function isTextFile(relative) {
   return TEXT_EXTENSIONS.has(path.extname(relative));
 }
 
-function scanCurrentProtocolNames(root) {
+function scanPaths(root, roots, topLevelFiles) {
   const candidates = [
-    ...SHIPPED_ROOTS.flatMap((relative) => listFiles(root, relative)),
-    ...SHIPPED_FILES.filter((relative) => fs.existsSync(path.join(root, relative))),
+    ...roots.flatMap((relative) => listFiles(root, relative)),
+    ...topLevelFiles.filter((relative) => fs.existsSync(path.join(root, relative))),
   ];
   const files = [...new Set(candidates)].sort();
   const issues = [];
@@ -77,9 +113,33 @@ function scanCurrentProtocolNames(root) {
   return issues;
 }
 
+function scanCurrentProtocolNames(root) {
+  return scanPaths(root, REPOSITORY_ROOTS, REPOSITORY_FILES);
+}
+
+function scanPackedArtifact(root) {
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-protocol-pack-'));
+  try {
+    const tarballName = execFileSync(
+      'npm',
+      ['pack', '--silent', '--ignore-scripts', '--pack-destination', temporary],
+      { cwd: root, encoding: 'utf8' },
+    ).trim();
+    const tarball = path.join(temporary, tarballName.split(/\r?\n/).at(-1));
+    execFileSync('tar', ['-xzf', tarball, '-C', temporary]);
+    const packageRoot = path.join(temporary, 'package');
+    return scanPaths(packageRoot, PACKAGED_ROOTS, PACKAGED_FILES).map((issue) => ({
+      ...issue,
+      file: `npm-pack/${issue.file}`,
+    }));
+  } finally {
+    fs.rmSync(temporary, { recursive: true, force: true });
+  }
+}
+
 function main() {
   const root = path.resolve(__dirname, '..');
-  const issues = scanCurrentProtocolNames(root);
+  const issues = [...scanCurrentProtocolNames(root), ...scanPackedArtifact(root)];
   if (issues.length > 0) {
     for (const issue of issues) {
       const location = issue.line === null ? issue.file : `${issue.file}:${issue.line}`;
@@ -99,4 +159,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { scanCurrentProtocolNames };
+module.exports = { scanCurrentProtocolNames, scanPackedArtifact };

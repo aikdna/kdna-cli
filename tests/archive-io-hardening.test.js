@@ -218,7 +218,7 @@ function writeRegistry(home, entries) {
       schema_version: '3.0',
       registry_version: '3.0.0-archive-test',
       trust: {
-        model: 'kdna-registry-v1',
+        model: 'kdna.registry.snapshot',
         snapshot: {
           registry_version: '3.0.0-archive-test',
           generated_at: '2026-07-15T00:00:00Z',
@@ -937,8 +937,8 @@ test('single-argument diff uses the verified installed asset without resolving i
     assert.equal(install.status, 0, install.stderr);
     const installed = JSON.parse(install.stdout);
 
-    // The registry contains only v2. A successful comparison proves v1 came
-    // from the installed package rather than a stale/yanked registry record.
+    // The registry contains only the newer asset. A successful comparison proves
+    // the older asset came from the installed package, not a stale registry record.
     const diff = runCli(['quality', 'diff', name, '--json'], env);
     assert.equal(diff.status, 0, diff.stderr);
     const output = JSON.parse(diff.stdout);

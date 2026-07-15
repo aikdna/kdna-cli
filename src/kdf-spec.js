@@ -1,8 +1,11 @@
 // KDNA Key Derivation Parameters — canonical reference
 // Per RFC-0008 and RFC-0009, these parameters MUST be used for all KDF operations.
 
+const core = require('@aikdna/kdna-core');
+
+const IDENTITY_BACKUP_PROFILE = 'kdna.encryption.identity-backup';
 const KDF_PARAMS = {
-  'kdna-password-protected-v1': {
+  [core.PASSWORD_PROTECTED_PROFILE]: {
     algorithm: 'Argon2id',
     version: 0x13,
     memoryCostKiB: 65536, // 64 MiB
@@ -12,16 +15,16 @@ const KDF_PARAMS = {
     hashLength: 32, // 256-bit derived key
     tagLength: 16, // AES-256-GCM authentication tag
   },
-  'kdna-licensed-entry-v1': {
+  [core.LICENSED_ENTRY_PROFILE]: {
     algorithm: 'HKDF-SHA256',
-    info: 'kdna-licensed-entry-v1',
+    info: core.LICENSED_ENTRY_PROFILE,
     salt: null, // No salt — deterministic from master key
     keyLength: 32, // 256-bit AES key
     wrapAlgorithm: 'AES-256-KW',
     wireTagSize: 16, // Tag prepended to ciphertext in wire format
     contentEncryption: 'AES-256-GCM',
   },
-  'kdna-identity-backup-v1': {
+  [IDENTITY_BACKUP_PROFILE]: {
     algorithm: 'PBKDF2-SHA256',
     iterations: 100000,
     keyLength: 32, // 256-bit AES key
@@ -39,4 +42,4 @@ function validateParameters(profile) {
   return params;
 }
 
-module.exports = { KDF_PARAMS, validateParameters };
+module.exports = { IDENTITY_BACKUP_PROFILE, KDF_PARAMS, validateParameters };

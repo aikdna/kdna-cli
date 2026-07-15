@@ -14,6 +14,8 @@ jobs:
         with: { node-version: 22 }
       - run: npm ci
       - run: npm ci --prefix .cross-repo/kdna
+      - name: Enforce public repository boundary
+        run: npm run check:public-surface
       - name: Run the complete CLI suite against the exact Core candidate
         run: npm test
         env:

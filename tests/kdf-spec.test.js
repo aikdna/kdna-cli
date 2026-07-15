@@ -5,16 +5,17 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { KDF_PARAMS, validateParameters } = require('../src/kdf-spec');
+const core = require('@aikdna/kdna-core');
+const { IDENTITY_BACKUP_PROFILE, KDF_PARAMS, validateParameters } = require('../src/kdf-spec');
 
 test('KDF_PARAMS: all three profiles are defined', () => {
-  assert.ok(KDF_PARAMS['kdna-password-protected-v1'], 'argon2id profile missing');
-  assert.ok(KDF_PARAMS['kdna-licensed-entry-v1'], 'hkdf profile missing');
-  assert.ok(KDF_PARAMS['kdna-identity-backup-v1'], 'pbkdf2 profile missing');
+  assert.ok(KDF_PARAMS[core.PASSWORD_PROTECTED_PROFILE], 'argon2id profile missing');
+  assert.ok(KDF_PARAMS[core.LICENSED_ENTRY_PROFILE], 'hkdf profile missing');
+  assert.ok(KDF_PARAMS[IDENTITY_BACKUP_PROFILE], 'pbkdf2 profile missing');
 });
 
 test('KDF_PARAMS: password-protected profile has required fields', () => {
-  const p = KDF_PARAMS['kdna-password-protected-v1'];
+  const p = KDF_PARAMS[core.PASSWORD_PROTECTED_PROFILE];
   assert.equal(p.algorithm, 'Argon2id');
   assert.equal(p.memoryCostKiB, 65536);
   assert.equal(p.hashLength, 32);
@@ -22,21 +23,21 @@ test('KDF_PARAMS: password-protected profile has required fields', () => {
 });
 
 test('KDF_PARAMS: licensed-entry profile has required fields', () => {
-  const p = KDF_PARAMS['kdna-licensed-entry-v1'];
+  const p = KDF_PARAMS[core.LICENSED_ENTRY_PROFILE];
   assert.equal(p.algorithm, 'HKDF-SHA256');
   assert.equal(p.keyLength, 32);
   assert.equal(p.wrapAlgorithm, 'AES-256-KW');
 });
 
 test('KDF_PARAMS: identity-backup profile has required fields', () => {
-  const p = KDF_PARAMS['kdna-identity-backup-v1'];
+  const p = KDF_PARAMS[IDENTITY_BACKUP_PROFILE];
   assert.equal(p.algorithm, 'PBKDF2-SHA256');
   assert.equal(p.iterations, 100000);
   assert.equal(p.encryption, 'AES-256-CBC');
 });
 
 test('validateParameters: returns params for known profile', () => {
-  const p = validateParameters('kdna-password-protected-v1');
+  const p = validateParameters(core.PASSWORD_PROTECTED_PROFILE);
   assert.equal(p.algorithm, 'Argon2id');
 });
 
@@ -48,8 +49,8 @@ test('validateParameters: error message lists valid profiles', () => {
   try {
     validateParameters('typo');
   } catch (e) {
-    assert.match(e.message, /kdna-password-protected-v1/);
-    assert.match(e.message, /kdna-licensed-entry-v1/);
-    assert.match(e.message, /kdna-identity-backup-v1/);
+    assert.match(e.message, new RegExp(core.PASSWORD_PROTECTED_PROFILE.replaceAll('.', '\\.')));
+    assert.match(e.message, new RegExp(core.LICENSED_ENTRY_PROFILE.replaceAll('.', '\\.')));
+    assert.match(e.message, new RegExp(IDENTITY_BACKUP_PROFILE.replaceAll('.', '\\.')));
   }
 });

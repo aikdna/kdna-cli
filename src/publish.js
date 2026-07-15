@@ -506,8 +506,6 @@ function cmdPublishCheck(domainPath, args = []) {
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 
-const NAME_RE = /^@([a-z][a-z0-9-]*)\/([a-z][a-z0-9_]*)$/;
-
 /**
  * Canonical signing payload: sorted (filename, sha256) pairs of all published
  * content entries inside the .kdna ZIP, joined as `name:hex\n`.
@@ -635,23 +633,29 @@ function cmdPublish(assetPath, args = []) {
   if (!fs.existsSync(abs)) error(`Path not found: ${abs}`, EXIT.INPUT_ERROR);
   if (fs.statSync(abs).isDirectory()) {
     error(
-      'kdna publish only accepts existing .kdna assets. Source directories are non-canonical; use KDNA Studio compile/export, then run kdna publish <file.kdna> for legacy publish compatibility.',
+      'kdna publish only accepts existing .kdna assets. Source directories are authoring inputs; compile or pack the asset before publishing evidence.',
       EXIT.INPUT_ERROR,
     );
   }
   if (!abs.endsWith('.kdna')) error('kdna publish requires a .kdna asset file.', EXIT.INPUT_ERROR);
 
+  const core = require('@aikdna/kdna-core');
+  if (core.detectContainerFormat(abs) !== 'kdna') {
+    error('kdna publish requires a current KDNA container.', EXIT.INPUT_ERROR);
+  }
+  const validation = core.validate(abs);
+  if (validation?.overall_valid !== true) {
+    error(`kdna publish requires a valid current KDNA asset: ${validation?.problems?.join('; ')}`);
+  }
+
   const { readAssetManifest, assetDigest, contentDigest } = require('./package-store');
   const manifest = readAssetManifest(abs);
-  const name = manifest.name;
-  const m = name && name.match(NAME_RE);
-  if (!m) {
-    error(`kdna.json.name "${name || '?'}" must be @scope/name format (e.g. @aikdna/writing).`);
-  }
+  const assetId = manifest.asset_id;
+  if (typeof assetId !== 'string' || assetId.length === 0) error('kdna.json.asset_id required.');
   if (!manifest.version) error('kdna.json.version required.');
 
   console.log('═'.repeat(60));
-  console.log(`  Publishing ${name}@${manifest.version}`);
+  console.log(`  Publishing ${assetId}@${manifest.version}`);
   console.log('═'.repeat(60));
 
   const provenanceIssues = validateAuthoringProvenance(manifest);
@@ -693,84 +697,48 @@ function cmdPublish(assetPath, args = []) {
     }
   }
 
-  // 5. Registry patch
-  const patch = {
-    name,
-    type: manifest.cluster ? 'cluster' : 'domain',
+  const evidence = {
+    type: 'kdna.publication-evidence',
+    evidence_version: '0.1.0',
+    asset_id: assetId,
+    asset_uid: manifest.asset_uid,
+    asset_type: manifest.asset_type,
     version: manifest.version,
-    asset_url: kdnaUrl,
     asset_digest: digest,
     content_digest: manifest.content_digest || content,
-    signature: manifest.signature,
+    artifact_url: kdnaUrl,
     authoring: manifest.authoring || null,
-    release_status: kdnaUrl ? 'published_signed' : 'published_signed_local',
-    author: { ...manifest.author },
   };
 
   console.log('');
   console.log('─'.repeat(60));
-  console.log('Legacy Registry patch (historical compatibility only):');
+  console.log('Publication evidence:');
   console.log('─'.repeat(60));
-  console.log(JSON.stringify(patch, null, 2));
+  console.log(JSON.stringify(evidence, null, 2));
   console.log('');
-  console.log(
-    `Next: do not open a public registry PR. KDNA Core publishes local .kdna files through validate/load evidence, not a central registry.`,
-  );
+  console.log('Next: retain this evidence with the exact packaged .kdna artifact.');
 }
 
 function validateAuthoringProvenance(manifest) {
   const issues = [];
-  const badgeRank = {
-    untested: 0,
-    tested: 1,
-    validated: 2,
-    expert_reviewed: 3,
-    production_ready: 4,
-  };
-  const badge = manifest.quality_badge || 'untested';
-  const highTrust = (badgeRank[badge] || 0) >= badgeRank.tested;
   const authoring = manifest.authoring;
 
-  if (!authoring) {
-    if (highTrust) issues.push(`quality_badge "${badge}" requires authoring provenance`);
-    return issues;
+  if (!authoring) return issues;
+  const conformance = authoring.conformance;
+  if (!conformance || conformance.passed !== true) {
+    issues.push('authoring evidence requires authoring.conformance.passed = true');
   }
-  if (authoring.created_by === 'manual-dev-source' && highTrust) {
-    issues.push('manual-dev-source assets cannot claim tested or higher quality');
+  if (!conformance || !conformance.format_version) {
+    issues.push('authoring evidence requires authoring.conformance.format_version');
   }
-  // Conformance-based check: any tool that passes the official validator is compatible.
-  // The authoring.conformance block records validator identity and pass status.
-  if (highTrust) {
-    const conformance = authoring.conformance;
-    if (!conformance || !conformance.passed) {
-      issues.push(
-        `quality_badge "${badge}" requires conformance validation (authoring.conformance.passed = true)`,
-      );
-    }
-    if (!conformance || !conformance.format_version) {
-      issues.push('release-evidence assets require authoring.conformance.format_version');
-    }
-  }
-  if (highTrust && !authoring.compiler)
-    issues.push('release-evidence assets require authoring.compiler');
-  if (highTrust && !authoring.compiler_version) {
-    issues.push('release-evidence assets require authoring.compiler_version');
-  }
-  if (highTrust && !authoring.compiled_at)
-    issues.push('release-evidence assets require authoring.compiled_at');
+  if (!authoring.compiler) issues.push('authoring evidence requires authoring.compiler');
+  if (!authoring.compiler_version)
+    issues.push('authoring evidence requires authoring.compiler_version');
+  if (!authoring.compiled_at) issues.push('authoring evidence requires authoring.compiled_at');
   for (const field of ['asset_uid', 'project_uid', 'build_id', 'domain_id', 'content_digest']) {
-    if (highTrust && !authoring[field] && !manifest[field]) {
-      issues.push(`release-evidence assets require ${field} in authoring provenance or manifest`);
+    if (!authoring[field] && !manifest[field]) {
+      issues.push(`authoring evidence requires ${field} in authoring provenance or manifest`);
     }
-  }
-  if (highTrust && authoring.human_confirmed !== true) {
-    issues.push('release-evidence assets require authoring.human_confirmed = true');
-  }
-  if (highTrust && !Number.isInteger(authoring.human_lock_count)) {
-    issues.push('release-evidence assets require authoring.human_lock_count');
-  }
-  if (highTrust && Number.isInteger(authoring.human_lock_count) && authoring.human_lock_count < 1) {
-    issues.push('release-evidence assets require at least one Human Lock when that claim is made');
   }
   return issues;
 }

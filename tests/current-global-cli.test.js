@@ -131,8 +131,10 @@ test('formal kdna load is the only current asset-loading command', () => {
   assert.equal(capsule.contract_version, '0.1.0');
   assert.equal(capsule.asset.asset_id, 'kdna:example:deployment-review');
 
-  const removedAlias = runCli(['quality', 'load', packedFixture]);
-  assert.notEqual(removedAlias.status, 0, 'the duplicate quality load route must stay removed');
+  const removedGroup = 'quality';
+  const removedAction = 'load';
+  const removedAlias = runCli([removedGroup, removedAction, packedFixture]);
+  assert.notEqual(removedAlias.status, 0, 'the duplicate loading route must stay removed');
   assert.match(removedAlias.stderr, /Usage: kdna quality/);
   assert.doesNotMatch(removedAlias.stdout, /kdna\.runtime-capsule/);
 });

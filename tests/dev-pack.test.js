@@ -37,7 +37,7 @@ test('dev-pack: packKdna throws cbor-x error when not installed', () => {
   assert.throws(() => devPack.packKdna(os.tmpdir(), {}), /cbor-x is required/);
 });
 
-test('dev-pack: packKdna returns entries object (does not write a file)', () => {
+test('dev-pack: packs current source without requiring a Human Lock', () => {
   if (hasCbor) {
     const os2 = require('os');
     const fs2 = require('fs');
@@ -73,6 +73,7 @@ test('dev-pack: packKdna returns entries object (does not write a file)', () => 
         'mimetype must be the single KDNA asset media type',
       );
       const manifest = JSON.parse(result.entries['kdna.json']);
+      assert.equal(JSON.stringify(manifest).includes('human_lock'), false);
       assert.equal(manifest.format_version, '0.1.0');
       assert.equal(manifest.compatibility.profile, 'kdna.payload.judgment');
       assert.equal(manifest.compatibility.profile_version, '0.1.0');

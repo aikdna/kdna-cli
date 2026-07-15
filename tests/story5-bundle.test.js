@@ -33,19 +33,19 @@ function run(args, opts = {}) {
 test('Story 5: validate current format exits 0 with no spurious deprecation warning', () => {
   const r = run(['validate', FIXTURE]);
   assert.equal(r.status, 0, `expected exit 0, got ${r.status}:\n${r.stderr}`);
-  assert.doesNotMatch(r.stderr, /KDNA v1 format is deprecated/i);
+  assert.doesNotMatch(r.stderr, /format is deprecated/i);
 });
 
 test('Story 5: load current format exits 0 with no spurious deprecation warning', () => {
   const r = run(['load', RUNTIME_FIXTURE]);
   assert.equal(r.status, 0, `expected exit 0, got ${r.status}:\n${r.stderr}`);
-  assert.doesNotMatch(r.stderr, /KDNA v1 format is deprecated/i);
+  assert.doesNotMatch(r.stderr, /format is deprecated/i);
 });
 
 test('Story 5: inspect current format exits 0 with no spurious deprecation warning', () => {
   const r = run(['inspect', FIXTURE]);
   assert.equal(r.status, 0, `expected exit 0, got ${r.status}:\n${r.stderr}`);
-  assert.doesNotMatch(r.stderr, /KDNA v1 format is deprecated/i);
+  assert.doesNotMatch(r.stderr, /format is deprecated/i);
 });
 
 test('Story 5: validate bundle manifest and payload successfully', () => {
@@ -79,7 +79,7 @@ test('Story 5: validate bundle manifest and payload successfully', () => {
 
     const r = run(['validate', tmp]);
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}:\n${r.stderr}`);
-    // Bundle containers have never triggered the (now-removed) v1 deprecation warning.
+    // Current Bundle containers must not trigger a generation-based deprecation warning.
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

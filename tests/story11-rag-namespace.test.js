@@ -2,7 +2,7 @@
  * story11-rag-namespace.test.js — RAG namespace isolation (Story 11)
  *
  * Verifies:
- *   A) kdna-core loadV1 output for a Bundle with resolved_dependencies
+ *   A) Core authorized-load output for a Bundle with resolved_dependencies
  *      includes rag_namespace per dep and rag_isolation_policy
  *   B) --as=prompt output includes [NAMESPACE: id] headers per component
  *   C) kdna load --namespace <id> filters to one component's content
@@ -41,8 +41,7 @@ function run(args, opts = {}) {
 test('Story 11 core: rag_namespace is added to resolved_dependencies', () => {
   const core = require('@aikdna/kdna-core');
 
-  // Simulate what planLoad + loadAuthorized does internally by calling loadV1
-  // directly if available, otherwise via loadAuthorized with mock resolver
+  // Exercise the current authorized-load route with a mock resolver.
   const result = core.loadAuthorized(RUNTIME_FIXTURE, {
     profile: 'compact',
     as: 'json',

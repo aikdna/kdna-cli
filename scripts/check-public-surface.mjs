@@ -12,7 +12,7 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { allowFormalReleaseGitHead, isRulePathExcluded } from './public-surface-policy.mjs';
+import { allowFormalReleaseHash, isRulePathExcluded } from './public-surface-policy.mjs';
 
 const ROOT = process.cwd();
 const CONFIG_PATH = new URL('./public-surface.config.json', import.meta.url);
@@ -65,7 +65,7 @@ const rules = [
     pattern: /(?<![a-f0-9])[a-f0-9]{40}(?![a-f0-9])/gi,
     excludePathPrefixes: ['.github/workflows/'],
     excludeExactPaths: ['ecosystem-manifest.json'],
-    allowMatch: allowFormalReleaseGitHead,
+    allowMatch: allowFormalReleaseHash,
     hint: 'Use a short public ref or a public acceptance-note link.',
   },
   {
