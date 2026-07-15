@@ -1483,6 +1483,63 @@ function isAccessRemote(abs) {
  *   2. KDNA_REMOTE_SERVER environment variable
  * If neither is set, we fail with a clear error.
  */
+function resolveRemoteProjectionUrl(remoteServer) {
+  const hasForbiddenRawCharacter =
+    typeof remoteServer === 'string' &&
+    [...remoteServer].some((character) => {
+      const codePoint = character.codePointAt(0);
+      return (
+        character === '\\' ||
+        character === '?' ||
+        character === '#' ||
+        /\s/u.test(character) ||
+        codePoint <= 0x1f ||
+        codePoint === 0x7f
+      );
+    });
+  if (
+    typeof remoteServer !== 'string' ||
+    remoteServer.length === 0 ||
+    hasForbiddenRawCharacter
+  ) {
+    throw new Error('remote server URL contains forbidden raw characters');
+  }
+
+  const scheme = /^https?:\/\//i.exec(remoteServer);
+  if (!scheme) throw new Error('unsupported protocol');
+  const authorityAndPath = remoteServer.slice(scheme[0].length);
+  const pathOffset = authorityAndPath.indexOf('/');
+  const authority =
+    pathOffset === -1 ? authorityAndPath : authorityAndPath.slice(0, pathOffset);
+  const rawPath = pathOffset === -1 ? '' : authorityAndPath.slice(pathOffset);
+  if (
+    authority.length === 0 ||
+    authority.includes('@') ||
+    !['', '/', '/project'].includes(rawPath)
+  ) {
+    throw new Error('unsupported authority or path');
+  }
+
+  const parsed = new URL(remoteServer);
+  if (
+    !['http:', 'https:'].includes(parsed.protocol) ||
+    !parsed.hostname ||
+    parsed.username ||
+    parsed.password ||
+    parsed.search ||
+    parsed.hash
+  ) {
+    throw new Error('unsupported URL structure');
+  }
+  const expectedPath = rawPath === '/project' ? '/project' : '/';
+  if (parsed.pathname !== expectedPath) {
+    throw new Error('URL parser changed the raw path');
+  }
+
+  parsed.pathname = '/project';
+  return parsed.toString();
+}
+
 async function runRemoteLoad(opts) {
   const { abs, remoteServer, getFlag, args } = opts;
   const task = getFlag('--task') || 'review';
@@ -1525,19 +1582,7 @@ async function runRemoteLoad(opts) {
   // current /project endpoint.
   let url;
   try {
-    const parsed = new URL(remoteServer);
-    if (!['http:', 'https:'].includes(parsed.protocol)) {
-      throw new Error('unsupported protocol');
-    }
-    if (parsed.username || parsed.password || parsed.search || parsed.hash) {
-      throw new Error('credentials, query strings, and fragments are not allowed');
-    }
-    const pathname = parsed.pathname.replace(/\/+$/, '') || '/';
-    if (pathname !== '/' && pathname !== '/project') {
-      throw new Error('unsupported path');
-    }
-    parsed.pathname = '/project';
-    url = parsed.toString();
+    url = resolveRemoteProjectionUrl(remoteServer);
   } catch (_) {
     process.stderr.write(
       'Error: --remote-server must be an HTTP(S) server base URL or the exact /project endpoint.\n',

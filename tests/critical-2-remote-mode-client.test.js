@@ -417,13 +417,73 @@ test('CRITICAL-2: --remote-server URL accepts a base URL and uses /project', asy
     const dir = makeRemoteFixture(tmp);
     // Pass the server base URL — CLI should append the current endpoint.
     const baseUrl = server.url.replace('/project', '');
-    const r = run(['load', dir, '--as=json', '--remote-server', baseUrl], {
-      env: { KDNA_IDENTITY_DIR: path.join(tmp, 'keys') },
-    });
-    assert.equal(r.status, 0, `load failed: ${r.stderr}`);
-    const last = readLastRequest(server);
-    assert.ok(last);
-    assert.equal(last.url, '/project');
+    for (const remoteServer of [baseUrl, `${baseUrl}/`]) {
+      try {
+        fs.unlinkSync(server.lastRequestPath);
+      } catch (_) {
+        // The first accepted request has no prior request record.
+      }
+      const r = run(['load', dir, '--as=json', '--remote-server', remoteServer], {
+        env: { KDNA_IDENTITY_DIR: path.join(tmp, 'keys') },
+      });
+      assert.equal(r.status, 0, `load failed for ${remoteServer}: ${r.stderr}`);
+      const last = readLastRequest(server);
+      assert.ok(last);
+      assert.equal(last.url, '/project');
+    }
+  } finally {
+    if (server) await server.stop();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('CRITICAL-2: non-canonical remote URLs fail before any request', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-crit2-'));
+  let server;
+  try {
+    server = await startFakeRemoteServer();
+    const dir = makeRemoteFixture(tmp);
+    const baseUrl = server.url.replace('/project', '');
+    const hostileUrls = [
+      ['empty userinfo', baseUrl.replace('://', '://@')],
+      ['userinfo', baseUrl.replace('://', '://user:password@')],
+      ['empty query', `${baseUrl}?`],
+      ['query', `${baseUrl}?mode=judge`],
+      ['project empty query', `${server.url}?`],
+      ['project query', `${server.url}?mode=judge`],
+      ['empty fragment', `${baseUrl}#`],
+      ['fragment', `${baseUrl}#projection`],
+      ['project empty fragment', `${server.url}#`],
+      ['project fragment', `${server.url}#projection`],
+      ['project trailing slash', `${baseUrl}/project/`],
+      ['dot-segment path', `${baseUrl}/x/../project`],
+      ['encoded dot-segment path', `${baseUrl}/%2e/project`],
+      ['encoded parent-segment path', `${baseUrl}/x/%2e%2e/project`],
+      ['double-slash path', `${baseUrl}//project`],
+      ['backslash path', `${baseUrl}\\project`],
+      ['path with backslash suffix', `${baseUrl}/project\\extra`],
+      ['other path', `${baseUrl}/other`],
+      ['project suffix', `${baseUrl}/project/extra`],
+      ['encoded project path', `${baseUrl}/%70roject`],
+      ['non-HTTP protocol', baseUrl.replace(/^http:/, 'ftp:')],
+      ['scheme-relative URL', baseUrl.replace(/^http:/, '')],
+      ['leading whitespace', ` ${baseUrl}`],
+      ['trailing whitespace', `${baseUrl}\t`],
+    ];
+
+    for (const [label, remoteServer] of hostileUrls) {
+      try {
+        fs.unlinkSync(server.lastRequestPath);
+      } catch (_) {
+        // Rejections must leave no request record to remove.
+      }
+      const r = run(['load', dir, '--as=json', '--remote-server', remoteServer], {
+        env: { KDNA_IDENTITY_DIR: path.join(tmp, 'keys') },
+      });
+      assert.equal(r.status, 2, `${label} must fail as input: ${r.stderr}`);
+      assert.match(r.stderr, /server base URL or the exact \/project endpoint/);
+      assert.equal(readLastRequest(server), null, `${label} must not reach the server`);
+    }
   } finally {
     if (server) await server.stop();
     fs.rmSync(tmp, { recursive: true, force: true });
