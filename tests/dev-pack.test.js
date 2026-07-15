@@ -74,7 +74,6 @@ test('dev-pack: packKdna returns entries object (does not write a file)', () => 
       );
       const manifest = JSON.parse(result.entries['kdna.json']);
       assert.equal(manifest.format_version, '0.1.0');
-      assert.equal(manifest.kdna_version, undefined);
       assert.equal(manifest.compatibility.profile, 'kdna.payload.judgment');
       assert.equal(manifest.compatibility.profile_version, '0.1.0');
       assert.equal(manifest.payload.path, 'payload.kdnab');
@@ -94,4 +93,12 @@ test('dev-pack: packKdna returns entries object (does not write a file)', () => 
     // cbor-x not installed — test the error path
     assert.throws(() => devPack.packKdna(require('os').tmpdir(), {}), /cbor-x is required/);
   }
+});
+
+test('dev-pack: obsolete manifest fields fail closed instead of being stripped', () => {
+  if (!hasCbor) return;
+  assert.throws(
+    () => devPack.packKdna(os.tmpdir(), { kdna_version: '1.0' }),
+    /Unsupported manifest fields: kdna_version/,
+  );
 });

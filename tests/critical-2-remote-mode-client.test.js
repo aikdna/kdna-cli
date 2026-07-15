@@ -41,6 +41,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const net = require('node:net');
+const {
+  currentManifest,
+  currentJudgmentPayload,
+  writeCurrentSource,
+} = require('./helpers/current-asset');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 
@@ -166,11 +171,7 @@ function readLastRequest(server) {
 
 function makeRemoteFixture(tmpDir) {
   const dir = path.join(tmpDir, 'asset');
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, 'mimetype'), 'application/vnd.kdna.asset');
-  const core = require('@aikdna/kdna-core');
-  const manifest = {
-    kdna_version: '1.0',
+  const manifest = currentManifest({
     asset_id: 'kdna:test:remote',
     asset_uid: 'urn:uuid:00000000-0000-4000-8000-aaaaaaaaaaaa',
     asset_type: 'domain',
@@ -180,13 +181,10 @@ function makeRemoteFixture(tmpDir) {
     created_at: '2026-06-28T00:00:00.000Z',
     updated_at: '2026-06-28T00:00:00.000Z',
     creator: { name: 'Test', id: 'test' },
-    compatibility: { min_loader_version: '1.0.0', profile: 'judgment-profile-v1' },
-    payload: { path: 'payload.kdnab', encoding: 'json', encrypted: false },
     access: 'remote',
     runtime: { endpoint: 'http://localhost/v1/project' },
-  };
-  const payload = {
-    profile: 'judgment-profile-v1',
+  });
+  const payload = currentJudgmentPayload({
     core: {
       highest_question: 'Q?',
       axioms: [{ id: 'ax1', one_sentence: 'Test.' }],
@@ -196,15 +194,10 @@ function makeRemoteFixture(tmpDir) {
     patterns: [],
     scenarios: [],
     cases: [],
-    reasoning: { self_checks: [], failure_modes: [] },
+    reasoning: { self_check: [], failure_modes: [] },
     evolution: { changelog: [], version_notes: [] },
-  };
-  fs.writeFileSync(path.join(dir, 'kdna.json'), JSON.stringify(manifest, null, 2) + '\n');
-  fs.writeFileSync(path.join(dir, 'payload.kdnab'), JSON.stringify(payload) + '\n');
-  fs.writeFileSync(
-    path.join(dir, 'checksums.json'),
-    JSON.stringify(core.buildChecksums(dir), null, 2) + '\n',
-  );
+  });
+  writeCurrentSource(dir, { manifest, payload });
   return packFixture(dir, path.join(tmpDir, 'remote-test.kdna'));
 }
 

@@ -2,7 +2,7 @@
  * deprecation.js — Bundle component deprecation scan (Story 13)
  *
  * Scans a bundle manifest (the `kdna.bundle.json` file with
- * `bundle_format: "kdna-bundle-v1"`) for components that declare a
+ * `bundle_format: "kdna.bundle"`) for components that declare a
  * `deprecation` block, and returns a list of soft deprecation warnings
  * for components whose deprecation condition is satisfied by the
  * current CLI version.
@@ -29,7 +29,8 @@
  * Top-level bundle deprecation (whole bundle is deprecated):
  *
  *   {
- *     "bundle_format": "kdna-bundle-v1",
+ *     "bundle_format": "kdna.bundle",
+ *     "bundle_version": "0.1.0",
  *     "name": "@aikdna/old-bundle",
  *     "deprecation": {
  *       "since": ">=0.28.0",
@@ -42,7 +43,7 @@
  *
  * Design contract: deprecation is a soft signal, never blocking.
  * It does NOT affect exit code. It does NOT prevent load/plan-load.
- * It is purely informational, like the v1 format deprecation warning
+ * It is purely informational and does not block loading.
  * in Story 5 (`kdna load` on an asset prints a one-liner to stderr).
  */
 

@@ -126,7 +126,7 @@ function extractCards(payload) {
       .filter((s) => s.statement);
   }
 
-  // ── patterns: flat array with type field (Studio v1 compiled format)
+  // ── patterns: flat array with type field (current Studio compiled format)
   //    Also handles patterns as object with typed sub-arrays (legacy/alt format)
   const patternList = Array.isArray(patterns)
     ? patterns

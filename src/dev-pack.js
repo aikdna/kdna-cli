@@ -107,13 +107,24 @@ function packKdna(sourceDir, manifest, _options = {}) {
   if (judgment.evolution) payload.evolution = judgment.evolution;
   const payloadBuf = getCbor().encode(payload);
 
-  // 3. Build the current manifest without compatibility aliases.
-  const sourceManifest = { ...(manifest || {}) };
-  for (const key of ['kdna_version', 'kdna_spec', 'spec_version', 'container', 'author']) {
-    delete sourceManifest[key];
+  // 3. Build the current manifest. `name` is an authoring-only identifier used
+  // to derive asset_id; every field emitted into kdna.json must belong to the
+  // current manifest schema. Unknown fields fail closed rather than being
+  // silently stripped or carried into the package.
+  const { name: sourceName, ...sourceManifest } = { ...(manifest || {}) };
+  const manifestSchema = require('../schema/manifest.schema.json');
+  const supportedManifestFields = new Set(Object.keys(manifestSchema.properties || {}));
+  const unsupportedFields = Object.keys(sourceManifest).filter(
+    (key) => !supportedManifestFields.has(key),
+  );
+  if (unsupportedFields.length > 0) {
+    throw new Error(
+      `Unsupported manifest fields: ${unsupportedFields.join(', ')}. ` +
+        'Provide only fields from the current manifest schema.',
+    );
   }
   const version = validSemver(sourceManifest.version) ? sourceManifest.version : '0.1.0';
-  const assetId = sourceManifest.asset_id || deriveAssetId(sourceManifest.name, sourceDir);
+  const assetId = sourceManifest.asset_id || deriveAssetId(sourceName, sourceDir);
   const singleManifest = {
     ...sourceManifest,
     format_version: FORMAT_VERSION,

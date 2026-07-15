@@ -185,14 +185,19 @@ function makeRuntimeArchive(root, name, version, axiomText, options = {}) {
   fs.writeFileSync(
     path.join(source, 'payload.kdnab'),
     cbor.encode({
-      profile: 'judgment-profile-v1',
+      profile: 'kdna.payload.judgment',
+      profile_version: '0.1.0',
       core: {
         highest_question: `Question ${version}`,
         axioms: [{ id: 'judgment-core', one_sentence: axiomText }],
+        boundaries: [],
         ontology: options.ontology || [],
         stances: options.stances || [],
       },
       patterns: [],
+      scenarios: [],
+      cases: [],
+      reasoning: { self_check: [], failure_modes: [] },
     }),
   );
   fs.writeFileSync(

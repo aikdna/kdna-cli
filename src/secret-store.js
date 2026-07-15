@@ -1,5 +1,5 @@
 /**
- * secret-store.js — KDNA SecretStore v1 (B7)
+ * secret-store.js — current KDNA SecretStore (B7)
  *
  * A cross-platform secret storage abstraction. Backends:
  *

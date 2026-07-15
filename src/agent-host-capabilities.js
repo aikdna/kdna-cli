@@ -4,15 +4,6 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const MAX_REGISTRATION_BYTES = 64 * 1024;
-const LEGACY_CAPABILITIES = Object.freeze({
-  type: 'kdna.agent-host-capabilities',
-  protocol_version: '0.1.0',
-  capability_basis: 'legacy_assumption',
-  host_protocols: Object.freeze(['kdna.agent-host']),
-  capsule_versions: Object.freeze(['0.1.0']),
-  capsule_digest_profiles: Object.freeze(['kdna.canonicalization.runtime-capsule-jcs']),
-  capsule_digest_profile_versions: Object.freeze(['0.1.0']),
-});
 
 function ownKeysExactly(value, expected) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
@@ -111,15 +102,15 @@ function createAgentHostCapabilityRegistry(core) {
 
     resolveProcess(selection) {
       const value = registrations.get(selectorKey(selection.command, selection.args));
-      return value
-        ? globalThis.structuredClone(value)
-        : globalThis.structuredClone(LEGACY_CAPABILITIES);
+      if (!value) {
+        throw new Error('No capability registration matches the selected process Host.');
+      }
+      return globalThis.structuredClone(value);
     },
   };
 }
 
 module.exports = {
-  LEGACY_CAPABILITIES,
   MAX_REGISTRATION_BYTES,
   createAgentHostCapabilityRegistry,
   snapshotRegularFile,

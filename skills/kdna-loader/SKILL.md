@@ -101,8 +101,8 @@ The result must have:
 
 ```json
 {
-  "type": "kdna.context.capsule",
-  "version": "1.0",
+  "type": "kdna.runtime-capsule",
+  "contract_version": "0.1.0",
   "context": {}
 }
 ```

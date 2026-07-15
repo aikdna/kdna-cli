@@ -515,18 +515,14 @@ function cmdStudioCompile(projectPath, args = []) {
 
   // Compile manifest → kdna.json
   const manifest = {
-    name: `@aikdna/${project.name}`,
     asset_id: `kdna:${project.name}:studio`,
     asset_uid: `urn:uuid:${crypto.randomUUID()}`,
     asset_type: 'domain',
     title: project.name,
     version: '0.1.0',
     judgment_version: '0.1.0',
-    status: 'experimental',
-    quality_badge: 'untested',
     access: 'public',
     languages: ['en'],
-    default_language: 'en',
     license: { type: 'CC-BY-4.0' },
     description: project.description || project.highest_question || '',
     payload: { path: 'payload.kdnab', encoding: 'cbor', encrypted: false },

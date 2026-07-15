@@ -40,7 +40,7 @@
 
 const crypto = require('node:crypto');
 
-const WATERMARK_VERSION = '1';
+const WATERMARK_VERSION = '0.1.0';
 const WATERMARKED_ACCESS_MODES = new Set(['licensed', 'remote']);
 
 /**
@@ -215,7 +215,7 @@ function verifyWatermark(watermark, opts = {}) {
  * The rendered line is one short line, lower-case, no
  * content-trust vocabulary, machine-parseable. Example:
  *
- *   [WATERMARK v1 hmac-sha256 2026-06-28T17:30:00Z <first-12-chars-of-hmac>]
+ *   [WATERMARK v=0.1.0 alg=hmac-sha256 ts=2026-06-28T17:30:00Z ...]
  */
 function renderWatermarkHeader(watermark) {
   if (!watermark) return '';

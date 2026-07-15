@@ -267,7 +267,8 @@ test('Story 9 CLI: bundle with no conflicts → empty errors/warnings, no stub I
     fs.writeFileSync(
       bundlePath,
       JSON.stringify({
-        bundle_format: 'kdna-bundle-v1',
+        bundle_format: 'kdna.bundle',
+        bundle_version: '0.1.0',
         name: '@test/no-conflict',
         version: '1.0.0',
         components: [
@@ -328,7 +329,8 @@ test('Story 9 CLI: bundle with term conflict → ERROR, bundle_valid=false, exit
     fs.writeFileSync(
       bundlePath,
       JSON.stringify({
-        bundle_format: 'kdna-bundle-v1',
+        bundle_format: 'kdna.bundle',
+        bundle_version: '0.1.0',
         name: '@test/term-conflict-bundle',
         version: '1.0.0',
         components: [

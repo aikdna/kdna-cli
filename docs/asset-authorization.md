@@ -2,7 +2,7 @@
 
 This document explains how `kdna` CLI handles protected (password-locked)
 `.kdna` assets. It is the user-facing companion to the technical RFC
-0009 (Password-Protected KDNA Assets) and the LoadPlan v1 API
+0009 (Password-Protected KDNA Assets) and the current LoadPlan API
 reference.
 
 ## Two flags, two different intents
@@ -93,7 +93,7 @@ intend to read the content, and reading requires the key.
 
 - RFC-0009: `docs/strategy/KDNA_ASSET_AUTHORIZATION_STRATEGY.md` —
   the policy behind the `password` entitlement profile
-- LoadPlan v1: `packages/kdna-core/src/v1/index.js:1211-1235` (the
-  `entitlement_profile === 'password'` branch)
+- LoadPlan: `packages/kdna-core/src/container/index.js` (the password
+  authorization branch)
 - CLI guard: `kdna-cli/src/cli.js:286-292` (the `load` command's
   `--has-password` rejection)

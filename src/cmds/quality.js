@@ -92,16 +92,6 @@ function cmdSelect(args) {
   cmdSelect(args);
 }
 
-function cmdLoad(args) {
-  const { cmdLoad } = require('../agent');
-  const target = args.filter((a) => !a.startsWith('--'))[1];
-  if (!target)
-    error(
-      'Usage: kdna load <name|file.kdna> [--as=prompt|json|raw] [--profile=index|compact|scenario|full]',
-    );
-  cmdLoad(target, args);
-}
-
 function cmdPostvalidate(args) {
   const { cmdPostvalidate } = require('../agent');
   cmdPostvalidate(args);
@@ -125,7 +115,6 @@ module.exports = {
   cmdAvailable,
   cmdMatch,
   cmdSelect,
-  cmdLoad,
   cmdPostvalidate,
   cmdRoute,
 };

@@ -123,6 +123,20 @@ test('kdna plan-load uses the Core LoadPlan API when available', () => {
   assert.equal(out.can_load_now, true);
 });
 
+test('formal kdna load is the only current asset-loading command', () => {
+  const loaded = runCli(['load', packedFixture, '--profile=compact', '--as=json']);
+  assert.equal(loaded.status, 0, loaded.stderr);
+  const capsule = JSON.parse(loaded.stdout);
+  assert.equal(capsule.type, 'kdna.runtime-capsule');
+  assert.equal(capsule.contract_version, '0.1.0');
+  assert.equal(capsule.asset.asset_id, 'kdna:example:deployment-review');
+
+  const removedAlias = runCli(['quality', 'load', packedFixture]);
+  assert.notEqual(removedAlias.status, 0, 'the duplicate quality load route must stay removed');
+  assert.match(removedAlias.stderr, /Usage: kdna quality/);
+  assert.doesNotMatch(removedAlias.stdout, /kdna\.runtime-capsule/);
+});
+
 test('kdna load refuses current assets when LoadPlan cannot load now', () => {
   if (typeof core.planLoad !== 'function') return;
   const tmp = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'kdna-cli-load-denied-'));

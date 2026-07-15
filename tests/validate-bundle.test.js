@@ -52,7 +52,8 @@ test('validate --bundle: valid manifest with one component exits 0', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-bundle-'));
   try {
     const bundlePath = writeBundle(tmp, {
-      bundle_format: 'kdna-bundle-v1',
+      bundle_format: 'kdna.bundle',
+      bundle_version: '0.1.0',
       name: '@test/single',
       version: '1.0.0',
       components: [{ id: '@test/comp-a@1.0.0', path: FIXTURE, priority: 1 }],
@@ -61,7 +62,8 @@ test('validate --bundle: valid manifest with one component exits 0', () => {
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}:\n${r.stderr}`);
     const out = JSON.parse(r.stdout);
     assert.equal(out.bundle_valid, true);
-    assert.equal(out.bundle_format, 'kdna-bundle-v1');
+    assert.equal(out.bundle_format, 'kdna.bundle');
+    assert.equal(out.bundle_version, '0.1.0');
     assert.equal(out.components.length, 1);
     assert.equal(out.components[0].id, '@test/comp-a@1.0.0');
     assert.equal(out.components[0].valid, true);
@@ -75,7 +77,8 @@ test('validate --bundle: two valid components exits 0', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-bundle-'));
   try {
     const bundlePath = writeBundle(tmp, {
-      bundle_format: 'kdna-bundle-v1',
+      bundle_format: 'kdna.bundle',
+      bundle_version: '0.1.0',
       name: '@test/dual',
       version: '1.0.0',
       components: [
@@ -120,7 +123,8 @@ test('validate --bundle: component path does not exist exits 1', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-bundle-'));
   try {
     const bundlePath = writeBundle(tmp, {
-      bundle_format: 'kdna-bundle-v1',
+      bundle_format: 'kdna.bundle',
+      bundle_version: '0.1.0',
       name: '@test/missing-comp',
       version: '1.0.0',
       components: [
@@ -144,7 +148,8 @@ test('validate --bundle: empty components array exits 1', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-bundle-'));
   try {
     const bundlePath = writeBundle(tmp, {
-      bundle_format: 'kdna-bundle-v1',
+      bundle_format: 'kdna.bundle',
+      bundle_version: '0.1.0',
       name: '@test/empty',
       version: '1.0.0',
       components: [],
@@ -193,7 +198,8 @@ test('validate --bundle: valid run with Story 9 — no stub INFO note, conflict 
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-bundle-'));
   try {
     const bundlePath = writeBundle(tmp, {
-      bundle_format: 'kdna-bundle-v1',
+      bundle_format: 'kdna.bundle',
+      bundle_version: '0.1.0',
       name: '@test/stub-check',
       version: '1.0.0',
       components: [{ id: '@test/comp-a@1.0.0', path: FIXTURE, priority: 1 }],
@@ -217,7 +223,8 @@ test('validate --bundle: component missing id field records error', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-bundle-'));
   try {
     const bundlePath = writeBundle(tmp, {
-      bundle_format: 'kdna-bundle-v1',
+      bundle_format: 'kdna.bundle',
+      bundle_version: '0.1.0',
       name: '@test/no-id',
       version: '1.0.0',
       components: [

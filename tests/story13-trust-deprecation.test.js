@@ -81,7 +81,8 @@ function writeBundleFile(tmp, components, extra = {}, filename = 'bundle.json') 
     p,
     JSON.stringify(
       {
-        bundle_format: 'kdna-bundle-v1',
+        bundle_format: 'kdna.bundle',
+        bundle_version: '0.1.0',
         name: '@test/s13-bundle',
         version: '1.0.0',
         components,

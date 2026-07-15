@@ -3,7 +3,7 @@
  *
  * Validates a `kdna.bundle.json` manifest (RFC #148 Phase 1):
  *
- *   - Checks `bundle_format === "kdna-bundle-v1"`
+ *   - Checks the current bundle authoring format and version
  *   - Checks `components[]` is a non-empty array
  *   - For each component: resolves `path`, checks the file exists,
  *     detects it as a KDNA container, and runs the existing
@@ -33,7 +33,8 @@ const path = require('node:path');
 const { analyseConflicts } = require('./conflict-analysis');
 const { evaluateDeprecation, formatDeprecationStderr } = require('./deprecation');
 
-const BUNDLE_FORMAT = 'kdna-bundle-v1';
+const BUNDLE_FORMAT = 'kdna.bundle';
+const BUNDLE_VERSION = '0.1.0';
 const VALID_TRUST_LEVELS = new Set(['community', 'verified', 'official']);
 
 /**
@@ -59,6 +60,7 @@ function validateBundle(manifestPath, opts = {}) {
       bundle_valid: false,
       fatal: `File not found: ${manifestPath}`,
       bundle_format: null,
+      bundle_version: null,
       name: null,
       version: null,
       components: [],
@@ -79,6 +81,7 @@ function validateBundle(manifestPath, opts = {}) {
       bundle_valid: false,
       fatal: `Invalid JSON in bundle manifest: ${e.message}`,
       bundle_format: null,
+      bundle_version: null,
       name: null,
       version: null,
       components: [],
@@ -93,15 +96,18 @@ function validateBundle(manifestPath, opts = {}) {
   const warnings = [];
   const info = [];
 
-  // 1. bundle_format check
-  if (manifest.bundle_format !== BUNDLE_FORMAT) {
+  // 1. Bundle authoring contract check.
+  if (
+    manifest.bundle_format !== BUNDLE_FORMAT ||
+    manifest.bundle_version !== BUNDLE_VERSION
+  ) {
     errors.push({
       conflict_type: 'schema',
       severity: 'ERROR',
-      field: 'bundle_format',
+      field: manifest.bundle_format !== BUNDLE_FORMAT ? 'bundle_format' : 'bundle_version',
       note:
-        `Expected "${BUNDLE_FORMAT}", got "${manifest.bundle_format || '(missing)'}". ` +
-        'A valid kdna.bundle.json must have bundle_format: "kdna-bundle-v1".',
+        `Expected bundle_format "${BUNDLE_FORMAT}" and bundle_version "${BUNDLE_VERSION}". ` +
+        `Got "${manifest.bundle_format || '(missing)'}" / "${manifest.bundle_version || '(missing)'}".`,
     });
   }
 
@@ -317,6 +323,7 @@ function validateBundle(manifestPath, opts = {}) {
 function buildResult(manifest, components, errors, warnings, info, opts = {}) {
   const result = {
     bundle_format: manifest.bundle_format || null,
+    bundle_version: manifest.bundle_version || null,
     name: manifest.name || null,
     version: manifest.version || null,
     bundle_valid: errors.length === 0,
@@ -400,4 +407,4 @@ function buildResult(manifest, components, errors, warnings, info, opts = {}) {
   return result;
 }
 
-module.exports = { validateBundle, BUNDLE_FORMAT };
+module.exports = { validateBundle, BUNDLE_FORMAT, BUNDLE_VERSION };

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * kdna — v1 Core runtime CLI.
+ * kdna — current KDNA runtime CLI.
  *
  * KDNA CLI is the runtime control plane for inspecting, validating,
  * planning, packing, unpacking, and loading local .kdna assets.
@@ -109,7 +109,7 @@ function readManifestForPath(absPath) {
  * caller wants to do something else with them (the validate-bundle
  * path does — it embeds them in the JSON report).
  *
- * Single-asset v1/v2 loads return [] (no components, no deprecation).
+ * Single-asset loads return [] (no components, no deprecation).
  */
 function emitDeprecationStderr(abs) {
   try {
@@ -366,22 +366,22 @@ switch (cmd) {
         }
         process.exit(result.bundle_valid ? 0 : 1);
       }
-      const v1Target = args.filter((a) => !a.startsWith('--'))[1];
-      if (!v1Target)
+      const assetTarget = args.filter((a) => !a.startsWith('--'))[1];
+      if (!assetTarget)
         error(
           'Usage: kdna validate <file.kdna> [--runtime] [--entitlement-status <status>]',
           EXIT.INPUT_ERROR,
         );
       const { isKdnaSourceDir, detectContainerFormat, validate } = require('@aikdna/kdna-core');
-      const abs = require('node:path').resolve(v1Target);
-      if (!fs.existsSync(abs)) error(`File not found: ${v1Target}`, EXIT.INPUT_ERROR);
+      const abs = require('node:path').resolve(assetTarget);
+      if (!fs.existsSync(abs)) error(`File not found: ${assetTarget}`, EXIT.INPUT_ERROR);
       const containerFmt = detectContainerFormat(abs);
       const isKdna = isKdnaSourceDir(abs) || containerFmt === 'kdna';
       if (!isKdna) {
-        error(`Not a KDNA container or source directory: ${v1Target}`, EXIT.INPUT_ERROR);
+        error(`Not a KDNA container or source directory: ${assetTarget}`, EXIT.INPUT_ERROR);
       }
       const runtimeMode = args.includes('--runtime');
-      const result = validate(v1Target);
+      const result = validate(assetTarget);
       if (runtimeMode) {
         if (!fs.statSync(abs).isFile() || containerFmt !== 'kdna') {
           error(
@@ -411,7 +411,7 @@ switch (cmd) {
             EXIT.PROVIDER_ERROR,
           );
         }
-        result.runtime_load_plan = core.planLoad(v1Target, {
+        result.runtime_load_plan = core.planLoad(assetTarget, {
           hasPassword: args.includes('--has-password'),
           entitlement: entitlementStatus ? { status: entitlementStatus } : undefined,
           resolveAsset: resolveAssetCallback,
@@ -435,19 +435,19 @@ switch (cmd) {
   // eslint-disable-next-line no-fallthrough
   case 'plan-load': {
     try {
-      const v1Target = args.filter((a) => !a.startsWith('--'))[1];
-      if (!v1Target)
+      const assetTarget = args.filter((a) => !a.startsWith('--'))[1];
+      if (!assetTarget)
         error(
           'Usage: kdna plan-load <path> [--json] [--has-password | --password <value>] [--entitlement-status <status>]',
           EXIT.INPUT_ERROR,
         );
       const core = require('@aikdna/kdna-core');
-      let planTarget = v1Target;
+      let planTarget = assetTarget;
       let abs = require('node:path').resolve(planTarget);
       const containerFmt = core.detectContainerFormat(abs);
       let isKdna = fs.existsSync(abs) && fs.statSync(abs).isFile() && containerFmt === 'kdna';
       if (!isKdna) {
-        const installed = resolveAsset(v1Target);
+        const installed = resolveAsset(assetTarget);
         if (installed?.asset_path) {
           planTarget = installed.asset_path;
           abs = require('node:path').resolve(planTarget);
@@ -574,12 +574,12 @@ switch (cmd) {
   // eslint-disable-next-line no-fallthrough
   case 'pack': {
     try {
-      const v1Target = args.filter((a) => !a.startsWith('--'))[1];
-      if (!v1Target) error('Usage: kdna pack <source-dir> <output.kdna>', EXIT.INPUT_ERROR);
+      const assetTarget = args.filter((a) => !a.startsWith('--'))[1];
+      if (!assetTarget) error('Usage: kdna pack <source-dir> <output.kdna>', EXIT.INPUT_ERROR);
       const { isKdnaSourceDir, pack: packDir } = require('@aikdna/kdna-core');
-      const abs = require('node:path').resolve(v1Target);
+      const abs = require('node:path').resolve(assetTarget);
       if (!isKdnaSourceDir(abs)) {
-        error(`Not a KDNA source directory: ${v1Target}`, EXIT.INPUT_ERROR);
+        error(`Not a KDNA source directory: ${assetTarget}`, EXIT.INPUT_ERROR);
       }
 
       // Warn if checksums are stale (source modified since last pack)
@@ -627,7 +627,7 @@ switch (cmd) {
           /* checksums check is best-effort */
         }
       }
-      const r = packDir(v1Target, out);
+      const r = packDir(assetTarget, out);
       process.stdout.write(
         `Packed: ${r.outputPath}\nEntries: ${r.entries.length} (${r.entries.join(', ')})\n`,
       );
@@ -640,18 +640,18 @@ switch (cmd) {
   // eslint-disable-next-line no-fallthrough
   case 'unpack': {
     try {
-      const v1Target = args.filter((a) => !a.startsWith('--'))[1];
-      if (!v1Target) error('Usage: kdna unpack <input.kdna> <output-dir>', EXIT.INPUT_ERROR);
+      const assetTarget = args.filter((a) => !a.startsWith('--'))[1];
+      if (!assetTarget) error('Usage: kdna unpack <input.kdna> <output-dir>', EXIT.INPUT_ERROR);
       const { detectContainerFormat, unpack } = require('@aikdna/kdna-core');
-      const abs = require('node:path').resolve(v1Target);
-      if (!fs.existsSync(abs)) error(`File not found: ${v1Target}`, EXIT.INPUT_ERROR);
+      const abs = require('node:path').resolve(assetTarget);
+      if (!fs.existsSync(abs)) error(`File not found: ${assetTarget}`, EXIT.INPUT_ERROR);
       const containerFmt = detectContainerFormat(abs);
       if (containerFmt !== 'kdna') {
-        error(`Not a valid KDNA container: ${v1Target}`, EXIT.INPUT_ERROR);
+        error(`Not a valid KDNA container: ${assetTarget}`, EXIT.INPUT_ERROR);
       }
       const out = args.filter((a) => !a.startsWith('--'))[2];
       if (!out) error('Usage: kdna unpack <input.kdna> <output-dir>', EXIT.INPUT_ERROR);
-      const r = unpack(v1Target, out);
+      const r = unpack(assetTarget, out);
       process.stdout.write(
         `Unpacked: ${r.outputDir}\nEntries: ${r.entries.length} (${r.entries.join(', ')})\n`,
       );
@@ -1225,15 +1225,11 @@ switch (cmd) {
       quality.cmdSelect(args.slice(2));
       break;
     }
-    if (sub === 'load') {
-      quality.cmdLoad(args.slice(2));
-      break;
-    }
     if (sub === 'postvalidate') {
       quality.cmdPostvalidate(args.slice(2));
       break;
     }
-    error('Usage: kdna quality <compare|diff|search|available|match|select|load|postvalidate>');
+    error('Usage: kdna quality <compare|diff|search|available|match|select|postvalidate>');
     break;
   }
 

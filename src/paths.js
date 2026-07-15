@@ -3,7 +3,7 @@
 // NOTE: domains/ is NOT part of the runtime model (see local-kdna-home-spec.md §Invariants).
 // The domains field below is retained ONLY for legacy migration. New code MUST use packages/.
 //
-// Two-tier store (roadmap-2026.md §5.1 Story 2, RFC #148 v1.x):
+// Two-tier store (roadmap-2026.md §5.1 Story 2):
 // The package store now supports two roots — the user-global root
 // (~/.kdna/packages/) and a project-local root (./.kdna/packages/).
 // Project-local wins on conflict for reads; the user-global root

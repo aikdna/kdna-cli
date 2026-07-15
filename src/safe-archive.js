@@ -20,7 +20,7 @@ const MAX_ENTRIES = 128;
 const MAX_ENTRY_BYTES = 5 * 1024 * 1024;
 const MAX_TOTAL_UNCOMPRESSED_BYTES = 12 * 1024 * 1024;
 const MAX_COMPRESSION_RATIO = 100;
-const ALLOWED_FLAGS = 0x0800; // UTF-8 names. Core v1 also emits zero for UTF-8 names.
+const ALLOWED_FLAGS = 0x0800; // UTF-8 names. Core also emits zero for UTF-8 names.
 const ALLOWED_METHODS = new Set([0, 8]);
 const REJECTED_EXTRA_FIELDS = new Set([
   0x0001, // ZIP64: this parser intentionally supports only classic ZIP bounds.

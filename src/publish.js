@@ -747,8 +747,8 @@ function validateAuthoringProvenance(manifest) {
         `quality_badge "${badge}" requires conformance validation (authoring.conformance.passed = true)`,
       );
     }
-    if (!conformance || !conformance.kdna_version) {
-      issues.push('release-evidence assets require authoring.conformance.kdna_version');
+    if (!conformance || !conformance.format_version) {
+      issues.push('release-evidence assets require authoring.conformance.format_version');
     }
   }
   if (highTrust && !authoring.compiler)

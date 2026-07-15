@@ -1,6 +1,6 @@
 /**
  * two-tier-store.test.js — Project-local + user-global package
- * store (roadmap-2026.md §5.1 Story 2, RFC #148 v1.x Phase 1).
+ * store (roadmap-2026.md §5.1 Story 2).
  *
  * The package store now supports two roots:
  *   - global:   ~/.kdna/packages/ (default for `kdna install`)
@@ -29,7 +29,7 @@ const cbor = require('cbor-x');
 const { buildChecksums, pack } = require('@aikdna/kdna-core');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
-const V1_FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'minimal');
+const CURRENT_FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'minimal');
 
 function run(args, opts = {}) {
   try {
@@ -61,63 +61,28 @@ function writeJson(file, data) {
 
 function buildAsset(tmpRoot, name, version = '0.1.0') {
   const source = path.join(tmpRoot, 'src-' + name.replace(/[@/]/g, '_') + '-' + version);
-  fs.mkdirSync(source, { recursive: true });
-  writeJson(path.join(source, 'kdna.json'), {
-    format: 'kdna',
-    kdna_version: '1.0',
+  fs.cpSync(CURRENT_FIXTURE, source, { recursive: true });
+  const manifestPath = path.join(source, 'kdna.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const [scope, ident] = name.split('/');
+  Object.assign(manifest, {
     name,
+    asset_id: `kdna:${scope.slice(1)}:${ident}`,
+    title: `${name} test asset`,
     version,
-    judgment_version: '2026.05',
-    status: 'experimental',
-    access: 'public',
-    languages: ['en'],
-    default_language: 'en',
-    description: `${name} test asset.`,
-    core_insight: 'A test asset.',
-    keywords: ['test'],
-    quality_badge: 'untested',
-    author: { name: 'Test', id: 'test', pubkey: 'ed25519:test' },
-    license: { type: 'CC-BY-4.0' },
-    file_count: 1,
-    files: ['KDNA_Core.json'],
+    judgment_version: version,
   });
-  writeJson(path.join(source, 'KDNA_Core.json'), {
-    meta: { domain: name, version, purpose: 'Test' },
-    axioms: [
-      {
-        id: 'ax_1',
-        one_sentence: 'Test axiom.',
-        applies_when: ['test'],
-        does_not_apply_when: ['production'],
-        failure_risk: 'low',
-        status: 'locked',
-        human_lock: {
-          by: 'test',
-          statement: 'Reviewed for two-tier store test.',
-          checked: { applies_when: true, does_not_apply_when: true, failure_risk: true },
-        },
-      },
-    ],
-    ontology: [],
-    stances: [],
-  });
+  writeJson(manifestPath, manifest);
+  writeJson(path.join(source, 'checksums.json'), buildChecksums(source));
 
   const asset = path.join(tmpRoot, name.replace(/[@/]/g, '_') + '-' + version + '.kdna');
-  const script = `import zipfile, os
-src = ${JSON.stringify(source)}
-out = ${JSON.stringify(asset)}
-with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
-    zf.writestr(zipfile.ZipInfo('mimetype'), 'application/vnd.kdna.asset', compress_type=zipfile.ZIP_STORED)
-    for name in sorted(os.listdir(src)):
-        zf.write(os.path.join(src, name), name)
-`;
-  execFileSync('python3', ['-c', script], { stdio: 'pipe' });
+  pack(source, asset);
   return asset;
 }
 
 function buildStringRoutedAsset(tmpRoot) {
   const source = path.join(tmpRoot, 'src-string-routed');
-  fs.cpSync(V1_FIXTURE, source, { recursive: true });
+  fs.cpSync(CURRENT_FIXTURE, source, { recursive: true });
   const manifestPath = path.join(source, 'kdna.json');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   manifest.name = '@aikdna/string_routed';
@@ -241,10 +206,10 @@ test('kdna install (no flag) defaults to the user-global root', () => {
   assert.ok(!fs.existsSync(path.join(proj, '.kdna')), 'project root should NOT exist');
 });
 
-test('kdna install accepts v1 assets that declare asset_id instead of legacy name', () => {
+test('kdna install accepts current assets that declare canonical asset_id', () => {
   const { proj, env, root } = makeEnv();
   const asset = path.join(root, 'deployment-review.kdna');
-  const pack = run(['pack', V1_FIXTURE, asset], { env, cwd: proj });
+  const pack = run(['pack', CURRENT_FIXTURE, asset], { env, cwd: proj });
   assert.ok(pack.ok, `kdna pack failed: ${pack.stderr}`);
 
   const installed = run(['install', asset, '--yes', '--local'], { env, cwd: proj });
@@ -266,13 +231,13 @@ test('kdna install accepts v1 assets that declare asset_id instead of legacy nam
     '1.0.0',
     'deployment-review-1.0.0.kdna',
   );
-  assert.ok(fs.existsSync(projectAsset), 'hyphenated v1 asset file should exist');
+  assert.ok(fs.existsSync(projectAsset), 'hyphenated current asset file should exist');
 });
 
-test('kdna plan-load accepts an installed v1 asset name', () => {
+test('kdna plan-load accepts an installed current asset name', () => {
   const { proj, env, root } = makeEnv();
   const asset = path.join(root, 'deployment-review.kdna');
-  const pack = run(['pack', V1_FIXTURE, asset], { env, cwd: proj });
+  const pack = run(['pack', CURRENT_FIXTURE, asset], { env, cwd: proj });
   assert.ok(pack.ok, `kdna pack failed: ${pack.stderr}`);
 
   const installed = run(['install', asset, '--yes', '--local'], { env, cwd: proj });

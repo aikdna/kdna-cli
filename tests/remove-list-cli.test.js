@@ -1,6 +1,6 @@
 /**
  * remove-list-cli.test.js — kdna remove + kdna list CLI commands
- * (roadmap-2026.md §5.1 Story 1, RFC #148 v1.x Phase 1).
+ * (roadmap-2026.md §5.1 Story 1).
  *
  * Closes the largest gap between the RFC's claim ("no kdna
  * remove / kdna list commands") and reality. The package-store API
@@ -22,8 +22,10 @@ const { execFileSync } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
+const core = require('@aikdna/kdna-core');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
+const CURRENT_FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'minimal');
 
 function run(args, opts = {}) {
   try {
@@ -59,62 +61,22 @@ function writeJson(file, data) {
  */
 function buildAsset(tmpRoot, name = '@aikdna/writing', version = '0.1.0') {
   const source = path.join(tmpRoot, 'source');
-  fs.mkdirSync(source, { recursive: true });
-  writeJson(path.join(source, 'kdna.json'), {
-    format: 'kdna',
-    kdna_version: '1.0',
+  fs.cpSync(CURRENT_FIXTURE, source, { recursive: true });
+  const manifestPath = path.join(source, 'kdna.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const [scope, ident] = name.split('/');
+  Object.assign(manifest, {
     name,
+    asset_id: `kdna:${scope.slice(1)}:${ident}`,
+    title: `${name} test asset`,
     version,
-    judgment_version: '2026.05',
-    status: 'experimental',
-    access: 'public',
-    languages: ['en'],
-    default_language: 'en',
-    description: `${name} test asset.`,
-    core_insight: 'A test asset for the remove/list CLI tests.',
-    keywords: ['test'],
-    quality_badge: 'untested',
-    author: { name: 'Test', id: 'test', pubkey: 'ed25519:test' },
-    license: { type: 'CC-BY-4.0' },
-    file_count: 2,
-    files: ['KDNA_Core.json', 'KDNA_Patterns.json'],
+    judgment_version: version,
   });
-  writeJson(path.join(source, 'KDNA_Core.json'), {
-    meta: { domain: name, version, purpose: 'Test' },
-    axioms: [
-      {
-        id: 'ax_1',
-        one_sentence: 'Test axiom.',
-        applies_when: ['test'],
-        does_not_apply_when: ['production'],
-        failure_risk: 'low',
-        status: 'locked',
-        human_lock: {
-          by: 'test',
-          statement: 'Reviewed for remove/list test fixture.',
-          checked: { applies_when: true, does_not_apply_when: true, failure_risk: true },
-        },
-      },
-    ],
-    ontology: [],
-    stances: [],
-  });
-  writeJson(path.join(source, 'KDNA_Patterns.json'), {
-    misunderstandings: [],
-    self_check: ['Is this a test?'],
-  });
-  fs.writeFileSync(path.join(source, 'README.md'), '# test\n');
+  writeJson(manifestPath, manifest);
+  writeJson(path.join(source, 'checksums.json'), core.buildChecksums(source));
 
   const asset = path.join(tmpRoot, 'asset.kdna');
-  const script = `import zipfile, os
-src = ${JSON.stringify(source)}
-out = ${JSON.stringify(asset)}
-with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
-    zf.writestr(zipfile.ZipInfo('mimetype'), 'application/vnd.kdna.asset', compress_type=zipfile.ZIP_STORED)
-    for name in sorted(os.listdir(src)):
-        zf.write(os.path.join(src, name), name)
-`;
-  execFileSync('python3', ['-c', script], { stdio: 'pipe' });
+  core.pack(source, asset);
   return asset;
 }
 

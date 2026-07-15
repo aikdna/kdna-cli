@@ -10,7 +10,6 @@ const { after, before, test } = require('node:test');
 
 const core = require('@aikdna/kdna-core');
 const {
-  LEGACY_CAPABILITIES,
   createAgentHostCapabilityRegistry,
   snapshotRegularFile,
 } = require('../src/agent-host-capabilities');
@@ -405,7 +404,7 @@ test('installed ConsumptionPlan binds A and C to the independent install receipt
   }
 });
 
-test('missing descriptor remains legacy_assumption and blocks before projection', () => {
+test('missing capability descriptor is rejected before projection', () => {
   const result = run([
     'use',
     asset,
@@ -417,15 +416,11 @@ test('missing descriptor remains legacy_assumption and blocks before projection'
     '--as=trace',
   ]);
   assert.notEqual(result.status, 0);
-  const trace = JSON.parse(result.stdout);
-  assert.equal(trace.runtime_contract.host_capabilities.capability_basis, 'legacy_assumption');
-  assert.equal(trace.runtime_contract.negotiation_state, 'blocked');
-  assert.equal(trace.projection_actual.profile, null);
-  assert.equal(trace.capsule_delivery_evidence.sender_computed, false);
+  assert.equal(result.stdout, '');
+  assert.match(result.stderr, /No capability registration matches the selected process Host/);
 });
 
 test('capability registration is strict, process-bound, snapshotted, and mutation-safe', () => {
-  assert.throws(() => LEGACY_CAPABILITIES.host_protocols.push('kdna.agent-host'));
   const registry = createAgentHostCapabilityRegistry(core);
   const script = hostScript(path.join(root, 'bound-host.js'));
   const file = registration(path.join(root, 'bound.json'), process.execPath, [script]);
@@ -433,9 +428,9 @@ test('capability registration is strict, process-bound, snapshotted, and mutatio
   registry.registerProcessFile(file, selected);
   write(file, Buffer.from([0xff]));
   assert.deepEqual(registry.resolveProcess(selected), REGISTERED);
-  assert.equal(
-    registry.resolveProcess({ command: 'other', args: [] }).capability_basis,
-    'legacy_assumption',
+  assert.throws(
+    () => registry.resolveProcess({ command: 'other', args: [] }),
+    /No capability registration matches/,
   );
 
   const mismatch = registration(path.join(root, 'mismatch.json'), 'other', []);
@@ -507,8 +502,8 @@ test('registered descriptor must also pass Core capability schema before project
   );
 });
 
-test('negotiation blocks legacy assumptions or a missing delivery digest profile before Host calls', async () => {
-  const cases = [LEGACY_CAPABILITIES, { ...REGISTERED, capsule_digest_profiles: [] }];
+test('negotiation blocks a missing delivery digest profile before Host calls', async () => {
+  const cases = [{ ...REGISTERED, capsule_digest_profiles: [] }];
   for (const capabilities of cases) {
     const prepared = prepareRuntimeContract(asset, { task: 'Review this packaged decision.' });
     let calls = 0;
