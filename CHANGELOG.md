@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Make npm publication exclusive to a canonical, stable GitHub Release tag and
+  bind the event tag, Git ref, tag commit, workflow commit, package version,
+  clean worktree, exact changelog heading, and audited npm client version before
+  publication can proceed.
+- Generate clean `npm pack` evidence with independently recomputed integrity,
+  shasum, file list, count, and sizes. Registry outages and ambiguous lookup
+  failures now block; an existing version is skipped only when its package
+  identity and artifact hashes exactly match the candidate. Source commit
+  identity remains independently bound to the release tag and workflow commit.
+
 - Add a strict `--runtime-contract=1` single-asset opt-in for ConsumptionPlan 1,
   Capsule 2, Agent Host 2, and JudgmentTrace 1 through the exact registry
   release `@aikdna/kdna-core@0.18.0`. The default Plan 0.9 / Capsule 1 / Host 1 /
