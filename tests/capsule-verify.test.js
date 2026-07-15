@@ -15,44 +15,25 @@ function makeAsset(tmp, fileName = 'asset.kdna') {
   });
   const assetPath = path.join(tmp, fileName);
   core.pack(source, assetPath);
-  const checksums = JSON.parse(fs.readFileSync(path.join(source, 'checksums.json'), 'utf8'));
-  return { assetPath, entrySetDigest: checksums.asset_digest };
+  return { assetPath, capsule: core.loadRuntimeCapsule(assetPath, { profile: 'compact' }) };
 }
 
-function writeCapsule(tmp, entrySetDigest) {
+function writeCapsule(tmp, capsule) {
   const capsulePath = path.join(tmp, 'capsule.json');
-  fs.writeFileSync(
-    capsulePath,
-    JSON.stringify({
-      type: 'kdna.context.capsule',
-      version: '1.0',
-      domain: 'kdna:test:capsule-verification',
-      judgment_version: '1.0.0',
-      asset_digest: entrySetDigest,
-      signature: { state: 'absent' },
-      access: 'public',
-      profile: 'compact',
-      context: { highest_question: 'What boundary was verified?' },
-      trace: {
-        payload_encoding: 'cbor',
-        loaded_by: 'test',
-        loaded_at: '2026-07-14T00:00:00.000Z',
-        schema_valid: true,
-        signature_state: 'absent',
-        profile: 'compact',
-      },
-    }),
-  );
+  fs.writeFileSync(capsulePath, JSON.stringify(capsule));
   return capsulePath;
 }
 
-test('capsule verification recomputes the legacy entry-set digest in memory', () => {
+test('capsule verification recomputes current A/C/E digest evidence in memory', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-capsule-verify-'));
   try {
-    const { assetPath, entrySetDigest } = makeAsset(tmp, 'asset-"quoted"-$(printf ignored).kdna');
-    const capsulePath = writeCapsule(tmp, entrySetDigest);
+    const { assetPath, capsule } = makeAsset(tmp, 'asset-"quoted"-$(printf ignored).kdna');
+    const capsulePath = writeCapsule(tmp, capsule);
 
-    assert.equal(computeEntrySetDigestFromFile(assetPath), entrySetDigest);
+    assert.equal(
+      computeEntrySetDigestFromFile(assetPath),
+      capsule.digests.runtime_entry_set.value,
+    );
     const result = verifyCapsule(capsulePath, { assetPath });
     assert.equal(result.valid, true, result.errors.join('; '));
   } finally {
@@ -63,11 +44,12 @@ test('capsule verification recomputes the legacy entry-set digest in memory', ()
 test('capsule verification fails closed for a mismatched entry-set digest', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-capsule-mismatch-'));
   try {
-    const { assetPath } = makeAsset(tmp);
-    const capsulePath = writeCapsule(tmp, `sha256:${'0'.repeat(64)}`);
+    const { assetPath, capsule } = makeAsset(tmp);
+    capsule.digests.runtime_entry_set.value = `sha256:${'0'.repeat(64)}`;
+    const capsulePath = writeCapsule(tmp, capsule);
     const result = verifyCapsule(capsulePath, { assetPath });
     assert.equal(result.valid, false);
-    assert.ok(result.errors.some((message) => message.includes('Entry-set digest mismatch')));
+    assert.ok(result.errors.some((message) => message.includes('Runtime entry-set digest mismatch')));
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -78,7 +60,8 @@ test('capsule verification fails cleanly for a corrupt container without temp ex
   try {
     const assetPath = path.join(tmp, 'broken-$(touch should-not-exist).kdna');
     fs.writeFileSync(assetPath, 'not a zip');
-    const capsulePath = writeCapsule(tmp, `sha256:${'0'.repeat(64)}`);
+    const { capsule } = makeAsset(tmp, 'valid.kdna');
+    const capsulePath = writeCapsule(tmp, capsule);
     const before = fs
       .readdirSync(os.tmpdir())
       .filter((name) => name.startsWith('kdna-cv-'))
@@ -92,7 +75,7 @@ test('capsule verification fails cleanly for a corrupt container without temp ex
     assert.equal(result.valid, false);
     assert.ok(
       result.errors.some((message) =>
-        message.includes('Unable to verify protected runtime entries'),
+        message.includes('Unable to verify packaged asset digest evidence'),
       ),
     );
     assert.deepEqual(after, before);

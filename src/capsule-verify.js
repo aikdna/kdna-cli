@@ -2,24 +2,10 @@
 // Ensures agents receive verified, tamper-proof context capsules.
 
 const fs = require('fs');
-const crypto = require('crypto');
-
-function sha256(data) {
-  return crypto.createHash('sha256').update(data).digest('hex');
-}
 
 function computeEntrySetDigestFromFile(assetPath) {
   const core = require('@aikdna/kdna-core');
-  const layout = core.readLayout(assetPath);
-  const manifestEntry = layout?.map?.['kdna.json'];
-  const payloadEntry = layout?.map?.['payload.kdnab'];
-  if (!Buffer.isBuffer(manifestEntry) || !Buffer.isBuffer(payloadEntry)) {
-    throw new Error('KDNA container is missing protected runtime entries');
-  }
-  const manifestDigest = sha256(manifestEntry);
-  const payloadDigest = sha256(payloadEntry);
-  const combined = `kdna.json:${manifestDigest}\npayload.kdnab:${payloadDigest}`;
-  return `sha256:${sha256(Buffer.from(combined, 'utf8'))}`;
+  return core.computeDigestEvidence(assetPath).runtime_entry_set.value;
 }
 
 function verifyCapsule(capsulePath, options = {}) {
@@ -35,10 +21,13 @@ function verifyCapsule(capsulePath, options = {}) {
   const warnings = [];
 
   // 1. Structural checks
-  if (!capsule.type || capsule.type !== 'kdna.context.capsule')
+  if (!capsule.type || capsule.type !== 'kdna.runtime-capsule')
     errors.push('Missing or invalid capsule type marker');
-  if (!capsule.domain) errors.push('Missing domain identifier');
-  if (!capsule.asset_digest) errors.push('Missing asset digest');
+  if (capsule.contract_version !== '0.1.0') errors.push('Missing or invalid contract version');
+  if (!capsule.asset?.asset_id) errors.push('Missing asset identifier');
+  if (!capsule.digests?.asset?.value) errors.push('Missing packaged asset digest');
+  if (!capsule.digests?.content?.value) errors.push('Missing content digest');
+  if (!capsule.digests?.runtime_entry_set?.value) errors.push('Missing Runtime entry-set digest');
   if (!capsule.signature) errors.push('Missing signature block');
 
   // 2. Honest signature state check (not self-claimed "verified")
@@ -53,19 +42,26 @@ function verifyCapsule(capsulePath, options = {}) {
     }
   }
 
-  // 3. Asset digest verification (when assetPath is provided)
+  // 3. A/C/E digest verification (when assetPath is provided)
   const assetPath = options.assetPath;
   if (assetPath && fs.existsSync(assetPath)) {
     try {
-      const actualEntrySetDigest = computeEntrySetDigestFromFile(assetPath);
-      if (capsule.asset_digest && actualEntrySetDigest !== capsule.asset_digest) {
-        errors.push(
-          `Entry-set digest mismatch: capsule claims ${capsule.asset_digest}, ` +
-            `actual protected runtime entry digest is ${actualEntrySetDigest}`,
-        );
+      const core = require('@aikdna/kdna-core');
+      const actual = core.computeDigestEvidence(assetPath);
+      for (const [field, label] of [
+        ['asset', 'Packaged asset'],
+        ['content', 'Content'],
+        ['runtime_entry_set', 'Runtime entry-set'],
+      ]) {
+        const claimed = capsule.digests?.[field]?.value;
+        if (claimed && actual[field].value !== claimed) {
+          errors.push(
+            `${label} digest mismatch: capsule claims ${claimed}, actual digest is ${actual[field].value}`,
+          );
+        }
       }
     } catch (e) {
-      errors.push(`Unable to verify protected runtime entries: ${e.message}`);
+      errors.push(`Unable to verify packaged asset digest evidence: ${e.message}`);
     }
   } else if (assetPath) {
     warnings.push(`Asset path not found: ${assetPath}. Cannot verify digest.`);
