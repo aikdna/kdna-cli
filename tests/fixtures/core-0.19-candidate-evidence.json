@@ -1,17 +1,17 @@
 {
   "evidence_kind": "candidate_source_pack",
   "package": "@aikdna/kdna-core",
-  "version": "0.18.1",
-  "git_head": "4ede2aa539b94edd45aac973a0b4937c734c544a",
+  "version": "0.19.0",
+  "git_head": "a245b291a51ed19de30fd1ced8c803e396ca405c",
   "source_worktree_clean": true,
   "pack": {
     "status": "candidate_source_pack_not_registry_artifact",
     "npm_client": "11.17.0",
-    "filename": "aikdna-kdna-core-0.18.1.tgz",
-    "size": 109811,
+    "filename": "aikdna-kdna-core-0.19.0.tgz",
+    "size": 110380,
     "entry_count": 38,
-    "sha1": "02cd8b43fb6a2486d14218fdf7b2476eee52e2db",
-    "sha512": "sha512-pcARqXB6GmyIq1aVq2az8IP6dwoG2bZmfHd0Z/T5Z7iF2v2UMlhu60Hq7bkDQTIi802H9d+1BxjYVsKnKIGt0A==",
+    "sha1": "a70a018d826be91019224ebf89472a7d325b8508",
+    "sha512": "sha512-fD/u/83JMhmc3ujc9UnZiSsEo/uv9oWJuWf4o0296Qm9uQ4tO3QP7q5Wh9SCl5vOqMrGaQk3SQdJLVZPdacMvw==",
     "reproducible_runs": 2
   },
   "registry_artifact": null,
@@ -23,9 +23,9 @@
     "schema/agent-host-capabilities.schema.json": "00ab3aeceffae5061faeecfdb82ac95afde4c60ad73faa796b2d7bd463e2e834",
     "schema/agent-host-request.schema.json": "e827bc2ca51937c31d9ff089b9ae9b37f154ae69836d778f0027480f0d2ee693",
     "schema/agent-host-receipt.schema.json": "ecdac9d9b6670ead0cf94b3c307b7d9580e4eacdf0d1ce683d2b100b59a3f115",
-    "schema/judgment-trace.schema.json": "a2ea5744372312688f9774133e629832f3ec89469bb2af09048e5667b85cd330",
+    "schema/judgment-trace.schema.json": "a260e5abbcc68bf8df11ba738b5d475901b2950668c4718e415355adc723c7b0",
     "schema/digest-evidence.schema.json": "294939c0a230639a1ae7b059a28d87310ead350ff03d9d6cf46e112acf3d9f75",
-    "test/fixtures/golden-single-asset.json": "05f9269cd800efe83d133212d331718ffa611130702f2b64d5eee37f0a8aaf24",
+    "test/fixtures/golden-single-asset.json": "7eb40c592abb1a62220d51a35ae9963c50f05e21a81ea45245c67f0817b0613c",
     "test/fixtures/golden-single-asset-payload.kdnab": "0d5f3b5dd32b6c87d2db88a74b8aa131338a85535f1ac4435cfa8168b93c6deb"
   }
 }

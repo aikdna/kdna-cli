@@ -28,6 +28,7 @@
     "check:protocol-names": "node scripts/check-current-protocol-names.js",
     "test:golden-host-request": "node --test tests/golden-host-request.test.js",
     "test:runtime-contract": "node scripts/verify-runtime-contract-core.js && node --require ./tests/helpers/require-golden-core.js --test tests/runtime-contract.test.js",
+    "test:core-candidate-tar": "node scripts/verify-core-candidate-tar.js",
     "test:integration": "node --test tests/integration.test.js",
     "test:all": "npm test",
     "test:core-smoke": "node scripts/pretest-smoke.js",

@@ -25,7 +25,7 @@ test('Story 6: dependencies semver and topological sorting logic', () => {
           judgment_version: '1.0.0',
           creator: { name: 'Test' },
           compatibility: {
-            min_loader_version: '0.18.1',
+            min_loader_version: '0.19.0',
             profile: 'kdna.payload.judgment',
             profile_version: '0.1.0',
           },
@@ -48,7 +48,7 @@ test('Story 6: dependencies semver and topological sorting logic', () => {
           judgment_version: '1.0.0',
           creator: { name: 'Test' },
           compatibility: {
-            min_loader_version: '0.18.1',
+            min_loader_version: '0.19.0',
             profile: 'kdna.payload.judgment',
             profile_version: '0.1.0',
           },
@@ -76,7 +76,7 @@ test('Story 6: dependencies semver and topological sorting logic', () => {
       updated_at: '2026-06-28T00:00:00Z',
       creator: { name: 'Test' },
       compatibility: {
-        min_loader_version: '0.18.1',
+        min_loader_version: '0.19.0',
         profile: 'kdna.payload.bundle',
         profile_version: '0.1.0',
       },
@@ -140,7 +140,7 @@ test('Story 6: circular dependency throwing error', () => {
           judgment_version: '1.0.0',
           creator: { name: 'Test' },
           compatibility: {
-            min_loader_version: '0.18.1',
+            min_loader_version: '0.19.0',
             profile: 'kdna.payload.judgment',
             profile_version: '0.1.0',
           },
@@ -163,7 +163,7 @@ test('Story 6: circular dependency throwing error', () => {
           judgment_version: '1.0.0',
           creator: { name: 'Test' },
           compatibility: {
-            min_loader_version: '0.18.1',
+            min_loader_version: '0.19.0',
             profile: 'kdna.payload.judgment',
             profile_version: '0.1.0',
           },
@@ -193,7 +193,7 @@ test('Story 6: circular dependency throwing error', () => {
       updated_at: '2026-06-28T00:00:00Z',
       creator: { name: 'Test' },
       compatibility: {
-        min_loader_version: '0.18.1',
+        min_loader_version: '0.19.0',
         profile: 'kdna.payload.bundle',
         profile_version: '0.1.0',
       },
@@ -256,7 +256,7 @@ test('Story 6: unsatisfied/mismatched dependency throwing error', () => {
           judgment_version: '1.0.0',
           creator: { name: 'Test' },
           compatibility: {
-            min_loader_version: '0.18.1',
+            min_loader_version: '0.19.0',
             profile: 'kdna.payload.judgment',
             profile_version: '0.1.0',
           },
@@ -284,7 +284,7 @@ test('Story 6: unsatisfied/mismatched dependency throwing error', () => {
       updated_at: '2026-06-28T00:00:00Z',
       creator: { name: 'Test' },
       compatibility: {
-        min_loader_version: '0.18.1',
+        min_loader_version: '0.19.0',
         profile: 'kdna.payload.bundle',
         profile_version: '0.1.0',
       },

@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { after, before, test } = require('node:test');
+const { CORE_CANDIDATE_VERSION } = require('../scripts/core-candidate');
 
 const core = require('@aikdna/kdna-core');
 const {
@@ -56,7 +57,10 @@ before(() => {
 after(() => fs.rmSync(root, { recursive: true, force: true }));
 
 function run(args, env = {}) {
-  const nodeOptions = [process.env.NODE_OPTIONS, `--require=${JSON.stringify(CORE_PRELOAD)}`]
+  const nodeOptions = [
+    process.env.NODE_OPTIONS,
+    CORE_SOURCE_ROOT ? `--require=${JSON.stringify(CORE_PRELOAD)}` : null,
+  ]
     .filter(Boolean)
     .join(' ');
   return spawnSync(process.execPath, [CLI, ...args], {
@@ -212,11 +216,19 @@ test('byte-authenticated source fixture retains its declared bytes on checkout',
 
 test('Core candidate is explicit while the unpublished registry dependency remains unchanged', () => {
   const pkg = require('../package.json');
-  assert.equal(pkg.dependencies['@aikdna/kdna-core'], '0.18.0');
+  const tarInstall = process.env.KDNA_CORE_CANDIDATE_TAR === '1';
+  if (tarInstall) {
+    assert.match(pkg.dependencies['@aikdna/kdna-core'], /^file:/);
+  } else {
+    assert.equal(pkg.dependencies['@aikdna/kdna-core'], '0.18.0');
+  }
   const corePackage = CORE_SOURCE_ROOT
     ? require(path.join(path.resolve(CORE_SOURCE_ROOT), 'package.json'))
     : require('@aikdna/kdna-core/package.json');
-  assert.equal(corePackage.version, CORE_SOURCE_ROOT ? '0.18.1' : '0.18.0');
+  assert.equal(
+    corePackage.version,
+    CORE_SOURCE_ROOT || tarInstall ? CORE_CANDIDATE_VERSION : '0.18.0',
+  );
   const current = run(['plan-use', asset, '--task=Review', '--as=json']);
   assert.equal(current.status, 0, current.stderr);
   assert.equal(JSON.parse(current.stdout).contract_version, '0.1.0');

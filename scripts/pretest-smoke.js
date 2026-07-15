@@ -12,6 +12,7 @@
  */
 
 const path = require('path');
+const { CORE_CANDIDATE_VERSION } = require('./core-candidate');
 
 let failures = 0;
 
@@ -49,10 +50,16 @@ check('installed kdna-core version exactly matches declared version', () => {
   const installed = require(corePath).version;
   const declared = require('../package.json').dependencies['@aikdna/kdna-core'];
   if (!declared) throw new Error('kdna-cli does not declare @aikdna/kdna-core');
-  if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(declared)) {
+  const candidateTar = process.env.KDNA_CORE_CANDIDATE_TAR === '1';
+  if (candidateTar) {
+    if (!declared.startsWith('file:') || installed !== CORE_CANDIDATE_VERSION) {
+      throw new Error(
+        `candidate tar install must resolve ${CORE_CANDIDATE_VERSION}; found ${installed} from ${declared}`,
+      );
+    }
+  } else if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(declared)) {
     throw new Error(`declared Core dependency must be an exact version: ${declared}`);
-  }
-  if (installed !== declared) {
+  } else if (installed !== declared) {
     throw new Error(`exact mismatch: installed ${installed} vs declared ${declared}`);
   }
   console.log(`       installed=${installed} declared=${declared}`);

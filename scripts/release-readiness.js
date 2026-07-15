@@ -4,9 +4,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { EXPECTED_PACKAGE_NAME, STABLE_VERSION_RE } = require('./release-policy');
+const { CORE_CANDIDATE_VERSION } = require('./core-candidate');
 
 const CORE_PACKAGE_NAME = '@aikdna/kdna-core';
-const REQUIRED_CORE_VERSION = '0.18.1';
+const REQUIRED_CORE_VERSION = CORE_CANDIDATE_VERSION;
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);

@@ -6,9 +6,15 @@ const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const {
+  CORE_CANDIDATE_EVIDENCE_PATH,
+  CORE_CANDIDATE_PACKAGE,
+  CORE_CANDIDATE_VERSION,
+  readPinnedCoreCommit,
+} = require('./core-candidate');
 
 const ROOT = path.resolve(__dirname, '..');
-const OUTPUT = path.join(ROOT, 'tests', 'fixtures', 'core-0.18-release-evidence.json');
+const OUTPUT = path.join(ROOT, CORE_CANDIDATE_EVIDENCE_PATH);
 const FILES = [
   'src/runtime-contract.js',
   'src/runtime-capsule.js',
@@ -63,6 +69,15 @@ function buildEvidence() {
   }).trim();
   if (status !== '')
     throw new Error('Core source worktree must be clean before candidate packing.');
+  if (packageJson.name !== CORE_CANDIDATE_PACKAGE) {
+    throw new Error(`Core candidate package must be ${CORE_CANDIDATE_PACKAGE}.`);
+  }
+  if (packageJson.version !== CORE_CANDIDATE_VERSION) {
+    throw new Error(`Core candidate version must be ${CORE_CANDIDATE_VERSION}.`);
+  }
+  if (head !== readPinnedCoreCommit(ROOT)) {
+    throw new Error('Core candidate source does not match the exact CI commit pin.');
+  }
   const first = packOnce(absolute);
   const second = packOnce(absolute);
   if (JSON.stringify(first) !== JSON.stringify(second)) {

@@ -91,6 +91,7 @@ function cmdDemo(args) {
     }
     manifest.encryption = {
       profile: core.PASSWORD_PROTECTED_PROFILE,
+      profile_version: core.ENCRYPTION_PROFILE_VERSION,
       encrypted_entries: ['payload.kdnab'],
     };
     manifest.payload = manifest.payload || {};

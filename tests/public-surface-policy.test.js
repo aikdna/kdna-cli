@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 
-const EVIDENCE_PATH = 'tests/fixtures/core-0.18-release-evidence.json';
+const EVIDENCE_PATH = 'tests/fixtures/core-0.19-candidate-evidence.json';
 const SHA = 'a'.repeat(40);
 const OTHER_SHA = 'b'.repeat(40);
 

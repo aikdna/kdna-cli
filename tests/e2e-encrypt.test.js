@@ -41,6 +41,8 @@ test.before(() => {
   assert.equal(manifest.payload.encoding, 'cbor');
   assert.equal(manifest.payload.encrypted, true);
   assert.equal(manifest.encryption.profile, core.PASSWORD_PROTECTED_PROFILE);
+  assert.equal(manifest.encryption.profile_version, core.ENCRYPTION_PROFILE_VERSION);
+  assert.deepEqual(manifest.encryption.encrypted_entries, ['payload.kdnab']);
   const decryptedPayload = core.decryptProtectedEntry(encryptedPayload, {
     entryName: 'payload.kdnab',
     manifest,

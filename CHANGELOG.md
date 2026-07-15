@@ -7,15 +7,21 @@
 - Cut the CLI over to the stable KDNA Runtime contract through the formal Core
   ConsumptionPlan, Runtime Capsule, process Agent Host, and JudgmentTrace APIs.
   Runtime selectors and fallback generations are no longer accepted.
-- Require the formal `@aikdna/kdna-core@0.18.1` release across package
-  metadata, lockfile, installed dependency, release checks, and CI before this
-  version can publish.
+- Bind source and reproducible local-tar verification to the exact
+  `@aikdna/kdna-core@0.19.0` candidate at public ref `a245b291a51e`. The
+  registry dependency remains on the published `0.18.0` artifact, so release
+  readiness blocks until the coordinated Core release can update package
+  metadata, lockfile, and the installed dependency atomically.
 - Retire the source-tree loader, mock Runner, old verifier, duplicate
   `quality load` route, and assumed Host capabilities. A process Host now needs
   an exact, process-bound capability registration before projection.
 - Emit current manifests, payload profiles, digest evidence, watermarks, and
   `kdna.bundle` `0.1.0` authoring records from every shipped producer. Unknown
   manifest fields and obsolete protocol declarations fail closed.
+- Make `demo --password`, `protect`, and password recovery bind the encrypted
+  payload declaration to Core's current encryption profile coordinate and the
+  sole supported `payload.kdnab` entry. Declared encryption and stored payload
+  state can no longer drift into a package that Core must reject.
 - Use pure SemVer release tags such as `0.34.0` without a `v` prefix. Release
   evidence now requires two byte-identical npm packs and an allowlisted shipped
   surface containing the current Runtime, schemas, validators, fixtures, and

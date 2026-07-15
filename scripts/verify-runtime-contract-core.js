@@ -6,9 +6,15 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
+const {
+  CORE_CANDIDATE_EVIDENCE_PATH,
+  CORE_CANDIDATE_PACKAGE,
+  CORE_CANDIDATE_VERSION,
+  readPinnedCoreCommit,
+} = require('./core-candidate');
 
 const root = path.resolve(__dirname, '..');
-const evidencePath = path.join(root, 'tests', 'fixtures', 'core-0.18-release-evidence.json');
+const evidencePath = path.join(root, CORE_CANDIDATE_EVIDENCE_PATH);
 const sourceRoot = process.env.KDNA_CORE_SOURCE_ROOT || process.env.KDNA_RUNTIME_CONTRACT_CORE_ROOT;
 
 if (!sourceRoot) {
@@ -35,6 +41,9 @@ function digest(file) {
 }
 
 assert.equal(evidence.evidence_kind, 'candidate_source_pack');
+assert.equal(evidence.package, CORE_CANDIDATE_PACKAGE);
+assert.equal(evidence.version, CORE_CANDIDATE_VERSION);
+assert.equal(evidence.git_head, readPinnedCoreCommit(root));
 assert.equal(evidence.registry_artifact, null);
 assert.equal(evidence.pack.status, 'candidate_source_pack_not_registry_artifact');
 assert.equal(evidence.pack.reproducible_runs, 2);

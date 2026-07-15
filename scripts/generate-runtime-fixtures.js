@@ -26,7 +26,7 @@ function currentManifest(value) {
   manifest.format_version = PROTOCOL_VERSION;
   manifest.compatibility = {
     ...manifest.compatibility,
-    min_loader_version: '0.18.1',
+    min_loader_version: '0.19.0',
     profile: PROFILE,
     profile_version: PROTOCOL_VERSION,
   };

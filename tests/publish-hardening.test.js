@@ -222,6 +222,24 @@ test('release readiness requires the formal Core release across manifest, lock, 
       }),
     /locked Core artifact is stale/,
   );
+
+  const currentPackage = require('../package.json');
+  const currentLock = require('../package-lock.json');
+  const currentInstalledCore = require('@aikdna/kdna-core/package.json');
+  if (process.env.KDNA_CORE_CANDIDATE_TAR === '1') {
+    assert.match(currentPackage.dependencies['@aikdna/kdna-core'], /^file:/);
+  } else {
+    assert.equal(currentPackage.dependencies['@aikdna/kdna-core'], '0.18.0');
+  }
+  assert.throws(
+    () =>
+      validateReleaseReadiness({
+        pkg: currentPackage,
+        lock: currentLock,
+        installedCore: currentInstalledCore,
+      }),
+    /Core dependency must be 0\.19\.0/,
+  );
 });
 
 test('release context rejects every ambiguous or mutable release input', async (t) => {

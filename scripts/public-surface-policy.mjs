@@ -1,4 +1,4 @@
-const EVIDENCE_PATH = 'tests/fixtures/core-0.18-release-evidence.json';
+const EVIDENCE_PATH = 'tests/fixtures/core-0.19-candidate-evidence.json';
 const FULL_HASH = /^[a-f0-9]{40}$/i;
 
 export function allowFormalReleaseHash(match, context) {

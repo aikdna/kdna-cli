@@ -8,7 +8,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: aikdna/kdna
-          ref: 4ede2aa539b94edd45aac973a0b4937c734c544a
+          ref: a245b291a51ed19de30fd1ced8c803e396ca405c
           path: .cross-repo/kdna
       - uses: actions/setup-node@v6
         with: { node-version: 22 }
@@ -21,6 +21,10 @@ jobs:
         env:
           KDNA_CORE_SOURCE_ROOT: ${{ github.workspace }}/.cross-repo/kdna/packages/kdna-core
           NODE_OPTIONS: --require=${{ github.workspace }}/tests/helpers/require-golden-core.js
+      - name: Verify the exact Core candidate through a reproducible local tar install
+        run: npm run test:core-candidate-tar
+        env:
+          KDNA_CORE_SOURCE_ROOT: ${{ github.workspace }}/.cross-repo/kdna/packages/kdna-core
   golden-host-request:
     runs-on: ubuntu-latest
     steps:
@@ -28,7 +32,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: aikdna/kdna
-          ref: 4ede2aa539b94edd45aac973a0b4937c734c544a
+          ref: a245b291a51ed19de30fd1ced8c803e396ca405c
           path: .cross-repo/kdna
       - uses: actions/setup-node@v6
         with: { node-version: 22 }
@@ -50,7 +54,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: aikdna/kdna
-          ref: 4ede2aa539b94edd45aac973a0b4937c734c544a
+          ref: a245b291a51ed19de30fd1ced8c803e396ca405c
           path: .cross-repo/kdna-runtime-contract
       - uses: actions/setup-node@v6
         with: { node-version: '${{ matrix.node }}' }

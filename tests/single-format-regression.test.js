@@ -1,8 +1,8 @@
 /**
  * single-format-regression.test.js — CLI single-format regression tests.
  *
- * These tests prove that kdna-cli, when linked against the local Core candidate
- * tarball, can exercise the full single-format toolchain.
+ * These tests prove that kdna-cli, when linked against the exact Core candidate
+ * source or its local tar artifact, can exercise the full single-format toolchain.
  */
 'use strict';
 
@@ -44,7 +44,7 @@ function makeMinimalSourceDir(dir) {
       updated_at: '2026-01-01T00:00:00Z',
       creator: { name: 'Test' },
       compatibility: {
-        min_loader_version: '0.18.1',
+        min_loader_version: '0.19.0',
         profile: 'kdna.payload.judgment',
         profile_version: '0.1.0',
       },
@@ -62,7 +62,7 @@ function makeMinimalSourceDir(dir) {
   fs.writeFileSync(path.join(dir, 'checksums.json'), JSON.stringify(checks, null, 2));
 }
 
-test('CLI validate works against local Core candidate tarball', () => {
+test('CLI validate works against the exact Core candidate', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-reg-'));
   try {
     const src = path.join(tmp, 'src');
@@ -76,7 +76,7 @@ test('CLI validate works against local Core candidate tarball', () => {
   }
 });
 
-test('CLI inspect works against local Core candidate tarball', () => {
+test('CLI inspect works against the exact Core candidate', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-reg-'));
   try {
     const src = path.join(tmp, 'src');
@@ -91,7 +91,7 @@ test('CLI inspect works against local Core candidate tarball', () => {
   }
 });
 
-test('CLI plan-load works against local Core candidate tarball', () => {
+test('CLI plan-load works against the exact Core candidate', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-reg-'));
   try {
     const src = path.join(tmp, 'src');
@@ -108,7 +108,7 @@ test('CLI plan-load works against local Core candidate tarball', () => {
   }
 });
 
-test('CLI validate --runtime works against local Core candidate tarball', () => {
+test('CLI validate --runtime works against the exact Core candidate', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-reg-'));
   try {
     const src = path.join(tmp, 'src');
@@ -255,6 +255,21 @@ test('encrypted asset: pack → protect → validate → plan-load needs_passwor
     const r1 = run(['pack', src, kdna]);
     assert.equal(r1.status, 0, `pack failed: ${r1.stderr}`);
 
+    const unsupported = path.join(tmp, 'unsupported.kdna');
+    const rejected = run([
+      'protect',
+      kdna,
+      '--out',
+      unsupported,
+      '--password',
+      'test123',
+      '--entries',
+      'payload.kdnab,checksums.json',
+    ]);
+    assert.notEqual(rejected.status, 0, 'unsupported encrypted entries must fail closed');
+    assert.match(rejected.stderr, /Only payload\.kdnab can be encrypted/);
+    assert.equal(fs.existsSync(unsupported), false);
+
     // Protect with password
     const prot = path.join(tmp, 'protected.kdna');
     const r2 = run([
@@ -272,8 +287,12 @@ test('encrypted asset: pack → protect → validate → plan-load needs_passwor
 
     // Validate protected
     const r3 = run(['validate', prot, '--json']);
-    const v3 = JSON.parse(r3.stdout);
-    assert.equal(v3.format_valid, true, `format invalid: ${v3.problems}`);
+    const validationResult = JSON.parse(r3.stdout);
+    assert.equal(
+      validationResult.format_valid,
+      true,
+      `format invalid: ${validationResult.problems}`,
+    );
 
     // Plan-load = needs_password
     const r4 = run(['plan-load', prot, '--json']);
@@ -289,6 +308,34 @@ test('encrypted asset: pack → protect → validate → plan-load needs_passwor
     assert.equal(r6.status, 0, `correct password load failed: ${r6.stderr}`);
     const c6 = JSON.parse(r6.stdout);
     assert.equal(c6.type, 'kdna.runtime-capsule');
+
+    const recoveryCode = r2.stdout.match(/Recovery code:[^\n]*\n\s+([^\n]+)/)?.[1]?.trim();
+    assert.ok(recoveryCode, 'protect must emit one recovery code');
+    const recovered = path.join(tmp, 'recovered.kdna');
+    const recoveredResult = run(['protect', 'recover', prot, '--out', recovered, '--code-stdin'], {
+      input: `${recoveryCode}\n`,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, KDNA_PASSWORD: 'replacement-password' },
+    });
+    assert.equal(recoveredResult.status, 0, recoveredResult.stderr);
+    const recoveredReader = core.createKdnaAssetReader();
+    const recoveredAsset = recoveredReader.openSync(recovered);
+    const recoveredManifest = recoveredReader.readManifestSync(recoveredAsset);
+    assert.equal(recoveredManifest.payload.encrypted, true);
+    assert.equal(recoveredManifest.encryption.profile, core.PASSWORD_PROTECTED_PROFILE);
+    assert.equal(recoveredManifest.encryption.profile_version, core.ENCRYPTION_PROFILE_VERSION);
+    assert.deepEqual(recoveredManifest.encryption.encrypted_entries, ['payload.kdnab']);
+    const recoveredValidation = core.validate(recovered);
+    assert.equal(recoveredValidation.overall_valid, true, recoveredValidation.problems?.join('; '));
+    assert.equal(recoveredValidation.checksums_valid, true);
+    assert.notEqual(
+      run(['load', recovered, '--as=json', '--password=test123']).status,
+      0,
+      'the old password must no longer authorize the recovered asset',
+    );
+    const recoveredLoad = run(['load', recovered, '--as=json', '--password=replacement-password']);
+    assert.equal(recoveredLoad.status, 0, recoveredLoad.stderr);
+    assert.equal(JSON.parse(recoveredLoad.stdout).type, 'kdna.runtime-capsule');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -306,6 +353,7 @@ test('compatibility scrypt asset remains loadable and unlockable', () => {
     manifest.entitlement = { profile: 'password', offline: true, revocable: false };
     manifest.encryption = {
       profile: core.PASSWORD_PROTECTED_SCRYPT_PROFILE,
+      profile_version: core.ENCRYPTION_PROFILE_VERSION,
       encrypted_entries: ['payload.kdnab'],
     };
     const plaintext = fs.readFileSync(path.join(src, 'payload.kdnab'));

@@ -2,12 +2,12 @@
   "provenance": {
     "contract_id": "kdna.golden-single-asset",
     "core_repository": "https://github.com/aikdna/kdna",
-    "core_commit": "4ede2aa",
+    "core_commit": "a245b29",
     "core_fixture_path": "packages/kdna-core/test/fixtures/golden-single-asset.json",
     "dynamic_field_normalization": {
       "trace.loaded_at": "<runtime-generated-iso8601>"
     },
-    "normalized_capsule_sha256": "sha256:b0973d780d598e3a75762e6b1fcd1bc19b9659b94d36ad2caed621a82c1f1391"
+    "normalized_capsule_sha256": "sha256:840c80cd3900128da7bfb3d79dd2f40e408862a10fc2bdfc00f8aa473c67dd1d"
   },
   "task": "Choose the rollout mode after required checks passed but rollback-drill evidence remains incomplete.",
   "source": {
@@ -27,7 +27,7 @@
         "id": "synthetic_protocol_fixture"
       },
       "compatibility": {
-        "min_loader_version": "0.18.1",
+        "min_loader_version": "0.19.0",
         "profile": "kdna.payload.judgment",
         "profile_version": "0.1.0"
       },
@@ -149,7 +149,7 @@
       "profile": "kdna.digest-evidence",
       "profile_version": "0.1.0",
       "asset": {
-        "value": "sha256:dd8dad548a4d5d78b48e8a48d4bd21d66c0eb474719d9118e200c98647786885",
+        "value": "sha256:1352d5d1e79ed73c35b84ad06d05488e3653568008f283d65804aa3636b8e189",
         "basis": "kdna.digest-basis.container-bytes",
         "comparison": {
           "state": "not_compared",
@@ -159,7 +159,7 @@
         }
       },
       "content": {
-        "value": "sha256:a48f8b7e424cdd7a18baac04c425fcaa22b3c1e237d4ff5b1dc36780dbf609cf",
+        "value": "sha256:714d608763d2c927b428bdbc023c225f8140ce80168a5f7e70a4e9f4ec92eca1",
         "basis": "kdna.digest-basis.content-tree",
         "comparison": {
           "state": "not_compared",
@@ -169,12 +169,12 @@
         }
       },
       "runtime_entry_set": {
-        "value": "sha256:7f91931cb4c1136a6241dd67fde561ec10f7e9d155a6ddc4a7847c5d7d9b6c71",
+        "value": "sha256:d8dbaf438a953517a4690751659d3b062fd42002993653004a85e0f9d9ebaded",
         "basis": "kdna.digest-basis.runtime-entry-set",
         "comparison": {
           "state": "matched",
           "against": "checksum_declaration",
-          "expected": "sha256:7f91931cb4c1136a6241dd67fde561ec10f7e9d155a6ddc4a7847c5d7d9b6c71",
+          "expected": "sha256:d8dbaf438a953517a4690751659d3b062fd42002993653004a85e0f9d9ebaded",
           "source": "checksums.json.entry_set_digest"
         }
       }

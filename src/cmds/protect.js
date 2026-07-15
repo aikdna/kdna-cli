@@ -15,6 +15,7 @@ const {
   createPasswordDecryptEntry,
   createPasswordDecryptEntryScrypt,
   createRecoveryDecryptEntry,
+  ENCRYPTION_PROFILE_VERSION,
   encryptProtectedEntry,
   generateRecoveryCode,
   PASSWORD_PROTECTED_PROFILE,
@@ -35,7 +36,7 @@ function parseEntriesFlag(flag) {
 function cmdProtect(args) {
   if (args.includes('--help') || args.includes('-h')) {
     console.log(
-      'Usage: kdna protect <file.kdna> --out <file.kdna> [--password <pw>|--password-stdin] [--entries payload.kdnab,...]\n' +
+      'Usage: kdna protect <file.kdna> --out <file.kdna> [--password <pw>|--password-stdin] [--entries payload.kdnab]\n' +
         '\n' +
         'Encrypt a .kdna asset with a password.\n' +
         '\n' +
@@ -44,8 +45,7 @@ function cmdProtect(args) {
         '  --out <file.kdna>                 Required. Output path for protected asset\n' +
         '  --password <pw>                   Password (insecure — visible in shell history)\n' +
         '  --password-stdin                  Read password from stdin (preferred)\n' +
-        '  --entries <list>                  Comma-separated entry names to encrypt\n' +
-        '                                    (default: payload.kdnab)\n' +
+        '  --entries payload.kdnab           Entry to encrypt (the only supported target)\n' +
         '\n' +
         'Examples:\n' +
         '  echo "mypass" | kdna protect asset.kdna --out protected.kdna --password-stdin\n' +
@@ -57,7 +57,7 @@ function cmdProtect(args) {
   const file = args[0];
   if (!file)
     error(
-      'Usage: kdna protect <file.kdna> --out <file.kdna> [--password <pw>|--password-stdin] [--entries payload.kdnab,...]\nRun: kdna help protect',
+      'Usage: kdna protect <file.kdna> --out <file.kdna> [--password <pw>|--password-stdin] [--entries payload.kdnab]\nRun: kdna help protect',
       EXIT.INPUT_ERROR,
     );
 
@@ -67,6 +67,9 @@ function cmdProtect(args) {
 
   const entriesIdx = args.indexOf('--entries');
   const entriesToEncrypt = parseEntriesFlag(entriesIdx >= 0 ? args[entriesIdx + 1] : null);
+  if (entriesToEncrypt.length !== 1 || entriesToEncrypt[0] !== 'payload.kdnab') {
+    error('Only payload.kdnab can be encrypted.', EXIT.INPUT_ERROR);
+  }
 
   if (!fs.existsSync(file)) error(`File not found: ${file}`, EXIT.INPUT_ERROR);
 
@@ -92,8 +95,10 @@ function cmdProtect(args) {
   const newManifest = {
     ...manifest,
     access: 'licensed',
+    payload: { ...manifest.payload, encrypted: true },
     encryption: {
       profile: PASSWORD_PROTECTED_PROFILE,
+      profile_version: ENCRYPTION_PROFILE_VERSION,
       encrypted_entries: entriesToEncrypt,
     },
   };
@@ -325,7 +330,10 @@ function cmdUnlock(args) {
 function cmdRecover(args) {
   const file = args[0];
   if (!file)
-    error('Usage: kdna recover <file.kdna> --out <file.kdna> [--code-stdin]', EXIT.INPUT_ERROR);
+    error(
+      'Usage: kdna recover <file.kdna> --out <file.kdna> [--code-stdin] [--password <new-password>|--password-stdin]',
+      EXIT.INPUT_ERROR,
+    );
 
   const outIdx = args.indexOf('--out');
   const outPath = outIdx >= 0 ? args[outIdx + 1] : null;
@@ -352,7 +360,7 @@ function cmdRecover(args) {
     if (!recoveryCode) error('Recovery code is required.', EXIT.INPUT_ERROR);
   }
 
-  const newPassword = promptPassword('New password: ');
+  const newPassword = resolvePassword(args, { prompt: 'New password: ' });
   if (!newPassword) error('New password is required.', EXIT.INPUT_ERROR);
 
   const reader = createKdnaAssetReader();
@@ -374,12 +382,27 @@ function cmdRecover(args) {
 
   // Decrypt all encrypted entries with recovery code, then re-encrypt with new password
   const entriesToEncrypt = manifest.encryption?.encrypted_entries || ['payload.kdnab'];
+  if (entriesToEncrypt.length !== 1 || entriesToEncrypt[0] !== 'payload.kdnab') {
+    error('Only payload.kdnab can be encrypted.', EXIT.INPUT_ERROR);
+  }
   const allEntries = reader.listEntriesSync(asset);
   const zipEntries = {};
   const newRecoveryCode = generateRecoveryCode();
+  const newManifest = {
+    ...manifest,
+    payload: { ...manifest.payload, encrypted: true },
+    encryption: {
+      ...(manifest.encryption || {}),
+      profile: PASSWORD_PROTECTED_PROFILE,
+      profile_version: ENCRYPTION_PROFILE_VERSION,
+      encrypted_entries: entriesToEncrypt,
+    },
+  };
 
   for (const entryName of allEntries) {
-    if (entriesToEncrypt.includes(entryName)) {
+    if (entryName === 'kdna.json') {
+      zipEntries[entryName] = JSON.stringify(newManifest);
+    } else if (entriesToEncrypt.includes(entryName)) {
       // Decrypt with recovery code
       const encryptedData = reader.readEntrySync(asset, entryName);
       const plaintext = decryptEntry({ entryName, ciphertext: encryptedData, manifest });
@@ -387,14 +410,7 @@ function cmdRecover(args) {
       // Re-encrypt under the current cross-language Argon2id profile.
       const encrypted = encryptProtectedEntry(plaintext, {
         entryName,
-        manifest: {
-          ...manifest,
-          encryption: {
-            ...(manifest.encryption || {}),
-            profile: PASSWORD_PROTECTED_PROFILE,
-            encrypted_entries: entriesToEncrypt,
-          },
-        },
+        manifest: newManifest,
         password: newPassword,
         recoveryCode: newRecoveryCode,
       });
