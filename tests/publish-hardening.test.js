@@ -160,6 +160,10 @@ test('publish workflow has one canonical release-only path and publishes the ver
   assert.match(packageJson.scripts['test:unit'], /tests\/e2e-encrypt\.test\.js/);
   assert.equal(packageJson.scripts['test:all'], 'npm test');
   assert.equal(
+    packageJson.scripts['test:golden-host-request'],
+    'node scripts/generate-golden-host-contract.js --check && node --test tests/golden-host-request.test.js',
+  );
+  assert.equal(
     packageJson.scripts['release:registry-guard'],
     'node scripts/registry-duplicate-guard.js',
   );
@@ -170,6 +174,16 @@ test('publish workflow has one canonical release-only path and publishes the ver
   assert.match(preflight, /\['npm', \['run', 'test:all'\]\]/);
 
   const ci = fs.readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8');
+  assert.equal(
+    (
+      ci.match(
+        /npm install --global npm@11\.17\.0 --ignore-scripts --registry=https:\/\/registry\.npmjs\.org\//g,
+      ) || []
+    ).length,
+    1,
+  );
+  assert.equal((ci.match(/npm --version \| grep -Fx 11\.17\.0/g) || []).length, 1);
+  assert.ok(ci.indexOf('npm@11.17.0') < ci.indexOf('npm run test:core-candidate-tar'));
   assert.match(ci, /npm run check:public-surface/);
   assert.doesNotMatch(ci, /npm ci --prefix \.cross-repo\/kdna/);
   assert.equal((ci.match(/working-directory: \.cross-repo\/kdna/g) || []).length, 2);
@@ -179,6 +193,15 @@ test('publish workflow has one canonical release-only path and publishes the ver
     'utf8',
   );
   assert.match(registryGuard, /--@aikdna:registry=https:\/\/registry\.npmjs\.org\//);
+
+  for (const script of [
+    'scripts/generate-core-candidate-evidence.js',
+    'scripts/verify-core-candidate-tar.js',
+  ]) {
+    const source = fs.readFileSync(path.join(ROOT, script), 'utf8');
+    assert.match(source, /resolveTrustedNpmInvocation/);
+    assert.doesNotMatch(source, /(?:execFileSync|spawnSync|run)\(\s*['"]npm['"]/);
+  }
 });
 
 test('release context binds event, tag ref, package, changelog, HEAD, and workflow commit', () => {

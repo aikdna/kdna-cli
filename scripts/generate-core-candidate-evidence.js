@@ -12,6 +12,12 @@ const {
   CORE_CANDIDATE_VERSION,
   readPinnedCoreCommit,
 } = require('./core-candidate');
+const {
+  BINDING_PATH,
+  readTarFileEntries,
+  resolveTrustedNpmInvocation,
+  verifyCandidateBinding,
+} = require('./runtime-candidate-binding');
 
 const ROOT = path.resolve(__dirname, '..');
 const OUTPUT = path.join(ROOT, CORE_CANDIDATE_EVIDENCE_PATH);
@@ -33,11 +39,15 @@ function digest(algorithm, value, encoding = 'hex') {
   return crypto.createHash(algorithm).update(value).digest(encoding);
 }
 
-function packOnce(packageRoot) {
+function runTrustedNpm(invocation, args, options = {}) {
+  return execFileSync(invocation.command, [...invocation.prefixArgs, ...args], options);
+}
+
+function packOnce(packageRoot, invocation) {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-core-candidate-pack-'));
   try {
     const metadata = JSON.parse(
-      execFileSync('npm', ['pack', '--json', '--pack-destination', temp], {
+      runTrustedNpm(invocation, ['pack', '--json', '--pack-destination', temp], {
         cwd: packageRoot,
         encoding: 'utf8',
       }),
@@ -55,7 +65,7 @@ function packOnce(packageRoot) {
   }
 }
 
-function buildEvidence() {
+function sourceFacts() {
   const packageRoot = process.env.KDNA_CORE_SOURCE_ROOT;
   if (!packageRoot) throw new Error('KDNA_CORE_SOURCE_ROOT is required for candidate evidence.');
   const absolute = path.resolve(packageRoot);
@@ -67,8 +77,7 @@ function buildEvidence() {
   const status = execFileSync('git', ['-C', repository, 'status', '--porcelain=v1'], {
     encoding: 'utf8',
   }).trim();
-  if (status !== '')
-    throw new Error('Core source worktree must be clean before candidate packing.');
+  if (status !== '') throw new Error('Core source worktree must be clean for candidate evidence.');
   if (packageJson.name !== CORE_CANDIDATE_PACKAGE) {
     throw new Error(`Core candidate package must be ${CORE_CANDIDATE_PACKAGE}.`);
   }
@@ -78,28 +87,101 @@ function buildEvidence() {
   if (head !== readPinnedCoreCommit(ROOT)) {
     throw new Error('Core candidate source does not match the exact CI commit pin.');
   }
-  const first = packOnce(absolute);
-  const second = packOnce(absolute);
-  if (JSON.stringify(first) !== JSON.stringify(second)) {
-    throw new Error('Core candidate package is not reproducible across two npm pack runs.');
-  }
   return {
-    evidence_kind: 'candidate_source_pack',
-    package: packageJson.name,
-    version: packageJson.version,
-    git_head: head,
-    source_worktree_clean: true,
-    pack: {
-      status: 'candidate_source_pack_not_registry_artifact',
-      npm_client: execFileSync('npm', ['--version'], { encoding: 'utf8' }).trim(),
-      ...first,
-      reproducible_runs: 2,
-    },
-    registry_artifact: null,
+    packageRoot: absolute,
+    packageJson,
+    head,
     files: Object.fromEntries(
       FILES.map((file) => [file, digest('sha256', fs.readFileSync(path.join(absolute, file)))]),
     ),
   };
+}
+
+function boundPackEvidence() {
+  const binding = JSON.parse(fs.readFileSync(path.join(ROOT, BINDING_PATH), 'utf8'));
+  const entry = binding.packages?.find(({ name }) => name === CORE_CANDIDATE_PACKAGE);
+  if (!entry) throw new Error('Core candidate binding is missing.');
+  const expectedArtifact = path.posix.join(
+    'tests',
+    'fixtures',
+    'runtime-candidates',
+    `kdna-core-${CORE_CANDIDATE_VERSION}.tgz`,
+  );
+  if (entry.artifact !== expectedArtifact) {
+    throw new Error('Core candidate binding artifact path is not canonical.');
+  }
+  const artifact = path.join(ROOT, ...entry.artifact.split('/'));
+  const bytes = fs.readFileSync(artifact);
+  return {
+    status: 'candidate_source_pack_not_registry_artifact',
+    npm_client: '11.17.0',
+    filename: `${CORE_CANDIDATE_PACKAGE.slice(1).replace('/', '-')}-${CORE_CANDIDATE_VERSION}.tgz`,
+    size: bytes.length,
+    entry_count: readTarFileEntries(artifact).length,
+    sha1: digest('sha1', bytes),
+    sha512: `sha512-${digest('sha512', bytes, 'base64')}`,
+    reproducible_runs: 2,
+  };
+}
+
+function expectedEvidence(source, pack) {
+  return {
+    evidence_kind: 'candidate_source_pack',
+    package: source.packageJson.name,
+    version: source.packageJson.version,
+    git_head: source.head,
+    source_worktree_clean: true,
+    pack,
+    registry_artifact: null,
+    files: source.files,
+  };
+}
+
+function assertSourceFactsUnchanged(before, after) {
+  const snapshot = ({ packageRoot, packageJson, head, files }) => ({
+    packageRoot,
+    packageJson,
+    head,
+    files,
+  });
+  if (JSON.stringify(snapshot(before)) !== JSON.stringify(snapshot(after))) {
+    throw new Error('Core candidate source changed during npm pack.');
+  }
+}
+
+function buildEvidence() {
+  const source = sourceFacts();
+  const invocation = resolveTrustedNpmInvocation(ROOT);
+  const npmClient = runTrustedNpm(invocation, ['--version'], { encoding: 'utf8' }).trim();
+  if (npmClient !== '11.17.0') throw new Error('Core candidate pack requires npm 11.17.0.');
+  const first = packOnce(source.packageRoot, invocation);
+  const second = packOnce(source.packageRoot, invocation);
+  assertSourceFactsUnchanged(source, sourceFacts());
+  if (JSON.stringify(first) !== JSON.stringify(second)) {
+    throw new Error('Core candidate package is not reproducible across two npm pack runs.');
+  }
+  const pack = {
+    status: 'candidate_source_pack_not_registry_artifact',
+    npm_client: npmClient,
+    ...first,
+    reproducible_runs: 2,
+  };
+  if (JSON.stringify(pack) !== JSON.stringify(boundPackEvidence())) {
+    throw new Error('Core candidate source pack does not match the bound candidate artifact.');
+  }
+  return expectedEvidence(source, pack);
+}
+
+function checkedEvidence() {
+  return expectedEvidence(sourceFacts(), boundPackEvidence());
+}
+
+function verifyEvidence() {
+  const expected = `${JSON.stringify(checkedEvidence(), null, 2)}\n`;
+  if (!fs.existsSync(OUTPUT) || fs.readFileSync(OUTPUT, 'utf8') !== expected) {
+    throw new Error('Core candidate evidence is stale. Run with --write.');
+  }
+  verifyCandidateBinding(ROOT);
 }
 
 function main() {
@@ -107,13 +189,20 @@ function main() {
   if (!['--check', '--write'].includes(mode)) {
     throw new Error('usage: generate-core-candidate-evidence.js [--check|--write]');
   }
-  const expected = `${JSON.stringify(buildEvidence(), null, 2)}\n`;
   if (mode === '--write') {
-    fs.writeFileSync(OUTPUT, expected);
-  } else if (!fs.existsSync(OUTPUT) || fs.readFileSync(OUTPUT, 'utf8') !== expected) {
-    throw new Error('Core candidate evidence is stale. Run with --write.');
+    fs.writeFileSync(OUTPUT, `${JSON.stringify(buildEvidence(), null, 2)}\n`);
+    verifyEvidence();
+  } else {
+    verifyEvidence();
   }
   console.log(`Core candidate evidence ${mode === '--write' ? 'generated' : 'verified'}.`);
 }
 
-main();
+if (require.main === module) main();
+
+module.exports = {
+  assertSourceFactsUnchanged,
+  buildEvidence,
+  checkedEvidence,
+  verifyEvidence,
+};

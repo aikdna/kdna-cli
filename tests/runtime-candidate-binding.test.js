@@ -5,11 +5,13 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const zlib = require('node:zlib');
 const { test } = require('node:test');
 const {
   BINDING_PATH,
   assertRegistryReleaseReady,
   canonicalRegistryUrl,
+  readTarFileEntries,
   resolveTrustedNpmInvocation,
   strictRegistryLookup,
   verifyCandidateBinding,
@@ -19,6 +21,7 @@ const {
   CORE_CANDIDATE_EVIDENCE_PATH,
   CORE_CANDIDATE_WORKFLOW_PATH,
 } = require('../scripts/core-candidate');
+const { assertSourceFactsUnchanged } = require('../scripts/generate-core-candidate-evidence');
 
 const ROOT = path.resolve(__dirname, '..');
 const CORE = '@aikdna/kdna-core';
@@ -76,6 +79,12 @@ function createTrustedNpmFixture(t, manifest = { name: 'npm', version: '11.17.0'
   fs.writeFileSync(npmExecPath, '#!/usr/bin/env node\n');
   fs.writeFileSync(path.join(npmRoot, 'package.json'), `${JSON.stringify(manifest)}\n`);
   return fs.realpathSync(npmExecPath);
+}
+
+function rewriteTarChecksum(header) {
+  header.fill(32, 148, 156);
+  const checksum = header.reduce((sum, byte) => sum + byte, 0);
+  Buffer.from(`${checksum.toString(8).padStart(6, '0')}\0 `).copy(header, 148);
 }
 
 test('default install binds one exact Core candidate while published Eval stays canonical', () => {
@@ -247,6 +256,55 @@ test('trusted npm invocation rejects PATH shadows and unpinned or mutable client
     () => resolveTrustedNpmInvocation(ROOT, symlink, process.execPath),
     /regular non-symlink/,
   );
+});
+
+test('portable candidate tar reader rejects corrupted headers and hostile paths', (t) => {
+  const binding = verifyCandidateBinding(ROOT);
+  const artifact = path.join(ROOT, binding.packages[0].artifact);
+  assert.equal(readTarFileEntries(artifact).length, 39);
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-hostile-tar-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const archive = zlib.gunzipSync(fs.readFileSync(artifact));
+
+  const corrupt = Buffer.from(archive);
+  corrupt[0] ^= 1;
+  const corruptPath = path.join(root, 'corrupt.tgz');
+  fs.writeFileSync(corruptPath, zlib.gzipSync(corrupt));
+  assert.throws(() => readTarFileEntries(corruptPath), /header checksum mismatch/);
+
+  const traversal = Buffer.from(archive);
+  traversal.fill(0, 0, 100);
+  Buffer.from('../package.json').copy(traversal, 0);
+  rewriteTarChecksum(traversal.subarray(0, 512));
+  const traversalPath = path.join(root, 'traversal.tgz');
+  fs.writeFileSync(traversalPath, zlib.gzipSync(traversal));
+  assert.throws(() => readTarFileEntries(traversalPath), /entry path invalid/);
+});
+
+test('candidate pack evidence rejects source mutations between its two packs', () => {
+  const before = {
+    packageRoot: '/candidate/core',
+    packageJson: { name: CORE, version: '0.19.0' },
+    head: 'a'.repeat(40),
+    files: { 'src/runtime-contract.js': 'b'.repeat(64) },
+  };
+  assert.doesNotThrow(() => assertSourceFactsUnchanged(before, structuredClone(before)));
+  for (const mutation of [
+    (after) => {
+      after.head = 'c'.repeat(40);
+    },
+    (after) => {
+      after.packageJson.version = '0.19.1';
+    },
+    (after) => {
+      after.files['src/runtime-contract.js'] = 'd'.repeat(64);
+    },
+  ]) {
+    const after = structuredClone(before);
+    mutation(after);
+    assert.throws(() => assertSourceFactsUnchanged(before, after), /changed during npm pack/);
+  }
 });
 
 test('binding completeness rejects omissions, extras, duplicate copies, and hostile lock paths', (t) => {

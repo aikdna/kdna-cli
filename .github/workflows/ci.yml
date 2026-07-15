@@ -27,6 +27,10 @@ jobs:
         env:
           KDNA_CORE_SOURCE_ROOT: ${{ github.workspace }}/.cross-repo/kdna/packages/kdna-core
           NODE_OPTIONS: --require=${{ github.workspace }}/tests/helpers/require-golden-core.js
+      - name: Pin the candidate pack npm client
+        run: |
+          npm install --global npm@11.17.0 --ignore-scripts --registry=https://registry.npmjs.org/
+          npm --version | grep -Fx 11.17.0
       - name: Verify the exact Core candidate through a reproducible local tar install
         run: npm run test:core-candidate-tar
         env:

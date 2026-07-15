@@ -12,7 +12,10 @@ const {
   CORE_CANDIDATE_VERSION,
   readPinnedCoreCommit,
 } = require('./core-candidate');
-const { verifyCandidateBinding } = require('./runtime-candidate-binding');
+const {
+  resolveTrustedNpmInvocation,
+  verifyCandidateBinding,
+} = require('./runtime-candidate-binding');
 
 const ROOT = path.resolve(__dirname, '..');
 
@@ -32,9 +35,11 @@ function run(command, args, options = {}) {
   return result.stdout;
 }
 
-function packOnce(packageRoot, destination) {
+function packOnce(packageRoot, destination, npm) {
   const report = JSON.parse(
-    run('npm', ['pack', '--json', '--pack-destination', destination], { cwd: packageRoot }),
+    run(npm.command, [...npm.prefixArgs, 'pack', '--json', '--pack-destination', destination], {
+      cwd: packageRoot,
+    }),
   );
   assert.equal(report.length, 1, 'npm pack must report one Core artifact');
   const metadata = report[0];
@@ -73,6 +78,7 @@ function main() {
   if (!sourceRoot) throw new Error('KDNA_CORE_SOURCE_ROOT is required.');
   const absoluteSource = path.resolve(sourceRoot);
   verifyCandidateSource(absoluteSource);
+  const npm = resolveTrustedNpmInvocation(ROOT);
 
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-core-tar-'));
   try {
@@ -84,8 +90,9 @@ function main() {
       fs.mkdirSync(directory, { recursive: true });
     }
 
-    const first = packOnce(absoluteSource, firstDirectory);
-    const second = packOnce(absoluteSource, secondDirectory);
+    const first = packOnce(absoluteSource, firstDirectory, npm);
+    const second = packOnce(absoluteSource, secondDirectory, npm);
+    verifyCandidateSource(absoluteSource);
     assert.ok(first.bytes.equals(second.bytes), 'two Core candidate packs must be byte-identical');
     assert.equal(first.metadata.name, CORE_CANDIDATE_PACKAGE);
     assert.equal(first.metadata.version, CORE_CANDIDATE_VERSION);
@@ -107,8 +114,17 @@ function main() {
 
     assert.deepEqual(fs.readdirSync(cache), [], 'candidate install cache must start empty');
     run(
-      'npm',
-      ['ci', '--ignore-scripts', '--no-audit', '--no-fund', '--cache', cache, '--prefer-online'],
+      npm.command,
+      [
+        ...npm.prefixArgs,
+        'ci',
+        '--ignore-scripts',
+        '--no-audit',
+        '--no-fund',
+        '--cache',
+        cache,
+        '--prefer-online',
+      ],
       { cwd: cliCopy, stdio: 'inherit' },
     );
     assert.ok(
@@ -155,7 +171,11 @@ function main() {
     ]) {
       delete env[name];
     }
-    run('npm', ['test'], { cwd: cliCopy, env, stdio: 'inherit' });
+    run(npm.command, [...npm.prefixArgs, 'test'], {
+      cwd: cliCopy,
+      env,
+      stdio: 'inherit',
+    });
 
     console.log(
       `Exact Core candidate tar verified: ${CORE_CANDIDATE_PACKAGE}@${CORE_CANDIDATE_VERSION} ${readPinnedCoreCommit(ROOT).slice(0, 12)}`,

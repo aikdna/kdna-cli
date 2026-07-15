@@ -10,10 +10,11 @@ const cbor = require('cbor-x');
 const ROOT = path.resolve(__dirname, '..');
 const OUTPUT = path.join(ROOT, 'tests', 'fixtures', 'golden-single-asset-host-contract.json');
 const NORMALIZED_TIME = '<runtime-generated-iso8601>';
+const NORMALIZED_ASSET_DIGEST = '<runtime-generated-container-sha256>';
 const FIXED_TIME = '2026-07-15T00:00:00.000Z';
 
 function corePackageRoot() {
-  const sourceRoot = process.env.KDNA_CORE_SOURCE_ROOT;
+  const sourceRoot = process.env.KDNA_CORE_SOURCE_ROOT || process.env.KDNA_GOLDEN_CORE_ROOT;
   if (sourceRoot) return path.resolve(sourceRoot);
   return path.dirname(require.resolve('@aikdna/kdna-core/package.json'));
 }
@@ -29,9 +30,13 @@ function sha256(value) {
   return `sha256:${crypto.createHash('sha256').update(value).digest('hex')}`;
 }
 
-function normalizedCapsule(capsule) {
+function normalizedCapsule(capsule, assetBytes) {
+  if (capsule.digests?.asset?.value !== sha256(assetBytes)) {
+    throw new Error('Golden Capsule asset digest does not match the generated container bytes.');
+  }
   const value = globalThis.structuredClone(capsule);
   value.trace.loaded_at = NORMALIZED_TIME;
+  value.digests.asset.value = NORMALIZED_ASSET_DIGEST;
   return value;
 }
 
@@ -54,11 +59,13 @@ function buildContract() {
       JSON.stringify(core.buildChecksums(sourceRoot)),
     );
     core.pack(sourceRoot, asset);
+    const assetBytes = fs.readFileSync(asset);
     const capsule = normalizedCapsule(
-      core.loadRuntimeCapsule(fs.readFileSync(asset), {
+      core.loadRuntimeCapsule(assetBytes, {
         profile: 'compact',
         loadedAt: FIXED_TIME,
       }),
+      assetBytes,
     );
     return {
       provenance: {
@@ -66,7 +73,10 @@ function buildContract() {
         core_repository: 'https://github.com/aikdna/kdna',
         core_commit: gitHead(packageRoot).slice(0, 7),
         core_fixture_path: 'packages/kdna-core/test/fixtures/golden-single-asset.json',
-        dynamic_field_normalization: { 'trace.loaded_at': NORMALIZED_TIME },
+        dynamic_field_normalization: {
+          'trace.loaded_at': NORMALIZED_TIME,
+          'digests.asset.value': NORMALIZED_ASSET_DIGEST,
+        },
         normalized_capsule_sha256: sha256(JSON.stringify(capsule)),
       },
       task: 'Choose the rollout mode after required checks passed but rollback-drill evidence remains incomplete.',

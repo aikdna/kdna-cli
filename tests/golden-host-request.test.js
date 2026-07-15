@@ -57,6 +57,9 @@ function normalizeRuntimeFields(capsule) {
   const normalized = globalThis.structuredClone(capsule);
   assert.match(normalized.trace.loaded_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
   normalized.trace.loaded_at = contract.provenance.dynamic_field_normalization['trace.loaded_at'];
+  assert.match(normalized.digests.asset.value, /^sha256:[0-9a-f]{64}$/);
+  normalized.digests.asset.value =
+    contract.provenance.dynamic_field_normalization['digests.asset.value'];
   return normalized;
 }
 
@@ -145,7 +148,17 @@ test('Golden Runtime Capsule reaches the real process Host without semantic loss
 
   const asset = buildGoldenAsset(core);
   assert.equal(core.validate(asset).overall_valid, true);
-  const coreCapsule = core.loadRuntimeCapsule(fs.readFileSync(asset), { profile: 'compact' });
+  const assetBytes = fs.readFileSync(asset);
+  const coreCapsule = core.loadRuntimeCapsule(assetBytes, { profile: 'compact' });
+  assert.equal(coreCapsule.digests.asset.value, sha256(assetBytes));
+  assert.equal(
+    coreCapsule.digests.content.value,
+    contract.expected_compact_capsule.digests.content.value,
+  );
+  assert.deepEqual(
+    coreCapsule.digests.runtime_entry_set,
+    contract.expected_compact_capsule.digests.runtime_entry_set,
+  );
   const normalizedCoreCapsule = normalizeRuntimeFields(coreCapsule);
   assert.deepEqual(normalizedCoreCapsule, contract.expected_compact_capsule);
   assert.equal(
@@ -216,6 +229,7 @@ test('Golden Runtime Capsule reaches the real process Host without semantic loss
   assert.equal(request.authority.asset_id, contract.source.manifest.asset_id);
   assert.equal(request.asset.asset_id, contract.source.manifest.asset_id);
   assert.equal(JSON.stringify(request).includes(asset), false);
+  assert.equal(request.capsule.digests.asset.value, sha256(assetBytes));
   assert.deepEqual(normalizeRuntimeFields(request.capsule), contract.expected_compact_capsule);
   assert.deepEqual(request.capsule.context.worldview, contract.source.payload.core.worldview);
   assert.deepEqual(request.capsule.context.value_order, contract.source.payload.core.value_order);

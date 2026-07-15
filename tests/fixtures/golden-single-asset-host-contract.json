@@ -5,9 +5,10 @@
     "core_commit": "a257b92",
     "core_fixture_path": "packages/kdna-core/test/fixtures/golden-single-asset.json",
     "dynamic_field_normalization": {
-      "trace.loaded_at": "<runtime-generated-iso8601>"
+      "trace.loaded_at": "<runtime-generated-iso8601>",
+      "digests.asset.value": "<runtime-generated-container-sha256>"
     },
-    "normalized_capsule_sha256": "sha256:840c80cd3900128da7bfb3d79dd2f40e408862a10fc2bdfc00f8aa473c67dd1d"
+    "normalized_capsule_sha256": "sha256:2be57f3dd063a526c4a1df1dc6166d792a7124dba29fbfaf773f26c22890a51c"
   },
   "task": "Choose the rollout mode after required checks passed but rollback-drill evidence remains incomplete.",
   "source": {
@@ -149,7 +150,7 @@
       "profile": "kdna.digest-evidence",
       "profile_version": "0.1.0",
       "asset": {
-        "value": "sha256:1352d5d1e79ed73c35b84ad06d05488e3653568008f283d65804aa3636b8e189",
+        "value": "<runtime-generated-container-sha256>",
         "basis": "kdna.digest-basis.container-bytes",
         "comparison": {
           "state": "not_compared",

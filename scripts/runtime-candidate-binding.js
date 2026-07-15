@@ -3,7 +3,8 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { execFileSync, spawnSync } = require('node:child_process');
+const { spawnSync } = require('node:child_process');
+const zlib = require('node:zlib');
 const {
   CORE_CANDIDATE_EVIDENCE_PATH,
   CORE_CANDIDATE_PACKAGE,
@@ -158,10 +159,87 @@ function assertAuthorityFile(file, expectedRealPath, label) {
   assert(fs.realpathSync(file) === expectedRealPath, `${label} escapes its canonical path`);
 }
 
+function tarString(block, offset, length) {
+  const field = block.subarray(offset, offset + length);
+  const end = field.indexOf(0);
+  return field.subarray(0, end < 0 ? field.length : end).toString('utf8');
+}
+
+function tarOctal(block, offset, length, label) {
+  const raw = tarString(block, offset, length).trim();
+  assert(/^[0-7]+$/.test(raw), `candidate tar ${label} is invalid`);
+  const value = Number.parseInt(raw, 8);
+  assert(Number.isSafeInteger(value) && value >= 0, `candidate tar ${label} is invalid`);
+  return value;
+}
+
+function readTarFileEntries(artifact) {
+  let archive;
+  try {
+    archive = zlib.gunzipSync(fs.readFileSync(artifact), { maxOutputLength: 64 * 1024 * 1024 });
+  } catch {
+    throw new Error('candidate tar gzip stream is invalid');
+  }
+  const entries = [];
+  const paths = new Set();
+  let offset = 0;
+  let terminated = false;
+  while (offset + 512 <= archive.length) {
+    const header = archive.subarray(offset, offset + 512);
+    if (header.every((byte) => byte === 0)) {
+      assert(
+        archive.subarray(offset).every((byte) => byte === 0),
+        'candidate tar has data after its end marker',
+      );
+      terminated = true;
+      break;
+    }
+    const storedChecksum = tarOctal(header, 148, 8, 'header checksum');
+    let actualChecksum = 0;
+    for (let index = 0; index < header.length; index += 1) {
+      actualChecksum += index >= 148 && index < 156 ? 32 : header[index];
+    }
+    assert(storedChecksum === actualChecksum, 'candidate tar header checksum mismatch');
+    const name = tarString(header, 0, 100);
+    const prefix = tarString(header, 345, 155);
+    const entryPath = prefix ? `${prefix}/${name}` : name;
+    assert(
+      entryPath &&
+        /^[\x21-\x7e]+$/.test(entryPath) &&
+        !entryPath.includes('\\') &&
+        !path.posix.isAbsolute(entryPath) &&
+        path.posix.normalize(entryPath) === entryPath &&
+        !entryPath.split('/').some((segment) => ['', '.', '..'].includes(segment)) &&
+        !paths.has(entryPath),
+      `candidate tar entry path invalid: ${entryPath}`,
+    );
+    const size = tarOctal(header, 124, 12, 'entry size');
+    const type = header[156];
+    assert(type === 0 || type === 48, `candidate tar entry type is unsupported: ${entryPath}`);
+    const bodyStart = offset + 512;
+    const bodyEnd = bodyStart + size;
+    assert(bodyEnd <= archive.length, `candidate tar entry is truncated: ${entryPath}`);
+    paths.add(entryPath);
+    entries.push(
+      Object.freeze({
+        path: entryPath,
+        size,
+        bytes: Buffer.from(archive.subarray(bodyStart, bodyEnd)),
+      }),
+    );
+    offset = bodyStart + Math.ceil(size / 512) * 512;
+  }
+  assert(terminated, 'candidate tar end marker is missing');
+  assert(entries.length > 0, 'candidate tar contains no regular files');
+  return Object.freeze(entries);
+}
+
 function tarPackageManifest(artifact) {
-  return JSON.parse(
-    execFileSync('tar', ['-xOf', artifact, 'package/package.json'], { encoding: 'utf8' }),
+  const manifests = readTarFileEntries(artifact).filter(
+    (entry) => entry.path === 'package/package.json',
   );
+  assert(manifests.length === 1, 'candidate tar package manifest is missing or duplicated');
+  return JSON.parse(manifests[0].bytes.toString('utf8'));
 }
 
 function decodedVariants(value) {
@@ -748,6 +826,7 @@ module.exports = {
   assertRegistryReleaseReady,
   canonicalRegistryUrl,
   resolveTrustedNpmInvocation,
+  readTarFileEntries,
   strictRegistryLookup,
   verifyCandidateBinding,
   verifyInstalledAikdnaGraph,
