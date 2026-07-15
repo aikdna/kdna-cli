@@ -30,10 +30,7 @@ test('capsule verification recomputes current A/C/E digest evidence in memory', 
     const { assetPath, capsule } = makeAsset(tmp, 'asset-"quoted"-$(printf ignored).kdna');
     const capsulePath = writeCapsule(tmp, capsule);
 
-    assert.equal(
-      computeEntrySetDigestFromFile(assetPath),
-      capsule.digests.runtime_entry_set.value,
-    );
+    assert.equal(computeEntrySetDigestFromFile(assetPath), capsule.digests.runtime_entry_set.value);
     const result = verifyCapsule(capsulePath, { assetPath });
     assert.equal(result.valid, true, result.errors.join('; '));
   } finally {
@@ -49,7 +46,9 @@ test('capsule verification fails closed for a mismatched entry-set digest', () =
     const capsulePath = writeCapsule(tmp, capsule);
     const result = verifyCapsule(capsulePath, { assetPath });
     assert.equal(result.valid, false);
-    assert.ok(result.errors.some((message) => message.includes('Runtime entry-set digest mismatch')));
+    assert.ok(
+      result.errors.some((message) => message.includes('Runtime entry-set digest mismatch')),
+    );
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

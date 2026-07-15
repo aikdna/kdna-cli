@@ -10,9 +10,11 @@ const test = require('node:test');
 
 const { validateCurrentReleaseBinding } = require('../scripts/current-release-binding');
 const { validateReleaseContext } = require('../scripts/release-policy');
+const { REQUIRED_CORE_VERSION, validateReleaseReadiness } = require('../scripts/release-readiness');
 const {
   validateEvidenceArtifact,
   validatePackReport,
+  validatePackedFilePolicy,
   validateReleaseEvidence,
 } = require('../scripts/release-evidence');
 const { publishArguments, publishCandidate } = require('../scripts/publish-verified-artifact');
@@ -36,10 +38,10 @@ function releaseInput(overrides = {}) {
     env: {
       GITHUB_EVENT_NAME: 'release',
       RELEASE_EVENT_ACTION: 'published',
-      RELEASE_TAG_NAME: `v${version}`,
+      RELEASE_TAG_NAME: version,
       RELEASE_IS_DRAFT: 'false',
       RELEASE_IS_PRERELEASE: 'false',
-      GITHUB_REF: `refs/tags/v${version}`,
+      GITHUB_REF: `refs/tags/${version}`,
       GITHUB_SHA: HASH,
       ...overrides.env,
     },
@@ -56,7 +58,7 @@ function evidence(overrides = {}) {
   const base = {
     schema: 'kdna.cli.release-evidence',
     version: '1.0',
-    source: { ref: 'refs/tags/v1.2.3', commit: HASH },
+    source: { ref: 'refs/tags/1.2.3', commit: HASH },
     package: { name: '@aikdna/kdna-cli', version: '1.2.3' },
     artifact: {
       filename: 'aikdna-kdna-cli-1.2.3.tgz',
@@ -122,7 +124,7 @@ test('publish workflow has one canonical release-only path and publishes the ver
   );
   assert.match(workflow, /release\.draft == false/);
   assert.match(workflow, /release\.prerelease == false/);
-  assert.match(workflow, /startsWith\(github\.event\.release\.tag_name, 'v'\)/);
+  assert.doesNotMatch(workflow, /startsWith\(github\.event\.release\.tag_name, 'v'\)/);
   assert.match(
     workflow,
     /npm install --global npm@11\.17\.0 --ignore-scripts --registry=https:\/\/registry\.npmjs\.org\//,
@@ -154,10 +156,59 @@ test('release context binds event, tag ref, package, changelog, HEAD, and workfl
   assert.deepEqual(context, {
     name: '@aikdna/kdna-cli',
     version: '1.2.3',
-    tag: 'v1.2.3',
-    ref: 'refs/tags/v1.2.3',
+    tag: '1.2.3',
+    ref: 'refs/tags/1.2.3',
     commit: HASH,
   });
+});
+
+test('release readiness requires the formal Core release across manifest, lock, and install', () => {
+  const pkg = {
+    name: '@aikdna/kdna-cli',
+    version: '0.34.0',
+    dependencies: { '@aikdna/kdna-core': REQUIRED_CORE_VERSION },
+  };
+  const lock = {
+    lockfileVersion: 3,
+    packages: {
+      '': {
+        name: pkg.name,
+        version: pkg.version,
+        dependencies: { '@aikdna/kdna-core': REQUIRED_CORE_VERSION },
+      },
+      'node_modules/@aikdna/kdna-core': { version: REQUIRED_CORE_VERSION },
+    },
+  };
+  const installedCore = { name: '@aikdna/kdna-core', version: REQUIRED_CORE_VERSION };
+  assert.deepEqual(validateReleaseReadiness({ pkg, lock, installedCore }), {
+    cli: '@aikdna/kdna-cli@0.34.0',
+    core: `@aikdna/kdna-core@${REQUIRED_CORE_VERSION}`,
+  });
+
+  assert.throws(
+    () =>
+      validateReleaseReadiness({
+        pkg: { ...pkg, dependencies: { '@aikdna/kdna-core': '0.18.0' } },
+        lock,
+        installedCore,
+      }),
+    /Core dependency must be/,
+  );
+  assert.throws(
+    () =>
+      validateReleaseReadiness({
+        pkg,
+        lock: {
+          ...lock,
+          packages: {
+            ...lock.packages,
+            'node_modules/@aikdna/kdna-core': { version: '0.18.0' },
+          },
+        },
+        installedCore,
+      }),
+    /locked Core artifact is stale/,
+  );
 });
 
 test('release context rejects every ambiguous or mutable release input', async (t) => {
@@ -166,7 +217,8 @@ test('release context rejects every ambiguous or mutable release input', async (
     ['prerelease version', releaseInput({ pkg: { version: '1.2.3-rc.1' } })],
     ['wrong event', releaseInput({ env: { GITHUB_EVENT_NAME: 'workflow_dispatch' } })],
     ['wrong action', releaseInput({ env: { RELEASE_EVENT_ACTION: 'created' } })],
-    ['wrong event tag', releaseInput({ env: { RELEASE_TAG_NAME: 'v9.9.9' } })],
+    ['wrong event tag', releaseInput({ env: { RELEASE_TAG_NAME: '9.9.9' } })],
+    ['prefixed event tag', releaseInput({ env: { RELEASE_TAG_NAME: 'v1.2.3' } })],
     ['draft', releaseInput({ env: { RELEASE_IS_DRAFT: 'true' } })],
     ['prerelease', releaseInput({ env: { RELEASE_IS_PRERELEASE: 'true' } })],
     ['branch ref', releaseInput({ env: { GITHUB_REF: 'refs/heads/main' } })],
@@ -197,10 +249,10 @@ test('current release binding rejects stale evidence before network or publicati
   const cases = [
     ['evidence name', evidence({ package: { name: '@other/name' } }), valid],
     ['evidence version', evidence({ package: { version: '1.2.4' } }), valid],
-    ['evidence ref', evidence({ source: { ref: 'refs/tags/v9.9.9' } }), valid],
+    ['evidence ref', evidence({ source: { ref: 'refs/tags/9.9.9' } }), valid],
     ['evidence commit', evidence({ source: { commit: 'c'.repeat(40) } }), valid],
     ['current package', matching, releaseInput({ pkg: { version: '1.2.4' } })],
-    ['current ref', matching, releaseInput({ env: { GITHUB_REF: 'refs/tags/v9.9.9' } })],
+    ['current ref', matching, releaseInput({ env: { GITHUB_REF: 'refs/tags/9.9.9' } })],
     ['current sha', matching, releaseInput({ env: { GITHUB_SHA: 'c'.repeat(40) } })],
     ['current head', matching, releaseInput({ git: { head: 'c'.repeat(40) } })],
     ['current tag', matching, releaseInput({ git: { tagCommit: 'c'.repeat(40) } })],
@@ -260,7 +312,7 @@ test('release evidence recomputes hashes and reads file facts from the tarball',
     reportText: packed.stdout,
     tarball,
     pkg,
-    source: { ref: `refs/tags/v${pkg.version}`, commit: HASH },
+    source: { ref: `refs/tags/${pkg.version}`, commit: HASH },
   });
   assert.equal(candidate.artifact.shasum, crypto.createHash('sha1').update(tarball).digest('hex'));
   assert.equal(candidate.artifact.packed_size, tarball.length);
@@ -277,7 +329,7 @@ test('release evidence recomputes hashes and reads file facts from the tarball',
         reportText: JSON.stringify(tamperedReport),
         tarball,
         pkg,
-        source: { ref: `refs/tags/v${pkg.version}`, commit: HASH },
+        source: { ref: `refs/tags/${pkg.version}`, commit: HASH },
       }),
     /integrity/,
   );
@@ -289,11 +341,48 @@ test('release evidence recomputes hashes and reads file facts from the tarball',
         reportText: packed.stdout,
         tarball: tamperedBytes,
         pkg,
-        source: { ref: `refs/tags/v${pkg.version}`, commit: HASH },
+        source: { ref: `refs/tags/${pkg.version}`, commit: HASH },
       }),
     /shasum|integrity|tar/i,
   );
   assert.throws(() => validateEvidenceArtifact(candidate, tamperedBytes), /shasum|integrity|tar/i);
+});
+
+test('pack policy requires the current runtime surface and rejects retired or private files', () => {
+  const required = [
+    'package.json',
+    'src/cli.js',
+    'src/runtime-contract.js',
+    'src/agent-host-capabilities.js',
+    'src/agent-host-process.js',
+    'src/cmds/plan-use.js',
+    'src/cmds/use.js',
+    'validators/kdna-lint.js',
+    'validators/kdna-validate.js',
+    'skills/kdna-loader/SKILL.md',
+    'schema/manifest.schema.json',
+    'schema/payload-profile.schema.json',
+    'schema/load-contract.schema.json',
+    'schema/trace.schema.json',
+    'fixtures/minimal/kdna.json',
+    'fixtures/minimal/payload.kdnab',
+    'fixtures/judgment/kdna.json',
+    'fixtures/judgment/payload.kdnab',
+  ].map((file) => ({ path: file, size: 1 }));
+  assert.equal(validatePackedFilePolicy(required), required);
+  assert.throws(
+    () => validatePackedFilePolicy([...required, { path: 'tests/private.test.js', size: 1 }]),
+    /unexpected packed file/,
+  );
+  assert.throws(
+    () => validatePackedFilePolicy([...required, { path: 'src/runner.js', size: 1 }]),
+    /retired implementation was packed/,
+  );
+  assert.throws(
+    () =>
+      validatePackedFilePolicy(required.filter((file) => file.path !== 'src/runtime-contract.js')),
+    /required packed file is missing/,
+  );
 });
 
 test('verified publisher uses the exact tarball with scripts disabled, provenance, and fixed registry', () => {

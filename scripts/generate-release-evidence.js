@@ -31,6 +31,29 @@ function treeStatus() {
   return run('git', ['status', '--porcelain=v1', '--untracked-files=all']).trim();
 }
 
+function packOnce(destination) {
+  const reportText = run('npm', [
+    'pack',
+    '--json',
+    '--ignore-scripts',
+    '--pack-destination',
+    destination,
+  ]);
+  let reports;
+  try {
+    reports = JSON.parse(reportText);
+  } catch {
+    fail('npm pack output was not valid JSON');
+  }
+  if (!Array.isArray(reports) || reports.length !== 1 || !reports[0].filename) {
+    fail('npm pack did not report exactly one filename');
+  }
+  return {
+    reportText,
+    tarballPath: path.join(destination, reports[0].filename),
+  };
+}
+
 function main() {
   const outIndex = process.argv.indexOf('--out');
   const artifactIndex = process.argv.indexOf('--artifact');
@@ -67,37 +90,31 @@ function main() {
     commit: run('git', ['rev-parse', 'HEAD']).trim(),
   };
   if (process.env.GITHUB_SHA !== source.commit) fail('GITHUB_SHA must equal the packed commit');
-  const tagCommit = run('git', ['rev-parse', `v${pkg.version}^{commit}`]).trim();
+  const tagCommit = run('git', ['rev-parse', `${pkg.version}^{commit}`]).trim();
   if (tagCommit !== source.commit)
     fail('the package version tag must resolve to the packed commit');
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-release-pack-'));
   let complete = false;
   try {
-    const reportText = run('npm', [
-      'pack',
-      '--json',
-      '--ignore-scripts',
-      '--pack-destination',
-      temp,
-    ]);
-    let reports;
-    try {
-      reports = JSON.parse(reportText);
-    } catch {
-      fail('npm pack output was not valid JSON');
+    const firstDir = path.join(temp, 'first');
+    const secondDir = path.join(temp, 'second');
+    fs.mkdirSync(firstDir);
+    fs.mkdirSync(secondDir);
+    const first = packOnce(firstDir);
+    const second = packOnce(secondDir);
+    const firstTarball = fs.readFileSync(first.tarballPath);
+    const secondTarball = fs.readFileSync(second.tarballPath);
+    if (!firstTarball.equals(secondTarball)) {
+      fail('two clean npm pack runs produced different bytes');
     }
-    if (!Array.isArray(reports) || reports.length !== 1 || !reports[0].filename) {
-      fail('npm pack did not report exactly one filename');
-    }
-    const tarballPath = path.join(temp, reports[0].filename);
     const evidence = validatePackReport({
-      reportText,
-      tarball: fs.readFileSync(tarballPath),
+      reportText: first.reportText,
+      tarball: firstTarball,
       pkg,
       source,
     });
-    fs.copyFileSync(tarballPath, artifact, fs.constants.COPYFILE_EXCL);
-    if (!fs.readFileSync(artifact).equals(fs.readFileSync(tarballPath))) {
+    fs.copyFileSync(first.tarballPath, artifact, fs.constants.COPYFILE_EXCL);
+    if (!fs.readFileSync(artifact).equals(firstTarball)) {
       fail('retained release artifact differs from the verified tarball');
     }
     fs.writeFileSync(output, `${JSON.stringify(evidence, null, 2)}\n`, { flag: 'wx', mode: 0o600 });

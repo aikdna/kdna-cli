@@ -95,28 +95,30 @@ function writeBundleFile(tmp, components, extra = {}, filename = 'bundle.json') 
   return p;
 }
 
-const termPayload = (term, definition) => currentJudgmentPayload({
-  core: { highest_question: 'Q?', axioms: [], stances: [], boundaries: [] },
-  patterns: [{ type: 'term', id: `t_${term}`, term, definition }],
-  scenarios: [],
-  cases: [],
-  reasoning: {},
-  evolution: {},
-});
+const termPayload = (term, definition) =>
+  currentJudgmentPayload({
+    core: { highest_question: 'Q?', axioms: [], stances: [], boundaries: [] },
+    patterns: [{ type: 'term', id: `t_${term}`, term, definition }],
+    scenarios: [],
+    cases: [],
+    reasoning: {},
+    evolution: {},
+  });
 
-const axiomPayload = (id, text) => currentJudgmentPayload({
-  core: {
-    highest_question: 'Q?',
-    axioms: [{ id, one_sentence: text }],
-    stances: [],
-    boundaries: [],
-  },
-  patterns: [],
-  scenarios: [],
-  cases: [],
-  reasoning: {},
-  evolution: {},
-});
+const axiomPayload = (id, text) =>
+  currentJudgmentPayload({
+    core: {
+      highest_question: 'Q?',
+      axioms: [{ id, one_sentence: text }],
+      stances: [],
+      boundaries: [],
+    },
+    patterns: [],
+    scenarios: [],
+    cases: [],
+    reasoning: {},
+    evolution: {},
+  });
 
 // ─── A: semver-util unit ──────────────────────────────────────────────────────
 

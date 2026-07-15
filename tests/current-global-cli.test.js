@@ -236,24 +236,28 @@ test('kdna validate on lineage-as-array exits non-zero', () => {
     fs.writeFileSync(path.join(dir, 'mimetype'), 'application/vnd.kdna.asset');
     fs.writeFileSync(
       path.join(dir, 'kdna.json'),
-      JSON.stringify(currentManifest({
-        asset_id: 'kdna:test:lineage-arr',
-        asset_uid: 'urn:uuid:00000000-0000-4000-8000-000000000099',
-        asset_type: 'sample',
-        title: 'test',
-        version: '1.0.0',
-        judgment_version: '1.0.0',
-        created_at: '2026-01-01T00:00:00Z',
-        updated_at: '2026-01-01T00:00:00Z',
-        creator: { name: 'Test' },
-        lineage: [{ type: 'original' }],
-      })),
+      JSON.stringify(
+        currentManifest({
+          asset_id: 'kdna:test:lineage-arr',
+          asset_uid: 'urn:uuid:00000000-0000-4000-8000-000000000099',
+          asset_type: 'sample',
+          title: 'test',
+          version: '1.0.0',
+          judgment_version: '1.0.0',
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+          creator: { name: 'Test' },
+          lineage: [{ type: 'original' }],
+        }),
+      ),
     );
     fs.writeFileSync(
       path.join(dir, 'payload.kdnab'),
-      cbor.encode(currentJudgmentPayload({
-        core: { highest_question: 'q', axioms: [] },
-      })),
+      cbor.encode(
+        currentJudgmentPayload({
+          core: { highest_question: 'q', axioms: [] },
+        }),
+      ),
     );
     const r = runCli(['validate', dir]);
     assert.notEqual(r.status, 0, 'lineage as array must be rejected');

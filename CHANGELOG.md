@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## 0.34.0 (2026-07-16)
+
+- Cut the CLI over to the stable KDNA Runtime contract through the formal Core
+  ConsumptionPlan, Runtime Capsule, process Agent Host, and JudgmentTrace APIs.
+  Runtime selectors and fallback generations are no longer accepted.
+- Require the formal `@aikdna/kdna-core@0.18.1` release across package
+  metadata, lockfile, installed dependency, release checks, and CI before this
+  version can publish.
+- Retire the source-tree loader, mock Runner, old verifier, duplicate
+  `quality load` route, and assumed Host capabilities. A process Host now needs
+  an exact, process-bound capability registration before projection.
+- Emit current manifests, payload profiles, digest evidence, watermarks, and
+  `kdna.bundle` `0.1.0` authoring records from every shipped producer. Unknown
+  manifest fields and obsolete protocol declarations fail closed.
+- Use pure SemVer release tags such as `0.34.0` without a `v` prefix. Release
+  evidence now requires two byte-identical npm packs and an allowlisted shipped
+  surface containing the current Runtime, schemas, validators, fixtures, and
+  loader skill while excluding retired, test, private, and build-only files.
+
 ## 0.33.0 (2026-07-15)
 
 - Make npm publication exclusive to a canonical, stable GitHub Release tag and

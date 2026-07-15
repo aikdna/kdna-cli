@@ -5,10 +5,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: aikdna/kdna
+          ref: 4ede2aa539b94edd45aac973a0b4937c734c544a
+          path: .cross-repo/kdna
       - uses: actions/setup-node@v6
         with: { node-version: 22 }
       - run: npm ci
-      - run: npm test
+      - run: npm ci --prefix .cross-repo/kdna
+      - name: Run the complete CLI suite against the exact Core candidate
+        run: npm test
+        env:
+          KDNA_CORE_SOURCE_ROOT: ${{ github.workspace }}/.cross-repo/kdna/packages/kdna-core
+          NODE_OPTIONS: --require=${{ github.workspace }}/tests/helpers/require-golden-core.js
   golden-host-request:
     runs-on: ubuntu-latest
     steps:

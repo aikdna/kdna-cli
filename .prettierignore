@@ -1,0 +1,9 @@
+# Byte-authenticated/generated protocol fixtures. Their generators own layout.
+fixtures/minimal/checksums.json
+fixtures/minimal/kdna.json
+fixtures/judgment/checksums.json
+fixtures/judgment/kdna.json
+tests/fixtures/golden-single-asset-host-contract.json
+
+# Exact Core schema copies. The schema synchronizer owns their bytes.
+schema/*.schema.json

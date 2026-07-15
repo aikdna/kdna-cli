@@ -97,10 +97,7 @@ function validateBundle(manifestPath, opts = {}) {
   const info = [];
 
   // 1. Bundle authoring contract check.
-  if (
-    manifest.bundle_format !== BUNDLE_FORMAT ||
-    manifest.bundle_version !== BUNDLE_VERSION
-  ) {
+  if (manifest.bundle_format !== BUNDLE_FORMAT || manifest.bundle_version !== BUNDLE_VERSION) {
     errors.push({
       conflict_type: 'schema',
       severity: 'ERROR',

@@ -4,9 +4,12 @@ const { execFileSync } = require('child_process');
 
 const checks = [
   ['npm', ['ci', '--ignore-scripts']],
+  ['node', ['scripts/release-readiness.js']],
+  ['node', ['scripts/check-current-protocol-names.js']],
   ['npm', ['run', 'format:check']],
   ['npm', ['run', 'lint']],
   ['npm', ['run', 'test:all']],
+  ['npm', ['run', 'pack:verify']],
   ['git', ['diff', '--check']],
 ];
 

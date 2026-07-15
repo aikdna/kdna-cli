@@ -74,9 +74,7 @@ test('Story 5: validate bundle manifest and payload successfully', () => {
     });
     writeCurrentSource(tmp, {
       manifest,
-      payload: currentBundlePayload([
-        { id: 'comp-a', path: './comp-a.kdna', priority: 1 },
-      ]),
+      payload: currentBundlePayload([{ id: 'comp-a', path: './comp-a.kdna', priority: 1 }]),
     });
 
     const r = run(['validate', tmp]);

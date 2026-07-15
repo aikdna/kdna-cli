@@ -5,6 +5,43 @@ const path = require('node:path');
 const zlib = require('node:zlib');
 const { COMMIT_RE, EXPECTED_PACKAGE_NAME, STABLE_VERSION_RE } = require('./release-policy');
 
+const REQUIRED_PACK_FILES = Object.freeze([
+  'package.json',
+  'src/cli.js',
+  'src/runtime-contract.js',
+  'src/agent-host-capabilities.js',
+  'src/agent-host-process.js',
+  'src/cmds/plan-use.js',
+  'src/cmds/use.js',
+  'validators/kdna-lint.js',
+  'validators/kdna-validate.js',
+  'skills/kdna-loader/SKILL.md',
+  'schema/manifest.schema.json',
+  'schema/payload-profile.schema.json',
+  'schema/load-contract.schema.json',
+  'schema/trace.schema.json',
+  'fixtures/minimal/kdna.json',
+  'fixtures/minimal/payload.kdnab',
+  'fixtures/judgment/kdna.json',
+  'fixtures/judgment/payload.kdnab',
+]);
+const ALLOWED_PACK_ROOTS = Object.freeze([
+  'fixtures/',
+  'schema/',
+  'skills/',
+  'src/',
+  'templates/',
+  'validators/',
+]);
+const ALLOWED_PACK_FILES = new Set([
+  'LICENSE',
+  'NOTICE',
+  'README.md',
+  'SECURITY.md',
+  'package.json',
+]);
+const FORBIDDEN_PACK_FILES = new Set(['src/loader.js', 'src/runner.js', 'src/verify.js']);
+
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
@@ -127,13 +164,28 @@ function parseTarFiles(tarball) {
   return files;
 }
 
+function validatePackedFilePolicy(files) {
+  assert(Array.isArray(files) && files.length > 0, 'packed file list must not be empty');
+  const paths = new Set(files.map((file) => file.path));
+  for (const required of REQUIRED_PACK_FILES) {
+    assert(paths.has(required), `required packed file is missing: ${required}`);
+  }
+  for (const file of files) {
+    const allowed =
+      ALLOWED_PACK_FILES.has(file.path) ||
+      ALLOWED_PACK_ROOTS.some((prefix) => file.path.startsWith(prefix));
+    assert(allowed, `unexpected packed file: ${file.path}`);
+    assert(!FORBIDDEN_PACK_FILES.has(file.path), `retired implementation was packed: ${file.path}`);
+    assert(!file.path.endsWith('.tgz'), `nested package artifact was packed: ${file.path}`);
+    assert(!file.path.includes('.DS_Store'), `local metadata was packed: ${file.path}`);
+  }
+  return files;
+}
+
 function validatePackReport({ reportText, tarball, pkg, source }) {
   assert(pkg.name === EXPECTED_PACKAGE_NAME, `package name must be ${EXPECTED_PACKAGE_NAME}`);
   assert(STABLE_VERSION_RE.test(pkg.version), 'package version must be stable canonical SemVer');
-  assert(
-    source.ref === `refs/tags/v${pkg.version}`,
-    'source ref must be the canonical version tag',
-  );
+  assert(source.ref === `refs/tags/${pkg.version}`, 'source ref must be the canonical version tag');
   assert(COMMIT_RE.test(source.commit || ''), 'source commit must be 40-character lowercase hex');
 
   const reports = parseJsonDocument(reportText, 'npm pack output');
@@ -161,6 +213,7 @@ function validatePackReport({ reportText, tarball, pkg, source }) {
   assert(report.size === tarball.length, 'npm pack size does not match the tarball bytes');
 
   const files = parseTarFiles(tarball);
+  validatePackedFilePolicy(files);
   const reportedFiles = Array.isArray(report.files)
     ? report.files
         .map((file) => ({ path: file.path, size: file.size }))
@@ -210,7 +263,7 @@ function validateReleaseEvidence(evidence) {
     'release evidence version is invalid',
   );
   assert(
-    evidence.source && evidence.source.ref === `refs/tags/v${evidence.package.version}`,
+    evidence.source && evidence.source.ref === `refs/tags/${evidence.package.version}`,
     'release evidence ref mismatch',
   );
   assert(COMMIT_RE.test(evidence.source.commit || ''), 'release evidence commit is invalid');
@@ -251,6 +304,7 @@ function validateEvidenceArtifact(rawEvidence, tarball) {
   assert(shasum === evidence.artifact.shasum, 'verified artifact shasum mismatch');
   assert(integrity === evidence.artifact.integrity, 'verified artifact integrity mismatch');
   const files = parseTarFiles(tarball);
+  validatePackedFilePolicy(files);
   assert(
     JSON.stringify(files) === JSON.stringify(evidence.artifact.files),
     'verified artifact files mismatch',
@@ -267,6 +321,7 @@ function validateEvidenceArtifact(rawEvidence, tarball) {
 module.exports = {
   parseJsonDocument,
   parseTarFiles,
+  validatePackedFilePolicy,
   validatePackReport,
   validateEvidenceArtifact,
   validateReleaseEvidence,

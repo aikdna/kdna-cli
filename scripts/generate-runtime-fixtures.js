@@ -23,7 +23,6 @@ function json(value) {
 
 function currentManifest(value) {
   const manifest = globalThis.structuredClone(value);
-  delete manifest.kdna_version;
   manifest.format_version = PROTOCOL_VERSION;
   manifest.compatibility = {
     ...manifest.compatibility,

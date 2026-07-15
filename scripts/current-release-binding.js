@@ -30,7 +30,7 @@ function readCurrentReleaseBinding({ root, evidence, env = process.env }) {
   }
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const changelog = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
-  const tag = `v${pkg.version}`;
+  const tag = pkg.version;
   return validateCurrentReleaseBinding({
     evidence,
     pkg,
