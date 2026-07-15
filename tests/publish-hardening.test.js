@@ -137,18 +137,18 @@ test('publish workflow has one canonical release-only path and publishes the ver
   assert.match(workflow, /npm run release:check/);
   assert.match(workflow, /npm run release:preflight/);
   assert.match(workflow, /generate-release-evidence\.js/);
-  assert.match(workflow, /registry-duplicate-guard\.js/);
-  assert.match(workflow, /publish-verified-artifact\.js/);
+  assert.match(workflow, /npm run release:registry-guard --/);
+  assert.match(workflow, /npm run release:publish-verified --/);
   assert.match(workflow, /--artifact "\$RUNNER_TEMP\/kdna-cli-release\.tgz"/);
   assert.match(workflow, /if: always\(\)/);
   assert.ok(workflow.indexOf('npm@11.17.0') < workflow.indexOf('npm ci --ignore-scripts'));
   assert.ok(workflow.indexOf('release:check') < workflow.indexOf('release:preflight'));
   assert.ok(workflow.indexOf('release:preflight') < workflow.indexOf('generate-release-evidence'));
   assert.ok(
-    workflow.indexOf('generate-release-evidence') < workflow.indexOf('registry-duplicate-guard'),
+    workflow.indexOf('generate-release-evidence') < workflow.indexOf('release:registry-guard'),
   );
   assert.ok(
-    workflow.indexOf('registry-duplicate-guard') < workflow.indexOf('publish-verified-artifact'),
+    workflow.indexOf('release:registry-guard') < workflow.indexOf('release:publish-verified'),
   );
 
   const preflight = fs.readFileSync(path.join(ROOT, 'scripts/release-preflight.js'), 'utf8');
@@ -159,6 +159,14 @@ test('publish workflow has one canonical release-only path and publishes the ver
   assert.match(packageJson.scripts.test, /npm run test:unit/);
   assert.match(packageJson.scripts['test:unit'], /tests\/e2e-encrypt\.test\.js/);
   assert.equal(packageJson.scripts['test:all'], 'npm test');
+  assert.equal(
+    packageJson.scripts['release:registry-guard'],
+    'node scripts/registry-duplicate-guard.js',
+  );
+  assert.equal(
+    packageJson.scripts['release:publish-verified'],
+    'node scripts/publish-verified-artifact.js',
+  );
   assert.match(preflight, /\['npm', \['run', 'test:all'\]\]/);
 
   const ci = fs.readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8');
@@ -166,6 +174,11 @@ test('publish workflow has one canonical release-only path and publishes the ver
   assert.doesNotMatch(ci, /npm ci --prefix \.cross-repo\/kdna/);
   assert.equal((ci.match(/working-directory: \.cross-repo\/kdna/g) || []).length, 2);
   assert.equal((ci.match(/node scripts\/verify-core-source-dependencies\.js/g) || []).length, 2);
+  const registryGuard = fs.readFileSync(
+    path.join(ROOT, 'scripts/registry-duplicate-guard.js'),
+    'utf8',
+  );
+  assert.match(registryGuard, /--@aikdna:registry=https:\/\/registry\.npmjs\.org\//);
 });
 
 test('release context binds event, tag ref, package, changelog, HEAD, and workflow commit', () => {
@@ -478,6 +491,7 @@ test('verified publisher uses the exact tarball with scripts disabled, provenanc
     '--access',
     'public',
     '--registry=https://registry.npmjs.org/',
+    '--@aikdna:registry=https://registry.npmjs.org/',
   ]);
 });
 

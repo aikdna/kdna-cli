@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { readCurrentReleaseBinding } = require('./current-release-binding');
 const { validateEvidenceArtifact } = require('./release-evidence');
+const { resolveTrustedNpmInvocation } = require('./runtime-candidate-binding');
 
 function fail(message) {
   throw new Error(message);
@@ -20,6 +21,7 @@ function publishArguments(artifact) {
     '--access',
     'public',
     '--registry=https://registry.npmjs.org/',
+    '--@aikdna:registry=https://registry.npmjs.org/',
   ];
 }
 
@@ -46,14 +48,15 @@ function main() {
   const evidencePath = path.resolve(process.argv[evidenceIndex + 1]);
   const artifactPath = path.resolve(process.argv[artifactIndex + 1]);
   const evidence = JSON.parse(fs.readFileSync(evidencePath, 'utf8'));
+  const root = path.resolve(__dirname, '..');
+  const npmInvocation = resolveTrustedNpmInvocation(root);
   const result = publishCandidate({
     evidence,
     tarball: fs.readFileSync(artifactPath),
     artifactPath,
-    bindCurrent: (candidate) =>
-      readCurrentReleaseBinding({ root: path.resolve(__dirname, '..'), evidence: candidate }),
+    bindCurrent: (candidate) => readCurrentReleaseBinding({ root, evidence: candidate }),
     publish: (args) =>
-      spawnSync('npm', args, {
+      spawnSync(npmInvocation.command, [...npmInvocation.prefixArgs, ...args], {
         encoding: 'utf8',
         maxBuffer: 16 * 1024 * 1024,
         shell: false,

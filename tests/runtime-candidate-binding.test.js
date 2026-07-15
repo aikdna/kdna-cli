@@ -10,8 +10,15 @@ const {
   BINDING_PATH,
   assertRegistryReleaseReady,
   canonicalRegistryUrl,
+  resolveTrustedNpmInvocation,
+  strictRegistryLookup,
   verifyCandidateBinding,
+  verifyInstalledAikdnaGraph,
 } = require('../scripts/runtime-candidate-binding');
+const {
+  CORE_CANDIDATE_EVIDENCE_PATH,
+  CORE_CANDIDATE_WORKFLOW_PATH,
+} = require('../scripts/core-candidate');
 
 const ROOT = path.resolve(__dirname, '..');
 const CORE = '@aikdna/kdna-core';
@@ -21,7 +28,14 @@ function copyFixtureRoot(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-binding-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   fs.mkdirSync(path.join(root, path.dirname(BINDING_PATH)), { recursive: true });
-  for (const file of ['package.json', 'package-lock.json', BINDING_PATH]) {
+  for (const file of [
+    'package.json',
+    'package-lock.json',
+    BINDING_PATH,
+    CORE_CANDIDATE_EVIDENCE_PATH,
+    CORE_CANDIDATE_WORKFLOW_PATH,
+  ]) {
+    fs.mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
     fs.copyFileSync(path.join(ROOT, file), path.join(root, file));
   }
   const binding = JSON.parse(fs.readFileSync(path.join(root, BINDING_PATH), 'utf8'));
@@ -36,6 +50,32 @@ function mutateJson(root, relativePath, mutation) {
   const value = JSON.parse(fs.readFileSync(target, 'utf8'));
   mutation(value);
   fs.writeFileSync(target, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function writeInstalledPackage(root, installPath, name, version) {
+  const directory = path.join(root, 'node_modules', ...installPath.split('/'));
+  fs.mkdirSync(directory, { recursive: true });
+  fs.writeFileSync(
+    path.join(directory, 'package.json'),
+    `${JSON.stringify({ name, version }, null, 2)}\n`,
+  );
+  return directory;
+}
+
+function createCanonicalInstalledGraph(root) {
+  writeInstalledPackage(root, CORE, CORE, '0.19.0');
+  writeInstalledPackage(root, EVAL, EVAL, '0.3.1');
+}
+
+function createTrustedNpmFixture(t, manifest = { name: 'npm', version: '11.17.0' }) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-trusted-npm-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const npmRoot = path.join(root, 'npm');
+  const npmExecPath = path.join(npmRoot, 'bin/npm-cli.js');
+  fs.mkdirSync(path.dirname(npmExecPath), { recursive: true });
+  fs.writeFileSync(npmExecPath, '#!/usr/bin/env node\n');
+  fs.writeFileSync(path.join(npmRoot, 'package.json'), `${JSON.stringify(manifest)}\n`);
+  return fs.realpathSync(npmExecPath);
 }
 
 test('default install binds one exact Core candidate while published Eval stays canonical', () => {
@@ -54,6 +94,10 @@ test('default install binds one exact Core candidate while published Eval stays 
     canonicalRegistryUrl(EVAL, pkg.dependencies[EVAL]),
   );
   assert.equal(require('@aikdna/kdna-core/package.json').version, '0.19.0');
+  assert.deepEqual(verifyInstalledAikdnaGraph(ROOT), {
+    [CORE]: '0.19.0',
+    [EVAL]: '0.3.1',
+  });
 });
 
 test('candidate-bound release gate blocks before registry lookup', () => {
@@ -107,6 +151,104 @@ test('registry release gate checks exact package identity, version, and integrit
   }
 });
 
+test('registry dependency lookup uses one trusted client and fixed exact arguments', (t) => {
+  const integrity = `sha512-${Buffer.alloc(64).toString('base64')}`;
+  const npmExecPath = createTrustedNpmFixture(t);
+  let invocation;
+  const validResult = {
+    status: 0,
+    signal: null,
+    stdout: JSON.stringify({ name: CORE, version: '0.19.0', 'dist.integrity': integrity }),
+    stderr: '',
+  };
+  const lookup = (result = validResult) =>
+    strictRegistryLookup(CORE, '0.19.0', {
+      root: ROOT,
+      npmExecPath,
+      nodeExecPath: process.execPath,
+      runner: (command, args, options) => {
+        invocation = { command, args, options };
+        return result;
+      },
+    });
+  const metadata = lookup();
+  assert.equal(metadata.name, CORE);
+  assert.equal(invocation.command, process.execPath);
+  assert.equal(invocation.args[0], npmExecPath);
+  assert.ok(invocation.args.includes('--registry=https://registry.npmjs.org/'));
+  assert.ok(invocation.args.includes('--@aikdna:registry=https://registry.npmjs.org/'));
+  assert.ok(invocation.args.includes('--loglevel=silent'));
+  assert.equal(invocation.options.shell, false);
+  assert.equal(invocation.options.timeout, 30_000);
+
+  for (const [mutation, pattern] of [
+    [(result) => ({ ...result, status: 1 }), /not successful/],
+    [(result) => ({ ...result, signal: 'SIGTERM' }), /not successful/],
+    [(result) => ({ ...result, error: new Error('provider details') }), /lookup failed/],
+    [(result) => ({ ...result, stderr: 'warning\n' }), /unexpected stderr/],
+    [(result) => ({ ...result, stdout: `${result.stdout}\ntrailing` }), /complete JSON document/],
+    [(result) => ({ ...result, stdout: '[]' }), /must be an object/],
+    [
+      (result) => ({
+        ...result,
+        stdout: JSON.stringify({
+          name: CORE,
+          version: '0.19.0',
+          'dist.integrity': integrity,
+          extra: true,
+        }),
+      }),
+      /fields are not exact/,
+    ],
+  ]) {
+    assert.throws(() => lookup(mutation(validResult)), pattern);
+  }
+});
+
+test('trusted npm invocation rejects PATH shadows and unpinned or mutable clients', (t) => {
+  const npmExecPath = createTrustedNpmFixture(t);
+  assert.deepEqual(resolveTrustedNpmInvocation(ROOT, npmExecPath, process.execPath), {
+    command: process.execPath,
+    prefixArgs: [npmExecPath],
+  });
+
+  for (const [candidate, pattern] of [
+    [null, /npm_execpath must be absolute/],
+    ['npm', /npm_execpath must be absolute/],
+  ]) {
+    assert.throws(() => resolveTrustedNpmInvocation(ROOT, candidate, process.execPath), pattern);
+  }
+
+  const repoNpmRoot = path.join(ROOT, 'tmp-trusted-npm-rejection');
+  const repoNpmExec = path.join(repoNpmRoot, 'bin/npm-cli.js');
+  t.after(() => fs.rmSync(repoNpmRoot, { recursive: true, force: true }));
+  fs.mkdirSync(path.dirname(repoNpmExec), { recursive: true });
+  fs.writeFileSync(repoNpmExec, '#!/usr/bin/env node\n');
+  fs.writeFileSync(
+    path.join(repoNpmRoot, 'package.json'),
+    `${JSON.stringify({ name: 'npm', version: '11.17.0' })}\n`,
+  );
+  assert.throws(
+    () => resolveTrustedNpmInvocation(ROOT, repoNpmExec, process.execPath),
+    /must be outside the repository/,
+  );
+
+  const wrongVersion = createTrustedNpmFixture(t, { name: 'npm', version: '11.16.0' });
+  assert.throws(
+    () => resolveTrustedNpmInvocation(ROOT, wrongVersion, process.execPath),
+    /must be npm 11\.17\.0/,
+  );
+
+  const symlinkRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-npm-link-'));
+  t.after(() => fs.rmSync(symlinkRoot, { recursive: true, force: true }));
+  const symlink = path.join(symlinkRoot, 'npm-cli.js');
+  fs.symlinkSync(npmExecPath, symlink);
+  assert.throws(
+    () => resolveTrustedNpmInvocation(ROOT, symlink, process.execPath),
+    /regular non-symlink/,
+  );
+});
+
 test('binding completeness rejects omissions, extras, duplicate copies, and hostile lock paths', (t) => {
   const root = copyFixtureRoot(t);
   const tracked = [BINDING_PATH, 'package.json', 'package-lock.json'];
@@ -140,7 +282,28 @@ test('binding completeness rejects omissions, extras, duplicate copies, and host
     (binding) => {
       binding.packages[0].name = '@aikdna/unexpected-runtime';
     },
-    /non-direct packages/,
+    /candidate binding package set mismatch|non-direct packages/,
+  );
+  rejects(
+    BINDING_PATH,
+    (binding) => {
+      binding.packages[0].commit = 'b'.repeat(40);
+    },
+    /commit does not match the CI pin/,
+  );
+  rejects(
+    BINDING_PATH,
+    (binding) => {
+      binding.packages[0].commit = binding.packages[0].commit.toUpperCase();
+    },
+    /commit audit reference invalid/,
+  );
+  rejects(
+    BINDING_PATH,
+    (binding) => {
+      binding.packages.push({ ...binding.packages[0], name: EVAL });
+    },
+    /candidate binding package set mismatch|duplicate packages/,
   );
   for (const artifact of [
     'tests\\fixtures\\runtime-candidates\\kdna-core-0.19.0.tgz',
@@ -163,6 +326,22 @@ test('binding completeness rejects omissions, extras, duplicate copies, and host
       delete lock.packages[''].dependencies[CORE];
     },
     /lock root AIKDNA dependencies package set mismatch.*kdna-core/,
+  );
+  rejects(
+    'package-lock.json',
+    (lock) => {
+      lock.dependencies = {
+        'shadow-core': { version: 'npm:@aikdna/kdna-core@0.18.0' },
+      };
+    },
+    /legacy top-level package lock dependencies are not permitted/,
+  );
+  rejects(
+    'package-lock.json',
+    (lock) => {
+      lock.packages[''].name = '@other/cli';
+    },
+    /package lock root identity mismatch/,
   );
   rejects(
     'package-lock.json',
@@ -198,7 +377,7 @@ test('binding completeness rejects omissions, extras, duplicate copies, and host
         version: '0.19.0',
       };
     },
-    /AIKDNA lock package path invalid/,
+    /AIKDNA lock package (?:path|name) invalid/,
   );
   rejects(
     'package-lock.json',
@@ -225,6 +404,364 @@ test('binding completeness rejects omissions, extras, duplicate copies, and host
     },
     /AIKDNA lock package path invalid/,
   );
+});
+
+test('full dependency graph rejects npm aliases and disguised AIKDNA package identities', (t) => {
+  const root = copyFixtureRoot(t);
+  const tracked = ['package.json', 'package-lock.json'];
+  const originals = new Map(tracked.map((file) => [file, fs.readFileSync(path.join(root, file))]));
+  const reset = () => {
+    for (const [file, bytes] of originals) fs.writeFileSync(path.join(root, file), bytes);
+  };
+  const rejects = (relativePath, mutation, pattern = /AIKDNA/) => {
+    reset();
+    mutateJson(root, relativePath, mutation);
+    assert.throws(() => verifyCandidateBinding(root), pattern);
+  };
+  const aliasSpecs = [
+    'npm:@aikdna/kdna-core@0.18.0',
+    'npm:@AIKDNA/kdna-core@0.18.0',
+    'npm:@aikdna\\kdna-core@0.18.0',
+    'npm:%40aikdna%2fkdna-core@0.18.0',
+    'npm:%2540aikdna%252fkdna-core@0.18.0',
+  ];
+
+  for (const mapName of [
+    'dependencies',
+    'optionalDependencies',
+    'peerDependencies',
+    'devDependencies',
+  ]) {
+    for (const spec of aliasSpecs) {
+      rejects(
+        'package.json',
+        (pkg) => {
+          pkg[mapName] = { ...(pkg[mapName] || {}), 'shadow-core': spec };
+        },
+        /alias or encoded dependency spec/,
+      );
+      rejects(
+        'package-lock.json',
+        (lock) => {
+          lock.packages[''][mapName] = {
+            ...(lock.packages[''][mapName] || {}),
+            'shadow-core': spec,
+          };
+        },
+        /alias or encoded dependency spec/,
+      );
+    }
+  }
+
+  rejects(
+    'package-lock.json',
+    (lock) => {
+      lock.packages['node_modules/foreign'] = {
+        version: '1.0.0',
+        dependencies: { 'shadow-core': 'npm:@aikdna/kdna-core@0.18.0' },
+      };
+    },
+    /lock package.*alias or encoded dependency spec/,
+  );
+  rejects(
+    'package-lock.json',
+    (lock) => {
+      lock.packages['node_modules/foreign'] = {
+        version: '1.0.0',
+        dependencies: { [CORE]: '0.18.0' },
+      };
+    },
+    /AIKDNA dependency spec mismatch/,
+  );
+  rejects(
+    'package-lock.json',
+    (lock) => {
+      lock.packages['node_modules/shadow-core'] = {
+        name: CORE,
+        version: '0.18.0',
+        resolved: canonicalRegistryUrl(CORE, '0.18.0'),
+        integrity: `sha512-${Buffer.alloc(64).toString('base64')}`,
+      };
+    },
+    /lock entry name\/path mismatch/,
+  );
+  for (const resolved of [
+    canonicalRegistryUrl(CORE, '0.18.0'),
+    'https://registry.npmjs.org/%40aikdna%2fkdna-core/-/kdna-core-0.18.0.tgz',
+    'https://registry.npmjs.org/@AIKDNA/kdna-core/-/kdna-core-0.18.0.tgz',
+  ]) {
+    rejects(
+      'package-lock.json',
+      (lock) => {
+        lock.packages['node_modules/shadow-core'] = {
+          version: '0.18.0',
+          resolved,
+          integrity: `sha512-${Buffer.alloc(64).toString('base64')}`,
+        };
+      },
+      /lock resolution\/path mismatch|unbound AIKDNA lock resolution/,
+    );
+  }
+  rejects(
+    'package-lock.json',
+    (lock) => {
+      lock.packages['node_modules/%ZZ/node_modules/%40aikdna%2fkdna-core'] = {
+        version: '0.18.0',
+        resolved: 'https://example.invalid/shadow.tgz',
+        integrity: `sha512-${Buffer.alloc(64).toString('base64')}`,
+      };
+    },
+    /AIKDNA lock package (?:path|name) invalid/,
+  );
+});
+
+test('candidate authority rejects missing and non-regular binding or artifact paths', async (t) => {
+  const artifactFor = (root) => {
+    const binding = JSON.parse(fs.readFileSync(path.join(root, BINDING_PATH), 'utf8'));
+    return path.join(root, binding.packages[0].artifact);
+  };
+
+  await t.test('missing artifact', (t) => {
+    const root = copyFixtureRoot(t);
+    fs.unlinkSync(artifactFor(root));
+    assert.throws(() => verifyCandidateBinding(root), /candidate artifact.*is missing/);
+  });
+  await t.test('artifact directory', (t) => {
+    const root = copyFixtureRoot(t);
+    const artifact = artifactFor(root);
+    fs.unlinkSync(artifact);
+    fs.mkdirSync(artifact);
+    assert.throws(() => verifyCandidateBinding(root), /regular non-symlink file/);
+  });
+  await t.test('artifact symlink outside candidate directory', (t) => {
+    const root = copyFixtureRoot(t);
+    const artifact = artifactFor(root);
+    const outside = path.join(root, 'outside.tgz');
+    fs.renameSync(artifact, outside);
+    fs.symlinkSync(outside, artifact);
+    assert.throws(() => verifyCandidateBinding(root), /regular non-symlink file/);
+  });
+  await t.test('artifact symlink inside candidate directory', (t) => {
+    const root = copyFixtureRoot(t);
+    const artifact = artifactFor(root);
+    const sibling = path.join(path.dirname(artifact), 'sibling.tgz');
+    fs.renameSync(artifact, sibling);
+    fs.symlinkSync(sibling, artifact);
+    assert.throws(() => verifyCandidateBinding(root), /regular non-symlink file/);
+  });
+  await t.test('artifact hard link', (t) => {
+    const root = copyFixtureRoot(t);
+    const artifact = artifactFor(root);
+    fs.linkSync(artifact, path.join(root, 'outside-hardlink.tgz'));
+    assert.throws(() => verifyCandidateBinding(root), /exactly one hard link/);
+  });
+  await t.test('artifact FIFO', (t) => {
+    if (process.platform === 'win32') {
+      t.skip('FIFO is not available on Windows');
+      return;
+    }
+    const root = copyFixtureRoot(t);
+    const artifact = artifactFor(root);
+    fs.unlinkSync(artifact);
+    const result = spawnSync('mkfifo', [artifact], { encoding: 'utf8' });
+    if (result.status !== 0) {
+      t.skip('mkfifo is not available');
+      return;
+    }
+    assert.throws(() => verifyCandidateBinding(root), /regular non-symlink file/);
+  });
+  await t.test('binding symlink', (t) => {
+    const root = copyFixtureRoot(t);
+    const binding = path.join(root, BINDING_PATH);
+    const sibling = path.join(path.dirname(binding), 'binding-copy.json');
+    fs.renameSync(binding, sibling);
+    fs.symlinkSync(sibling, binding);
+    assert.throws(() => verifyCandidateBinding(root), /candidate binding.*regular non-symlink/);
+  });
+  await t.test('binding hard link', (t) => {
+    const root = copyFixtureRoot(t);
+    const binding = path.join(root, BINDING_PATH);
+    fs.linkSync(binding, path.join(root, 'binding-hardlink.json'));
+    assert.throws(() => verifyCandidateBinding(root), /candidate binding.*exactly one hard link/);
+  });
+  for (const [file, label] of [
+    ['package.json', 'package manifest'],
+    ['package-lock.json', 'package lock'],
+    [CORE_CANDIDATE_EVIDENCE_PATH, 'Core candidate evidence'],
+    [CORE_CANDIDATE_WORKFLOW_PATH, 'Core candidate workflow'],
+  ]) {
+    await t.test(`${file} symlink`, (t) => {
+      const root = copyFixtureRoot(t);
+      const authority = path.join(root, file);
+      const outside = path.join(root, `outside-${path.basename(file)}`);
+      fs.renameSync(authority, outside);
+      fs.symlinkSync(outside, authority);
+      assert.throws(
+        () => verifyCandidateBinding(root),
+        new RegExp(`${label}.*regular non-symlink`),
+      );
+    });
+    await t.test(`${file} hard link`, (t) => {
+      const root = copyFixtureRoot(t);
+      const authority = path.join(root, file);
+      fs.linkSync(authority, path.join(root, `hardlink-${path.basename(file)}`));
+      assert.throws(
+        () => verifyCandidateBinding(root),
+        new RegExp(`${label}.*exactly one hard link`),
+      );
+    });
+  }
+  await t.test('candidate directory symlink escape', (t) => {
+    const root = copyFixtureRoot(t);
+    const directory = path.join(root, 'tests/fixtures/runtime-candidates');
+    const outside = path.join(root, 'outside-candidates');
+    fs.renameSync(directory, outside);
+    fs.symlinkSync(outside, directory);
+    assert.throws(() => verifyCandidateBinding(root), /candidate binding.*escapes.*canonical path/);
+  });
+});
+
+test('installed graph rejects alias copies, nested copies, symlinks, extras, and drift', async (t) => {
+  await t.test('canonical graph', (t) => {
+    const root = copyFixtureRoot(t);
+    createCanonicalInstalledGraph(root);
+    assert.deepEqual(verifyInstalledAikdnaGraph(root), {
+      [CORE]: '0.19.0',
+      [EVAL]: '0.3.1',
+    });
+  });
+  await t.test('npm alias physical package identity', (t) => {
+    const root = copyFixtureRoot(t);
+    createCanonicalInstalledGraph(root);
+    writeInstalledPackage(root, 'shadow-core', CORE, '0.18.0');
+    assert.throws(() => verifyInstalledAikdnaGraph(root), /not at its canonical top-level path/);
+  });
+  await t.test('nested duplicate package identity', (t) => {
+    const root = copyFixtureRoot(t);
+    createCanonicalInstalledGraph(root);
+    writeInstalledPackage(root, 'foreign', 'foreign', '1.0.0');
+    writeInstalledPackage(root, 'foreign/node_modules/shadow-core', CORE, '0.19.0');
+    assert.throws(() => verifyInstalledAikdnaGraph(root), /not at its canonical top-level path/);
+  });
+  await t.test('deep descendant node_modules alias', (t) => {
+    const root = copyFixtureRoot(t);
+    createCanonicalInstalledGraph(root);
+    writeInstalledPackage(root, 'ajv', 'ajv', '1.0.0');
+    writeInstalledPackage(root, 'ajv/dist/node_modules/shadow-core', CORE, '0.19.0');
+    assert.throws(() => verifyInstalledAikdnaGraph(root), /not at its canonical top-level path/);
+  });
+  await t.test('arbitrarily deep descendant node_modules alias', (t) => {
+    const root = copyFixtureRoot(t);
+    createCanonicalInstalledGraph(root);
+    writeInstalledPackage(root, 'ajv', 'ajv', '1.0.0');
+    writeInstalledPackage(root, 'ajv/dist/a/b/node_modules/shadow-core', CORE, '0.19.0');
+    assert.throws(() => verifyInstalledAikdnaGraph(root), /not at its canonical top-level path/);
+  });
+  await t.test('vendored package manifest identity', (t) => {
+    const root = copyFixtureRoot(t);
+    createCanonicalInstalledGraph(root);
+    writeInstalledPackage(root, 'ajv', 'ajv', '1.0.0');
+    writeInstalledPackage(root, 'ajv/vendor/shadow-core', CORE, '0.19.0');
+    assert.throws(() => verifyInstalledAikdnaGraph(root), /not at its canonical top-level path/);
+  });
+  await t.test('deep vendored encoded package manifest identity', (t) => {
+    const root = copyFixtureRoot(t);
+    createCanonicalInstalledGraph(root);
+    writeInstalledPackage(root, 'ajv', 'ajv', '1.0.0');
+    writeInstalledPackage(root, 'ajv/vendor/a/b/shadow-core', '%40aikdna%2fkdna-core', '0.19.0');
+    assert.throws(() => verifyInstalledAikdnaGraph(root), /installed AIKDNA package name invalid/);
+  });
+  await t.test('non-canonical node_modules case', (t) => {
+    const root = copyFixtureRoot(t);
+    createCanonicalInstalledGraph(root);
+    writeInstalledPackage(root, 'ajv', 'ajv', '1.0.0');
+    writeInstalledPackage(root, 'ajv/dist/NODE_MODULES/shadow-core', CORE, '0.19.0');
+    assert.throws(
+      () => verifyInstalledAikdnaGraph(root),
+      /node_modules path has non-canonical case/,
+    );
+  });
+  await t.test('broken descendant node_modules symlink', (t) => {
+    const root = copyFixtureRoot(t);
+    createCanonicalInstalledGraph(root);
+    writeInstalledPackage(root, 'ajv', 'ajv', '1.0.0');
+    const nested = path.join(root, 'node_modules/ajv/dist/node_modules');
+    fs.mkdirSync(path.dirname(nested), { recursive: true });
+    fs.symlinkSync(path.join(root, 'missing-target'), nested);
+    assert.throws(() => verifyInstalledAikdnaGraph(root), /package tree contains a symlink/);
+  });
+  await t.test('root .bin descendant node_modules', (t) => {
+    const root = copyFixtureRoot(t);
+    createCanonicalInstalledGraph(root);
+    writeInstalledPackage(root, '.bin/node_modules/shadow-core', CORE, '0.19.0');
+    assert.throws(() => verifyInstalledAikdnaGraph(root), /\.bin must not contain directories/);
+  });
+  await t.test('nested .bin descendant node_modules', (t) => {
+    const root = copyFixtureRoot(t);
+    createCanonicalInstalledGraph(root);
+    writeInstalledPackage(root, 'ajv', 'ajv', '1.0.0');
+    writeInstalledPackage(
+      root,
+      'ajv/dist/node_modules/.bin/node_modules/shadow-core',
+      CORE,
+      '0.19.0',
+    );
+    assert.throws(() => verifyInstalledAikdnaGraph(root), /\.bin must not contain directories/);
+  });
+  await t.test('symlinked .bin directory', (t) => {
+    const root = copyFixtureRoot(t);
+    createCanonicalInstalledGraph(root);
+    const target = path.join(root, 'alternate-bin');
+    fs.mkdirSync(target);
+    fs.symlinkSync(target, path.join(root, 'node_modules/.bin'));
+    assert.throws(() => verifyInstalledAikdnaGraph(root), /\.bin must be a regular non-symlink/);
+  });
+  await t.test('normal contained .bin executable symlink', (t) => {
+    const root = copyFixtureRoot(t);
+    createCanonicalInstalledGraph(root);
+    const executable = path.join(root, 'node_modules', CORE, 'cli.js');
+    fs.writeFileSync(executable, '#!/usr/bin/env node\n');
+    const bin = path.join(root, 'node_modules/.bin');
+    fs.mkdirSync(bin);
+    fs.symlinkSync(path.relative(bin, executable), path.join(bin, 'kdna-core'));
+    assert.doesNotThrow(() => verifyInstalledAikdnaGraph(root));
+  });
+  await t.test('symlinked alias package', (t) => {
+    const root = copyFixtureRoot(t);
+    createCanonicalInstalledGraph(root);
+    fs.symlinkSync(
+      path.join(root, 'node_modules', CORE),
+      path.join(root, 'node_modules/shadow-core'),
+    );
+    assert.throws(() => verifyInstalledAikdnaGraph(root), /package graph contains a symlink/);
+  });
+  await t.test('undeclared scoped package', (t) => {
+    const root = copyFixtureRoot(t);
+    createCanonicalInstalledGraph(root);
+    writeInstalledPackage(root, '@aikdna/unexpected', '@aikdna/unexpected', '1.0.0');
+    assert.throws(() => verifyInstalledAikdnaGraph(root), /installed undeclared AIKDNA package/);
+  });
+  await t.test('case-disguised package name', (t) => {
+    const root = copyFixtureRoot(t);
+    createCanonicalInstalledGraph(root);
+    writeInstalledPackage(root, 'shadow-core', '@AIKDNA/kdna-core', '0.19.0');
+    assert.throws(() => verifyInstalledAikdnaGraph(root), /installed AIKDNA package name invalid/);
+  });
+  await t.test('canonical package version drift', (t) => {
+    const root = copyFixtureRoot(t);
+    writeInstalledPackage(root, CORE, CORE, '0.18.0');
+    writeInstalledPackage(root, EVAL, EVAL, '0.3.1');
+    assert.throws(() => verifyInstalledAikdnaGraph(root), /version mismatch/);
+  });
+  await t.test('installed package manifest symlink', (t) => {
+    const root = copyFixtureRoot(t);
+    createCanonicalInstalledGraph(root);
+    const manifest = path.join(root, 'node_modules', CORE, 'package.json');
+    const outside = path.join(root, 'installed-core.json');
+    fs.renameSync(manifest, outside);
+    fs.symlinkSync(outside, manifest);
+    assert.throws(() => verifyInstalledAikdnaGraph(root), /manifest must be a regular non-symlink/);
+  });
 });
 
 test('binding rejects changed candidate bytes and lock integrity', (t) => {

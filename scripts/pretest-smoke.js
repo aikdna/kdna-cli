@@ -12,6 +12,12 @@
  */
 
 const path = require('path');
+const {
+  verifyCandidateBinding,
+  verifyInstalledAikdnaGraph,
+} = require('./runtime-candidate-binding');
+
+const ROOT = path.resolve(__dirname, '..');
 let failures = 0;
 
 function check(name, fn) {
@@ -54,6 +60,14 @@ check('installed kdna-core version exactly matches declared version', () => {
     throw new Error(`exact mismatch: installed ${installed} vs declared ${declared}`);
   }
   console.log(`       installed=${installed} declared=${declared}`);
+});
+
+check('candidate dependency binding is complete and byte-authenticated', () => {
+  verifyCandidateBinding(ROOT);
+});
+
+check('installed AIKDNA package graph is canonical and unique', () => {
+  verifyInstalledAikdnaGraph(ROOT);
 });
 
 if (failures > 0) {

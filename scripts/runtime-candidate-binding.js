@@ -3,15 +3,26 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { execFileSync } = require('node:child_process');
+const { execFileSync, spawnSync } = require('node:child_process');
+const {
+  CORE_CANDIDATE_EVIDENCE_PATH,
+  CORE_CANDIDATE_PACKAGE,
+  CORE_CANDIDATE_WORKFLOW_PATH,
+  readPinnedCoreCommit,
+} = require('./core-candidate');
 
 const BINDING_PATH = 'tests/fixtures/runtime-candidates/binding.json';
-const AIKDNA_SCOPE = '@aikdna';
 const AIKDNA_PACKAGE_RE = /^@aikdna\/[a-z0-9][a-z0-9._-]*$/;
 const COMMIT_RE = /^[0-9a-f]{40}$/;
 const SEMVER_RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const INTEGRITY_RE = /^sha512-[A-Za-z0-9+/]{86}==$/;
 const CANDIDATE_ARTIFACT_RE = /^tests\/fixtures\/runtime-candidates\/[a-z0-9][a-z0-9._-]*\.tgz$/;
+const DEPENDENCY_MAP_NAMES = Object.freeze([
+  'dependencies',
+  'optionalDependencies',
+  'peerDependencies',
+  'devDependencies',
+]);
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -26,8 +37,125 @@ function canonicalRegistryUrl(name, version) {
   return `https://registry.npmjs.org/${name}/-/${leaf}-${version}.tgz`;
 }
 
+function isWithin(parent, candidate) {
+  const relative = path.relative(parent, candidate);
+  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
+}
+
+function resolveTrustedNpmInvocation(
+  root,
+  npmExecPath = process.env.npm_execpath,
+  nodeExecPath = process.execPath,
+) {
+  assert(
+    typeof npmExecPath === 'string' && path.isAbsolute(npmExecPath),
+    'trusted npm_execpath must be absolute',
+  );
+  assert(path.isAbsolute(nodeExecPath), 'trusted Node executable path must be absolute');
+  for (const [file, label] of [
+    [npmExecPath, 'npm CLI'],
+    [nodeExecPath, 'Node executable'],
+  ]) {
+    const stat = fs.lstatSync(file);
+    assert(stat.isFile() && !stat.isSymbolicLink(), `${label} must be a regular non-symlink file`);
+    assert(fs.realpathSync(file) === file, `${label} path must be canonical`);
+  }
+  const rootReal = fs.realpathSync(root);
+  assert(!isWithin(rootReal, npmExecPath), 'trusted npm CLI must be outside the repository');
+  assert(path.basename(npmExecPath) === 'npm-cli.js', 'trusted npm CLI filename is invalid');
+  const npmRoot = path.resolve(path.dirname(npmExecPath), '..');
+  const npmManifestPath = path.join(npmRoot, 'package.json');
+  const npmManifestStat = fs.lstatSync(npmManifestPath);
+  assert(
+    npmManifestStat.isFile() && !npmManifestStat.isSymbolicLink(),
+    'trusted npm package manifest must be a regular non-symlink file',
+  );
+  assert(
+    fs.realpathSync(npmManifestPath) === npmManifestPath,
+    'trusted npm package manifest path must be canonical',
+  );
+  const npmManifest = readJson(npmManifestPath);
+  assert(
+    npmManifest.name === 'npm' && npmManifest.version === '11.17.0',
+    'trusted npm release client must be npm 11.17.0',
+  );
+  return Object.freeze({ command: nodeExecPath, prefixArgs: Object.freeze([npmExecPath]) });
+}
+
+function strictRegistryLookup(name, version, options = {}) {
+  const runner = options.runner || spawnSync;
+  const invocation = resolveTrustedNpmInvocation(
+    options.root || path.resolve(__dirname, '..'),
+    options.npmExecPath,
+    options.nodeExecPath,
+  );
+  const result = runner(
+    invocation.command,
+    [
+      ...invocation.prefixArgs,
+      'view',
+      `${name}@${version}`,
+      'name',
+      'version',
+      'dist.integrity',
+      '--json',
+      '--loglevel=silent',
+      '--registry=https://registry.npmjs.org/',
+      '--@aikdna:registry=https://registry.npmjs.org/',
+    ],
+    {
+      encoding: 'utf8',
+      maxBuffer: 1024 * 1024,
+      shell: false,
+      timeout: 30_000,
+    },
+  );
+  assert(result && !result.error, 'registry dependency lookup failed');
+  assert(
+    result.status === 0 && result.signal == null,
+    'registry dependency lookup was not successful',
+  );
+  assert(
+    typeof result.stdout === 'string' && result.stdout.trim(),
+    'registry dependency lookup returned no JSON',
+  );
+  assert(result.stderr === '', 'registry dependency lookup wrote unexpected stderr');
+  let metadata;
+  try {
+    metadata = JSON.parse(result.stdout);
+  } catch {
+    throw new Error('registry dependency lookup must return one complete JSON document');
+  }
+  assert(
+    metadata && typeof metadata === 'object' && !Array.isArray(metadata),
+    'registry dependency metadata must be an object',
+  );
+  const fields = Object.keys(metadata).sort();
+  assert(
+    JSON.stringify(fields) === JSON.stringify(['dist.integrity', 'name', 'version']),
+    'registry dependency metadata fields are not exact',
+  );
+  return metadata;
+}
+
 function readJson(file) {
   return JSON.parse(fs.readFileSync(file, 'utf8'));
+}
+
+function pathSegments(relativePath) {
+  return relativePath.split(/[\\/]/);
+}
+
+function assertAuthorityFile(file, expectedRealPath, label) {
+  let stat;
+  try {
+    stat = fs.lstatSync(file);
+  } catch {
+    throw new Error(`${label} is missing`);
+  }
+  assert(stat.isFile() && !stat.isSymbolicLink(), `${label} must be a regular non-symlink file`);
+  assert(stat.nlink === 1, `${label} must have exactly one hard link`);
+  assert(fs.realpathSync(file) === expectedRealPath, `${label} escapes its canonical path`);
 }
 
 function tarPackageManifest(artifact) {
@@ -36,26 +164,68 @@ function tarPackageManifest(artifact) {
   );
 }
 
-function referencesAikdnaScope(value) {
-  if (typeof value !== 'string') return false;
+function decodedVariants(value) {
+  if (typeof value !== 'string') return [];
   const candidates = [];
   let candidate = value;
   for (let depth = 0; depth <= value.length; depth += 1) {
     candidates.push(candidate);
-    try {
-      const decoded = decodeURIComponent(candidate);
-      if (decoded === candidate) break;
-      candidate = decoded;
-    } catch {
-      break;
+    const decoded = candidate.replace(/(?:%[0-9A-Fa-f]{2})+/g, (encoded) => {
+      try {
+        return decodeURIComponent(encoded);
+      } catch {
+        return encoded.replace(/%([0-9A-Fa-f]{2})/g, (_match, hex) =>
+          String.fromCharCode(Number.parseInt(hex, 16)),
+        );
+      }
+    });
+    if (decoded === candidate) break;
+    candidate = decoded;
+  }
+  return candidates.map((valueToCheck) => valueToCheck.replaceAll('\\', '/'));
+}
+
+function aikdnaReferences(value) {
+  const references = [];
+  const pattern =
+    /(?:^|[^A-Za-z0-9._-])(@aikdna\/[A-Za-z0-9][A-Za-z0-9._-]*)(?=$|[^A-Za-z0-9._-])/gi;
+  for (const candidate of decodedVariants(value)) {
+    pattern.lastIndex = 0;
+    let match;
+    while ((match = pattern.exec(candidate)) !== null) references.push(match[1]);
+  }
+  return [...new Set(references)];
+}
+
+function referencesAikdnaScope(value) {
+  return aikdnaReferences(value).length > 0;
+}
+
+function assertDependencyMaps(container, label, directVersions, requireFormalMap = false) {
+  for (const mapName of DEPENDENCY_MAP_NAMES) {
+    for (const [name, spec] of Object.entries(container?.[mapName] || {})) {
+      const nameReferences = aikdnaReferences(name);
+      const specReferences = aikdnaReferences(spec);
+      assert(
+        specReferences.length === 0,
+        `${label} contains an AIKDNA alias or encoded dependency spec: ${mapName}.${name}`,
+      );
+      if (nameReferences.length === 0) continue;
+      assert(
+        nameReferences.length === 1 && nameReferences[0] === name && AIKDNA_PACKAGE_RE.test(name),
+        `${label} AIKDNA package name invalid: ${name}`,
+      );
+      assert(directVersions.has(name), `${label} references undeclared AIKDNA package: ${name}`);
+      assert(
+        !requireFormalMap || mapName === 'dependencies',
+        `${label} AIKDNA package must be a formal dependency: ${name}`,
+      );
+      assert(
+        spec === directVersions.get(name),
+        `${label} AIKDNA dependency spec mismatch: ${name}`,
+      );
     }
   }
-  return candidates.some((valueToCheck) =>
-    valueToCheck
-      .replaceAll('\\', '/')
-      .split('/')
-      .some((segment) => segment.toLowerCase() === AIKDNA_SCOPE),
-  );
 }
 
 function aikdnaDependencyNames(dependencies, label) {
@@ -121,11 +291,11 @@ function parseLockPackagePath(lockPath) {
   return packages;
 }
 
-function assertExactAikdnaLockPackages(packageLock, directNames, boundNames) {
+function assertExactAikdnaLockPackages(packageLock, directNames, boundNames, directVersions) {
   const directSet = new Set(directNames);
   const occurrences = new Map(directNames.map((name) => [name, new Set()]));
 
-  for (const lockPath of Object.keys(packageLock.packages || {})) {
+  for (const [lockPath, locked] of Object.entries(packageLock.packages || {})) {
     if (lockPath === '') continue;
     if (referencesAikdnaScope(lockPath)) {
       const packages = parseLockPackagePath(lockPath);
@@ -137,6 +307,32 @@ function assertExactAikdnaLockPackages(packageLock, directNames, boundNames) {
         occurrences.get(name).add(packagePath);
       }
     }
+    const lockedNameReferences = aikdnaReferences(locked?.name);
+    if (lockedNameReferences.length > 0) {
+      assert(
+        lockedNameReferences.length === 1 &&
+          lockedNameReferences[0] === locked.name &&
+          AIKDNA_PACKAGE_RE.test(locked.name),
+        `AIKDNA lock package name invalid: ${lockPath}`,
+      );
+      assert(
+        lockPath === `node_modules/${locked.name}`,
+        `AIKDNA lock entry name/path mismatch: ${lockPath} name=${locked.name}`,
+      );
+      assert(directSet.has(locked.name), `unbound AIKDNA lock package: ${locked.name}`);
+    }
+    const resolvedReferences = aikdnaReferences(locked?.resolved);
+    if (resolvedReferences.length > 0) {
+      assert(
+        resolvedReferences.length === 1 && directSet.has(resolvedReferences[0]),
+        `unbound AIKDNA lock resolution: ${lockPath}`,
+      );
+      assert(
+        lockPath === `node_modules/${resolvedReferences[0]}`,
+        `AIKDNA lock resolution/path mismatch: ${lockPath}`,
+      );
+    }
+    assertDependencyMaps(locked, `lock package ${lockPath}`, directVersions);
   }
 
   for (const name of directNames) {
@@ -164,9 +360,49 @@ function assertExactAikdnaLockPackages(packageLock, directNames, boundNames) {
 }
 
 function verifyCandidateBinding(root) {
-  const binding = readJson(path.join(root, BINDING_PATH));
-  const packageJson = readJson(path.join(root, 'package.json'));
-  const packageLock = readJson(path.join(root, 'package-lock.json'));
+  const rootReal = fs.realpathSync(root);
+  const bindingPath = path.join(root, ...pathSegments(BINDING_PATH));
+  const expectedBindingReal = path.join(rootReal, ...pathSegments(BINDING_PATH));
+  assertAuthorityFile(bindingPath, expectedBindingReal, 'candidate binding');
+  const packagePath = path.join(root, 'package.json');
+  const lockPath = path.join(root, 'package-lock.json');
+  const evidencePath = path.join(root, CORE_CANDIDATE_EVIDENCE_PATH);
+  const workflowPath = path.join(root, CORE_CANDIDATE_WORKFLOW_PATH);
+  assertAuthorityFile(packagePath, path.join(rootReal, 'package.json'), 'package manifest');
+  assertAuthorityFile(lockPath, path.join(rootReal, 'package-lock.json'), 'package lock');
+  assertAuthorityFile(
+    evidencePath,
+    path.join(rootReal, ...pathSegments(CORE_CANDIDATE_EVIDENCE_PATH)),
+    'Core candidate evidence',
+  );
+  assertAuthorityFile(
+    workflowPath,
+    path.join(rootReal, ...pathSegments(CORE_CANDIDATE_WORKFLOW_PATH)),
+    'Core candidate workflow',
+  );
+  const binding = readJson(bindingPath);
+  const packageJson = readJson(packagePath);
+  const packageLock = readJson(lockPath);
+  const coreEvidence = readJson(evidencePath);
+
+  assert(packageLock.lockfileVersion === 3, 'package lock must use lockfileVersion 3');
+  assert(
+    packageLock.packages && typeof packageLock.packages === 'object',
+    'package lock packages graph is missing',
+  );
+  assert(
+    !Object.hasOwn(packageLock, 'dependencies'),
+    'legacy top-level package lock dependencies are not permitted',
+  );
+  assert(
+    packageLock.name === packageJson.name && packageLock.version === packageJson.version,
+    'package lock identity mismatch',
+  );
+  assert(
+    packageLock.packages['']?.name === packageJson.name &&
+      packageLock.packages['']?.version === packageJson.version,
+    'package lock root identity mismatch',
+  );
 
   assert(binding.schema === 'kdna.runtime-candidate-binding', 'candidate binding schema mismatch');
   assert(binding.schema_version === '0.1.0', 'candidate binding schema version mismatch');
@@ -176,6 +412,9 @@ function verifyCandidateBinding(root) {
   );
 
   const directNames = aikdnaDependencyNames(packageJson.dependencies, 'direct dependencies');
+  const directVersions = new Map(directNames.map((name) => [name, packageJson.dependencies[name]]));
+  const directSet = new Set(directNames);
+  assertDependencyMaps(packageJson, 'package manifest', directVersions, true);
   const bindingNames = binding.packages.map((entry) => entry.name);
   for (const name of bindingNames) {
     assert(
@@ -188,7 +427,7 @@ function verifyCandidateBinding(root) {
     uniqueBindingNames.length === bindingNames.length,
     'candidate binding contains duplicate packages',
   );
-  const directSet = new Set(directNames);
+  assertExactPackageNames('candidate binding', bindingNames, [CORE_CANDIDATE_PACKAGE]);
   const extraBindings = bindingNames.filter((name) => !directSet.has(name));
   assert(
     extraBindings.length === 0,
@@ -200,8 +439,9 @@ function verifyCandidateBinding(root) {
     aikdnaDependencyNames(packageLock.packages?.['']?.dependencies, 'lock root dependencies'),
     directNames,
   );
+  assertDependencyMaps(packageLock.packages?.[''], 'lock root', directVersions, true);
   const boundNames = new Set(bindingNames);
-  assertExactAikdnaLockPackages(packageLock, directNames, boundNames);
+  assertExactAikdnaLockPackages(packageLock, directNames, boundNames, directVersions);
 
   for (const name of directNames) {
     const declared = packageJson.dependencies[name];
@@ -227,6 +467,17 @@ function verifyCandidateBinding(root) {
       COMMIT_RE.test(entry.commit || ''),
       `candidate commit audit reference invalid: ${entry.name}`,
     );
+    const pinnedCommit = readPinnedCoreCommit(root);
+    assert(
+      entry.commit === pinnedCommit,
+      `candidate commit does not match the CI pin: ${entry.name}`,
+    );
+    assert(
+      coreEvidence.package === entry.name &&
+        coreEvidence.version === entry.version &&
+        coreEvidence.git_head === pinnedCommit,
+      `candidate source evidence mismatch: ${entry.name}`,
+    );
     assert(
       typeof entry.artifact === 'string' &&
         CANDIDATE_ARTIFACT_RE.test(entry.artifact) &&
@@ -238,7 +489,26 @@ function verifyCandidateBinding(root) {
       `candidate artifact path invalid: ${entry.name}`,
     );
 
-    const artifact = path.join(root, entry.artifact);
+    const candidateDirectoryRelative = 'tests/fixtures/runtime-candidates';
+    const candidateDirectory = path.join(root, ...pathSegments(candidateDirectoryRelative));
+    const expectedDirectoryReal = path.join(rootReal, ...pathSegments(candidateDirectoryRelative));
+    let directoryStat;
+    try {
+      directoryStat = fs.lstatSync(candidateDirectory);
+    } catch {
+      throw new Error('candidate artifact directory is missing');
+    }
+    assert(
+      directoryStat.isDirectory() && !directoryStat.isSymbolicLink(),
+      'candidate artifact directory must be a regular non-symlink directory',
+    );
+    assert(
+      fs.realpathSync(candidateDirectory) === expectedDirectoryReal,
+      'candidate artifact directory escapes the repository',
+    );
+    const artifact = path.join(root, ...pathSegments(entry.artifact));
+    const expectedArtifactReal = path.join(rootReal, ...pathSegments(entry.artifact));
+    assertAuthorityFile(artifact, expectedArtifactReal, `candidate artifact ${entry.name}`);
     const bytes = fs.readFileSync(artifact);
     assert(
       entry.integrity === `sha512-${digest(bytes, 'sha512', 'base64')}`,
@@ -247,6 +517,10 @@ function verifyCandidateBinding(root) {
     assert(
       entry.sha256 === digest(bytes, 'sha256', 'hex'),
       `candidate sha256 mismatch: ${entry.name}`,
+    );
+    assert(
+      coreEvidence.pack?.sha512 === entry.integrity && coreEvidence.pack?.size === bytes.length,
+      `candidate pack evidence mismatch: ${entry.name}`,
     );
 
     const packedPackage = tarPackageManifest(artifact);
@@ -275,6 +549,175 @@ function verifyCandidateBinding(root) {
   return binding;
 }
 
+function verifyInstalledAikdnaGraph(root) {
+  const rootReal = fs.realpathSync(root);
+  const packagePath = path.join(root, 'package.json');
+  assertAuthorityFile(packagePath, path.join(rootReal, 'package.json'), 'package manifest');
+  const packageJson = readJson(packagePath);
+  const directNames = aikdnaDependencyNames(packageJson.dependencies, 'direct dependencies');
+  const directVersions = new Map(directNames.map((name) => [name, packageJson.dependencies[name]]));
+  for (const [name, version] of directVersions) {
+    assert(SEMVER_RE.test(version || ''), `direct dependency must use exact SemVer: ${name}`);
+  }
+  assertDependencyMaps(packageJson, 'package manifest', directVersions, true);
+
+  const occurrences = new Map(directNames.map((name) => [name, []]));
+  const visitedNodeModules = new Set();
+  const visitedManifests = new Set();
+
+  function inspectInstalledManifest(packageDirectory, manifestPath) {
+    const manifestStat = fs.lstatSync(manifestPath);
+    assert(
+      manifestStat.isFile() && !manifestStat.isSymbolicLink(),
+      `installed package manifest must be a regular non-symlink file: ${manifestPath}`,
+    );
+    const manifestReal = fs.realpathSync(manifestPath);
+    if (visitedManifests.has(manifestReal)) return;
+    visitedManifests.add(manifestReal);
+    const manifest = readJson(manifestPath);
+    const references = aikdnaReferences(manifest.name);
+    if (references.length === 0) return;
+    assert(
+      references.length === 1 &&
+        references[0] === manifest.name &&
+        AIKDNA_PACKAGE_RE.test(manifest.name),
+      `installed AIKDNA package name invalid: ${String(manifest.name)}`,
+    );
+    assert(
+      directVersions.has(manifest.name),
+      `installed undeclared AIKDNA package: ${manifest.name}`,
+    );
+    const expectedDirectory = path.join(rootReal, 'node_modules', ...manifest.name.split('/'));
+    const actualDirectory = fs.realpathSync(packageDirectory);
+    assert(
+      actualDirectory === expectedDirectory,
+      `installed AIKDNA package is not at its canonical top-level path: ${manifest.name} ${actualDirectory}`,
+    );
+    assert(
+      manifest.version === directVersions.get(manifest.name),
+      `installed AIKDNA package version mismatch: ${manifest.name}`,
+    );
+    occurrences.get(manifest.name).push(actualDirectory);
+  }
+
+  function scanPackage(packageDirectory) {
+    const packageStat = fs.lstatSync(packageDirectory);
+    assert(
+      packageStat.isDirectory() && !packageStat.isSymbolicLink(),
+      `installed package path must be a regular non-symlink directory: ${packageDirectory}`,
+    );
+    scanForNestedNodeModules(packageDirectory);
+  }
+
+  function scanForNestedNodeModules(directory) {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const entryPath = path.join(directory, entry.name);
+      if (entry.name === 'package.json') {
+        inspectInstalledManifest(directory, entryPath);
+        continue;
+      }
+      if (entry.isSymbolicLink()) {
+        throw new Error(`installed package tree contains a symlink: ${entryPath}`);
+      }
+      if (!entry.isDirectory()) continue;
+      if (entry.name.toLowerCase() === 'node_modules') {
+        assert(
+          entry.name === 'node_modules',
+          `node_modules path has non-canonical case: ${entryPath}`,
+        );
+        scanNodeModules(entryPath);
+      } else {
+        scanForNestedNodeModules(entryPath);
+      }
+    }
+  }
+
+  function scanNodeModules(nodeModules) {
+    const nodeModulesStat = fs.lstatSync(nodeModules);
+    assert(
+      nodeModulesStat.isDirectory() && !nodeModulesStat.isSymbolicLink(),
+      `node_modules must be a regular non-symlink directory: ${nodeModules}`,
+    );
+    const nodeModulesReal = fs.realpathSync(nodeModules);
+    assert(
+      nodeModulesReal === path.join(rootReal, path.relative(root, nodeModules)),
+      `node_modules escapes the installation root: ${nodeModules}`,
+    );
+    assert(
+      !visitedNodeModules.has(nodeModulesReal),
+      `node_modules graph contains a cycle: ${nodeModules}`,
+    );
+    visitedNodeModules.add(nodeModulesReal);
+
+    for (const entry of fs.readdirSync(nodeModules, { withFileTypes: true })) {
+      const entryPath = path.join(nodeModules, entry.name);
+      if (entry.name === '.bin') {
+        assert(
+          entry.isDirectory() && !entry.isSymbolicLink(),
+          `.bin must be a regular non-symlink directory: ${entryPath}`,
+        );
+        assert(
+          fs.realpathSync(entryPath) === path.join(nodeModulesReal, '.bin'),
+          `.bin escapes its canonical path: ${entryPath}`,
+        );
+        for (const executable of fs.readdirSync(entryPath, { withFileTypes: true })) {
+          const executablePath = path.join(entryPath, executable.name);
+          if (executable.isSymbolicLink()) {
+            let executableStat;
+            try {
+              executableStat = fs.statSync(executablePath);
+            } catch {
+              throw new Error(`.bin contains a broken symlink: ${executablePath}`);
+            }
+            assert(
+              executableStat.isFile(),
+              `.bin symlink must target a regular file: ${executablePath}`,
+            );
+            const executableReal = fs.realpathSync(executablePath);
+            assert(
+              executableReal.startsWith(`${rootReal}${path.sep}`),
+              `.bin symlink escapes the installation root: ${executablePath}`,
+            );
+          } else {
+            assert(executable.isFile(), `.bin must not contain directories: ${executablePath}`);
+          }
+        }
+        continue;
+      }
+      if (entry.isSymbolicLink()) {
+        throw new Error(`installed package graph contains a symlink: ${entryPath}`);
+      }
+      if (!entry.isDirectory()) continue;
+      if (entry.name.startsWith('@')) {
+        for (const scopedEntry of fs.readdirSync(entryPath, { withFileTypes: true })) {
+          const scopedPath = path.join(entryPath, scopedEntry.name);
+          assert(
+            scopedEntry.isDirectory() && !scopedEntry.isSymbolicLink(),
+            `installed scoped package path must be a regular non-symlink directory: ${scopedPath}`,
+          );
+          scanPackage(scopedPath);
+        }
+      } else {
+        scanPackage(entryPath);
+      }
+    }
+  }
+
+  const rootNodeModules = path.join(root, 'node_modules');
+  assert(fs.existsSync(rootNodeModules), 'node_modules is missing');
+  scanNodeModules(rootNodeModules);
+  for (const name of directNames) {
+    const paths = occurrences.get(name);
+    assert(
+      paths.length === 1,
+      `installed AIKDNA package must appear exactly once: ${name} count=${paths.length}`,
+    );
+  }
+  return Object.freeze(
+    Object.fromEntries(directNames.map((name) => [name, directVersions.get(name)])),
+  );
+}
+
 function assertRegistryReleaseReady(root, registryLookup = null) {
   const binding = verifyCandidateBinding(root);
   const packageLock = readJson(path.join(root, 'package-lock.json'));
@@ -287,16 +730,7 @@ function assertRegistryReleaseReady(root, registryLookup = null) {
     );
   }
 
-  const lookup =
-    registryLookup ||
-    ((name, version) => {
-      const output = execFileSync(
-        'npm',
-        ['view', `${name}@${version}`, 'name', 'version', 'dist.integrity', '--json'],
-        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
-      );
-      return JSON.parse(output);
-    });
+  const lookup = registryLookup || strictRegistryLookup;
   for (const entry of binding.packages) {
     const metadata = lookup(entry.name, entry.version);
     assert(metadata.name === entry.name, `registry package name mismatch: ${entry.name}`);
@@ -313,5 +747,8 @@ module.exports = {
   BINDING_PATH,
   assertRegistryReleaseReady,
   canonicalRegistryUrl,
+  resolveTrustedNpmInvocation,
+  strictRegistryLookup,
   verifyCandidateBinding,
+  verifyInstalledAikdnaGraph,
 };

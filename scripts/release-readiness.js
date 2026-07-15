@@ -5,7 +5,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { EXPECTED_PACKAGE_NAME, STABLE_VERSION_RE } = require('./release-policy');
 const { CORE_CANDIDATE_VERSION } = require('./core-candidate');
-const { canonicalRegistryUrl } = require('./runtime-candidate-binding');
+const {
+  canonicalRegistryUrl,
+  verifyCandidateBinding,
+  verifyInstalledAikdnaGraph,
+} = require('./runtime-candidate-binding');
 
 const CORE_PACKAGE_NAME = '@aikdna/kdna-core';
 const REQUIRED_CORE_VERSION = CORE_CANDIDATE_VERSION;
@@ -60,6 +64,8 @@ function main() {
   const lock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
   const installedCorePath = require.resolve(`${CORE_PACKAGE_NAME}/package.json`, { paths: [root] });
   const installedCore = JSON.parse(fs.readFileSync(installedCorePath, 'utf8'));
+  verifyCandidateBinding(root);
+  verifyInstalledAikdnaGraph(root);
   const ready = validateReleaseReadiness({ pkg, lock, installedCore });
   console.log(`Release dependency closure verified: ${ready.cli} -> ${ready.core}`);
 }

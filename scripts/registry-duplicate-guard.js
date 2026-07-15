@@ -7,6 +7,7 @@ const path = require('node:path');
 const { readCurrentReleaseBinding } = require('./current-release-binding');
 const { evaluateRegistryResult } = require('./registry-duplicate-policy');
 const { validateEvidenceArtifact } = require('./release-evidence');
+const { resolveTrustedNpmInvocation } = require('./runtime-candidate-binding');
 
 function fail(message) {
   throw new Error(message);
@@ -36,15 +37,17 @@ function main() {
   const evidence = JSON.parse(
     fs.readFileSync(path.resolve(process.argv[evidenceIndex + 1]), 'utf8'),
   );
+  const root = path.resolve(__dirname, '..');
+  const npmInvocation = resolveTrustedNpmInvocation(root);
   const decision = guardCandidate({
     evidence,
     tarball: fs.readFileSync(path.resolve(process.argv[artifactIndex + 1])),
-    bindCurrent: (candidate) =>
-      readCurrentReleaseBinding({ root: path.resolve(__dirname, '..'), evidence: candidate }),
+    bindCurrent: (candidate) => readCurrentReleaseBinding({ root, evidence: candidate }),
     lookup: (spec) =>
       spawnSync(
-        'npm',
+        npmInvocation.command,
         [
+          ...npmInvocation.prefixArgs,
           'view',
           spec,
           'name',
@@ -54,6 +57,7 @@ function main() {
           '--json',
           '--loglevel=silent',
           '--registry=https://registry.npmjs.org/',
+          '--@aikdna:registry=https://registry.npmjs.org/',
         ],
         {
           encoding: 'utf8',

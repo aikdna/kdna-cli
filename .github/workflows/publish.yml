@@ -52,13 +52,13 @@ jobs:
       - name: Apply fail-closed registry duplicate policy
         id: registry
         run: >-
-          node scripts/registry-duplicate-guard.js
+          npm run release:registry-guard --
           --evidence "$RUNNER_TEMP/kdna-cli-release-evidence.json"
           --artifact "$RUNNER_TEMP/kdna-cli-release.tgz"
       - name: Publish the verified package
         if: steps.registry.outputs.should_publish == 'true'
         run: >-
-          node scripts/publish-verified-artifact.js
+          npm run release:publish-verified --
           --evidence "$RUNNER_TEMP/kdna-cli-release-evidence.json"
           --artifact "$RUNNER_TEMP/kdna-cli-release.tgz"
         env:
