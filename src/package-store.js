@@ -755,7 +755,10 @@ function installAssetUnlocked({ sourcePath, name, version, source = {}, local = 
   };
   try {
     fs.copyFileSync(sourcePath, stagedAsset);
-    const descriptor = fs.openSync(stagedAsset, fs.constants.O_RDONLY);
+    // Windows requires a writable descriptor for fsync/_commit. The staged
+    // copy is owned by this transaction, so open it read/write before the
+    // durability barrier and verify its bytes immediately afterward.
+    const descriptor = fs.openSync(stagedAsset, fs.constants.O_RDWR);
     try {
       fs.fsyncSync(descriptor);
     } finally {
