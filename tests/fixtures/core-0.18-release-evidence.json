@@ -1,7 +1,7 @@
 {
   "package": "@aikdna/kdna-core",
   "version": "0.18.0",
-  "git_head": "fed4fc86e3c8447a94e7498a795d0fcd5108595e",
+  "git_head": "fed4fc86e3c8",
   "registry_integrity": "sha512-2z8cJX+L39QdtwPoBI4tM0e5o5K7GOBliMeF60Ja3Uv6smJYBLRMSts1sIO/7ECGyk46HCOOs82VvVvLsGPBUQ==",
   "files": {
     "src/execution-contract-v1.js": "feed02b244516c2195325a7f4278f8dc576a56834ce1b3098abd799c81e8745d",

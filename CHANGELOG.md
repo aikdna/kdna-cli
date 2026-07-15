@@ -15,6 +15,10 @@
   Trace evidence. Host 2 output is bounded and parsed by Core, receipts remain
   Host-native, pre-Host budget failures call no Host, and unknown model/usage
   facts remain `null` / `not_observed`.
+- Fail closed on repeated or space-form runtime-contract options and malformed
+  strict timeouts. Capsule load and Host-adapter construction failures now end
+  in Core-built blocked Trace 1 evidence, and the strict cross-platform CI gate
+  covers Node 18 and 22 on Ubuntu and Windows.
 
 - Bind registry-backed `quality diff` and `changelog` inputs to the exact
   registry digest, manifest identity, and version before reading judgment

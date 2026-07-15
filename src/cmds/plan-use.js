@@ -354,6 +354,19 @@ function planSingleAsset(assetPath, opts = {}) {
 
 // ── Command ──────────────────────────────────────────────────────────
 
+function optionOccurrences(args, name) {
+  const values = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const value = args[index];
+    if (value === name) {
+      values.push(null);
+    } else if (value.startsWith(`${name}=`)) {
+      values.push(value.slice(name.length + 1));
+    }
+  }
+  return values;
+}
+
 function cmdPlanUse(args) {
   const getFlag = (name) => {
     const eqIdx = args.findIndex((a) => a === name + '=' || a.startsWith(name + '='));
@@ -367,9 +380,7 @@ function cmdPlanUse(args) {
 
   const posArgs = args.filter((a) => !a.startsWith('--'));
   const target = posArgs[0];
-  const runtimeContractArg = args.find(
-    (value) => value === '--runtime-contract' || value.startsWith('--runtime-contract='),
-  );
+  const runtimeContractValues = optionOccurrences(args, '--runtime-contract');
 
   if (!target || args.includes('--help') || args.includes('-h')) {
     process.stderr.write(
@@ -400,10 +411,12 @@ function cmdPlanUse(args) {
   const outPath = getFlag('--out');
   const planIdOverride = getFlag('--plan-id');
 
-  if (runtimeContractArg) {
-    const runtimeContract = getFlag('--runtime-contract');
-    if (runtimeContract !== '1') {
-      error('Unknown --runtime-contract value; no legacy fallback was selected.', EXIT.INPUT_ERROR);
+  if (runtimeContractValues.length > 0) {
+    if (runtimeContractValues.length !== 1 || runtimeContractValues[0] !== '1') {
+      error(
+        'Runtime contract must be one unique --runtime-contract=1 occurrence; no legacy fallback was selected.',
+        EXIT.INPUT_ERROR,
+      );
     }
     if (as !== 'json') {
       error('Runtime contract 1 plan output supports --as=json only.', EXIT.INPUT_ERROR);

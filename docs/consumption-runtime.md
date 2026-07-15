@@ -171,6 +171,9 @@ Without a matching registration the process has only
 projection. A registered descriptor that lacks Capsule 2, Host 2, or the
 `kdna-capsule-jcs-v1` delivery digest also blocks before projection. Unknown
 `--runtime-contract` values fail closed instead of selecting the default path.
+The opt-in is accepted only as one exact `--runtime-contract=1` occurrence;
+bare, space-separated, and repeated forms are rejected. When supplied, the
+strict Host timeout is one positive integer `--timeout=<ms>` value.
 
 The strict executor snapshots one regular packaged `.kdna` file and uses those
 same bytes for A/C/E evidence, Plan identity, Capsule 2, delivery digest P, and
@@ -185,6 +188,10 @@ the Core strict JSON parser and never synthesizes a receipt. Duplicate keys,
 BOMs, invalid UTF-8, excessive nesting or output, trailing JSON, timeout, and
 uncorrelated receipts fail closed. A pre-Host projection or task budget failure
 uses Core's evidence-only blocked Trace and does not call the Host.
+If a negotiated asset cannot load as Capsule 2, or the process adapter cannot
+be constructed, the CLI emits a Core-built blocked Trace 1 with no fabricated
+Host receipt. Pre-projection evidence remains unavailable; a constructed but
+undelivered request records projection while delivery remains `not_delivered`.
 
 JudgmentTrace 1 keeps delivery, execution, semantic consumption, model
 identity, usage, and conformance separate. A matched receipt establishes the

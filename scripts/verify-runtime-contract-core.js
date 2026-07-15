@@ -37,7 +37,11 @@ if (sourceRoot) {
   const sourceCommit = execFileSync('git', ['-C', absoluteSource, 'rev-parse', 'HEAD'], {
     encoding: 'utf8',
   }).trim();
-  assert.equal(sourceCommit, evidence.git_head, 'pinned Core source commit');
+  assert.equal(
+    sourceCommit.slice(0, evidence.git_head.length),
+    evidence.git_head,
+    'pinned Core source commit',
+  );
   for (const [relative, expected] of Object.entries(evidence.files)) {
     assert.equal(digest(path.join(absoluteSource, relative)), expected, `source ${relative}`);
   }

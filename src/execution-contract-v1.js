@@ -7,7 +7,6 @@ const path = require('node:path');
 const packageStore = require('./package-store');
 const { createProcessAgentHostV2 } = require('./agent-host-process-v2');
 
-const CORE_CAPSULE_VERSIONS = Object.freeze(['2.0', '1.0']);
 const MAX_ASSET_BYTES = 256 * 1024 * 1024;
 const BUDGETS = Object.freeze({
   interactive: Object.freeze({
@@ -37,29 +36,45 @@ function sha256(value) {
   return `sha256:${crypto.createHash('sha256').update(value).digest('hex')}`;
 }
 
-function snapshotAssetFile(assetPath) {
-  const noFollow = fs.constants.O_NOFOLLOW || 0;
+function snapshotCoreCapsuleVersions(core) {
+  const versions = core.DEFAULT_CORE_CAPSULE_VERSIONS;
+  if (
+    !Array.isArray(versions) ||
+    versions.length === 0 ||
+    versions.some((version) => typeof version !== 'string' || version.length === 0)
+  ) {
+    throw new Error('KDNA Core did not export valid default Capsule versions.');
+  }
+  return Object.freeze([...versions]);
+}
+
+function snapshotAssetFile(assetPath, fileSystem = fs) {
+  const noFollow = fileSystem.constants.O_NOFOLLOW || 0;
   let descriptor;
   try {
-    const pathStat = fs.lstatSync(assetPath);
+    const pathStat = fileSystem.lstatSync(assetPath);
     if (pathStat.isSymbolicLink() || !pathStat.isFile()) {
       throw new Error('Runtime contract 1 requires a regular non-symlink packaged .kdna file.');
     }
-    descriptor = fs.openSync(assetPath, fs.constants.O_RDONLY | noFollow);
-    const before = fs.fstatSync(descriptor);
+    descriptor = fileSystem.openSync(assetPath, fileSystem.constants.O_RDONLY | noFollow);
+    const before = fileSystem.fstatSync(descriptor);
     if (!before.isFile())
       throw new Error('Runtime contract 1 requires a regular packaged .kdna file.');
     if (
-      (pathStat.dev !== undefined && pathStat.dev !== before.dev) ||
-      (pathStat.ino !== undefined && pathStat.ino !== before.ino)
+      pathStat.dev === undefined ||
+      pathStat.ino === undefined ||
+      before.dev === undefined ||
+      before.ino === undefined ||
+      pathStat.dev !== before.dev ||
+      pathStat.ino !== before.ino
     ) {
       throw new Error('Packaged asset changed before it was opened.');
     }
     if (before.size <= 0 || before.size > MAX_ASSET_BYTES) {
       throw new Error(`Packaged asset must be between 1 and ${MAX_ASSET_BYTES} bytes.`);
     }
-    const bytes = fs.readFileSync(descriptor);
-    const after = fs.fstatSync(descriptor);
+    const bytes = fileSystem.readFileSync(descriptor);
+    const after = fileSystem.fstatSync(descriptor);
     if (
       bytes.length !== before.size ||
       before.dev !== after.dev ||
@@ -72,7 +87,7 @@ function snapshotAssetFile(assetPath) {
     }
     return bytes;
   } finally {
-    if (descriptor !== undefined) fs.closeSync(descriptor);
+    if (descriptor !== undefined) fileSystem.closeSync(descriptor);
   }
 }
 
@@ -144,6 +159,7 @@ function canonicalAccess(value) {
 
 function prepareExecutionContractV1(target, options = {}) {
   const core = options.core || require('@aikdna/kdna-core');
+  const coreCapsuleVersions = snapshotCoreCapsuleVersions(core);
   const task = options.task;
   const profile = options.profile || 'compact';
   const budgetProfile = options.budgetProfile || 'code-review';
@@ -201,6 +217,7 @@ function prepareExecutionContractV1(target, options = {}) {
     trustedPlanDigest: plan.integrity.plan_digest,
     bytes: snapshot.bytes,
     capsuleExpectedDigests: expectedDigests,
+    coreCapsuleVersions,
     createdAt,
   };
 }
@@ -222,7 +239,7 @@ function traceContext(prepared, capabilities, request, receipt, trustedDeliveryO
     plan: prepared.plan,
     trustedPlanDigest: prepared.trustedPlanDigest,
     capabilities,
-    coreCapsuleVersions: CORE_CAPSULE_VERSIONS,
+    coreCapsuleVersions: prepared.coreCapsuleVersions,
     request,
     receipt,
     trustedDeliveryObservation,
@@ -247,6 +264,18 @@ function buildBlockedBeforeProjection(prepared, capabilities, negotiation) {
   );
 }
 
+function buildBlockedWithoutRequest(prepared, capabilities, code, message, phase) {
+  return prepared.core.buildJudgmentTraceV1(
+    {
+      trace_id: makeTraceId(),
+      timestamp: new Date().toISOString(),
+      overall_status: 'blocked',
+      errors: [issue(code, message, phase)],
+    },
+    traceContext(prepared, capabilities, null, null, 'not_delivered'),
+  );
+}
+
 function terminalFromReceipt(receipt) {
   if (receipt.runtime_receipt.capsule_delivery_comparison === 'mismatched') return 'blocked';
   return {
@@ -264,7 +293,7 @@ async function executePreparedContractV1(prepared, options) {
     plan,
     trustedPlanDigest: prepared.trustedPlanDigest,
     capabilities,
-    coreCapsuleVersions: CORE_CAPSULE_VERSIONS,
+    coreCapsuleVersions: prepared.coreCapsuleVersions,
   };
   const negotiation = core.negotiateExecutionPairV1(plan, baseContext);
   if (
@@ -284,11 +313,23 @@ async function executePreparedContractV1(prepared, options) {
     };
   }
 
-  const capsule = core.loadCapsuleV2(prepared.bytes, {
-    profile: plan.projection_request.profile,
-    expectedDigests: prepared.capsuleExpectedDigests,
-    loadedAt: prepared.createdAt,
-  });
+  let capsule;
+  try {
+    capsule = core.loadCapsuleV2(prepared.bytes, {
+      profile: plan.projection_request.profile,
+      expectedDigests: prepared.capsuleExpectedDigests,
+      loadedAt: prepared.createdAt,
+    });
+  } catch (error) {
+    const trace = buildBlockedWithoutRequest(
+      prepared,
+      capabilities,
+      error.code || 'KDNA_CAPSULE_2_LOAD_FAILED',
+      'Packaged asset could not be projected as a Runtime Capsule 2.',
+      'load',
+    );
+    return { plan, receipt: null, trace };
+  }
   let request;
   try {
     request = core.buildAgentHost2RequestV1({ request_id: makeRequestId(), capsule }, baseContext);
@@ -305,13 +346,33 @@ async function executePreparedContractV1(prepared, options) {
     return { plan, receipt: null, trace };
   }
 
-  const host = (options.createHost || createProcessAgentHostV2)({
-    command: options.command,
-    args: options.args,
-    timeoutMs: options.timeoutMs,
-    core,
-    validationContext: baseContext,
-  });
+  let host;
+  try {
+    host = (options.createHost || createProcessAgentHostV2)({
+      command: options.command,
+      args: options.args,
+      timeoutMs: options.timeoutMs,
+      core,
+      validationContext: baseContext,
+    });
+  } catch (error) {
+    const trace = core.buildJudgmentTraceV1(
+      {
+        trace_id: makeTraceId(),
+        timestamp: new Date().toISOString(),
+        overall_status: 'blocked',
+        errors: [
+          issue(
+            error.code || 'KDNA_HOST_CONFIGURATION_INVALID',
+            'Agent Host 2 adapter could not be constructed.',
+            'host',
+          ),
+        ],
+      },
+      traceContext(prepared, capabilities, request, null, 'not_delivered'),
+    );
+    return { plan, receipt: null, trace };
+  }
   let receipt;
   try {
     receipt = await host.run(request);
@@ -358,8 +419,9 @@ async function executePreparedContractV1(prepared, options) {
 
 module.exports = {
   BUDGETS,
-  CORE_CAPSULE_VERSIONS,
   executePreparedContractV1,
   prepareExecutionContractV1,
   resolvePackagedSnapshot,
+  snapshotAssetFile,
+  snapshotCoreCapsuleVersions,
 };

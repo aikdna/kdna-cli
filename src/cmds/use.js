@@ -40,6 +40,19 @@ try {
   registerRunner('cli', 'default', createCliRunner({ id: 'default' }));
 } catch (_) {}
 
+function optionOccurrences(args, name) {
+  const values = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const value = args[index];
+    if (value === name) {
+      values.push(null);
+    } else if (value.startsWith(`${name}=`)) {
+      values.push(value.slice(name.length + 1));
+    }
+  }
+  return values;
+}
+
 function runRuntimeContractV1(options) {
   const {
     target,
@@ -206,21 +219,35 @@ function cmdUse(args) {
   const agentHostCommand = getFlag('--agent-host');
   const agentHostArgs = getFlags('--agent-host-arg');
   const capabilityPath = getFlag('--agent-host-capabilities');
-  const runtimeContractArg = args.find(
-    (value) => value === '--runtime-contract' || value.startsWith('--runtime-contract='),
-  );
+  const runtimeContractValues = optionOccurrences(args, '--runtime-contract');
+  const timeoutValues = optionOccurrences(args, '--timeout');
   const budgetProfile = getFlag('--budget') || 'code-review';
   const shape = getFlag('--shape') || 'compact';
-  const timeoutMs = parseInt(getFlag('--timeout') || '30000', 10);
+  const timeoutValue = getFlag('--timeout');
+  const timeoutMs = parseInt(timeoutValue || '30000', 10);
   const as = getFlag('--as') || 'json';
   const outPath = getFlag('--out');
   const planOnly = args.includes('--plan-only');
   const dryRun = args.includes('--dry-run');
 
-  if (runtimeContractArg) {
-    const runtimeContract = getFlag('--runtime-contract');
-    if (runtimeContract !== '1') {
-      error('Unknown --runtime-contract value; no legacy fallback was selected.', EXIT.INPUT_ERROR);
+  if (runtimeContractValues.length > 0) {
+    if (runtimeContractValues.length !== 1 || runtimeContractValues[0] !== '1') {
+      error(
+        'Runtime contract must be one unique --runtime-contract=1 occurrence; no legacy fallback was selected.',
+        EXIT.INPUT_ERROR,
+      );
+    }
+    if (
+      timeoutValues.length > 1 ||
+      (timeoutValues.length === 1 &&
+        (!/^[1-9][0-9]*$/.test(timeoutValues[0] || '') ||
+          !Number.isSafeInteger(Number(timeoutValues[0])) ||
+          Number(timeoutValues[0]) > 2_147_483_647))
+    ) {
+      error(
+        'Runtime contract 1 --timeout must be one positive integer no greater than 2147483647.',
+        EXIT.INPUT_ERROR,
+      );
     }
     return runRuntimeContractV1({
       target,

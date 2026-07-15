@@ -156,6 +156,9 @@ kdna use ./asset.kdna \
 The strict path accepts one regular packaged `.kdna` file or installed asset.
 It rejects source directories, Cluster, mock runners, missing process Hosts,
 unknown contract values, and unsupported capability pairs without downgrading.
+The opt-in must appear exactly once in `--runtime-contract=1` form; bare,
+space-separated, or repeated occurrences fail closed. Strict process timeouts
+must likewise use one positive integer `--timeout=<ms>` value.
 See [`docs/consumption-runtime.md`](docs/consumption-runtime.md) for the bound
 registration format and evidence limits.
 

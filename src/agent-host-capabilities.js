@@ -19,29 +19,33 @@ function ownKeysExactly(value, expected) {
   return JSON.stringify(actual) === JSON.stringify([...expected].sort());
 }
 
-function snapshotRegularFile(filePath, maxBytes = MAX_REGISTRATION_BYTES) {
+function snapshotRegularFile(filePath, maxBytes = MAX_REGISTRATION_BYTES, fileSystem = fs) {
   const absolute = path.resolve(filePath);
-  const noFollow = fs.constants.O_NOFOLLOW || 0;
+  const noFollow = fileSystem.constants.O_NOFOLLOW || 0;
   let descriptor;
   try {
-    const pathStat = fs.lstatSync(absolute);
+    const pathStat = fileSystem.lstatSync(absolute);
     if (pathStat.isSymbolicLink() || !pathStat.isFile()) {
       throw new Error('Capability registration must be a regular non-symlink file.');
     }
-    descriptor = fs.openSync(absolute, fs.constants.O_RDONLY | noFollow);
-    const before = fs.fstatSync(descriptor);
+    descriptor = fileSystem.openSync(absolute, fileSystem.constants.O_RDONLY | noFollow);
+    const before = fileSystem.fstatSync(descriptor);
     if (!before.isFile()) throw new Error('Capability registration must be a regular file.');
     if (
-      (pathStat.dev !== undefined && pathStat.dev !== before.dev) ||
-      (pathStat.ino !== undefined && pathStat.ino !== before.ino)
+      pathStat.dev === undefined ||
+      pathStat.ino === undefined ||
+      before.dev === undefined ||
+      before.ino === undefined ||
+      pathStat.dev !== before.dev ||
+      pathStat.ino !== before.ino
     ) {
       throw new Error('Capability registration changed before it was opened.');
     }
     if (before.size <= 0 || before.size > maxBytes) {
       throw new Error(`Capability registration must be between 1 and ${maxBytes} bytes.`);
     }
-    const bytes = fs.readFileSync(descriptor);
-    const after = fs.fstatSync(descriptor);
+    const bytes = fileSystem.readFileSync(descriptor);
+    const after = fileSystem.fstatSync(descriptor);
     if (
       bytes.length !== before.size ||
       bytes.length > maxBytes ||
@@ -55,7 +59,7 @@ function snapshotRegularFile(filePath, maxBytes = MAX_REGISTRATION_BYTES) {
     }
     return bytes;
   } finally {
-    if (descriptor !== undefined) fs.closeSync(descriptor);
+    if (descriptor !== undefined) fileSystem.closeSync(descriptor);
   }
 }
 

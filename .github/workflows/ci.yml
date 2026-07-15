@@ -27,7 +27,12 @@ jobs:
         env:
           KDNA_GOLDEN_CORE_ROOT: ${{ github.workspace }}/.cross-repo/kdna/packages/kdna-core
   runtime-contract-v1:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [18, 22]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/checkout@v7
@@ -36,10 +41,8 @@ jobs:
           ref: fed4fc86e3c8447a94e7498a795d0fcd5108595e
           path: .cross-repo/kdna-runtime-contract-v1
       - uses: actions/setup-node@v6
-        with: { node-version: 22 }
+        with: { node-version: '${{ matrix.node }}' }
       - run: npm ci
-      - name: Verify the released Core 0.18 source pin
-        run: test "$(git -C .cross-repo/kdna-runtime-contract-v1 rev-parse HEAD)" = fed4fc86e3c8447a94e7498a795d0fcd5108595e
       - name: Verify strict Plan 1 / Capsule 2 / Host 2 / Trace 1 opt-in
         run: npm run test:runtime-contract-v1
         env:

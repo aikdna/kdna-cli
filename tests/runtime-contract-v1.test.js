@@ -12,12 +12,14 @@ const core = require('@aikdna/kdna-core');
 const {
   LEGACY_CAPABILITIES,
   createAgentHostCapabilityRegistry,
+  snapshotRegularFile,
 } = require('../src/agent-host-capabilities');
 const { createProcessAgentHostV2 } = require('../src/agent-host-process-v2');
 const {
   BUDGETS,
   executePreparedContractV1,
   prepareExecutionContractV1,
+  snapshotAssetFile,
 } = require('../src/execution-contract-v1');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
@@ -33,11 +35,19 @@ const REGISTERED = Object.freeze({
 
 let root;
 let asset;
+let invalidPayloadAsset;
 
 before(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-runtime-contract-1-'));
   asset = path.join(root, 'fixture.kdna');
   core.pack(path.resolve(__dirname, '..', 'fixtures', 'v1-minimal'), asset);
+  const invalidSource = path.join(root, 'invalid-payload-source');
+  fs.cpSync(path.resolve(__dirname, '..', 'fixtures', 'v1-minimal'), invalidSource, {
+    recursive: true,
+  });
+  fs.writeFileSync(path.join(invalidSource, 'payload.kdnab'), Buffer.from('not-cbor', 'utf8'));
+  invalidPayloadAsset = path.join(root, 'invalid-payload.kdna');
+  core.pack(invalidSource, invalidPayloadAsset);
 });
 
 after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -71,12 +81,19 @@ function registration(file, command, args, capabilities = REGISTERED) {
   return file;
 }
 
-function hostScript(file, status = 'completed', mismatch = false, captureFile = null) {
+function hostScript(
+  file,
+  status = 'completed',
+  mismatch = false,
+  captureFile = null,
+  expectedArgs = null,
+) {
   return write(
     file,
     `'use strict';
 const core = require(${JSON.stringify(CORE_ENTRY)});
 const fs = require('node:fs');
+${expectedArgs ? `if (JSON.stringify(process.argv.slice(2)) !== ${JSON.stringify(JSON.stringify(expectedArgs))}) process.exit(19);` : ''}
 const chunks = [];
 process.stdin.on('data', (chunk) => { chunks.push(chunk); });
 process.stdin.on('end', () => {
@@ -151,7 +168,7 @@ function preparedRequest() {
     plan: prepared.plan,
     trustedPlanDigest: prepared.trustedPlanDigest,
     capabilities: REGISTERED,
-    coreCapsuleVersions: ['2.0', '1.0'],
+    coreCapsuleVersions: core.DEFAULT_CORE_CAPSULE_VERSIONS,
   };
   const capsule = core.loadCapsuleV2(prepared.bytes, {
     profile: prepared.plan.projection_request.profile,
@@ -174,6 +191,37 @@ test('Core is an exact 0.18.0 dependency and the default contract remains 0.9', 
   assert.equal(JSON.parse(legacy.stdout).plan_version, '0.9.0');
 });
 
+test('Core default Capsule versions are the only authority and are snapshotted immutably', async () => {
+  const prepared = prepareExecutionContractV1(asset, { task: 'Review Core version authority.' });
+  assert.deepEqual(prepared.coreCapsuleVersions, core.DEFAULT_CORE_CAPSULE_VERSIONS);
+  assert.notStrictEqual(prepared.coreCapsuleVersions, core.DEFAULT_CORE_CAPSULE_VERSIONS);
+  assert.throws(() => prepared.coreCapsuleVersions.push('9.0'));
+
+  const coreWithOneDefault = new Proxy(core, {
+    get(target, property) {
+      if (property === 'DEFAULT_CORE_CAPSULE_VERSIONS') return Object.freeze(['1.0']);
+      return target[property];
+    },
+  });
+  const selectedFromCore = prepareExecutionContractV1(asset, {
+    core: coreWithOneDefault,
+    task: 'Review Core-selected versions.',
+  });
+  let calls = 0;
+  const execution = await executePreparedContractV1(selectedFromCore, {
+    capabilities: REGISTERED,
+    command: process.execPath,
+    args: [],
+    createHost: () => {
+      calls += 1;
+      throw new Error('must not be called');
+    },
+  });
+  assert.equal(calls, 0);
+  assert.deepEqual(execution.trace.runtime_contract.core_capsule_versions, ['1.0']);
+  assert.equal(execution.trace.runtime_contract.negotiation_state, 'blocked');
+});
+
 test('exported budget profiles cannot be mutated across Plan builds', () => {
   assert.throws(() => {
     BUDGETS.interactive.max_projection_chars = 1;
@@ -188,13 +236,49 @@ test('exported budget profiles cannot be mutated across Plan builds', () => {
 test('runtime-contract flag is isolated and unknown values never fall back', () => {
   const unknown = run(['plan-use', asset, '--task=Review', '--runtime-contract=2']);
   assert.notEqual(unknown.status, 0);
-  assert.match(unknown.stderr, /Unknown --runtime-contract/);
+  assert.match(unknown.stderr, /one unique --runtime-contract=1/);
   const leaked = run(['plan-use', asset, '--task=Review', '--agent-host-capabilities=x']);
   assert.equal(leaked.status, 0, leaked.stderr);
   assert.equal(JSON.parse(leaked.stdout).plan_version, '0.9.0');
   const useLeaked = run(['use', asset, '--task=Review', '--agent-host-capabilities=x']);
   assert.notEqual(useLeaked.status, 0);
   assert.match(useLeaked.stderr, /requires --runtime-contract=1/);
+});
+
+test('plan-use rejects every duplicate runtime-contract occurrence', () => {
+  for (const values of [
+    ['1', '2'],
+    ['1', '1'],
+  ]) {
+    const result = run([
+      'plan-use',
+      asset,
+      '--task=Review',
+      `--runtime-contract=${values[0]}`,
+      `--runtime-contract=${values[1]}`,
+    ]);
+    assert.notEqual(result.status, 0, values.join('+'));
+    assert.match(result.stderr, /one unique --runtime-contract=1/);
+    assert.equal(result.stdout, '');
+  }
+});
+
+test('use rejects every duplicate runtime-contract occurrence', () => {
+  for (const values of [
+    ['1', '2'],
+    ['1', '1'],
+  ]) {
+    const result = run([
+      'use',
+      asset,
+      '--task=Review',
+      `--runtime-contract=${values[0]}`,
+      `--runtime-contract=${values[1]}`,
+    ]);
+    assert.notEqual(result.status, 0, values.join('+'));
+    assert.match(result.stderr, /one unique --runtime-contract=1/);
+    assert.equal(result.stdout, '');
+  }
 });
 
 test('Plan 1 uses one packaged-byte snapshot and contains no local path', () => {
@@ -241,7 +325,7 @@ test('Plan 1 uses one packaged-byte snapshot and contains no local path', () => 
         plan: prepared.plan,
         trustedPlanDigest: prepared.trustedPlanDigest,
         capabilities: REGISTERED,
-        coreCapsuleVersions: ['2.0', '1.0'],
+        coreCapsuleVersions: core.DEFAULT_CORE_CAPSULE_VERSIONS,
       }).valid,
       true,
     );
@@ -334,23 +418,48 @@ test('capability registration is strict, process-bound, snapshotted, and mutatio
     const invalid = write(path.join(root, `${name}.json`), raw);
     assert.throws(() => registry.registerProcessFile(invalid, selected), undefined, name);
   }
+});
 
-  if (process.platform !== 'win32') {
-    const realRegistration = registration(
-      path.join(root, 'real-registration.json'),
-      process.execPath,
-      [script],
-    );
-    const linkedRegistration = path.join(root, 'linked-registration.json');
-    fs.symlinkSync(realRegistration, linkedRegistration);
-    assert.throws(() => registry.registerProcessFile(linkedRegistration, selected), /non-symlink/);
-    const linkedAsset = path.join(root, 'linked-asset.kdna');
-    fs.symlinkSync(asset, linkedAsset);
-    assert.throws(
-      () => prepareExecutionContractV1(linkedAsset, { task: 'Review symlink.' }),
-      /regular packaged \.kdna|non-symlink/,
-    );
-  }
+test('symlink and lstat-to-open replacement checks run without relying on O_NOFOLLOW', () => {
+  const fileStat = (dev, ino) => ({
+    dev,
+    ino,
+    size: 4,
+    mtimeMs: 1,
+    ctimeMs: 1,
+    isFile: () => true,
+    isSymbolicLink: () => false,
+  });
+  const symlinkStat = {
+    ...fileStat(1, 1),
+    isFile: () => false,
+    isSymbolicLink: () => true,
+  };
+  const facade = (pathStat, openedStat) => ({
+    constants: { O_RDONLY: 0 },
+    lstatSync: () => pathStat,
+    openSync: () => 7,
+    fstatSync: () => openedStat,
+    readFileSync: () => Buffer.from('safe'),
+    closeSync: () => {},
+  });
+
+  assert.throws(
+    () => snapshotRegularFile('registration.json', 64, facade(symlinkStat, fileStat(1, 1))),
+    /non-symlink/,
+  );
+  assert.throws(
+    () => snapshotAssetFile('asset.kdna', facade(symlinkStat, fileStat(1, 1))),
+    /non-symlink/,
+  );
+  assert.throws(
+    () => snapshotRegularFile('registration.json', 64, facade(fileStat(1, 1), fileStat(2, 2))),
+    /changed before it was opened/,
+  );
+  assert.throws(
+    () => snapshotAssetFile('asset.kdna', facade(fileStat(1, 1), fileStat(2, 2))),
+    /changed before it was opened/,
+  );
 });
 
 test('registered descriptor must also pass Core capability schema before projection', async () => {
@@ -388,6 +497,113 @@ test('negotiation blocks legacy, missing Capsule 2, Host 2, or P before Host cal
     assert.equal(execution.trace.overall_status, 'blocked');
     assert.equal(execution.trace.projection_actual.profile, null);
   }
+});
+
+test('selected negotiation followed by Capsule load failure returns an honest blocked Trace 1', () => {
+  const planned = run([
+    'plan-use',
+    invalidPayloadAsset,
+    '--task=Review invalid payload',
+    '--runtime-contract=1',
+    '--as=json',
+  ]);
+  assert.equal(planned.status, 0, planned.stderr);
+  const plan = JSON.parse(planned.stdout);
+  const negotiation = core.negotiateExecutionPairV1(plan, {
+    trustedPlanDigest: plan.integrity.plan_digest,
+    capabilities: REGISTERED,
+    coreCapsuleVersions: core.DEFAULT_CORE_CAPSULE_VERSIONS,
+  });
+  assert.equal(negotiation.state, 'selected');
+
+  const capture = path.join(root, 'invalid-payload-host-capture.json');
+  const script = hostScript(
+    path.join(root, 'invalid-payload-host.js'),
+    'completed',
+    false,
+    capture,
+  );
+  const descriptor = registration(path.join(root, 'invalid-payload-host.json'), process.execPath, [
+    script,
+  ]);
+  const result = run([
+    'use',
+    invalidPayloadAsset,
+    '--task=Review invalid payload',
+    '--runtime-contract=1',
+    '--runner=cli:default',
+    `--agent-host=${process.execPath}`,
+    `--agent-host-arg=${script}`,
+    `--agent-host-capabilities=${descriptor}`,
+    '--as=trace',
+  ]);
+  assert.notEqual(result.status, 0);
+  assert.equal(result.stderr, '');
+  assert.equal(fs.existsSync(capture), false);
+  const trace = JSON.parse(result.stdout);
+  assert.equal(trace.trace_version, '1.0.0');
+  assert.equal(trace.overall_status, 'blocked');
+  assert.equal(trace.errors[0].phase, 'load');
+  assert.equal(trace.runtime_contract.negotiation_state, 'not_started');
+  assert.equal(trace.runtime_contract.issue_code, null);
+  assert.equal(trace.projection_actual.profile, null);
+  assert.equal(trace.digest_evidence.asset.comparison.state, 'unavailable');
+  assert.equal(trace.capsule_delivery_evidence.host_boundary_comparison, 'unavailable');
+  assert.equal(trace.capsule_delivery_evidence.request_id, null);
+  assert.equal(trace.execution.delivery_status, 'not_delivered');
+  assert.equal(trace.host_receipt, null);
+});
+
+test('Host adapter construction failure returns a blocked Trace without a receipt', async () => {
+  const prepared = prepareExecutionContractV1(asset, { task: 'Review Host construction.' });
+  const execution = await executePreparedContractV1(prepared, {
+    capabilities: REGISTERED,
+    command: process.execPath,
+    args: [],
+    timeoutMs: 5000,
+    createHost: () => {
+      throw new Error('construction detail must not escape');
+    },
+  });
+  assert.equal(execution.receipt, null);
+  assert.equal(execution.trace.overall_status, 'blocked');
+  assert.equal(execution.trace.errors[0].phase, 'host');
+  assert.equal(execution.trace.host_receipt, null);
+  assert.equal(execution.trace.capsule_delivery_evidence.host_boundary_comparison, 'not_delivered');
+  assert.equal(execution.trace.capsule_delivery_evidence.request_id, null);
+  assert.equal(execution.trace.execution.execution_status, 'not_started');
+});
+
+test('runtime contract rejects space-form flags and invalid timeout before execution', () => {
+  for (const command of ['plan-use', 'use']) {
+    for (const args of [
+      [command, asset, '--task=Review', '--runtime-contract', '1'],
+      [command, '--runtime-contract', '1', asset, '--task=Review'],
+    ]) {
+      const result = run(args);
+      assert.notEqual(result.status, 0, command);
+      assert.match(result.stderr, /one unique --runtime-contract=1/);
+      assert.equal(result.stdout, '');
+    }
+  }
+  for (const timeout of ['100', '0', '-1', '1ms', '2147483648']) {
+    const timeoutArgs = timeout === '100' ? ['--timeout', timeout] : [`--timeout=${timeout}`];
+    const result = run(['use', asset, '--task=Review', '--runtime-contract=1', ...timeoutArgs]);
+    assert.notEqual(result.status, 0, timeout);
+    assert.match(result.stderr, /positive integer/);
+    assert.equal(result.stdout, '');
+  }
+  const timeoutBeforeTarget = run([
+    'use',
+    '--runtime-contract=1',
+    '--timeout',
+    '100',
+    asset,
+    '--task=Review',
+  ]);
+  assert.notEqual(timeoutBeforeTarget.status, 0);
+  assert.match(timeoutBeforeTarget.stderr, /positive integer/);
+  assert.equal(timeoutBeforeTarget.stdout, '');
 });
 
 test('over-budget evidence uses Core terminal and calls Host adapter zero times', async () => {
@@ -487,6 +703,42 @@ test('Host 2 process timeout and diagnostic output are bounded', async () => {
     }).run(request),
     (error) => error.code === 'KDNA_HOST_DIAGNOSTIC_LIMIT',
   );
+});
+
+test('Host 2 executes exact ordered args containing spaces and shell metacharacters', () => {
+  const exactArgs = [
+    'argument with spaces',
+    '$HOME & echo injected | more; $(whoami)',
+    '"quoted" \'single\' \\backslash ^caret %PATH% !bang!',
+    '--looks-like-an-option',
+  ];
+  const script = hostScript(
+    path.join(root, 'host exact argv.js'),
+    'completed',
+    false,
+    null,
+    exactArgs,
+  );
+  const processArgs = [script, ...exactArgs];
+  const descriptor = registration(
+    path.join(root, 'host exact argv registration.json'),
+    process.execPath,
+    processArgs,
+  );
+  const result = run([
+    'use',
+    asset,
+    '--task=Review exact process arguments',
+    '--runtime-contract=1',
+    '--runner=cli:default',
+    `--agent-host=${process.execPath}`,
+    ...processArgs.map((argument) => `--agent-host-arg=${argument}`),
+    `--agent-host-capabilities=${descriptor}`,
+    '--budget=offline-audit',
+    '--as=trace',
+  ]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).overall_status, 'execution_completed');
 });
 
 test('strict Trace distinguishes not_delivered from delivered-but-not_observed', async () => {
