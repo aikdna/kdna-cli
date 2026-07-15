@@ -62,7 +62,13 @@ const rules = [
   {
     name: 'full-commit-hash',
     pattern: /(?<![a-f0-9])[a-f0-9]{40}(?![a-f0-9])/gi,
-    excludePaths: ['.github/workflows/', 'ecosystem-manifest.json'],
+    excludePaths: [
+      '.github/workflows/',
+      'ecosystem-manifest.json',
+      // This public release-evidence fixture deliberately binds a registry
+      // package to its exact published source commit.
+      'tests/fixtures/core-0.18-release-evidence.json',
+    ],
     hint: 'Use a short public ref or a public acceptance-note link.',
   },
   {
