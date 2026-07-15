@@ -11,6 +11,9 @@ const { compareExactVersions, parseName, selectRegistryEntry } = require('../src
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'minimal');
 const NAME = '@example/versioned-review';
+const CORE_ENTRY = process.env.KDNA_CORE_SOURCE_ROOT
+  ? path.join(path.resolve(process.env.KDNA_CORE_SOURCE_ROOT), 'src', 'index.js')
+  : require.resolve('@aikdna/kdna-core');
 
 function run(args, { env, cwd } = {}) {
   try {
@@ -93,6 +96,70 @@ function runAsync(args, { env, cwd } = {}) {
 
 function sha256(file) {
   return `sha256:${crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')}`;
+}
+
+function currentAgentHost(root) {
+  const host = path.join(root, 'current-agent-host.js');
+  fs.writeFileSync(
+    host,
+    `'use strict';
+const core = require(${JSON.stringify(CORE_ENTRY)});
+const chunks = [];
+process.stdin.on('data', (chunk) => chunks.push(chunk));
+process.stdin.on('end', () => {
+  const request = core.parseRuntimeContractJson(Buffer.concat(chunks));
+  const digest = core.computeCapsuleDeliveryDigest(request.capsule);
+  process.stdout.write(JSON.stringify({
+    protocol: request.protocol,
+    protocol_version: request.protocol_version,
+    request_id: request.request_id,
+    runtime_receipt: {
+      type: 'kdna.agent-host.runtime-receipt',
+      contract_version: '0.1.0',
+      capsule_version: '0.1.0',
+      capsule_digest_profile: 'kdna.canonicalization.runtime-capsule-jcs',
+      capsule_digest_profile_version: '0.1.0',
+      sender_capsule_delivery_digest: request.runtime_contract.capsule_delivery_digest,
+      host_recomputed_capsule_delivery_digest: digest,
+      echoed_capsule_delivery_digest: digest,
+      capsule_delivery_comparison: 'matched',
+      capsule_schema_validation: 'passed',
+      asset_id_correlation: 'matched',
+      provider_execution_status: 'completed',
+      semantic_consumption: { state: 'not_observed', basis: null },
+      model_identity: { value: null, basis: 'not_observed' },
+      usage: {
+        elapsed_ms: 1,
+        elapsed_basis: 'host_monotonic',
+        tokens_used: null,
+        model_calls: null,
+        basis: 'not_observed'
+      }
+    },
+    outcome: {
+      judgment: { answer: 'Pinned asset consumed.', reasoning: [], confidence: null },
+      usage: null
+    }
+  }));
+});
+`,
+  );
+  const descriptor = path.join(root, 'current-agent-host-capabilities.json');
+  writeJson(descriptor, {
+    type: 'kdna.cli.agent-host-registration',
+    protocol_version: '0.1.0',
+    process: { command: process.execPath, args: [host] },
+    capabilities: {
+      type: 'kdna.agent-host-capabilities',
+      protocol_version: '0.1.0',
+      capability_basis: 'registered_descriptor',
+      host_protocols: ['kdna.agent-host'],
+      capsule_versions: ['0.1.0'],
+      capsule_digest_profiles: ['kdna.canonicalization.runtime-capsule-jcs'],
+      capsule_digest_profile_versions: ['0.1.0'],
+    },
+  });
+  return { host, descriptor };
 }
 
 function withFreshPackageStore(env, callback) {
@@ -250,15 +317,20 @@ test('version-aware install, migration, inspect, plan, use, remove and rollback'
   assert.ok(plannedV1.ok, plannedV1.stderr);
   const plan = JSON.parse(plannedV1.stdout);
   assert.equal(plan.asset_ref.version, '1.0.0');
-  assert.equal(plan.asset_ref.digest, sha256(v1.asset));
-  assert.equal(plan.load_plan_ref.status, 'ready');
+  assert.equal(plan.asset_ref.expected_digests.asset.value, sha256(v1.asset));
+  assert.equal(plan.type, 'kdna.consumption-plan');
+  assert.equal(plan.contract_version, '0.1.0');
 
+  const agentHost = currentAgentHost(root);
   const usedV1 = run(
     [
       'use',
       `${NAME}@1.0.0`,
       '--task=Review the pinned lifecycle.',
-      '--runner=mock:default',
+      '--runner=cli:default',
+      `--agent-host=${process.execPath}`,
+      `--agent-host-arg=${agentHost.host}`,
+      `--agent-host-capabilities=${agentHost.descriptor}`,
       '--budget=offline-audit',
       '--as=trace',
     ],
@@ -267,7 +339,7 @@ test('version-aware install, migration, inspect, plan, use, remove and rollback'
   assert.ok(usedV1.ok, usedV1.stderr);
   const trace = JSON.parse(usedV1.stdout);
   assert.equal(trace.asset_identity.version, '1.0.0');
-  assert.equal(trace.asset_identity.digest, sha256(v1.asset));
+  assert.equal(trace.digest_evidence.asset.value, sha256(v1.asset));
 
   const removeV2 = run(['remove', `${NAME}@1.1.0`], { env, cwd: project });
   assert.ok(removeV2.ok, removeV2.stderr);
@@ -284,8 +356,8 @@ test('version-aware install, migration, inspect, plan, use, remove and rollback'
   assert.equal(JSON.parse(inspectRollback.stdout).version, '1.0.0');
 
   const missing = run(['use', `${NAME}@9.9.9`, '--task=missing'], { env, cwd: project });
-  assert.equal(missing.code, 2);
-  assert.match(missing.stderr, /Asset not found/);
+  assert.equal(missing.code, 1);
+  assert.match(missing.stderr, /Installed packaged asset was not found/);
 });
 
 test('invalid local asset install fails closed unless explicitly overridden', () => {
@@ -312,12 +384,23 @@ test('invalid local asset install fails closed unless explicitly overridden', ()
   assert.equal(receipt.verification.valid, false);
   assert.equal(receipt.verification.allow_unverified, true);
 
-  const blocked = run(['use', NAME, '--task=Review the tampered asset.', '--runner=mock:default'], {
-    env,
-    cwd: project,
-  });
-  assert.equal(blocked.code, 3);
-  assert.match(blocked.stderr, /LoadPlan is blocked/);
+  const agentHost = currentAgentHost(root);
+  const blocked = run(
+    [
+      'use',
+      NAME,
+      '--task=Review the tampered asset.',
+      `--agent-host=${process.execPath}`,
+      `--agent-host-arg=${agentHost.host}`,
+      `--agent-host-capabilities=${agentHost.descriptor}`,
+    ],
+    { env, cwd: project },
+  );
+  assert.notEqual(blocked.code, 0);
+  const blockedOutput = JSON.parse(blocked.stdout);
+  assert.equal(blockedOutput.status, 'blocked');
+  assert.equal(blockedOutput.trace.overall_status, 'blocked');
+  assert.ok(blockedOutput.trace.errors.length > 0);
 });
 
 test('atomic index failure leaves the old index intact and recovers the committed asset', () => {

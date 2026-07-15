@@ -1,5 +1,5 @@
 /**
- * v1-global-cli.test.js — KDNA Core v1 route tests for aikdna/kdna-cli.
+ * current-global-cli.test.js — current KDNA Core route tests for aikdna/kdna-cli.
  */
 const { after, test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -10,6 +10,7 @@ const crypto = require('node:crypto');
 const cbor = require('cbor-x');
 const core = require('@aikdna/kdna-core');
 const os = require('node:os');
+const { currentManifest, currentJudgmentPayload } = require('./helpers/current-asset');
 
 function readPayload(p) {
   const buf = fs.readFileSync(p);
@@ -22,7 +23,7 @@ function readPayload(p) {
 
 const cliBin = path.join(__dirname, '..', 'src', 'cli.js');
 const fixture = path.join(__dirname, '..', 'fixtures', 'minimal');
-const packedFixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-v1-global-'));
+const packedFixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-current-global-'));
 const packedFixture = path.join(packedFixtureDir, 'minimal.kdna');
 core.pack(fixture, packedFixture);
 after(() => fs.rmSync(packedFixtureDir, { recursive: true, force: true }));
@@ -41,21 +42,21 @@ function runCli(args) {
   });
 }
 
-test('kdna inspect v1 source dir returns content-neutral JSON', () => {
+test('kdna inspect current source dir returns content-neutral JSON', () => {
   const r = runCli(['inspect', fixture]);
   assert.equal(r.status, 0, r.stderr);
   const out = JSON.parse(r.stdout);
-  assert.equal(out.kdna_version, '1.0');
+  assert.equal(out.format_version, '0.1.0');
   assert.equal(out.asset_id, 'kdna:example:deployment-review');
   assert.equal(out.payload, 'payload.kdnab');
   assert.equal(out.payload_encrypted, false);
-  assert.equal(out.profile, 'judgment-profile-v1');
+  assert.equal(out.profile, 'kdna.payload.judgment');
   for (const term of FORBIDDEN_TERMS) {
     assert.ok(!Object.prototype.hasOwnProperty.call(out, term), `forbidden term "${term}" present`);
   }
 });
 
-test('kdna validate v1 source dir reports overall_valid=true', () => {
+test('kdna validate current source dir reports overall_valid=true', () => {
   const r = runCli(['validate', fixture]);
   assert.equal(r.status, 0, r.stderr);
   const out = JSON.parse(r.stdout);
@@ -110,7 +111,7 @@ test('kdna plan-load uses the Core LoadPlan API when available', () => {
   const r = runCli(['plan-load', packedFixture, '--json']);
   if (typeof core.planLoad !== 'function') {
     assert.equal(r.status, 6, r.stderr);
-    assert.match(r.stderr, /requires @aikdna\/kdna-core with the LoadPlan v1 API/);
+    assert.match(r.stderr, /requires @aikdna\/kdna-core with the LoadPlan API/);
     return;
   }
 
@@ -122,7 +123,7 @@ test('kdna plan-load uses the Core LoadPlan API when available', () => {
   assert.equal(out.can_load_now, true);
 });
 
-test('kdna load refuses v1 assets when LoadPlan cannot load now', () => {
+test('kdna load refuses current assets when LoadPlan cannot load now', () => {
   if (typeof core.planLoad !== 'function') return;
   const tmp = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'kdna-cli-load-denied-'));
   const secret = 'CLI_SECRET_PAYLOAD_SHOULD_NOT_LEAK';
@@ -202,13 +203,13 @@ test('kdna unpack + validate round-trip', () => {
   }
 });
 
-test('kdna validate on non-v1 dir does NOT wrongly pass', () => {
+test('kdna validate on incomplete source dir does NOT wrongly pass', () => {
   const dir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'kdna-cli-bad-'));
   try {
     // dir with kdna.json but no mimetype — must fail
-    fs.writeFileSync(path.join(dir, 'kdna.json'), JSON.stringify({ kdna_version: '1.0' }));
+    fs.writeFileSync(path.join(dir, 'kdna.json'), JSON.stringify({ format_version: '0.1.0' }));
     const r = runCli(['validate', dir]);
-    assert.notEqual(r.status, 0, 'must not pass a non-v1 dir');
+    assert.notEqual(r.status, 0, 'must not pass an incomplete source dir');
     assert.ok(!/overall_valid.*true/.test(r.stdout + r.stderr));
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -221,8 +222,7 @@ test('kdna validate on lineage-as-array exits non-zero', () => {
     fs.writeFileSync(path.join(dir, 'mimetype'), 'application/vnd.kdna.asset');
     fs.writeFileSync(
       path.join(dir, 'kdna.json'),
-      JSON.stringify({
-        kdna_version: '1.0',
+      JSON.stringify(currentManifest({
         asset_id: 'kdna:test:lineage-arr',
         asset_uid: 'urn:uuid:00000000-0000-4000-8000-000000000099',
         asset_type: 'sample',
@@ -232,17 +232,14 @@ test('kdna validate on lineage-as-array exits non-zero', () => {
         created_at: '2026-01-01T00:00:00Z',
         updated_at: '2026-01-01T00:00:00Z',
         creator: { name: 'Test' },
-        compatibility: { min_loader_version: '1.0.0', profile: 'judgment-profile-v1' },
-        payload: { path: 'payload.kdnab', encoding: 'json', encrypted: false },
         lineage: [{ type: 'original' }],
-      }),
+      })),
     );
     fs.writeFileSync(
       path.join(dir, 'payload.kdnab'),
-      JSON.stringify({
-        profile: 'judgment-profile-v1',
+      cbor.encode(currentJudgmentPayload({
         core: { highest_question: 'q', axioms: [] },
-      }),
+      })),
     );
     const r = runCli(['validate', dir]);
     assert.notEqual(r.status, 0, 'lineage as array must be rejected');
@@ -251,7 +248,7 @@ test('kdna validate on lineage-as-array exits non-zero', () => {
   }
 });
 
-test('kdna inspect on v1 container round-trips through pack', () => {
+test('kdna inspect on current container round-trips through pack', () => {
   const tmp = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'kdna-cli-ct-'));
   try {
     const packed = path.join(tmp, 'inspect-test.kdna');
@@ -259,7 +256,7 @@ test('kdna inspect on v1 container round-trips through pack', () => {
     const r = runCli(['inspect', packed]);
     assert.equal(r.status, 0, r.stderr);
     const out = JSON.parse(r.stdout);
-    assert.equal(out.kdna_version, '1.0');
+    assert.equal(out.format_version, '0.1.0');
     assert.equal(out.asset_id, 'kdna:example:deployment-review');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
