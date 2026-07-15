@@ -171,8 +171,8 @@ function showHelp() {
                                      --profile=<index|compact|scenario|full>
                                      --as=<json|prompt|raw>
                                      --namespace=<component-id>
-                                     --remote-server <url>   Use a server base
-                                       URL or exact /project
+                                     --remote-server <url>   Use a visible-ASCII
+                                       HTTP(S) server base URL or exact /project
                                        endpoint with kdna-remote-server for
                                        access: "remote" assets.
                                        Equivalent to the
@@ -1492,16 +1492,11 @@ function resolveRemoteProjectionUrl(remoteServer) {
         character === '\\' ||
         character === '?' ||
         character === '#' ||
-        /\s/u.test(character) ||
-        codePoint <= 0x1f ||
-        codePoint === 0x7f
+        codePoint < 0x21 ||
+        codePoint > 0x7e
       );
     });
-  if (
-    typeof remoteServer !== 'string' ||
-    remoteServer.length === 0 ||
-    hasForbiddenRawCharacter
-  ) {
+  if (typeof remoteServer !== 'string' || remoteServer.length === 0 || hasForbiddenRawCharacter) {
     throw new Error('remote server URL contains forbidden raw characters');
   }
 
@@ -1509,8 +1504,7 @@ function resolveRemoteProjectionUrl(remoteServer) {
   if (!scheme) throw new Error('unsupported protocol');
   const authorityAndPath = remoteServer.slice(scheme[0].length);
   const pathOffset = authorityAndPath.indexOf('/');
-  const authority =
-    pathOffset === -1 ? authorityAndPath : authorityAndPath.slice(0, pathOffset);
+  const authority = pathOffset === -1 ? authorityAndPath : authorityAndPath.slice(0, pathOffset);
   const rawPath = pathOffset === -1 ? '' : authorityAndPath.slice(pathOffset);
   if (
     authority.length === 0 ||
@@ -1585,7 +1579,8 @@ async function runRemoteLoad(opts) {
     url = resolveRemoteProjectionUrl(remoteServer);
   } catch (_) {
     process.stderr.write(
-      'Error: --remote-server must be an HTTP(S) server base URL or the exact /project endpoint.\n',
+      'Error: --remote-server must be a visible-ASCII HTTP(S) server base URL or the exact /project endpoint.\n' +
+        'Internationalized hostnames must use their ASCII (punycode) form.\n',
     );
     process.exit(EXIT.INPUT_ERROR);
     return;

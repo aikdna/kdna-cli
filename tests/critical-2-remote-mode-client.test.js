@@ -469,6 +469,25 @@ test('CRITICAL-2: non-canonical remote URLs fail before any request', async () =
       ['scheme-relative URL', baseUrl.replace(/^http:/, '')],
       ['leading whitespace', ` ${baseUrl}`],
       ['trailing whitespace', `${baseUrl}\t`],
+      ['soft hyphen in authority', baseUrl.replace('127.0.0.1', '127.0.0.1\u00ad')],
+      ['combining grapheme joiner in authority', baseUrl.replace('127.0.0.1', '127.0.0.1\u034f')],
+      ['Arabic letter mark in authority', baseUrl.replace('127.0.0.1', '127.0.0.1\u061c')],
+      ['Mongolian vowel separator in authority', baseUrl.replace('127.0.0.1', '127.0.0.1\u180e')],
+      ['zero-width space in authority', baseUrl.replace('127.0.0.1', '127.0.0.1\u200b')],
+      ['zero-width non-joiner in authority', baseUrl.replace('127.0.0.1', '127.0.0.1\u200c')],
+      ['zero-width joiner in authority', baseUrl.replace('127.0.0.1', '127.0.0.1\u200d')],
+      ['left-to-right embedding in authority', baseUrl.replace('127.0.0.1', '127.0.0.1\u202a')],
+      ['word joiner in authority', baseUrl.replace('127.0.0.1', '127.0.0.1\u2060')],
+      ['left-to-right isolate in authority', baseUrl.replace('127.0.0.1', '127.0.0.1\u2066')],
+      ['variation selector in authority', baseUrl.replace('127.0.0.1', '127.0.0.1\ufe0f')],
+      ['byte-order mark in authority', baseUrl.replace('127.0.0.1', '127.0.0.1\ufeff')],
+      ['private-use character in authority', baseUrl.replace('127.0.0.1', '127.0.0.1\ue000')],
+      ['unassigned character in authority', baseUrl.replace('127.0.0.1', '127.0.0.1\u0378')],
+      [
+        'supplementary variation selector in authority',
+        baseUrl.replace('127.0.0.1', '127.0.0.1\u{e0100}'),
+      ],
+      ['Unicode hostname', 'http://例子.测试'],
     ];
 
     for (const [label, remoteServer] of hostileUrls) {
