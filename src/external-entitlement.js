@@ -158,20 +158,17 @@ function resolveAssetPath(domain, assetOption = null) {
 }
 
 function assetAuthorizationMaterial(assetPath) {
-  const layout = core.readLayout(path.resolve(assetPath));
+  const resolvedAssetPath = path.resolve(assetPath);
+  const assetBytes = fs.readFileSync(resolvedAssetPath);
+  const layout = core.readLayout(resolvedAssetPath);
   const checksums = layout.map['checksums.json']
     ? JSON.parse(layout.map['checksums.json'].toString('utf8'))
     : null;
-  if (!checksums?.asset_digest) {
-    throw new ExternalEntitlementError(
-      'KDNA_GRANT_DIGEST_MISSING',
-      'account assets require checksums.json.asset_digest',
-    );
-  }
   return {
     manifest: layout.manifest,
     checksums,
     envelope: layout.map['payload.kdnab'],
+    assetDigest: core.computeAssetDigest(assetBytes),
   };
 }
 
@@ -207,7 +204,7 @@ function installActivation({ domain, server, assetPath, response, device }) {
     grant: response.grant,
     issuerPublicKeys,
     manifest: material.manifest,
-    checksums: material.checksums,
+    expectedAssetDigest: material.assetDigest,
     envelope: material.envelope,
     deviceAgreementKey: device.agreement,
     expectedAccountId: response.account_id,
@@ -298,7 +295,7 @@ function loadExternalAuthorization(assetPath, manifest, options = {}) {
     grant,
     issuerPublicKeys,
     manifest: material.manifest,
-    checksums: material.checksums,
+    expectedAssetDigest: material.assetDigest,
     envelope: material.envelope,
     deviceAgreementKey: {
       public_key: metadata.device_public_key,

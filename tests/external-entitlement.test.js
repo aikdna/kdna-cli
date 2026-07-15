@@ -39,7 +39,7 @@ test(
     fs.mkdirSync(assetDir, { recursive: true });
     try {
       const manifest = {
-        kdna_version: '1.0',
+        format_version: '0.1.0',
         asset_id: 'kdna:fixture:cli-external',
         asset_uid: 'urn:uuid:00190000-0000-4000-8000-000000000002',
         name: '@fixture/cli-external',
@@ -50,20 +50,34 @@ test(
         created_at: '2026-07-13T00:00:00Z',
         updated_at: '2026-07-13T00:00:00Z',
         creator: { name: 'Test' },
-        compatibility: { min_loader_version: '0.16.0', profile: 'judgment-profile-v1' },
+        compatibility: {
+          min_loader_version: '0.18.1',
+          profile: 'kdna.payload.judgment',
+          profile_version: '0.1.0',
+        },
         payload: { path: 'payload.kdnab', encoding: 'cbor', encrypted: true },
         access: 'licensed',
         entitlement: { profile: 'account', offline: true, revocable: true },
         encryption: {
           profile: core.EXTERNAL_ENVELOPE_PROFILE,
+          profile_version: core.EXTERNAL_GRANT_CONTRACT_VERSION,
           encrypted_entries: ['payload.kdnab'],
           key_grant_profile: core.EXTERNAL_GRANT_PROFILE,
         },
       };
       const plaintext = Buffer.from(
         cbor.encode({
-          profile: 'judgment-profile-v1',
-          core: { highest_question: 'Can the CLI load this?', axioms: [] },
+          profile: 'kdna.payload.judgment',
+          profile_version: '0.1.0',
+          core: {
+            highest_question: 'Can the CLI load this?',
+            axioms: [],
+            boundaries: [],
+          },
+          patterns: [],
+          scenarios: [],
+          cases: [],
+          reasoning: { self_check: [], failure_modes: [] },
         }),
       );
       const root = Buffer.alloc(32, 0x51);
@@ -80,6 +94,7 @@ test(
       const checksums = core.buildChecksums(assetDir);
       fs.writeFileSync(path.join(assetDir, 'checksums.json'), JSON.stringify(checksums));
       core.pack(assetDir, assetFile);
+      const assetDigest = core.computeAssetDigest(fs.readFileSync(assetFile));
 
       const device = external.prepareDevice(manifest.name, 'Test Device');
       const issuer = crypto.generateKeyPairSync('ed25519');
@@ -96,7 +111,7 @@ test(
         deviceSigningPublicKey: device.signing.public_key,
         manifest,
         envelope,
-        assetDigest: checksums.asset_digest,
+        assetDigest,
         issuedAt: new Date('2026-07-13T00:00:00Z'),
         refreshAfter: new Date('2027-07-13T00:00:00Z'),
         offlineGraceUntil: new Date('2027-07-14T00:00:00Z'),
@@ -129,7 +144,7 @@ test(
         entitlement: session.entitlement,
         decryptEntry: session.decryptEntry,
       });
-      assert.equal(capsule.type, 'kdna.context.capsule');
+      assert.equal(capsule.type, 'kdna.runtime-capsule');
       assert.equal(JSON.stringify(capsule).includes('wrapped_cek'), false);
       session.dispose();
       const names = external.secretNames(manifest.name);
