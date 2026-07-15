@@ -30,12 +30,17 @@ test('naming gate rejects obsolete declarations and implementations', (t) => {
     path.join(root, 'README.md'),
     `Use ${duplicateRoute} for compatibility at ${obsoleteProjectionRoute}.\n`,
   );
+  fs.writeFileSync(
+    path.join(root, 'CONTRIBUTING.md'),
+    `Do not restore ${['v', '3'].join('')} support.\n`,
+  );
 
   const issues = scanCurrentProtocolNames(root);
   assert.ok(issues.some((issue) => issue.rule === 'obsolete shipped implementation'));
   assert.ok(issues.some((issue) => issue.rule === 'obsolete Capsule type'));
   assert.ok(issues.some((issue) => issue.rule === 'duplicate loading route'));
   assert.ok(issues.some((issue) => issue.rule === 'obsolete remote projection route'));
+  assert.ok(issues.some((issue) => issue.rule === 'generation label before a KDNA-owned concept'));
 });
 
 test('naming gate rejects unknown generation labels without a token allowlist', (t) => {
@@ -51,6 +56,7 @@ test('naming gate rejects unknown generation labels without a token allowlist', 
       `const profile = '${['kdna', 'unknown', suffix].join('-')}';`,
       `const registry = '${['Registry', generation].join(' ')}';`,
       `const detector = '${['is', 'V', '4'].join('')}';`,
+      `const placeholder = '<${['v', '2'].join('')}>';`,
     ].join('\n'),
   );
   fs.writeFileSync(
@@ -77,4 +83,5 @@ test('naming gate rejects unknown generation labels without a token allowlist', 
   assert.ok(
     issues.some((issue) => issue.rule === 'generation encoded in an implementation identifier'),
   );
+  assert.ok(issues.some((issue) => issue.rule === 'generation-style version placeholder'));
 });

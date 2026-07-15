@@ -97,12 +97,12 @@ const ALLOWLIST = [
   },
   {
     file: 'src/diff.js',
-    line: 372,
+    line: 377,
     reason: 'shared `recommendedVersionBump` helper call — semver calculation',
   },
   {
     file: 'src/diff.js',
-    line: 390,
+    line: 395,
     reason:
       'output field: `recommended_version_bump: <semver>` — semver tool recommendation, not a content-trust claim',
   },

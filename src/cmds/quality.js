@@ -38,7 +38,7 @@ function cmdDiff(args) {
   if (!a) {
     error(
       'Usage:\n' +
-        '  kdna diff <name>@<v1> <name>@<v2>   Compare two versions\n' +
+        '  kdna diff <name>@<from-version> <name>@<to-version>   Compare two versions\n' +
         '  kdna diff <name> [--json]            Installed vs registry-current\n' +
         '\n' +
         'Surfaces judgment-level diff: added/removed/changed axioms,\n' +

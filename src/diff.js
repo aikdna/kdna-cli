@@ -191,7 +191,12 @@ function diffStanceList(oldList, newList, jsonMode = false, facts = null) {
 async function cmdDiff(a, b, args = []) {
   const jsonMode = args.includes('--json');
 
-  if (!a) error('Usage: kdna diff <name>@<v1> <name>@<v2>  or  kdna diff <name>', EXIT.INPUT_ERROR);
+  if (!a) {
+    error(
+      'Usage: kdna diff <name>@<from-version> <name>@<to-version>  or  kdna diff <name>',
+      EXIT.INPUT_ERROR,
+    );
+  }
 
   const aParsed = parseNameVersion(a);
   const bParsed = b ? parseNameVersion(b) : null;

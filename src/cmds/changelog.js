@@ -1,5 +1,5 @@
 /**
- * kdna changelog <domain> --from <v1> --to <v2>
+ * kdna changelog <domain> --from <from-version> --to <to-version>
  *   Generate a judgment changelog between two versions.
  *
  * Reuses the diff engine from src/diff.js to compute changes,

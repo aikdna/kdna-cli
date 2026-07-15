@@ -712,7 +712,7 @@ function rawPublicKeyToSpkiDer(rawPubKey) {
 /**
  * Deterministic JSON serialization for signing. Object keys are
  * sorted lexicographically; arrays preserve their order. This is
- * the same approach the v1 spec uses for content digests.
+ * the same approach the current content-digest specification uses.
  */
 function STABLE_STRINGIFY(value) {
   if (Array.isArray(value)) {

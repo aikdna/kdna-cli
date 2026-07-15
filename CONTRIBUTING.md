@@ -6,7 +6,8 @@ Key points:
 
 - Submit changes via pull request to `main`.
 - Sign off commits: `git commit -s`.
-- Do NOT restore legacy commands, registry, v2 support, or `kdna help legacy`.
+- Do NOT restore legacy commands, registry, retired alternate-format support, or
+  `kdna help legacy`.
 - Include verification commands in PR description.
 
 ## Developer Certificate of Origin (DCO)

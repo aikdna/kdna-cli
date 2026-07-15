@@ -16,7 +16,7 @@ const PACKAGED_ROOTS = Object.freeze([
 ]);
 const PACKAGED_FILES = Object.freeze(['package.json', 'README.md', 'SECURITY.md', 'NOTICE']);
 const REPOSITORY_ROOTS = Object.freeze([...PACKAGED_ROOTS, 'scripts', 'tests', '.github']);
-const REPOSITORY_FILES = Object.freeze([...PACKAGED_FILES]);
+const REPOSITORY_FILES = Object.freeze([...PACKAGED_FILES, 'CONTRIBUTING.md']);
 const TEXT_EXTENSIONS = new Set(['.js', '.json', '.md', '.txt', '.yml', '.yaml']);
 const FORBIDDEN_FILES = new Set(['src/loader.js', 'src/runner.js', 'src/verify.js']);
 
@@ -29,7 +29,7 @@ function joinedInsensitivePattern(...parts) {
 }
 
 const KDNA_OWNED_CONCEPT =
-  '(?:kdna|core|registry|index(?:es)?|records?|fixtures?|bundle|capsule|runtime|manifest|profile|grant|proof|envelope|container|format|protocol)';
+  '(?:kdna|core|registry|index(?:es)?|records?|fixtures?|bundle|capsule|runtime|manifest|profile|grant|proof|envelope|container|format|protocol|spec(?:ification)?s?|support)';
 
 const FORBIDDEN_DECLARATIONS = Object.freeze([
   ['obsolete manifest discriminator', joinedPattern('kdna', '_version')],
@@ -63,6 +63,7 @@ const FORBIDDEN_DECLARATIONS = Object.freeze([
       '[0-9]+\\b',
     ),
   ],
+  ['generation-style version placeholder', joinedInsensitivePattern('<', 'v', '[0-9]+>')],
 ]);
 
 function listFiles(root, relative) {
