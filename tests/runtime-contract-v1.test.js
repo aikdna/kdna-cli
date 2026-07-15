@@ -24,6 +24,7 @@ const {
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 const CORE_ENTRY = require.resolve('@aikdna/kdna-core');
+const SOURCE_FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
 const REGISTERED = Object.freeze({
   type: 'kdna.agent-host.capabilities',
   version: '1.0',
@@ -40,11 +41,9 @@ let invalidPayloadAsset;
 before(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-runtime-contract-1-'));
   asset = path.join(root, 'fixture.kdna');
-  core.pack(path.resolve(__dirname, '..', 'fixtures', 'v1-minimal'), asset);
+  core.pack(SOURCE_FIXTURE, asset);
   const invalidSource = path.join(root, 'invalid-payload-source');
-  fs.cpSync(path.resolve(__dirname, '..', 'fixtures', 'v1-minimal'), invalidSource, {
-    recursive: true,
-  });
+  fs.cpSync(SOURCE_FIXTURE, invalidSource, { recursive: true });
   fs.writeFileSync(path.join(invalidSource, 'payload.kdnab'), Buffer.from('not-cbor', 'utf8'));
   invalidPayloadAsset = path.join(root, 'invalid-payload.kdna');
   core.pack(invalidSource, invalidPayloadAsset);
@@ -181,6 +180,24 @@ function preparedRequest() {
   );
   return { prepared, context, request };
 }
+
+test('byte-authenticated source fixture retains its declared bytes on checkout', () => {
+  const checksums = JSON.parse(
+    fs.readFileSync(path.join(SOURCE_FIXTURE, 'checksums.json'), 'utf8'),
+  );
+  for (const [field, file] of [
+    ['manifest_digest', 'kdna.json'],
+    ['payload_digest', 'payload.kdnab'],
+  ]) {
+    const actual =
+      'sha256:' +
+      crypto
+        .createHash('sha256')
+        .update(fs.readFileSync(path.join(SOURCE_FIXTURE, file)))
+        .digest('hex');
+    assert.equal(actual, checksums[field], file + ' checkout bytes');
+  }
+});
 
 test('Core is an exact 0.18.0 dependency and the default contract remains 0.9', () => {
   const pkg = require('../package.json');
