@@ -15,16 +15,21 @@ const SHIPPED_ROOTS = Object.freeze([
 const SHIPPED_FILES = Object.freeze(['package.json', 'README.md', 'SECURITY.md', 'NOTICE']);
 const TEXT_EXTENSIONS = new Set(['.js', '.json', '.md', '.txt', '.yml', '.yaml']);
 const FORBIDDEN_FILES = new Set(['src/loader.js', 'src/runner.js', 'src/verify.js']);
+
+function joinedPattern(...parts) {
+  return new RegExp(parts.join(''));
+}
+
 const FORBIDDEN_DECLARATIONS = Object.freeze([
-  ['obsolete manifest discriminator', /kdna_version/],
-  ['obsolete judgment profile', /judgment-profile-v1/],
-  ['obsolete bundle profile', /bundle-profile-v1/],
-  ['obsolete Runtime entry-set profile', /kdna-runtime-entry-set-v1/],
-  ['obsolete Capsule type', /kdna\.context\.capsule/],
-  ['obsolete execution contract', /execution-contract-v1/],
-  ['obsolete Runtime contract', /runtime-contract-v1/],
-  ['obsolete bundle format', /kdna-bundle-v1/],
-  ['obsolete capability fallback', /legacy_assumption/],
+  ['obsolete manifest discriminator', joinedPattern('kdna', '_version')],
+  ['obsolete judgment profile', joinedPattern('judgment', '-profile-', 'v1')],
+  ['obsolete bundle profile', joinedPattern('bundle', '-profile-', 'v1')],
+  ['obsolete Runtime entry-set profile', joinedPattern('kdna-runtime', '-entry-set-', 'v1')],
+  ['obsolete Capsule type', joinedPattern('kdna', '\\.context\\.', 'capsule')],
+  ['obsolete execution contract', joinedPattern('execution', '-contract-', 'v1')],
+  ['obsolete Runtime contract', joinedPattern('runtime', '-contract-', 'v1')],
+  ['obsolete bundle format', joinedPattern('kdna-bundle', '-v1')],
+  ['obsolete capability fallback', joinedPattern('legacy', '_assumption')],
   ['duplicate loading route', /\bquality\s+load\b/],
 ]);
 

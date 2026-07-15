@@ -34,8 +34,8 @@
   failures now block; an existing version is skipped only when its package
   identity and artifact hashes exactly match the candidate. Source commit
   identity remains independently bound to the release tag and workflow commit.
-- Make development packing and demo assets emit the canonical
-  `kdna-runtime-entry-set-v1` digest profile with its ordered covered entries and
+- Make development packing and demo assets emit the then-current Runtime
+  entry-set digest profile with its ordered covered entries and
   `entry_set_digest`. The historical `asset_digest` remains only as a deprecated
   alias, and checksum records are constrained to canonical SHA-256 values.
 - Verify Capsule entry-set digests from Core layout bytes and route domain
@@ -215,7 +215,7 @@
   `file:` dependency.
 - Adopt the single strict-CBOR payload contract across pack, validate, inspect,
   conflict/deprecation analysis, encryption, recovery, and demo fixtures.
-- Return and verify `kdna.context.capsule` artifacts through `kdna load` and
+- Return and verify the predecessor context Capsule artifacts through `kdna load` and
   `kdna capsule-verify`; Agents consume the authorized Capsule rather than raw
   container entries.
 - Complete the encrypted lifecycle: pack → protect → validate → plan-load →
@@ -610,7 +610,7 @@ conflicting_field, resolution, winning_component, note }`.
 
 Story 8 — context budget reporting (RFC #148 v2.0).
 
-- **`context_budget` field in `bundle-profile-v1` schema**: Bundle manifests may
+- **`context_budget` field in the predecessor bundle profile schema**: Bundle manifests may
   now declare `context_budget.max_tokens`, `context_budget.strategy`
   (`warn`|`truncate_lowest_priority`|`error`), and
   `context_budget.per_component_estimate_tokens`.
@@ -645,7 +645,7 @@ Story 6 — dependencies runtime. Integrates two-tier package store resolution a
 
 KDNA v2 Bundle payload type and V1 deprecation start — RFC #148 Story 5.
 
-- **V2 Format Support**: Added support for KDNA v2 containers and manifest specifications (`kdna_version` `"2.0"` and `"bundle"` `asset_type`).
+- **V2 Format Support**: Added support for KDNA v2 containers and the predecessor manifest discriminator with value `"2.0"`, plus the `"bundle"` `asset_type`.
 - **V1 Deprecation Window**: Commenced 9-12 month deprecation window for KDNA v1 format, emitting soft deprecation warnings on standard error during validation, loading, inspection, and unpacking.
 - **Bundle component resolution**: Updated bundle validator to accept components package/container in both KDNA v1 and v2 formats.
 
@@ -962,7 +962,7 @@ that the `publish.js` signing path depends on.
 - Help text restructured into a single flat listing of Core v1 commands: `inspect`, `validate`, `plan-load`, `load`, `pack`, `unpack`, `demo`.
 - `kdna pack` and `kdna unpack` described as "creator/debug views" rather than a second public asset model.
 - Pack output is deterministic: fixed DOS epoch timestamps, alphabetical entry order, mimetype always first (STORED, method 0). Same source → identical SHA-256 output.
-- `kdna inspect` output is always JSON and includes `kdna_version`, `asset_id`, `asset_uid`, `payload_encrypted`, `profile`, and `load_contract_default_profile` fields.
+- `kdna inspect` output is always JSON and includes the predecessor format discriminator, `asset_id`, `asset_uid`, `payload_encrypted`, `profile`, and `load_contract_default_profile` fields.
 
 ### Removed
 

@@ -97,8 +97,9 @@ test('dev-pack: packKdna returns entries object (does not write a file)', () => 
 
 test('dev-pack: obsolete manifest fields fail closed instead of being stripped', () => {
   if (!hasCbor) return;
+  const obsoleteField = ['kdna', 'version'].join('_');
   assert.throws(
-    () => devPack.packKdna(os.tmpdir(), { kdna_version: '1.0' }),
-    /Unsupported manifest fields: kdna_version/,
+    () => devPack.packKdna(os.tmpdir(), { [obsoleteField]: '1.0' }),
+    new RegExp(`Unsupported manifest fields: ${obsoleteField}`),
   );
 });

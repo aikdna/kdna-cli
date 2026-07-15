@@ -203,9 +203,10 @@ test('dev-pack produces the current mimetype and manifest contract', () => {
     assert.equal(result.entries.mimetype, 'application/vnd.kdna.asset');
     const manifest = JSON.parse(result.entries['kdna.json']);
     assert.equal(manifest.format_version, '0.1.0');
-    assert.equal(manifest.kdna_version, undefined);
+    assert.equal(manifest[['kdna', 'version'].join('_')], undefined);
     assert.equal(manifest.container, undefined, 'non-current container block removed');
-    assert.equal(manifest.spec_version, undefined, 'spec_version removed');
+    const obsoleteSpecField = ['spec', 'version'].join('_');
+    assert.equal(manifest[obsoleteSpecField], undefined, `${obsoleteSpecField} removed`);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

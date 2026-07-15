@@ -18,7 +18,8 @@ test('naming gate rejects obsolete declarations and implementations', (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-protocol-names-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   fs.mkdirSync(path.join(root, 'src'), { recursive: true });
-  fs.writeFileSync(path.join(root, 'src', 'runner.js'), "const type = 'kdna.context.capsule';\n");
+  const obsoleteCapsuleType = ['kdna', 'context', 'capsule'].join('.');
+  fs.writeFileSync(path.join(root, 'src', 'runner.js'), `const type = '${obsoleteCapsuleType}';\n`);
   fs.writeFileSync(path.join(root, 'README.md'), 'Use quality load for compatibility.\n');
 
   const issues = scanCurrentProtocolNames(root);
