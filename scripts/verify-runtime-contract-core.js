@@ -47,8 +47,8 @@ assert.equal(evidence.git_head, readPinnedCoreCommit(root));
 assert.equal(evidence.registry_artifact, null);
 assert.equal(evidence.pack.status, 'candidate_source_pack_not_registry_artifact');
 assert.equal(evidence.pack.reproducible_runs, 2);
-assert.equal(packageJson.dependencies[evidence.package], '0.18.0');
-assert.equal(packageLock.packages['node_modules/@aikdna/kdna-core'].version, '0.18.0');
+assert.equal(packageJson.dependencies[evidence.package], evidence.version);
+assert.equal(packageLock.packages['node_modules/@aikdna/kdna-core'].version, evidence.version);
 
 const candidatePackage = JSON.parse(
   fs.readFileSync(path.join(candidateRoot, 'package.json'), 'utf8'),

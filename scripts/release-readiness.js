@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { EXPECTED_PACKAGE_NAME, STABLE_VERSION_RE } = require('./release-policy');
 const { CORE_CANDIDATE_VERSION } = require('./core-candidate');
+const { canonicalRegistryUrl } = require('./runtime-candidate-binding');
 
 const CORE_PACKAGE_NAME = '@aikdna/kdna-core';
 const REQUIRED_CORE_VERSION = CORE_CANDIDATE_VERSION;
@@ -34,6 +35,14 @@ function validateReleaseReadiness({ pkg, lock, installedCore }) {
   );
   const lockedCore = lock.packages?.[`node_modules/${CORE_PACKAGE_NAME}`];
   assert(lockedCore?.version === REQUIRED_CORE_VERSION, 'locked Core artifact is stale');
+  assert(
+    lockedCore?.resolved === canonicalRegistryUrl(CORE_PACKAGE_NAME, REQUIRED_CORE_VERSION),
+    `locked Core must use the canonical registry artifact before release; found ${String(lockedCore?.resolved)}`,
+  );
+  assert(
+    /^sha512-[A-Za-z0-9+/]{86}==$/.test(lockedCore?.integrity || ''),
+    'locked Core registry integrity is missing or invalid',
+  );
   assert(
     installedCore?.name === CORE_PACKAGE_NAME && installedCore?.version === REQUIRED_CORE_VERSION,
     'installed Core artifact does not match the formal release dependency',

@@ -7,12 +7,12 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { pathToFileURL } = require('node:url');
 const {
   CORE_CANDIDATE_PACKAGE,
   CORE_CANDIDATE_VERSION,
   readPinnedCoreCommit,
 } = require('./core-candidate');
+const { verifyCandidateBinding } = require('./runtime-candidate-binding');
 
 const ROOT = path.resolve(__dirname, '..');
 
@@ -89,30 +89,33 @@ function main() {
     assert.ok(first.bytes.equals(second.bytes), 'two Core candidate packs must be byte-identical');
     assert.equal(first.metadata.name, CORE_CANDIDATE_PACKAGE);
     assert.equal(first.metadata.version, CORE_CANDIDATE_VERSION);
+    const binding = verifyCandidateBinding(ROOT);
+    const entry = binding.packages.find(({ name }) => name === CORE_CANDIDATE_PACKAGE);
+    assert.ok(entry, 'Core candidate binding is missing');
+    assert.ok(
+      first.bytes.equals(fs.readFileSync(path.join(ROOT, entry.artifact))),
+      'checked-in Core candidate bytes must equal the exact reproducible source pack',
+    );
 
     copyCandidateCli(cliCopy);
     run('git', ['init', '--quiet'], { cwd: cliCopy });
     run('git', ['add', '--all'], { cwd: cliCopy });
     const packagePath = path.join(cliCopy, 'package.json');
-    const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
-    const localTar = pathToFileURL(first.file).href;
-    packageJson.dependencies[CORE_CANDIDATE_PACKAGE] = localTar;
-    fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
+    const lockPath = path.join(cliCopy, 'package-lock.json');
+    const packageBefore = fs.readFileSync(packagePath);
+    const lockBefore = fs.readFileSync(lockPath);
 
     assert.deepEqual(fs.readdirSync(cache), [], 'candidate install cache must start empty');
     run(
       'npm',
-      [
-        'install',
-        '--ignore-scripts',
-        '--no-audit',
-        '--no-fund',
-        '--cache',
-        cache,
-        '--prefer-online',
-      ],
+      ['ci', '--ignore-scripts', '--no-audit', '--no-fund', '--cache', cache, '--prefer-online'],
       { cwd: cliCopy, stdio: 'inherit' },
     );
+    assert.ok(
+      packageBefore.equals(fs.readFileSync(packagePath)),
+      'npm ci must not rewrite the formal Core dependency',
+    );
+    assert.ok(lockBefore.equals(fs.readFileSync(lockPath)), 'npm ci must not rewrite the lockfile');
 
     const installed = JSON.parse(
       fs.readFileSync(
@@ -123,23 +126,25 @@ function main() {
     assert.equal(installed.name, CORE_CANDIDATE_PACKAGE);
     assert.equal(installed.version, CORE_CANDIDATE_VERSION);
     const lock = JSON.parse(fs.readFileSync(path.join(cliCopy, 'package-lock.json'), 'utf8'));
+    const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
     const locked = lock.packages[`node_modules/${CORE_CANDIDATE_PACKAGE}`];
     const actualIntegrity = `sha512-${crypto.createHash('sha512').update(first.bytes).digest('base64')}`;
+    assert.equal(packageJson.dependencies[CORE_CANDIDATE_PACKAGE], CORE_CANDIDATE_VERSION);
+    assert.equal(lock.packages[''].dependencies[CORE_CANDIDATE_PACKAGE], CORE_CANDIDATE_VERSION);
     assert.equal(locked.version, CORE_CANDIDATE_VERSION);
     assert.equal(
       locked.integrity,
       actualIntegrity,
       'lock integrity must come from the local tar bytes',
     );
-    assert.match(
+    assert.equal(
       locked.resolved,
-      /^file:/,
-      'candidate lock must identify a local tar, not registry',
+      `file:${entry.artifact}`,
+      'candidate lock must identify the checked-in local tar',
     );
 
     const env = {
       ...process.env,
-      KDNA_CORE_CANDIDATE_TAR: '1',
       NO_UPDATE_NOTIFIER: '1',
     };
     for (const name of [

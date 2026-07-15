@@ -214,21 +214,13 @@ test('byte-authenticated source fixture retains its declared bytes on checkout',
   }
 });
 
-test('Core candidate is explicit while the unpublished registry dependency remains unchanged', () => {
+test('Core candidate is the formal default dependency coordinate', () => {
   const pkg = require('../package.json');
-  const tarInstall = process.env.KDNA_CORE_CANDIDATE_TAR === '1';
-  if (tarInstall) {
-    assert.match(pkg.dependencies['@aikdna/kdna-core'], /^file:/);
-  } else {
-    assert.equal(pkg.dependencies['@aikdna/kdna-core'], '0.18.0');
-  }
+  assert.equal(pkg.dependencies['@aikdna/kdna-core'], CORE_CANDIDATE_VERSION);
   const corePackage = CORE_SOURCE_ROOT
     ? require(path.join(path.resolve(CORE_SOURCE_ROOT), 'package.json'))
     : require('@aikdna/kdna-core/package.json');
-  assert.equal(
-    corePackage.version,
-    CORE_SOURCE_ROOT || tarInstall ? CORE_CANDIDATE_VERSION : '0.18.0',
-  );
+  assert.equal(corePackage.version, CORE_CANDIDATE_VERSION);
   const current = run(['plan-use', asset, '--task=Review', '--as=json']);
   assert.equal(current.status, 0, current.stderr);
   assert.equal(JSON.parse(current.stdout).contract_version, '0.1.0');

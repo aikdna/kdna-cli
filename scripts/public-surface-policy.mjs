@@ -1,7 +1,36 @@
 const EVIDENCE_PATH = 'tests/fixtures/core-0.19-candidate-evidence.json';
+const CANDIDATE_BINDING_PATH = 'tests/fixtures/runtime-candidates/binding.json';
 const FULL_HASH = /^[a-f0-9]{40}$/i;
 
 export function allowFormalReleaseHash(match, context) {
+  if (context.file === CANDIDATE_BINDING_PATH) {
+    if (!/^\s*"commit":\s*"[a-f0-9]{40}"\s*,?\s*$/i.test(context.line)) return false;
+    try {
+      const binding = JSON.parse(context.text);
+      if (
+        binding.schema !== 'kdna.runtime-candidate-binding' ||
+        binding.schema_version !== '0.1.0' ||
+        !Array.isArray(binding.packages) ||
+        binding.packages.length === 0
+      ) {
+        return false;
+      }
+      const commits = binding.packages.map((entry) => entry?.commit);
+      if (commits.some((commit) => !FULL_HASH.test(commit || ''))) return false;
+      const hashes = context.text.match(/(?<![a-f0-9])[a-f0-9]{40}(?![a-f0-9])/gi) || [];
+      const commitKeys = context.text.match(/"commit"\s*:/gi) || [];
+      if (hashes.length !== commits.length || commitKeys.length !== commits.length) return false;
+      const remaining = [...commits];
+      for (const hash of hashes) {
+        const index = remaining.findIndex((commit) => commit.toLowerCase() === hash.toLowerCase());
+        if (index === -1) return false;
+        remaining.splice(index, 1);
+      }
+      return remaining.length === 0 && commits.includes(match[0]);
+    } catch {
+      return false;
+    }
+  }
   if (
     context.file !== EVIDENCE_PATH ||
     !/^\s*"(?:git_head|sha1)":\s*"[a-f0-9]{40}"\s*,?\s*$/i.test(context.line)
