@@ -8,12 +8,18 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: aikdna/kdna
-          ref: a245b291a51ed19de30fd1ced8c803e396ca405c
+          ref: a257b92345af57e6fb20215576bc976a5291b297
           path: .cross-repo/kdna
       - uses: actions/setup-node@v6
         with: { node-version: 22 }
       - run: npm ci
-      - run: npm ci --prefix .cross-repo/kdna
+      - name: Install exact Core candidate dependencies
+        working-directory: .cross-repo/kdna
+        run: npm ci
+      - name: Verify exact Core candidate dependency isolation
+        run: node scripts/verify-core-source-dependencies.js
+        env:
+          KDNA_CORE_SOURCE_ROOT: ${{ github.workspace }}/.cross-repo/kdna/packages/kdna-core
       - name: Enforce public repository boundary
         run: npm run check:public-surface
       - name: Run the complete CLI suite against the exact Core candidate
@@ -32,12 +38,18 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: aikdna/kdna
-          ref: a245b291a51ed19de30fd1ced8c803e396ca405c
+          ref: a257b92345af57e6fb20215576bc976a5291b297
           path: .cross-repo/kdna
       - uses: actions/setup-node@v6
         with: { node-version: 22 }
       - run: npm ci
-      - run: npm ci --prefix .cross-repo/kdna
+      - name: Install exact Core candidate dependencies
+        working-directory: .cross-repo/kdna
+        run: npm ci
+      - name: Verify exact Core candidate dependency isolation
+        run: node scripts/verify-core-source-dependencies.js
+        env:
+          KDNA_CORE_SOURCE_ROOT: ${{ github.workspace }}/.cross-repo/kdna/packages/kdna-core
       - name: Verify Golden Core Capsule through the real process Host path
         run: npm run test:golden-host-request
         env:
@@ -54,7 +66,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: aikdna/kdna
-          ref: a245b291a51ed19de30fd1ced8c803e396ca405c
+          ref: a257b92345af57e6fb20215576bc976a5291b297
           path: .cross-repo/kdna-runtime-contract
       - uses: actions/setup-node@v6
         with: { node-version: '${{ matrix.node }}' }

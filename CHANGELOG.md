@@ -8,7 +8,7 @@
   ConsumptionPlan, Runtime Capsule, process Agent Host, and JudgmentTrace APIs.
   Runtime selectors and fallback generations are no longer accepted.
 - Bind source and reproducible local-tar verification to the exact
-  `@aikdna/kdna-core@0.19.0` candidate at public ref `a245b291a51e`. The
+  `@aikdna/kdna-core@0.19.0` candidate at public ref `a257b92345af`. The
   registry dependency remains on the published `0.18.0` artifact, so release
   readiness blocks until the coordinated Core release can update package
   metadata, lockfile, and the installed dependency atomically.

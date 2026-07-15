@@ -162,6 +162,9 @@ test('publish workflow has one canonical release-only path and publishes the ver
 
   const ci = fs.readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8');
   assert.match(ci, /npm run check:public-surface/);
+  assert.doesNotMatch(ci, /npm ci --prefix \.cross-repo\/kdna/);
+  assert.equal((ci.match(/working-directory: \.cross-repo\/kdna/g) || []).length, 2);
+  assert.equal((ci.match(/node scripts\/verify-core-source-dependencies\.js/g) || []).length, 2);
 });
 
 test('release context binds event, tag ref, package, changelog, HEAD, and workflow commit', () => {
