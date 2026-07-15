@@ -12,6 +12,7 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { allowFormalReleaseGitHead, isRulePathExcluded } from './public-surface-policy.mjs';
 
 const ROOT = process.cwd();
 const CONFIG_PATH = new URL('./public-surface.config.json', import.meta.url);
@@ -64,9 +65,7 @@ const rules = [
     pattern: /(?<![a-f0-9])[a-f0-9]{40}(?![a-f0-9])/gi,
     excludePathPrefixes: ['.github/workflows/'],
     excludeExactPaths: ['ecosystem-manifest.json'],
-    allowMatch: (_match, context) =>
-      context.file === 'tests/fixtures/core-0.18-release-evidence.json' &&
-      /^\s*"git_head":\s*"[a-f0-9]{40}"\s*,?\s*$/i.test(context.line),
+    allowMatch: allowFormalReleaseGitHead,
     hint: 'Use a short public ref or a public acceptance-note link.',
   },
   {
@@ -83,13 +82,6 @@ function listTrackedFiles() {
     .filter(Boolean);
 }
 
-function isExcluded(file, rule) {
-  return (
-    (rule.excludeExactPaths || []).includes(file) ||
-    (rule.excludePathPrefixes || []).some((prefix) => file.startsWith(prefix))
-  );
-}
-
 const findings = [];
 let scanned = 0;
 for (const file of listTrackedFiles()) {
@@ -102,16 +94,20 @@ for (const file of listTrackedFiles()) {
   }
   if (buffer.length > MAX_TEXT_BYTES || buffer.includes(0)) continue;
   scanned += 1;
-  const lines = buffer.toString('utf8').split('\n');
+  const text = buffer.toString('utf8');
+  const lines = text.split('\n');
   for (let lineNumber = 0; lineNumber < lines.length; lineNumber += 1) {
     const line = lines[lineNumber];
     for (const rule of rules) {
-      if (isExcluded(file, rule)) continue;
+      if (isRulePathExcluded(file, rule)) continue;
       rule.pattern.lastIndex = 0;
       let match;
       while ((match = rule.pattern.exec(line)) !== null) {
         if (rule.check && !rule.check(match)) continue;
-        if (rule.allowMatch && rule.allowMatch(match, { file, line, lineNumber: lineNumber + 1 })) {
+        if (
+          rule.allowMatch &&
+          rule.allowMatch(match, { file, line, lineNumber: lineNumber + 1, text })
+        ) {
           continue;
         }
         findings.push({
