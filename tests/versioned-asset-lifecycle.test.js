@@ -9,7 +9,7 @@ const { buildChecksums, pack } = require('@aikdna/kdna-core');
 const { compareExactVersions, parseName, selectRegistryEntry } = require('../src/registry');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
-const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
+const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'minimal');
 const NAME = '@example/versioned-review';
 
 function run(args, { env, cwd } = {}) {

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/aikdna/kdna/schema/checksums.schema.json",
-  "title": "KDNA Checksums v1",
+  "title": "KDNA Checksums",
   "description": "Per-entry digests for a .kdna container. Stored as checksums.json at the container root.",
   "type": "object",
   "required": ["algorithm"],
@@ -16,15 +16,42 @@
       "pattern": "^[a-f0-9]{64}$"
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "anyOf": [
+          { "required": ["digest_profile"] },
+          { "required": ["covered_entries"] }
+        ]
+      },
+      "then": {
+        "required": [
+          "digest_profile",
+          "digest_profile_version",
+          "covered_entries",
+          "manifest_digest",
+          "payload_digest",
+          "entry_set_digest"
+        ]
+      }
+    }
+  ],
   "properties": {
     "digest_profile": {
-      "const": "kdna-runtime-entry-set-v1",
+      "const": "kdna.digest-basis.runtime-entry-set",
       "description": "Algorithm and coverage profile for entry_set_digest."
+    },
+    "digest_profile_version": {
+      "const": "0.1.0",
+      "description": "Compatibility coordinate for the entry-set digest basis."
     },
     "covered_entries": {
       "type": "array",
-      "description": "Ordered entries covered by kdna-runtime-entry-set-v1.",
-      "prefixItems": [{ "const": "kdna.json" }, { "const": "payload.kdnab" }],
+      "description": "Ordered entries covered by kdna.digest-basis.runtime-entry-set.",
+      "prefixItems": [
+        { "const": "kdna.json" },
+        { "const": "payload.kdnab" }
+      ],
       "items": false,
       "minItems": 2,
       "maxItems": 2
@@ -40,11 +67,6 @@
     },
     "payload_digest": {
       "description": "Digest of the payload.kdnab entry.",
-      "$ref": "#/$defs/sha256Digest"
-    },
-    "asset_digest": {
-      "deprecated": true,
-      "description": "Deprecated v1 alias of entry_set_digest. This is not the final .kdna file digest.",
       "$ref": "#/$defs/sha256Digest"
     },
     "entry_set_digest": {

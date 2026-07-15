@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const packageStore = require('./package-store');
-const { createProcessAgentHostV2 } = require('./agent-host-process-v2');
+const { createProcessAgentHost } = require('./agent-host-process');
 
 const MAX_ASSET_BYTES = 256 * 1024 * 1024;
 const BUDGETS = Object.freeze({
@@ -37,7 +37,7 @@ function sha256(value) {
 }
 
 function snapshotCoreCapsuleVersions(core) {
-  const versions = core.DEFAULT_CORE_CAPSULE_VERSIONS;
+  const versions = core.DEFAULT_CORE_CAPSULE_CONTRACT_VERSIONS;
   if (
     !Array.isArray(versions) ||
     versions.length === 0 ||
@@ -54,12 +54,12 @@ function snapshotAssetFile(assetPath, fileSystem = fs) {
   try {
     const pathStat = fileSystem.lstatSync(assetPath);
     if (pathStat.isSymbolicLink() || !pathStat.isFile()) {
-      throw new Error('Runtime contract 1 requires a regular non-symlink packaged .kdna file.');
+      throw new Error('Runtime contract requires a regular non-symlink packaged .kdna file.');
     }
     descriptor = fileSystem.openSync(assetPath, fileSystem.constants.O_RDONLY | noFollow);
     const before = fileSystem.fstatSync(descriptor);
     if (!before.isFile())
-      throw new Error('Runtime contract 1 requires a regular packaged .kdna file.');
+      throw new Error('Runtime contract requires a regular packaged .kdna file.');
     if (
       pathStat.dev === undefined ||
       pathStat.ino === undefined ||
@@ -108,7 +108,7 @@ function resolvePackagedSnapshot(target) {
       throw new Error('Packaged .kdna asset was not found.');
     }
     if (stat.isSymbolicLink() || !stat.isFile() || !absolute.endsWith('.kdna')) {
-      throw new Error('Runtime contract 1 accepts only a regular packaged .kdna file.');
+      throw new Error('Runtime contract accepts only a regular packaged .kdna file.');
     }
     return {
       bytes: snapshotAssetFile(absolute),
@@ -157,20 +157,20 @@ function canonicalAccess(value) {
   return { open: 'public', protected: 'licensed', runtime: 'remote' }[value] || value || 'public';
 }
 
-function prepareExecutionContractV1(target, options = {}) {
+function prepareRuntimeContract(target, options = {}) {
   const core = options.core || require('@aikdna/kdna-core');
   const coreCapsuleVersions = snapshotCoreCapsuleVersions(core);
   const task = options.task;
   const profile = options.profile || 'compact';
   const budgetProfile = options.budgetProfile || 'code-review';
   if (typeof task !== 'string' || task.length === 0 || task.length > 500) {
-    throw new Error('Runtime contract 1 requires a task between 1 and 500 characters.');
+    throw new Error('Runtime contract requires a task between 1 and 500 characters.');
   }
   if (!['index', 'compact', 'scenario', 'full'].includes(profile)) {
-    throw new Error('Runtime contract 1 projection must be index, compact, scenario, or full.');
+    throw new Error('Runtime contract projection must be index, compact, scenario, or full.');
   }
   if (!Object.hasOwn(BUDGETS, budgetProfile)) {
-    throw new Error('Unknown runtime contract 1 budget profile.');
+    throw new Error('Unknown runtime contract budget profile.');
   }
 
   const snapshot = resolvePackagedSnapshot(target);
@@ -185,7 +185,7 @@ function prepareExecutionContractV1(target, options = {}) {
   const planId =
     options.planId ||
     `plan_${sha256(Buffer.concat([snapshot.bytes, Buffer.from(`\0${task}`, 'utf8')])).slice(7, 23)}`;
-  const plan = core.buildConsumptionPlanV1({
+  const plan = core.buildConsumptionPlan({
     plan_id: planId,
     created_at: createdAt,
     task: {
@@ -247,7 +247,7 @@ function traceContext(prepared, capabilities, request, receipt, trustedDeliveryO
 }
 
 function buildBlockedBeforeProjection(prepared, capabilities, negotiation) {
-  return prepared.core.buildJudgmentTraceV1(
+  return prepared.core.buildJudgmentTrace(
     {
       trace_id: makeTraceId(),
       timestamp: new Date().toISOString(),
@@ -255,7 +255,7 @@ function buildBlockedBeforeProjection(prepared, capabilities, negotiation) {
       errors: [
         issue(
           negotiation.issue_code,
-          'No registered Capsule 2 / Agent Host 2 capability pair was selected.',
+          'No registered Runtime Capsule / Agent Host capability pair was selected.',
           'negotiation',
         ),
       ],
@@ -265,7 +265,7 @@ function buildBlockedBeforeProjection(prepared, capabilities, negotiation) {
 }
 
 function buildBlockedWithoutRequest(prepared, capabilities, code, message, phase) {
-  return prepared.core.buildJudgmentTraceV1(
+  return prepared.core.buildJudgmentTrace(
     {
       trace_id: makeTraceId(),
       timestamp: new Date().toISOString(),
@@ -286,7 +286,7 @@ function terminalFromReceipt(receipt) {
   }[receipt.runtime_receipt.provider_execution_status];
 }
 
-async function executePreparedContractV1(prepared, options) {
+async function executePreparedRuntimeContract(prepared, options) {
   const { core, plan } = prepared;
   const capabilities = globalThis.structuredClone(options.capabilities);
   const baseContext = {
@@ -295,7 +295,7 @@ async function executePreparedContractV1(prepared, options) {
     capabilities,
     coreCapsuleVersions: prepared.coreCapsuleVersions,
   };
-  const negotiation = core.negotiateExecutionPairV1(plan, baseContext);
+  const negotiation = core.negotiateRuntimePair(plan, baseContext);
   if (
     ['SCHEMA_INVALID', 'KDNA_INPUT_INVALID', 'KDNA_VALIDATION_CONTEXT_INVALID'].includes(
       negotiation.issue_code,
@@ -315,7 +315,7 @@ async function executePreparedContractV1(prepared, options) {
 
   let capsule;
   try {
-    capsule = core.loadCapsuleV2(prepared.bytes, {
+    capsule = core.loadRuntimeCapsule(prepared.bytes, {
       profile: plan.projection_request.profile,
       expectedDigests: prepared.capsuleExpectedDigests,
       loadedAt: prepared.createdAt,
@@ -324,18 +324,18 @@ async function executePreparedContractV1(prepared, options) {
     const trace = buildBlockedWithoutRequest(
       prepared,
       capabilities,
-      error.code || 'KDNA_CAPSULE_2_LOAD_FAILED',
-      'Packaged asset could not be projected as a Runtime Capsule 2.',
+      error.code || 'KDNA_RUNTIME_CAPSULE_LOAD_FAILED',
+      'Packaged asset could not be projected as a Runtime Capsule.',
       'load',
     );
     return { plan, receipt: null, trace };
   }
   let request;
   try {
-    request = core.buildAgentHost2RequestV1({ request_id: makeRequestId(), capsule }, baseContext);
+    request = core.buildAgentHostRequest({ request_id: makeRequestId(), capsule }, baseContext);
   } catch (error) {
     if (error.code !== 'KDNA_HOST_BUDGET_LIMIT_EXCEEDED') throw error;
-    const trace = core.buildPreHostBudgetBlockedTraceV1(
+    const trace = core.buildPreHostBudgetBlockedTrace(
       {
         trace_id: makeTraceId(),
         timestamp: new Date().toISOString(),
@@ -348,7 +348,7 @@ async function executePreparedContractV1(prepared, options) {
 
   let host;
   try {
-    host = (options.createHost || createProcessAgentHostV2)({
+    host = (options.createHost || createProcessAgentHost)({
       command: options.command,
       args: options.args,
       timeoutMs: options.timeoutMs,
@@ -356,7 +356,7 @@ async function executePreparedContractV1(prepared, options) {
       validationContext: baseContext,
     });
   } catch (error) {
-    const trace = core.buildJudgmentTraceV1(
+    const trace = core.buildJudgmentTrace(
       {
         trace_id: makeTraceId(),
         timestamp: new Date().toISOString(),
@@ -364,7 +364,7 @@ async function executePreparedContractV1(prepared, options) {
         errors: [
           issue(
             error.code || 'KDNA_HOST_CONFIGURATION_INVALID',
-            'Agent Host 2 adapter could not be constructed.',
+            'Agent Host adapter could not be constructed.',
             'host',
           ),
         ],
@@ -379,7 +379,7 @@ async function executePreparedContractV1(prepared, options) {
   } catch (error) {
     const observation =
       error.deliveryObservation === 'not_observed' ? 'not_observed' : 'not_delivered';
-    const trace = core.buildJudgmentTraceV1(
+    const trace = core.buildJudgmentTrace(
       {
         trace_id: makeTraceId(),
         timestamp: new Date().toISOString(),
@@ -392,7 +392,7 @@ async function executePreparedContractV1(prepared, options) {
   }
 
   const overallStatus = terminalFromReceipt(receipt);
-  if (!overallStatus) throw new Error('Agent Host 2 returned an unsupported terminal state.');
+  if (!overallStatus) throw new Error('Agent Host returned an unsupported terminal state.');
   const errors =
     overallStatus === 'execution_completed'
       ? []
@@ -401,11 +401,11 @@ async function executePreparedContractV1(prepared, options) {
             overallStatus === 'blocked'
               ? 'KDNA_HOST_CAPSULE_DELIVERY_REJECTED'
               : `KDNA_HOST_${overallStatus.toUpperCase()}`,
-            'Agent Host 2 reported a non-success terminal state.',
+            'Agent Host reported a non-success terminal state.',
             overallStatus === 'blocked' ? 'delivery' : 'execution',
           ),
         ];
-  const trace = core.buildJudgmentTraceV1(
+  const trace = core.buildJudgmentTrace(
     {
       trace_id: makeTraceId(),
       timestamp: new Date().toISOString(),
@@ -419,8 +419,8 @@ async function executePreparedContractV1(prepared, options) {
 
 module.exports = {
   BUDGETS,
-  executePreparedContractV1,
-  prepareExecutionContractV1,
+  executePreparedRuntimeContract,
+  prepareRuntimeContract,
   resolvePackagedSnapshot,
   snapshotAssetFile,
   snapshotCoreCapsuleVersions,

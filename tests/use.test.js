@@ -10,12 +10,12 @@ const { createProcessAgentHost } = require('../src/agent-host-process');
 const { createCliRunner } = require('../src/runner');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
-const FIXTURE_SOURCE = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
+const FIXTURE_SOURCE = path.resolve(__dirname, '..', 'fixtures', 'minimal');
 const FIXTURE_TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-use-test-'));
-const FIXTURE = path.join(FIXTURE_TMP, 'v1-minimal.kdna');
+const FIXTURE = path.join(FIXTURE_TMP, 'minimal.kdna');
 core.pack(FIXTURE_SOURCE, FIXTURE);
 const FIXTURE_ASSET_ID = core.inspect(FIXTURE).asset_id;
-const SECOND_FIXTURE = path.join(FIXTURE_TMP, 'v1-minimal-advisor.kdna');
+const SECOND_FIXTURE = path.join(FIXTURE_TMP, 'minimal-advisor.kdna');
 fs.copyFileSync(FIXTURE, SECOND_FIXTURE);
 const FIXTURE_DIGEST =
   'sha256:' + crypto.createHash('sha256').update(fs.readFileSync(FIXTURE)).digest('hex');

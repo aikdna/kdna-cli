@@ -163,7 +163,7 @@ test('legacy mimetype container is NOT detected as kdna', () => {
 });
 
 test('KDNA source dir is detected', () => {
-  assert.equal(isKdnaSourceDir(path.join(__dirname, '..', 'fixtures', 'v1-minimal')), true);
+  assert.equal(isKdnaSourceDir(path.join(__dirname, '..', 'fixtures', 'minimal')), true);
 });
 
 test('random dir is NOT detected as KDNA source dir', () => {
@@ -173,7 +173,7 @@ test('random dir is NOT detected as KDNA source dir', () => {
 test('detectContainerFormat on packed fixture returns kdna', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-single-'));
   try {
-    const src = path.join(__dirname, '..', 'fixtures', 'v1-minimal');
+    const src = path.join(__dirname, '..', 'fixtures', 'minimal');
     spawnSync(process.execPath, [cliBin, 'pack', src, path.join(tmp, 'single.kdna')], {
       stdio: 'ignore',
     });
@@ -248,18 +248,18 @@ test('CLI inspect on legacy mimetype .kdna is rejected', () => {
 
 // ── Single-format route still works ────────────────────────────────
 
-test('single-format inspect still works on v1-minimal fixture', () => {
-  const r = run(['inspect', path.join(__dirname, '..', 'fixtures', 'v1-minimal')]);
+test('single-format inspect still works on minimal fixture', () => {
+  const r = run(['inspect', path.join(__dirname, '..', 'fixtures', 'minimal')]);
   assert.equal(r.status, 0, r.stderr);
   const out = JSON.parse(r.stdout);
   assert.equal(out.kdna_version, '1.0');
   assert.equal(out.asset_id, 'kdna:example:deployment-review');
 });
 
-test('single-format load still works on v1-minimal fixture', () => {
+test('single-format load still works on minimal fixture', () => {
   const r = run([
     'load',
-    path.join(__dirname, '..', 'fixtures', 'v1-minimal'),
+    path.join(__dirname, '..', 'fixtures', 'minimal'),
     '--profile=compact',
     '--as=json',
   ]);

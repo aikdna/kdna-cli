@@ -1,60 +1,91 @@
-const crypto = require('node:crypto');
+'use strict';
+
 const { spawn } = require('node:child_process');
 
-const PROTOCOL = 'kdna.agent-host/1';
 const DEFAULT_MAX_OUTPUT_BYTES = 1024 * 1024;
+const DEFAULT_MAX_DIAGNOSTIC_BYTES = 64 * 1024;
 
-function requireNonEmptyString(value, label) {
-  if (typeof value !== 'string' || value.trim().length === 0) {
-    throw new Error(`${label} must be a non-empty string.`);
+class AgentHostTransportError extends Error {
+  constructor(code, message, deliveryObservation) {
+    super(message);
+    this.name = 'AgentHostTransportError';
+    this.code = code;
+    this.deliveryObservation = deliveryObservation;
   }
-  return value;
-}
-
-function sha256(value) {
-  return `sha256:${crypto.createHash('sha256').update(value).digest('hex')}`;
 }
 
 function createProcessAgentHost(options = {}) {
-  const command = requireNonEmptyString(options.command, 'Agent host command');
+  const command = options.command;
   const args = options.args === undefined ? [] : options.args;
-  if (!Array.isArray(args) || args.some((arg) => typeof arg !== 'string')) {
-    throw new Error('Agent host args must be an array of strings.');
-  }
+  const core = options.core || require('@aikdna/kdna-core');
   const timeoutMs = options.timeoutMs === undefined ? 30000 : Number(options.timeoutMs);
-  if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
-    throw new Error('Agent host timeoutMs must be a positive integer.');
-  }
   const maxOutputBytes =
     options.maxOutputBytes === undefined
       ? DEFAULT_MAX_OUTPUT_BYTES
       : Number(options.maxOutputBytes);
-  if (!Number.isInteger(maxOutputBytes) || maxOutputBytes <= 0) {
-    throw new Error('Agent host maxOutputBytes must be a positive integer.');
+  const maxDiagnosticBytes =
+    options.maxDiagnosticBytes === undefined
+      ? DEFAULT_MAX_DIAGNOSTIC_BYTES
+      : Number(options.maxDiagnosticBytes);
+
+  if (typeof command !== 'string' || command.length === 0) {
+    throw new Error('Agent Host command must be a non-empty string.');
+  }
+  if (!Array.isArray(args) || args.some((arg) => typeof arg !== 'string')) {
+    throw new Error('Agent Host args must be an array of strings.');
+  }
+  for (const [label, value] of [
+    ['timeoutMs', timeoutMs],
+    ['maxOutputBytes', maxOutputBytes],
+    ['maxDiagnosticBytes', maxDiagnosticBytes],
+  ]) {
+    if (!Number.isInteger(value) || value <= 0) throw new Error(`${label} must be positive.`);
   }
 
   return {
-    protocol: PROTOCOL,
-    async runStage(request) {
-      if (!request || typeof request !== 'object' || Array.isArray(request)) {
-        throw new Error('Agent host request must be an object.');
+    protocol: 'kdna.agent-host',
+    protocolVersion: '0.1.0',
+    async run(request) {
+      const requestValidation = core.validateAgentHostRequest(request, options.validationContext);
+      if (!requestValidation.valid) {
+        throw new AgentHostTransportError(
+          requestValidation.code,
+          'Agent Host request failed Core validation.',
+          'not_delivered',
+        );
       }
-      const requestId = `host_${crypto.randomBytes(12).toString('hex')}`;
-      const envelope = {
-        ...request,
-        protocol: PROTOCOL,
-        request_id: requestId,
-      };
-      return invokeProcess({
+      const raw = await invokeProcess({
         command,
         args,
-        timeoutMs,
-        maxOutputBytes,
         env: options.env || process.env,
         cwd: options.cwd,
-        envelope,
-        requestId,
+        timeoutMs,
+        maxOutputBytes,
+        maxDiagnosticBytes,
+        request,
       });
+      let receipt;
+      try {
+        receipt = core.parseRuntimeContractJson(raw, {
+          maxBytes: maxOutputBytes,
+          maxDepth: 64,
+        });
+      } catch (error) {
+        throw new AgentHostTransportError(
+          error.code || 'KDNA_HOST_RESPONSE_INVALID',
+          'Agent Host response was not one strict protocol JSON document.',
+          'not_observed',
+        );
+      }
+      const receiptValidation = core.validateAgentHostReceipt(receipt, { request });
+      if (!receiptValidation.valid) {
+        throw new AgentHostTransportError(
+          receiptValidation.code,
+          'Agent Host receipt failed Core validation.',
+          'not_observed',
+        );
+      }
+      return receiptValidation.value;
     },
   };
 }
@@ -62,22 +93,11 @@ function createProcessAgentHost(options = {}) {
 function invokeProcess(options) {
   return new Promise((resolve, reject) => {
     let child;
-    try {
-      child = spawn(options.command, options.args, {
-        cwd: options.cwd,
-        env: options.env,
-        shell: false,
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-    } catch (error) {
-      reject(new Error(`Agent host could not start: ${error.message}`));
-      return;
-    }
-
-    const stdoutChunks = [];
-    let stdoutBytes = 0;
     let settled = false;
-    let outputExceeded = false;
+    let delivered = false;
+    let stdoutBytes = 0;
+    let stderrBytes = 0;
+    const chunks = [];
 
     const finish = (fn, value) => {
       if (settled) return;
@@ -85,83 +105,73 @@ function invokeProcess(options) {
       clearTimeout(timer);
       fn(value);
     };
+    const fail = (code, message, observation = delivered ? 'not_observed' : 'not_delivered') => {
+      if (child && !child.killed) child.kill('SIGTERM');
+      finish(reject, new AgentHostTransportError(code, message, observation));
+    };
+
+    try {
+      child = spawn(options.command, options.args, {
+        cwd: options.cwd,
+        env: options.env,
+        shell: false,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+    } catch {
+      reject(
+        new AgentHostTransportError(
+          'KDNA_HOST_START_FAILED',
+          'Agent Host could not start.',
+          'not_delivered',
+        ),
+      );
+      return;
+    }
 
     const timer = setTimeout(() => {
-      child.kill('SIGTERM');
-      finish(reject, new Error(`Agent host timed out after ${options.timeoutMs}ms.`));
+      fail('KDNA_HOST_TIMEOUT', `Agent Host timed out after ${options.timeoutMs}ms.`);
     }, options.timeoutMs);
 
-    child.once('error', (error) => {
-      finish(reject, new Error(`Agent host could not start: ${error.message}`));
+    child.once('error', () => {
+      fail('KDNA_HOST_START_FAILED', 'Agent Host could not start.', 'not_delivered');
     });
-
     child.stdout.on('data', (chunk) => {
       stdoutBytes += chunk.length;
       if (stdoutBytes > options.maxOutputBytes) {
-        outputExceeded = true;
-        child.kill('SIGTERM');
-        finish(reject, new Error(`Agent host output exceeded ${options.maxOutputBytes} bytes.`));
+        fail('KDNA_HOST_OUTPUT_LIMIT', 'Agent Host output exceeded its byte limit.');
         return;
       }
-      stdoutChunks.push(chunk);
+      chunks.push(chunk);
     });
-
-    // Drain diagnostics so a verbose host cannot deadlock. Raw diagnostics
-    // are deliberately excluded from user-visible errors and traces.
-    child.stderr.resume();
-
-    child.once('close', (code, signal) => {
-      if (settled || outputExceeded) return;
+    child.stderr.on('data', (chunk) => {
+      stderrBytes += chunk.length;
+      if (stderrBytes > options.maxDiagnosticBytes) {
+        fail('KDNA_HOST_DIAGNOSTIC_LIMIT', 'Agent Host diagnostics exceeded their byte limit.');
+      }
+    });
+    child.once('close', (code) => {
+      if (settled) return;
       if (code !== 0) {
-        const suffix = signal ? ` (signal ${signal})` : '';
-        finish(reject, new Error(`Agent host exited with code ${code}${suffix}.`));
+        fail('KDNA_HOST_EXIT_FAILED', `Agent Host exited with code ${code}.`);
         return;
       }
-      const text = Buffer.concat(stdoutChunks).toString('utf8').trim();
-      if (!text) {
-        finish(reject, new Error('Agent host returned no response.'));
+      if (stdoutBytes === 0) {
+        fail('KDNA_HOST_RESPONSE_MISSING', 'Agent Host returned no receipt.');
         return;
       }
-      let response;
-      try {
-        response = JSON.parse(text);
-      } catch {
-        finish(reject, new Error('Agent host response was not one JSON document.'));
-        return;
-      }
-      if (
-        !response ||
-        typeof response !== 'object' ||
-        Array.isArray(response) ||
-        response.protocol !== PROTOCOL ||
-        response.request_id !== options.requestId ||
-        !response.outcome ||
-        typeof response.outcome !== 'object' ||
-        Array.isArray(response.outcome)
-      ) {
-        finish(reject, new Error('Agent host response failed protocol validation.'));
-        return;
-      }
-      const requestJson = JSON.stringify(options.envelope);
-      finish(resolve, {
-        outcome: response.outcome,
-        receipt: {
-          protocol: PROTOCOL,
-          request_id: options.requestId,
-          request_digest: sha256(requestJson),
-          response_digest: sha256(text),
-        },
-      });
+      finish(resolve, Buffer.concat(chunks));
     });
-
-    child.stdin.once('error', (error) => {
-      finish(reject, new Error(`Agent host request could not be delivered: ${error.message}`));
+    child.stdin.once('error', () => {
+      fail('KDNA_HOST_DELIVERY_FAILED', 'Agent Host request was not delivered.', 'not_delivered');
     });
-    child.stdin.end(`${JSON.stringify(options.envelope)}\n`);
+    const payload = Buffer.from(`${JSON.stringify(options.request)}\n`, 'utf8');
+    child.stdin.end(payload, () => {
+      delivered = true;
+    });
   });
 }
 
 module.exports = {
-  PROTOCOL,
+  AgentHostTransportError,
   createProcessAgentHost,
 };

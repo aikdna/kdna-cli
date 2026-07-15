@@ -10,7 +10,7 @@ const { verifyCapsule, computeEntrySetDigestFromFile } = require('../src/capsule
 
 function makeAsset(tmp, fileName = 'asset.kdna') {
   const source = path.join(tmp, 'source');
-  fs.cpSync(path.join(__dirname, '..', 'fixtures', 'v1-judgment'), source, {
+  fs.cpSync(path.join(__dirname, '..', 'fixtures', 'judgment'), source, {
     recursive: true,
   });
   const assetPath = path.join(tmp, fileName);

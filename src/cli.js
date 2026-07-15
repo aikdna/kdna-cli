@@ -207,15 +207,15 @@ function showHelp() {
                                       --budget=<profile> Budget profile
                                       --shape=<name>     Projection shape
                                       --as=json|md       Output format
-                                      --runtime-contract=1  Strict Plan 1 opt-in
+                                      --runtime-contract  Assert the current Runtime contract
   use <asset.kdna>                   Run through a registered Runner
                                       --task=<text>      Task description
                                       --runner=<type:id> Runner (default: mock:default)
                                       --agent-host=<cmd> Process host for cli:default
                                       --agent-host-arg=<arg> Repeatable exact argument
                                       --agent-host-capabilities=<file>
-                                                           Process-bound Host 2 descriptor
-                                      --runtime-contract=1  Strict Host 2 / Trace 1 opt-in
+                                                           Process-bound Agent Host descriptor
+                                      --runtime-contract  Assert the current Runtime contract
                                       --as=json|trace    Output format
                                       --list-runners     List registered runners
                                       --mode=<list>      Replay modes (comma

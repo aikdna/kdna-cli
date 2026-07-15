@@ -6,7 +6,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
-const ASSET = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
+const ASSET = path.resolve(__dirname, '..', 'fixtures', 'minimal');
 
 function runCli(args) {
   return spawnSync(process.execPath, [CLI, ...args], {

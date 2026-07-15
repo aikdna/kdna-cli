@@ -1,11 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://aikdna.com/schemas/trace-v1.schema.json",
-  "title": "KDNA Consumption Trace v1",
+  "$id": "https://aikdna.com/schemas/trace.schema.json",
+  "title": "KDNA Consumption Trace",
   "type": "object",
-  "required": ["kdna_trace", "trace_id", "timestamp", "operation", "decision"],
+  "required": ["type", "schema_version", "trace_id", "timestamp", "operation", "decision"],
   "properties": {
-    "kdna_trace": { "const": "1.0.0" },
+    "type": { "const": "kdna.consumption-trace" },
+    "schema_version": { "const": "0.1.0" },
     "trace_id": {
       "type": "string",
       "pattern": "^[0-9a-f]{32}$"

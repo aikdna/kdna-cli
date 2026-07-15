@@ -4,7 +4,7 @@ const { execSync } = require('node:child_process');
 const path = require('node:path');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
-const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
+const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'minimal');
 
 it('plan-use --help shows usage (via stderr)', () => {
   const { spawnSync } = require('node:child_process');

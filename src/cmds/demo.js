@@ -3,11 +3,11 @@ const path = require('node:path');
 
 const DEMOS = {
   minimal: {
-    fixture: 'v1-minimal',
+    fixture: 'minimal',
     label: 'Minimal KDNA Core demo',
   },
   judgment: {
-    fixture: 'v1-judgment',
+    fixture: 'judgment',
     label: 'Content Review Judgment demo',
   },
 };

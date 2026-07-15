@@ -23,7 +23,7 @@ const os = require('node:os');
 const cbor = require('cbor-x');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
-const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
+const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'minimal');
 
 function run(args, opts = {}) {
   return spawnSync(process.execPath, [CLI, ...args], {
@@ -296,7 +296,7 @@ test('Story 9 CLI: bundle with term conflict → ERROR, bundle_valid=false, exit
       [dirB, 'A completely different meaning.'],
     ]) {
       fs.mkdirSync(dir, { recursive: true });
-      // Copy v1-minimal kdna.json and checksums but override payload
+      // Copy minimal kdna.json and checksums but override payload
       fs.copyFileSync(path.join(FIXTURE, 'kdna.json'), path.join(dir, 'kdna.json'));
       fs.copyFileSync(path.join(FIXTURE, 'mimetype'), path.join(dir, 'mimetype'));
       // Build a payload with a term

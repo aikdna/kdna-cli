@@ -261,7 +261,7 @@ function generateConsumptionPlan(opts) {
 
   const inputHash = sha256(task || '');
   const plan = {
-    plan_version: '0.9.0',
+    contract_version: '0.9.0',
     plan_id: planId,
     mode: mode || 'single',
     asset_ref: {
@@ -394,7 +394,7 @@ function cmdPlanUse(args) {
         '  --as=<format>         json|md (default: json)\n' +
         '  --out=<path>          Write plan to file\n' +
         '  --plan-id=<id>        Use a specific plan_id (deterministic default)\n' +
-        '  --runtime-contract=1  Opt in to strict ConsumptionPlan 1 (JSON only)\n' +
+        '  --runtime-contract  Require the current Runtime contract (JSON only)\n' +
         '\n' +
         'The plan is deterministic: same asset + same task = same plan_id.\n' +
         'No model call is made. No runner is required.\n',
@@ -411,19 +411,29 @@ function cmdPlanUse(args) {
   const outPath = getFlag('--out');
   const planIdOverride = getFlag('--plan-id');
 
-  if (runtimeContractValues.length > 0) {
-    if (runtimeContractValues.length !== 1 || runtimeContractValues[0] !== '1') {
-      error(
-        'Runtime contract must be one unique --runtime-contract=1 occurrence; no legacy fallback was selected.',
-        EXIT.INPUT_ERROR,
-      );
-    }
+  if (
+    runtimeContractValues.length > 1 ||
+    runtimeContractValues.some((value) => value !== null) ||
+    args.some(
+      (value, index) =>
+        value === '--runtime-contract' && /^\d+(?:\.\d+)*$/.test(args[index + 1] || ''),
+    )
+  ) {
+    error(
+      'Runtime contract accepts at most one bare --runtime-contract flag and no generation selector.',
+      EXIT.INPUT_ERROR,
+    );
+  }
+
+  const isClusterTarget =
+    target.endsWith('.json') && !target.endsWith('kdna.json') && !target.endsWith('checksums.json');
+  if (!isClusterTarget) {
     if (as !== 'json') {
-      error('Runtime contract 1 plan output supports --as=json only.', EXIT.INPUT_ERROR);
+      error('Runtime contract plan output supports --as=json only.', EXIT.INPUT_ERROR);
     }
     try {
-      const { prepareExecutionContractV1 } = require('../execution-contract-v1');
-      const prepared = prepareExecutionContractV1(target, {
+      const { prepareRuntimeContract } = require('../runtime-contract');
+      const prepared = prepareRuntimeContract(target, {
         task,
         taskFamily: taskFamily === 'general' ? null : taskFamily,
         budgetProfile,
@@ -435,8 +445,15 @@ function cmdPlanUse(args) {
       console.log(json);
       return;
     } catch (runtimeError) {
-      error(`Runtime contract 1 planning failed: ${runtimeError.message}`, EXIT.VALIDATION_FAILED);
+      error(`Runtime contract planning failed: ${runtimeError.message}`, EXIT.VALIDATION_FAILED);
     }
+  }
+
+  if (runtimeContractValues.length > 0) {
+    error(
+      'Runtime contract accepts one packaged .kdna asset, not a Cluster manifest.',
+      EXIT.INPUT_ERROR,
+    );
   }
 
   // Determine mode: single asset or cluster
@@ -444,8 +461,7 @@ function cmdPlanUse(args) {
   if (!abs) error(`Target not found: ${target}`, EXIT.INPUT_ERROR);
 
   let plan;
-  const isCluster =
-    abs.endsWith('.json') && !abs.endsWith('kdna.json') && !abs.endsWith('checksums.json');
+  const isCluster = true;
 
   if (isCluster) {
     // Cluster plan — route to cluster engine

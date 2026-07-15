@@ -23,7 +23,7 @@
  *      emissions at code review time.
  *
  *   2. BEHAVIORAL OUTPUT — run representative CLI commands on the
- *      v1-minimal fixture and check that the runtime output does
+ *      minimal fixture and check that the runtime output does
  *      not contain content-trust claim phrases. Catches indirect
  *      emissions (via variable interpolation, e.g. a badge level
  *      interpolated into a status string).
@@ -50,7 +50,7 @@ const { spawnSync } = require('node:child_process');
 const REPO_ROOT = path.join(__dirname, '..');
 const SRC_DIR = path.join(REPO_ROOT, 'src');
 const CLI_BIN = path.join(REPO_ROOT, 'src', 'cli.js');
-const FIXTURE = path.join(REPO_ROOT, 'fixtures', 'v1-minimal');
+const FIXTURE = path.join(REPO_ROOT, 'fixtures', 'minimal');
 
 // Per roadmap-2026.md §13.1 design contract.
 //

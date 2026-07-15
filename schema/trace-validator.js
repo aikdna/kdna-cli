@@ -25,7 +25,7 @@ const PROJECTION_CHAR_DELIVERY_BASES = new Set([
 
 function loadSchema() {
   if (_schema) return _schema;
-  const schemaPath = path.join(__dirname, '..', 'schema', 'trace-v1.schema.json');
+  const schemaPath = path.join(__dirname, '..', 'schema', 'trace.schema.json');
   _schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
   return _schema;
 }
@@ -37,8 +37,11 @@ function validateTrace(trace) {
     return { valid: false, errors: ['trace must be an object'] };
   }
 
-  if (trace.kdna_trace !== '1.0.0') {
-    errors.push('kdna_trace must be "1.0.0"');
+  if (trace.type !== 'kdna.consumption-trace') {
+    errors.push('type must be "kdna.consumption-trace"');
+  }
+  if (trace.schema_version !== '0.1.0') {
+    errors.push('schema_version must be "0.1.0"');
   }
 
   if (typeof trace.trace_id !== 'string' || !/^[0-9a-f]{32}$/.test(trace.trace_id)) {

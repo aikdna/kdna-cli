@@ -1,5 +1,4 @@
 {
-  "kdna_version": "1.0",
   "asset_id": "kdna:example:content-review",
   "asset_uid": "urn:uuid:00000000-0000-4000-8000-000000000002",
   "asset_type": "domain",
@@ -13,8 +12,9 @@
     "id": "kdna-demo"
   },
   "compatibility": {
-    "min_loader_version": "1.0.0",
-    "profile": "judgment-profile-v1"
+    "min_loader_version": "0.18.1",
+    "profile": "kdna.payload.judgment",
+    "profile_version": "0.1.0"
   },
   "payload": {
     "path": "payload.kdnab",
@@ -25,7 +25,13 @@
   "description": "A demonstration KDNA judgment asset that shows how scoped principles, boundaries, and failure modes give AI a concrete review framework instead of generic feedback. This demo is the recommended first-run asset for new KDNA users.",
   "language": "en",
   "license": "Apache-2.0",
-  "keywords": ["demo", "judgment", "content-review", "real-example", "kdna-core"],
+  "keywords": [
+    "demo",
+    "judgment",
+    "content-review",
+    "real-example",
+    "kdna-core"
+  ],
   "lineage": {
     "type": "original",
     "fork_of": null,
@@ -38,26 +44,36 @@
         "requires_decryption": false,
         "max_tokens_hint": 500,
         "selection": "manifest metadata",
-        "intended_for": ["discovery"]
+        "intended_for": [
+          "discovery"
+        ]
       },
       "compact": {
         "requires_decryption": false,
         "max_tokens_hint": 3000,
         "selection": "core judgment summary",
-        "intended_for": ["agent prompt"]
+        "intended_for": [
+          "agent prompt"
+        ]
       },
       "scenario": {
         "requires_decryption": false,
         "max_tokens_hint": 4000,
         "selection": "scenario cards",
-        "intended_for": ["situational loading"]
+        "intended_for": [
+          "situational loading"
+        ]
       },
       "full": {
         "requires_decryption": false,
         "max_tokens_hint": 12000,
         "selection": "full manifest and payload",
-        "intended_for": ["audit", "reference"]
+        "intended_for": [
+          "audit",
+          "reference"
+        ]
       }
     }
-  }
+  },
+  "format_version": "0.1.0"
 }

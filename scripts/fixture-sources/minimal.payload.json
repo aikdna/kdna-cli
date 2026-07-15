@@ -1,0 +1,32 @@
+{
+  "profile": "kdna.payload.judgment",
+  "core": {
+    "highest_question": "What does this minimal example demonstrate?",
+    "axioms": [
+      {
+        "id": "a1",
+        "one_sentence": "The minimal payload is the smallest shape that passes the schema."
+      }
+    ],
+    "boundaries": [],
+    "risk_model": {}
+  },
+  "patterns": [],
+  "scenarios": [],
+  "cases": [],
+  "reasoning": {
+    "failure_modes": [],
+    "self_check": []
+  },
+  "evolution": {
+    "changelog": [
+      {
+        "version": "1.0.0",
+        "date": "2026-06-16",
+        "changes": "Initial example."
+      }
+    ],
+    "version_notes": []
+  },
+  "profile_version": "0.1.0"
+}

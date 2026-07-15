@@ -40,11 +40,11 @@ const path = require('node:path');
 const os = require('node:os');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
-const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
+const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'minimal');
 const CORE = require('@aikdna/kdna-core');
 const cbor = require('cbor-x');
 const FIXTURE_TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s13-fixture-'));
-const RUNTIME_FIXTURE = path.join(FIXTURE_TMP, 'v1-minimal.kdna');
+const RUNTIME_FIXTURE = path.join(FIXTURE_TMP, 'minimal.kdna');
 CORE.pack(FIXTURE, RUNTIME_FIXTURE);
 after(() => fs.rmSync(FIXTURE_TMP, { recursive: true, force: true }));
 

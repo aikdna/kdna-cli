@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/aikdna/kdna/schema/manifest.schema.json",
-  "title": "KDNA Manifest v2",
+  "title": "KDNA Manifest",
   "description": "Schema for kdna.json, the public metadata layer of a .kdna container.",
   "type": "object",
   "required": [
-    "kdna_version",
+    "format_version",
     "asset_id",
     "asset_uid",
     "asset_type",
@@ -14,16 +14,15 @@
     "judgment_version",
     "created_at",
     "updated_at",
-    "creator",
     "compatibility",
     "payload"
   ],
   "additionalProperties": true,
   "properties": {
-    "kdna_version": {
+    "format_version": {
       "type": "string",
-      "description": "KDNA Asset Container wire discriminator.",
-      "enum": ["1.0"]
+      "description": "Compatibility coordinate for the KDNA container format.",
+      "const": "0.1.0"
     },
     "asset_id": {
       "type": "string",
@@ -71,13 +70,18 @@
       "additionalProperties": true,
       "properties": {
         "name": { "type": "string", "minLength": 1 },
-        "id": { "type": "string" }
+        "id": { "type": "string" },
+        "creator_type": {
+          "type": "string",
+          "enum": ["human", "agent", "tool", "organization"],
+          "description": "Kind of creator identity represented by this record."
+        }
       },
-      "description": "Who produced the asset. Provenance only; not a trust claim."
+      "description": "Optional record of who produced the asset. Provenance only; not a trust claim. Omit it when creator provenance is unavailable rather than inventing an identity."
     },
     "compatibility": {
       "type": "object",
-      "required": ["min_loader_version", "profile"],
+      "required": ["min_loader_version", "profile", "profile_version"],
       "additionalProperties": true,
       "properties": {
         "min_loader_version": {
@@ -86,8 +90,12 @@
         },
         "profile": {
           "type": "string",
-          "description": "Payload profile identifier (e.g. judgment-profile-v1).",
-          "enum": ["judgment-profile-v1", "bundle-profile-v1"]
+          "description": "Payload profile identifier (e.g. kdna.payload.judgment).",
+          "enum": ["kdna.payload.judgment", "kdna.payload.bundle"]
+        },
+        "profile_version": {
+          "const": "0.1.0",
+          "description": "Compatibility coordinate for the selected payload profile."
         }
       }
     },
@@ -100,6 +108,11 @@
         "encoding": { "type": "string", "enum": ["cbor"] },
         "encrypted": { "type": "boolean" }
       }
+    },
+    "access": {
+      "type": "string",
+      "enum": ["public", "licensed", "remote"],
+      "description": "Stable delivery and authorization mode for the asset."
     },
     "summary": { "type": "string" },
     "description": { "type": "string" },
@@ -195,6 +208,24 @@
       "additionalProperties": {
         "type": "string"
       }
+    },
+    "extends": {
+      "description": "Asset inheritance declaration (Story 12). This asset inherits judgment content from the named base asset. Distinct from 'dependencies' (peer composition): 'extends' creates a single-inheritance hierarchy where the child specialises the parent. The child's cards override the parent's cards with the same ID; parent cards not overridden are inherited. Format: '@scope/name@semver-range' string, or an object with 'name' and optional 'version' fields.",
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Scoped asset name with optional version, e.g. '@aikdna/sales@^1.0.0'."
+        },
+        {
+          "type": "object",
+          "required": ["name"],
+          "additionalProperties": false,
+          "properties": {
+            "name":    { "type": "string", "description": "Scoped asset name, e.g. '@aikdna/sales'." },
+            "version": { "type": "string", "description": "Semver range, e.g. '^1.0.0'. Defaults to '*' if absent." }
+          }
+        }
+      ]
     },
     "encryption": { "type": "object" },
     "load_contract": { "$ref": "load-contract.schema.json" },

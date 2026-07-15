@@ -1,11 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://aikdna.com/schemas/consumer-index-v1.schema.json",
-  "title": "KDNA Consumer Index v1",
+  "$id": "https://aikdna.com/schemas/consumer-index.schema.json",
+  "title": "KDNA Consumer Index",
   "type": "object",
-  "required": ["consumer_index", "entries"],
+  "required": ["type", "schema_version", "entries"],
   "properties": {
-    "consumer_index": { "const": "0.1.0" },
+    "type": { "const": "kdna.consumer-index" },
+    "schema_version": { "const": "0.1.0" },
     "entries": {
       "type": "array",
       "items": {

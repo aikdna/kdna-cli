@@ -29,7 +29,7 @@ const cbor = require('cbor-x');
 const { buildChecksums, pack } = require('@aikdna/kdna-core');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
-const V1_FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
+const V1_FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'minimal');
 
 function run(args, opts = {}) {
   try {

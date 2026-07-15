@@ -444,8 +444,8 @@ test('CRITICAL-2: public asset is loaded normally even when --remote-server is s
   let server;
   try {
     server = await startFakeRemoteServer();
-    // Use the public v1-minimal fixture (no access: "remote" field)
-    const sourceDir = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
+    // Use the public minimal fixture (no access: "remote" field)
+    const sourceDir = path.resolve(__dirname, '..', 'fixtures', 'minimal');
     const assetPath = packFixture(sourceDir, path.join(tmp, 'public-test.kdna'));
     const r = run(['load', assetPath, '--as=json', '--remote-server', server.url], {
       env: { KDNA_IDENTITY_DIR: path.join(tmp, 'keys') },

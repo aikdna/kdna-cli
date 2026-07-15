@@ -21,9 +21,9 @@ function readPayload(p) {
 }
 
 const cliBin = path.join(__dirname, '..', 'src', 'cli.js');
-const fixture = path.join(__dirname, '..', 'fixtures', 'v1-minimal');
+const fixture = path.join(__dirname, '..', 'fixtures', 'minimal');
 const packedFixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-v1-global-'));
-const packedFixture = path.join(packedFixtureDir, 'v1-minimal.kdna');
+const packedFixture = path.join(packedFixtureDir, 'minimal.kdna');
 core.pack(fixture, packedFixture);
 after(() => fs.rmSync(packedFixtureDir, { recursive: true, force: true }));
 const FORBIDDEN_TERMS = [

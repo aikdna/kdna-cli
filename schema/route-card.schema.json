@@ -1,11 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://aikdna.com/schemas/route-card-v1.schema.json",
-  "title": "KDNA Route Card v1",
+  "$id": "https://aikdna.com/schemas/route-card.schema.json",
+  "title": "KDNA Route Card",
   "type": "object",
-  "required": ["route_card", "domain_id", "role"],
+  "required": ["type", "schema_version", "domain_id", "role"],
   "properties": {
-    "route_card": { "const": "0.1.0" },
+    "type": { "const": "kdna.route-card" },
+    "schema_version": { "const": "0.1.0" },
     "domain_id": { "type": "string" },
     "role": {
       "type": "string",

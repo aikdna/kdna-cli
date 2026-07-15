@@ -5,12 +5,13 @@ const path = require('node:path');
 
 const MAX_REGISTRATION_BYTES = 64 * 1024;
 const LEGACY_CAPABILITIES = Object.freeze({
-  type: 'kdna.agent-host.capabilities',
-  version: '1.0',
+  type: 'kdna.agent-host-capabilities',
+  protocol_version: '0.1.0',
   capability_basis: 'legacy_assumption',
-  host_protocols: Object.freeze(['kdna.agent-host/1']),
-  capsule_versions: Object.freeze(['1.0']),
-  capsule_digest_profiles: Object.freeze([]),
+  host_protocols: Object.freeze(['kdna.agent-host']),
+  capsule_versions: Object.freeze(['0.1.0']),
+  capsule_digest_profiles: Object.freeze(['kdna.canonicalization.runtime-capsule-jcs']),
+  capsule_digest_profile_versions: Object.freeze(['0.1.0']),
 });
 
 function ownKeysExactly(value, expected) {
@@ -64,8 +65,8 @@ function snapshotRegularFile(filePath, maxBytes = MAX_REGISTRATION_BYTES, fileSy
 }
 
 function createAgentHostCapabilityRegistry(core) {
-  if (!core || typeof core.parseExecutionContractJsonV1 !== 'function') {
-    throw new Error('KDNA Core 0.18 execution-contract parser is required.');
+  if (!core || typeof core.parseRuntimeContractJson !== 'function') {
+    throw new Error('KDNA Core Runtime contract parser is required.');
   }
   const registrations = new Map();
 
@@ -76,16 +77,16 @@ function createAgentHostCapabilityRegistry(core) {
   return {
     registerProcessFile(filePath, selection) {
       const bytes = snapshotRegularFile(filePath);
-      const value = core.parseExecutionContractJsonV1(bytes, {
+      const value = core.parseRuntimeContractJson(bytes, {
         maxBytes: MAX_REGISTRATION_BYTES,
         maxDepth: 16,
       });
-      if (!ownKeysExactly(value, ['type', 'version', 'process', 'capabilities'])) {
+      if (!ownKeysExactly(value, ['type', 'protocol_version', 'process', 'capabilities'])) {
         throw new Error('Capability registration has an invalid top-level shape.');
       }
       if (
         value.type !== 'kdna.cli.agent-host-registration' ||
-        value.version !== '1.0' ||
+        value.protocol_version !== '0.1.0' ||
         !ownKeysExactly(value.process, ['command', 'args']) ||
         typeof value.process.command !== 'string' ||
         value.process.command.length === 0 ||

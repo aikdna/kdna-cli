@@ -1,19 +1,19 @@
 {
   "provenance": {
-    "contract_id": "kdna.golden-single-asset/1",
+    "contract_id": "kdna.golden-single-asset",
     "core_repository": "https://github.com/aikdna/kdna",
-    "core_commit": "59ab8f1",
+    "core_commit": "4ede2aa",
     "core_fixture_path": "packages/kdna-core/test/fixtures/golden-single-asset.json",
     "dynamic_field_normalization": {
       "trace.loaded_at": "<runtime-generated-iso8601>"
     },
-    "normalized_capsule_sha256": "sha256:658931015d9d02bb506b59f8daddd41ed0ab94f7079353a1be2fc9825c58be2b"
+    "normalized_capsule_sha256": "sha256:b0973d780d598e3a75762e6b1fcd1bc19b9659b94d36ad2caed621a82c1f1391"
   },
   "task": "Choose the rollout mode after required checks passed but rollback-drill evidence remains incomplete.",
   "source": {
-    "contract_id": "kdna.golden-single-asset/1",
+    "contract_id": "kdna.golden-single-asset",
     "manifest": {
-      "kdna_version": "1.0",
+      "format_version": "0.1.0",
       "asset_id": "kdna:fixture:release-decision-golden",
       "asset_uid": "urn:uuid:00000000-0000-4000-8000-000000000401",
       "asset_type": "domain",
@@ -27,8 +27,9 @@
         "id": "synthetic_protocol_fixture"
       },
       "compatibility": {
-        "min_loader_version": "0.16.0",
-        "profile": "judgment-profile-v1"
+        "min_loader_version": "0.18.1",
+        "profile": "kdna.payload.judgment",
+        "profile_version": "0.1.0"
       },
       "payload": {
         "path": "payload.kdnab",
@@ -39,7 +40,11 @@
       "summary": "Synthetic Golden fixture for KDNA value-preservation tests.",
       "language": "en",
       "license": "Apache-2.0",
-      "keywords": ["synthetic", "release-decision", "golden"],
+      "keywords": [
+        "synthetic",
+        "release-decision",
+        "golden"
+      ],
       "load_contract": {
         "default_profile": "compact",
         "profiles": {
@@ -57,13 +62,17 @@
           },
           "full": {
             "requires_decryption": false,
-            "intended_for": ["audit", "reference"]
+            "intended_for": [
+              "audit",
+              "reference"
+            ]
           }
         }
       }
     },
     "payload": {
-      "profile": "judgment-profile-v1",
+      "profile": "kdna.payload.judgment",
+      "profile_version": "0.1.0",
       "core": {
         "highest_question": "Which rollout choice preserves the safest verified recovery path?",
         "worldview": [
@@ -77,7 +86,10 @@
         ],
         "judgment_role": {
           "acts_as": "a scoped release-decision authority",
-          "does_not_act_as": ["an operational fact source", "an automated deployment controller"],
+          "does_not_act_as": [
+            "an operational fact source",
+            "an automated deployment controller"
+          ],
           "responsibility": "Order qualitative rollout tradeoffs after observed facts are supplied."
         },
         "axioms": [
@@ -87,8 +99,12 @@
             "full_statement": "When required checks have passed but rollback evidence remains incomplete, choose the smallest reversible rollout that can produce the missing evidence.",
             "why": "Without this rule, rollout speed can outrank a verified recovery path.",
             "confidence": "high",
-            "applies_when": ["choosing rollout scope after required checks pass"],
-            "does_not_apply_when": ["determining whether required checks actually passed"],
+            "applies_when": [
+              "choosing rollout scope after required checks pass"
+            ],
+            "does_not_apply_when": [
+              "determining whether required checks actually passed"
+            ],
             "failure_risk": "The release may expand before its recovery path is verified."
           }
         ],
@@ -107,7 +123,10 @@
       "cases": [],
       "reasoning": {
         "self_check": [
-          "Did I preserve the verified recovery path without inventing release facts?"
+          "Did I preserve the verified recovery path without inventing release facts?",
+          {
+            "question": "Did I retain the structured self-check without changing its shape?"
+          }
         ],
         "failure_modes": []
       },
@@ -118,11 +137,48 @@
     }
   },
   "expected_compact_capsule": {
-    "type": "kdna.context.capsule",
-    "version": "1.0",
-    "domain": "kdna:fixture:release-decision-golden",
-    "judgment_version": "1.0.0",
-    "asset_digest": "sha256:b503b3b393e164682d6978a85fac6346042c032da132e38c6b35602a1adee509",
+    "type": "kdna.runtime-capsule",
+    "contract_version": "0.1.0",
+    "asset": {
+      "asset_id": "kdna:fixture:release-decision-golden",
+      "asset_uid": "urn:uuid:00000000-0000-4000-8000-000000000401",
+      "version": "1.0.0",
+      "judgment_version": "1.0.0"
+    },
+    "digests": {
+      "profile": "kdna.digest-evidence",
+      "profile_version": "0.1.0",
+      "asset": {
+        "value": "sha256:dd8dad548a4d5d78b48e8a48d4bd21d66c0eb474719d9118e200c98647786885",
+        "basis": "kdna.digest-basis.container-bytes",
+        "comparison": {
+          "state": "not_compared",
+          "against": null,
+          "expected": null,
+          "source": null
+        }
+      },
+      "content": {
+        "value": "sha256:a48f8b7e424cdd7a18baac04c425fcaa22b3c1e237d4ff5b1dc36780dbf609cf",
+        "basis": "kdna.digest-basis.content-tree",
+        "comparison": {
+          "state": "not_compared",
+          "against": null,
+          "expected": null,
+          "source": null
+        }
+      },
+      "runtime_entry_set": {
+        "value": "sha256:7f91931cb4c1136a6241dd67fde561ec10f7e9d155a6ddc4a7847c5d7d9b6c71",
+        "basis": "kdna.digest-basis.runtime-entry-set",
+        "comparison": {
+          "state": "matched",
+          "against": "checksum_declaration",
+          "expected": "sha256:7f91931cb4c1136a6241dd67fde561ec10f7e9d155a6ddc4a7847c5d7d9b6c71",
+          "source": "checksums.json.entry_set_digest"
+        }
+      }
+    },
     "signature": {
       "state": "absent"
     },
@@ -142,7 +198,10 @@
       ],
       "judgment_role": {
         "acts_as": "a scoped release-decision authority",
-        "does_not_act_as": ["an operational fact source", "an automated deployment controller"],
+        "does_not_act_as": [
+          "an operational fact source",
+          "an automated deployment controller"
+        ],
         "responsibility": "Order qualitative rollout tradeoffs after observed facts are supplied."
       },
       "axioms": [
@@ -151,8 +210,12 @@
           "id": "ax_reversible_rollout",
           "statement": "Prefer a reversible limited rollout when recovery evidence is incomplete.",
           "one_sentence": "Prefer a reversible limited rollout when recovery evidence is incomplete.",
-          "applies_when": ["choosing rollout scope after required checks pass"],
-          "does_not_apply_when": ["determining whether required checks actually passed"],
+          "applies_when": [
+            "choosing rollout scope after required checks pass"
+          ],
+          "does_not_apply_when": [
+            "determining whether required checks actually passed"
+          ],
           "failure_risk": "The release may expand before its recovery path is verified."
         }
       ],
@@ -165,9 +228,9 @@
         }
       ],
       "self_checks": [
+        "Did I preserve the verified recovery path without inventing release facts?",
         {
-          "type": "text",
-          "text": "Did I preserve the verified recovery path without inventing release facts?"
+          "question": "Did I retain the structured self-check without changing its shape?"
         }
       ],
       "failure_modes": [],
@@ -177,6 +240,8 @@
       "payload_encoding": "cbor",
       "loaded_by": "kdna-core",
       "loaded_at": "<runtime-generated-iso8601>",
+      "input_kind": "packaged_bytes",
+      "runtime_eligible": true,
       "schema_valid": true,
       "signature_state": "absent",
       "profile": "compact"

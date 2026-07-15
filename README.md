@@ -128,7 +128,7 @@ kdna use ./asset.kdna \
 ```
 
 The executable is spawned directly, without a shell. It receives one
-`kdna.agent-host/1` JSON request on standard input and must return one
+`kdna.agent-host` JSON request on standard input and must return one
 correlated JSON response on standard output. See
 [`docs/consumption-runtime.md`](docs/consumption-runtime.md) for the contract.
 The correlated response completes execution only; it does not certify semantic
@@ -136,28 +136,28 @@ consumption, judgment fidelity, or conformance. Those facts remain separate in
 Trace, and model identity and usage remain host-reported.
 Staged Cluster execution remains an explicit, disabled advanced path.
 
-ConsumptionPlan 1, Capsule 2, Agent Host 2, and JudgmentTrace 1 are available
-only through the explicit `--runtime-contract=1` option. The default command
-above remains on Plan 0.9 / Capsule 1 / Host 1 / Trace 0.9. Strict execution
-also requires a process-bound capability registration; the runtime flag and
-the process command do not create Host 2 capabilities:
+The current ConsumptionPlan, Runtime Capsule, Agent Host request, receipt, and
+JudgmentTrace form the only single-asset Runtime path. Execution requires a
+process-bound capability registration; the runtime assertion flag and the
+process command do not create Agent Host capabilities:
 
 ```bash
 kdna use ./asset.kdna \
   --task "Review this decision" \
   --runner cli:default \
   --agent-host node \
-  --agent-host-arg ./my-agent-host-2.js \
-  --agent-host-capabilities ./my-agent-host-2.registration.json \
-  --runtime-contract=1 \
+  --agent-host-arg ./my-agent-host.js \
+  --agent-host-capabilities ./my-agent-host.registration.json \
+  --runtime-contract \
   --as trace
 ```
 
-The strict path accepts one regular packaged `.kdna` file or installed asset.
+The Runtime path accepts one regular packaged `.kdna` file or installed asset.
 It rejects source directories, Cluster, mock runners, missing process Hosts,
 unknown contract values, and unsupported capability pairs without downgrading.
-The opt-in must appear exactly once in `--runtime-contract=1` form; bare,
-space-separated, or repeated occurrences fail closed. Strict process timeouts
+When supplied, `--runtime-contract` is an assertion of the current contract,
+not a generation selector. Repeated occurrences and selector values fail
+closed. Process timeouts
 must likewise use one positive integer `--timeout=<ms>` value.
 See [`docs/consumption-runtime.md`](docs/consumption-runtime.md) for the bound
 registration format and evidence limits.

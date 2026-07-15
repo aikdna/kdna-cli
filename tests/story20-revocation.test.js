@@ -38,7 +38,7 @@ const path = require('node:path');
 const os = require('node:os');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
-const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
+const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'minimal');
 
 function run(args, opts = {}) {
   return spawnSync(process.execPath, [CLI, ...args], {

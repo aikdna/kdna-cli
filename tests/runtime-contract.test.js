@@ -14,24 +14,29 @@ const {
   createAgentHostCapabilityRegistry,
   snapshotRegularFile,
 } = require('../src/agent-host-capabilities');
-const { createProcessAgentHostV2 } = require('../src/agent-host-process-v2');
+const { createProcessAgentHost } = require('../src/agent-host-process');
 const {
   BUDGETS,
-  executePreparedContractV1,
-  prepareExecutionContractV1,
+  executePreparedRuntimeContract,
+  prepareRuntimeContract,
   snapshotAssetFile,
-} = require('../src/execution-contract-v1');
+} = require('../src/runtime-contract');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
-const CORE_ENTRY = require.resolve('@aikdna/kdna-core');
-const SOURCE_FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
+const CORE_PRELOAD = path.resolve(__dirname, 'helpers', 'require-golden-core.js');
+const CORE_SOURCE_ROOT = process.env.KDNA_CORE_SOURCE_ROOT || process.env.KDNA_GOLDEN_CORE_ROOT;
+const CORE_ENTRY = CORE_SOURCE_ROOT
+  ? path.join(path.resolve(CORE_SOURCE_ROOT), 'src', 'index.js')
+  : require.resolve('@aikdna/kdna-core');
+const SOURCE_FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'minimal');
 const REGISTERED = Object.freeze({
-  type: 'kdna.agent-host.capabilities',
-  version: '1.0',
+  type: 'kdna.agent-host-capabilities',
+  protocol_version: '0.1.0',
   capability_basis: 'registered_descriptor',
-  host_protocols: ['kdna.agent-host/2'],
-  capsule_versions: ['2.0'],
-  capsule_digest_profiles: ['kdna-capsule-jcs-v1'],
+  host_protocols: ['kdna.agent-host'],
+  capsule_versions: ['0.1.0'],
+  capsule_digest_profiles: ['kdna.canonicalization.runtime-capsule-jcs'],
+  capsule_digest_profile_versions: ['0.1.0'],
 });
 
 let root;
@@ -39,7 +44,7 @@ let asset;
 let invalidPayloadAsset;
 
 before(() => {
-  root = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-runtime-contract-1-'));
+  root = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-runtime-contract-'));
   asset = path.join(root, 'fixture.kdna');
   core.pack(SOURCE_FIXTURE, asset);
   const invalidSource = path.join(root, 'invalid-payload-source');
@@ -52,9 +57,12 @@ before(() => {
 after(() => fs.rmSync(root, { recursive: true, force: true }));
 
 function run(args, env = {}) {
+  const nodeOptions = [process.env.NODE_OPTIONS, `--require=${JSON.stringify(CORE_PRELOAD)}`]
+    .filter(Boolean)
+    .join(' ');
   return spawnSync(process.execPath, [CLI, ...args], {
     encoding: 'utf8',
-    env: { ...process.env, KDNA_QUIET: '1', ...env },
+    env: { ...process.env, NODE_OPTIONS: nodeOptions, KDNA_QUIET: '1', ...env },
   });
 }
 
@@ -69,7 +77,7 @@ function registration(file, command, args, capabilities = REGISTERED) {
     JSON.stringify(
       {
         type: 'kdna.cli.agent-host-registration',
-        version: '1.0',
+        protocol_version: '0.1.0',
         process: { command, args },
         capabilities,
       },
@@ -99,16 +107,18 @@ process.stdin.on('end', () => {
   ${captureFile ? `fs.writeFileSync(${JSON.stringify(captureFile)}, Buffer.concat(chunks));` : ''}
   let request;
   try {
-    request = core.parseExecutionContractJsonV1(Buffer.concat(chunks));
-    core.adaptCapsuleV2ToV1(request.capsule);
+    request = core.parseRuntimeContractJson(Buffer.concat(chunks));
   } catch (_) {
     process.exit(20);
     return;
   }
   if (
-    request.protocol !== 'kdna.agent-host/2' ||
-    request.runtime_contract?.capsule_version !== '2.0' ||
-    request.runtime_contract?.capsule_digest_profile !== 'kdna-capsule-jcs-v1' ||
+    request.protocol !== 'kdna.agent-host' ||
+    request.protocol_version !== '0.1.0' ||
+    request.runtime_contract?.capsule_version !== '0.1.0' ||
+    request.runtime_contract?.capsule_digest_profile !== 'kdna.canonicalization.runtime-capsule-jcs' ||
+    request.runtime_contract?.capsule_digest_profile_version !== '0.1.0' ||
+    request.capsule?.type !== 'kdna.runtime-capsule' ||
     request.authority?.asset_id !== request.asset?.asset_id ||
     request.asset?.asset_id !== request.capsule?.asset?.asset_id ||
     request.asset?.asset_uid !== request.capsule?.asset?.asset_uid ||
@@ -131,12 +141,14 @@ process.stdin.on('end', () => {
   };
   process.stdout.write(JSON.stringify({
     protocol: request.protocol,
+    protocol_version: request.protocol_version,
     request_id: request.request_id,
     runtime_receipt: {
       type: 'kdna.agent-host.runtime-receipt',
-      receipt_version: '1.0.0',
-      capsule_version: '2.0',
-      capsule_digest_profile: 'kdna-capsule-jcs-v1',
+      contract_version: '0.1.0',
+      capsule_version: '0.1.0',
+      capsule_digest_profile: 'kdna.canonicalization.runtime-capsule-jcs',
+      capsule_digest_profile_version: '0.1.0',
       sender_capsule_delivery_digest: sender,
       host_recomputed_capsule_delivery_digest: hostP,
       echoed_capsule_delivery_digest: hostP,
@@ -159,7 +171,7 @@ process.stdin.on('end', () => {
 }
 
 function preparedRequest() {
-  const prepared = prepareExecutionContractV1(asset, {
+  const prepared = prepareRuntimeContract(asset, {
     task: 'Review this packaged decision.',
     createdAt: '2026-07-15T00:00:00.000Z',
   });
@@ -167,14 +179,14 @@ function preparedRequest() {
     plan: prepared.plan,
     trustedPlanDigest: prepared.trustedPlanDigest,
     capabilities: REGISTERED,
-    coreCapsuleVersions: core.DEFAULT_CORE_CAPSULE_VERSIONS,
+    coreCapsuleVersions: core.DEFAULT_CORE_CAPSULE_CONTRACT_VERSIONS,
   };
-  const capsule = core.loadCapsuleV2(prepared.bytes, {
+  const capsule = core.loadRuntimeCapsule(prepared.bytes, {
     profile: prepared.plan.projection_request.profile,
     expectedDigests: prepared.capsuleExpectedDigests,
     loadedAt: prepared.createdAt,
   });
-  const request = core.buildAgentHost2RequestV1(
+  const request = core.buildAgentHostRequest(
     { request_id: 'host_0123456789abcdef01234567', capsule },
     context,
   );
@@ -199,51 +211,45 @@ test('byte-authenticated source fixture retains its declared bytes on checkout',
   }
 });
 
-test('Core is an exact 0.18.0 dependency and the default contract remains 0.9', () => {
+test('Core candidate is explicit while the unpublished registry dependency remains unchanged', () => {
   const pkg = require('../package.json');
   assert.equal(pkg.dependencies['@aikdna/kdna-core'], '0.18.0');
-  assert.equal(require('@aikdna/kdna-core/package.json').version, '0.18.0');
-  const legacy = run(['plan-use', asset, '--task=Review', '--as=json']);
-  assert.equal(legacy.status, 0, legacy.stderr);
-  assert.equal(JSON.parse(legacy.stdout).plan_version, '0.9.0');
+  const corePackage = CORE_SOURCE_ROOT
+    ? require(path.join(path.resolve(CORE_SOURCE_ROOT), 'package.json'))
+    : require('@aikdna/kdna-core/package.json');
+  assert.equal(corePackage.version, CORE_SOURCE_ROOT ? '0.18.1' : '0.18.0');
+  const current = run(['plan-use', asset, '--task=Review', '--as=json']);
+  assert.equal(current.status, 0, current.stderr);
+  assert.equal(JSON.parse(current.stdout).contract_version, '0.1.0');
 });
 
 test('Core default Capsule versions are the only authority and are snapshotted immutably', async () => {
-  const prepared = prepareExecutionContractV1(asset, { task: 'Review Core version authority.' });
-  assert.deepEqual(prepared.coreCapsuleVersions, core.DEFAULT_CORE_CAPSULE_VERSIONS);
-  assert.notStrictEqual(prepared.coreCapsuleVersions, core.DEFAULT_CORE_CAPSULE_VERSIONS);
+  const prepared = prepareRuntimeContract(asset, { task: 'Review Core version authority.' });
+  assert.deepEqual(prepared.coreCapsuleVersions, core.DEFAULT_CORE_CAPSULE_CONTRACT_VERSIONS);
+  assert.notStrictEqual(prepared.coreCapsuleVersions, core.DEFAULT_CORE_CAPSULE_CONTRACT_VERSIONS);
   assert.throws(() => prepared.coreCapsuleVersions.push('9.0'));
 
-  const coreWithOneDefault = new Proxy(core, {
+  const coreWithoutDefaults = new Proxy(core, {
     get(target, property) {
-      if (property === 'DEFAULT_CORE_CAPSULE_VERSIONS') return Object.freeze(['1.0']);
+      if (property === 'DEFAULT_CORE_CAPSULE_CONTRACT_VERSIONS') return Object.freeze([]);
       return target[property];
     },
   });
-  const selectedFromCore = prepareExecutionContractV1(asset, {
-    core: coreWithOneDefault,
-    task: 'Review Core-selected versions.',
-  });
-  let calls = 0;
-  const execution = await executePreparedContractV1(selectedFromCore, {
-    capabilities: REGISTERED,
-    command: process.execPath,
-    args: [],
-    createHost: () => {
-      calls += 1;
-      throw new Error('must not be called');
-    },
-  });
-  assert.equal(calls, 0);
-  assert.deepEqual(execution.trace.runtime_contract.core_capsule_versions, ['1.0']);
-  assert.equal(execution.trace.runtime_contract.negotiation_state, 'blocked');
+  assert.throws(
+    () =>
+      prepareRuntimeContract(asset, {
+        core: coreWithoutDefaults,
+        task: 'Review Core-selected versions.',
+      }),
+    /valid default Capsule versions/,
+  );
 });
 
 test('exported budget profiles cannot be mutated across Plan builds', () => {
   assert.throws(() => {
     BUDGETS.interactive.max_projection_chars = 1;
   });
-  const plan = prepareExecutionContractV1(asset, {
+  const plan = prepareRuntimeContract(asset, {
     task: 'Review immutable budget.',
     budgetProfile: 'interactive',
   }).plan;
@@ -253,52 +259,40 @@ test('exported budget profiles cannot be mutated across Plan builds', () => {
 test('runtime-contract flag is isolated and unknown values never fall back', () => {
   const unknown = run(['plan-use', asset, '--task=Review', '--runtime-contract=2']);
   assert.notEqual(unknown.status, 0);
-  assert.match(unknown.stderr, /one unique --runtime-contract=1/);
+  assert.match(unknown.stderr, /no generation selector/);
   const leaked = run(['plan-use', asset, '--task=Review', '--agent-host-capabilities=x']);
   assert.equal(leaked.status, 0, leaked.stderr);
-  assert.equal(JSON.parse(leaked.stdout).plan_version, '0.9.0');
+  assert.equal(JSON.parse(leaked.stdout).contract_version, '0.1.0');
   const useLeaked = run(['use', asset, '--task=Review', '--agent-host-capabilities=x']);
   assert.notEqual(useLeaked.status, 0);
-  assert.match(useLeaked.stderr, /requires --runtime-contract=1/);
+  assert.match(useLeaked.stderr, /requires an explicit --agent-host/);
 });
 
-test('plan-use rejects every duplicate runtime-contract occurrence', () => {
-  for (const values of [
-    ['1', '2'],
-    ['1', '1'],
+test('plan-use rejects selectors and every duplicate runtime-contract occurrence', () => {
+  for (const flags of [
+    ['--runtime-contract', '--runtime-contract'],
+    ['--runtime-contract=0.1.0'],
   ]) {
-    const result = run([
-      'plan-use',
-      asset,
-      '--task=Review',
-      `--runtime-contract=${values[0]}`,
-      `--runtime-contract=${values[1]}`,
-    ]);
-    assert.notEqual(result.status, 0, values.join('+'));
-    assert.match(result.stderr, /one unique --runtime-contract=1/);
+    const result = run(['plan-use', asset, '--task=Review', ...flags]);
+    assert.notEqual(result.status, 0, flags.join('+'));
+    assert.match(result.stderr, /no generation selector/);
     assert.equal(result.stdout, '');
   }
 });
 
-test('use rejects every duplicate runtime-contract occurrence', () => {
-  for (const values of [
-    ['1', '2'],
-    ['1', '1'],
+test('use rejects selectors and every duplicate runtime-contract occurrence', () => {
+  for (const flags of [
+    ['--runtime-contract', '--runtime-contract'],
+    ['--runtime-contract=0.1.0'],
   ]) {
-    const result = run([
-      'use',
-      asset,
-      '--task=Review',
-      `--runtime-contract=${values[0]}`,
-      `--runtime-contract=${values[1]}`,
-    ]);
-    assert.notEqual(result.status, 0, values.join('+'));
-    assert.match(result.stderr, /one unique --runtime-contract=1/);
+    const result = run(['use', asset, '--task=Review', ...flags]);
+    assert.notEqual(result.status, 0, flags.join('+'));
+    assert.match(result.stderr, /no generation selector/);
     assert.equal(result.stdout, '');
   }
 });
 
-test('Plan 1 uses one packaged-byte snapshot and contains no local path', () => {
+test('ConsumptionPlan uses one packaged-byte snapshot and contains no local path', () => {
   let evidenceBytes;
   let capsuleBytes;
   const observedCore = new Proxy(core, {
@@ -309,40 +303,40 @@ test('Plan 1 uses one packaged-byte snapshot and contains no local path', () => 
           return target.computeDigestEvidence(bytes, options);
         };
       }
-      if (property === 'loadCapsuleV2') {
+      if (property === 'loadRuntimeCapsule') {
         return (bytes, options) => {
           capsuleBytes = bytes;
-          return target.loadCapsuleV2(bytes, options);
+          return target.loadRuntimeCapsule(bytes, options);
         };
       }
       return target[property];
     },
   });
-  const prepared = prepareExecutionContractV1(asset, {
+  const prepared = prepareRuntimeContract(asset, {
     core: observedCore,
     task: 'Review this packaged decision.',
     createdAt: '2026-07-15T00:00:00.000Z',
   });
-  assert.equal(prepared.plan.plan_version, '1.0.0');
+  assert.equal(prepared.plan.contract_version, '0.1.0');
   assert.equal(prepared.plan.projection_request.require_packaged_asset, true);
   assert.equal(JSON.stringify(prepared.plan).includes(root), false);
   const capture = path.join(root, 'snapshot-host-request.json');
-  return executePreparedContractV1(prepared, {
+  return executePreparedRuntimeContract(prepared, {
     capabilities: REGISTERED,
     command: process.execPath,
     args: [hostScript(path.join(root, 'snapshot-host.js'), 'completed', false, capture)],
     timeoutMs: 5000,
   }).then(({ trace }) => {
     assert.strictEqual(evidenceBytes, capsuleBytes);
-    assert.equal(trace.trace_version, '1.0.0');
+    assert.equal(trace.contract_version, '0.1.0');
     assert.equal(JSON.stringify(trace).includes(root), false);
-    const request = core.parseExecutionContractJsonV1(fs.readFileSync(capture));
+    const request = core.parseRuntimeContractJson(fs.readFileSync(capture));
     assert.equal(
-      core.validateAgentHost2RequestV1(request, {
+      core.validateAgentHostRequest(request, {
         plan: prepared.plan,
         trustedPlanDigest: prepared.trustedPlanDigest,
         capabilities: REGISTERED,
-        coreCapsuleVersions: core.DEFAULT_CORE_CAPSULE_VERSIONS,
+        coreCapsuleVersions: core.DEFAULT_CORE_CAPSULE_CONTRACT_VERSIONS,
       }).valid,
       true,
     );
@@ -355,7 +349,7 @@ test('Plan 1 uses one packaged-byte snapshot and contains no local path', () => 
   });
 });
 
-test('installed Plan 1 binds A and C to the independent install receipt', () => {
+test('installed ConsumptionPlan binds A and C to the independent install receipt', () => {
   const home = path.join(root, 'installed-home');
   const env = { HOME: home, KDNA_HOME: path.join(home, '.kdna') };
   const readOnlyAsset = path.join(root, 'read-only-fixture.kdna');
@@ -385,7 +379,7 @@ test('installed Plan 1 binds A and C to the independent install receipt', () => 
         'plan-use',
         receipt.name + '@1.0.0',
         '--task=Review installed asset',
-        '--runtime-contract=1',
+        '--runtime-contract',
         '--as=json',
       ],
       env,
@@ -416,7 +410,7 @@ test('missing descriptor remains legacy_assumption and blocks before projection'
     'use',
     asset,
     '--task=Review',
-    '--runtime-contract=1',
+    '--runtime-contract',
     '--runner=cli:default',
     `--agent-host=${process.execPath}`,
     `--agent-host-arg=${hostScript(path.join(root, 'unused-host.js'))}`,
@@ -431,7 +425,7 @@ test('missing descriptor remains legacy_assumption and blocks before projection'
 });
 
 test('capability registration is strict, process-bound, snapshotted, and mutation-safe', () => {
-  assert.throws(() => LEGACY_CAPABILITIES.host_protocols.push('kdna.agent-host/2'));
+  assert.throws(() => LEGACY_CAPABILITIES.host_protocols.push('kdna.agent-host'));
   const registry = createAgentHostCapabilityRegistry(core);
   const script = hostScript(path.join(root, 'bound-host.js'));
   const file = registration(path.join(root, 'bound.json'), process.execPath, [script]);
@@ -502,9 +496,9 @@ test('symlink and lstat-to-open replacement checks run without relying on O_NOFO
 });
 
 test('registered descriptor must also pass Core capability schema before projection', async () => {
-  const prepared = prepareExecutionContractV1(asset, { task: 'Review this packaged decision.' });
+  const prepared = prepareRuntimeContract(asset, { task: 'Review this packaged decision.' });
   await assert.rejects(
-    executePreparedContractV1(prepared, {
+    executePreparedRuntimeContract(prepared, {
       capabilities: { ...REGISTERED, capsule_versions: ['9.0'] },
       command: process.execPath,
       args: [],
@@ -513,17 +507,12 @@ test('registered descriptor must also pass Core capability schema before project
   );
 });
 
-test('negotiation blocks legacy, missing Capsule 2, Host 2, or P before Host calls', async () => {
-  const cases = [
-    LEGACY_CAPABILITIES,
-    { ...REGISTERED, capsule_versions: ['1.0'] },
-    { ...REGISTERED, host_protocols: ['kdna.agent-host/1'] },
-    { ...REGISTERED, capsule_digest_profiles: [] },
-  ];
+test('negotiation blocks legacy assumptions or a missing delivery digest profile before Host calls', async () => {
+  const cases = [LEGACY_CAPABILITIES, { ...REGISTERED, capsule_digest_profiles: [] }];
   for (const capabilities of cases) {
-    const prepared = prepareExecutionContractV1(asset, { task: 'Review this packaged decision.' });
+    const prepared = prepareRuntimeContract(asset, { task: 'Review this packaged decision.' });
     let calls = 0;
-    const execution = await executePreparedContractV1(prepared, {
+    const execution = await executePreparedRuntimeContract(prepared, {
       capabilities,
       command: process.execPath,
       args: [],
@@ -538,20 +527,20 @@ test('negotiation blocks legacy, missing Capsule 2, Host 2, or P before Host cal
   }
 });
 
-test('selected negotiation followed by Capsule load failure returns an honest blocked Trace 1', () => {
+test('selected negotiation followed by Capsule load failure returns an honest blocked JudgmentTrace', () => {
   const planned = run([
     'plan-use',
     invalidPayloadAsset,
     '--task=Review invalid payload',
-    '--runtime-contract=1',
+    '--runtime-contract',
     '--as=json',
   ]);
   assert.equal(planned.status, 0, planned.stderr);
   const plan = JSON.parse(planned.stdout);
-  const negotiation = core.negotiateExecutionPairV1(plan, {
+  const negotiation = core.negotiateRuntimePair(plan, {
     trustedPlanDigest: plan.integrity.plan_digest,
     capabilities: REGISTERED,
-    coreCapsuleVersions: core.DEFAULT_CORE_CAPSULE_VERSIONS,
+    coreCapsuleVersions: core.DEFAULT_CORE_CAPSULE_CONTRACT_VERSIONS,
   });
   assert.equal(negotiation.state, 'selected');
 
@@ -569,7 +558,7 @@ test('selected negotiation followed by Capsule load failure returns an honest bl
     'use',
     invalidPayloadAsset,
     '--task=Review invalid payload',
-    '--runtime-contract=1',
+    '--runtime-contract',
     '--runner=cli:default',
     `--agent-host=${process.execPath}`,
     `--agent-host-arg=${script}`,
@@ -580,7 +569,7 @@ test('selected negotiation followed by Capsule load failure returns an honest bl
   assert.equal(result.stderr, '');
   assert.equal(fs.existsSync(capture), false);
   const trace = JSON.parse(result.stdout);
-  assert.equal(trace.trace_version, '1.0.0');
+  assert.equal(trace.contract_version, '0.1.0');
   assert.equal(trace.overall_status, 'blocked');
   assert.equal(trace.errors[0].phase, 'load');
   assert.equal(trace.runtime_contract.negotiation_state, 'not_started');
@@ -594,8 +583,8 @@ test('selected negotiation followed by Capsule load failure returns an honest bl
 });
 
 test('Host adapter construction failure returns a blocked Trace without a receipt', async () => {
-  const prepared = prepareExecutionContractV1(asset, { task: 'Review Host construction.' });
-  const execution = await executePreparedContractV1(prepared, {
+  const prepared = prepareRuntimeContract(asset, { task: 'Review Host construction.' });
+  const execution = await executePreparedRuntimeContract(prepared, {
     capabilities: REGISTERED,
     command: process.execPath,
     args: [],
@@ -621,20 +610,20 @@ test('runtime contract rejects space-form flags and invalid timeout before execu
     ]) {
       const result = run(args);
       assert.notEqual(result.status, 0, command);
-      assert.match(result.stderr, /one unique --runtime-contract=1/);
+      assert.match(result.stderr, /no generation selector/);
       assert.equal(result.stdout, '');
     }
   }
   for (const timeout of ['100', '0', '-1', '1ms', '2147483648']) {
     const timeoutArgs = timeout === '100' ? ['--timeout', timeout] : [`--timeout=${timeout}`];
-    const result = run(['use', asset, '--task=Review', '--runtime-contract=1', ...timeoutArgs]);
+    const result = run(['use', asset, '--task=Review', '--runtime-contract', ...timeoutArgs]);
     assert.notEqual(result.status, 0, timeout);
     assert.match(result.stderr, /positive integer/);
     assert.equal(result.stdout, '');
   }
   const timeoutBeforeTarget = run([
     'use',
-    '--runtime-contract=1',
+    '--runtime-contract',
     '--timeout',
     '100',
     asset,
@@ -646,12 +635,12 @@ test('runtime contract rejects space-form flags and invalid timeout before execu
 });
 
 test('over-budget evidence uses Core terminal and calls Host adapter zero times', async () => {
-  const prepared = prepareExecutionContractV1(asset, { task: 'Review this packaged decision.' });
+  const prepared = prepareRuntimeContract(asset, { task: 'Review this packaged decision.' });
   prepared.plan.budget.max_projection_chars = 1;
-  prepared.plan.integrity.plan_digest = core.computeConsumptionPlanDigestV1(prepared.plan);
+  prepared.plan.integrity.plan_digest = core.computeConsumptionPlanDigest(prepared.plan);
   prepared.trustedPlanDigest = prepared.plan.integrity.plan_digest;
   let calls = 0;
-  const execution = await executePreparedContractV1(prepared, {
+  const execution = await executePreparedRuntimeContract(prepared, {
     capabilities: REGISTERED,
     command: process.execPath,
     args: [],
@@ -668,10 +657,10 @@ test('over-budget evidence uses Core terminal and calls Host adapter zero times'
   assert.equal(execution.trace.budget.actual.model_calls, null);
 });
 
-test('Host 2 raw boundary rejects duplicate keys, BOM, invalid UTF-8, depth, size, and trailing JSON', async () => {
+test('Agent Host raw boundary rejects duplicate keys, BOM, invalid UTF-8, depth, size, and trailing JSON', async () => {
   const { context, request } = preparedRequest();
   const vectors = [
-    ['duplicate', '{"protocol":"kdna.agent-host/2","protocol":"kdna.agent-host/2"}'],
+    ['duplicate', '{"protocol":"kdna.agent-host","protocol":"kdna.agent-host"}'],
     ['bom', Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('{}')])],
     ['invalid', Buffer.from([0xff])],
     ['deep', `${'['.repeat(65)}0${']'.repeat(65)}`],
@@ -682,7 +671,7 @@ test('Host 2 raw boundary rejects duplicate keys, BOM, invalid UTF-8, depth, siz
       path.join(root, `raw-${name}.js`),
       `process.stdin.resume();process.stdin.on('end',()=>process.stdout.write(Buffer.from(${JSON.stringify(Buffer.from(raw).toString('base64'))},'base64')));`,
     );
-    const host = createProcessAgentHostV2({
+    const host = createProcessAgentHost({
       command: process.execPath,
       args: [script],
       core,
@@ -699,7 +688,7 @@ test('Host 2 raw boundary rejects duplicate keys, BOM, invalid UTF-8, depth, siz
     "process.stdin.resume();process.stdin.on('end',()=>process.stdout.write('x'.repeat(101)));",
   );
   await assert.rejects(
-    createProcessAgentHostV2({
+    createProcessAgentHost({
       command: process.execPath,
       args: [huge],
       core,
@@ -711,14 +700,14 @@ test('Host 2 raw boundary rejects duplicate keys, BOM, invalid UTF-8, depth, siz
   );
 });
 
-test('Host 2 process timeout and diagnostic output are bounded', async () => {
+test('Agent Host process timeout and diagnostic output are bounded', async () => {
   const { context, request } = preparedRequest();
   const timeout = write(
     path.join(root, 'host-timeout.js'),
     "process.stdin.resume();process.stdin.on('end',()=>setTimeout(()=>{},1000));",
   );
   await assert.rejects(
-    createProcessAgentHostV2({
+    createProcessAgentHost({
       command: process.execPath,
       args: [timeout],
       core,
@@ -732,7 +721,7 @@ test('Host 2 process timeout and diagnostic output are bounded', async () => {
     "process.stdin.resume();process.stdin.on('end',()=>process.stderr.write('x'.repeat(101)));",
   );
   await assert.rejects(
-    createProcessAgentHostV2({
+    createProcessAgentHost({
       command: process.execPath,
       args: [diagnostics],
       core,
@@ -744,7 +733,7 @@ test('Host 2 process timeout and diagnostic output are bounded', async () => {
   );
 });
 
-test('Host 2 executes exact ordered args containing spaces and shell metacharacters', () => {
+test('Agent Host executes exact ordered args containing spaces and shell metacharacters', () => {
   const exactArgs = [
     'argument with spaces',
     '$HOME & echo injected | more; $(whoami)',
@@ -768,7 +757,7 @@ test('Host 2 executes exact ordered args containing spaces and shell metacharact
     'use',
     asset,
     '--task=Review exact process arguments',
-    '--runtime-contract=1',
+    '--runtime-contract',
     '--runner=cli:default',
     `--agent-host=${process.execPath}`,
     ...processArgs.map((argument) => `--agent-host-arg=${argument}`),
@@ -781,8 +770,8 @@ test('Host 2 executes exact ordered args containing spaces and shell metacharact
 });
 
 test('strict Trace distinguishes not_delivered from delivered-but-not_observed', async () => {
-  const unavailable = await executePreparedContractV1(
-    prepareExecutionContractV1(asset, { task: 'Review unavailable Host.' }),
+  const unavailable = await executePreparedRuntimeContract(
+    prepareRuntimeContract(asset, { task: 'Review unavailable Host.' }),
     {
       capabilities: REGISTERED,
       command: path.join(root, 'missing-host-executable'),
@@ -801,8 +790,8 @@ test('strict Trace distinguishes not_delivered from delivered-but-not_observed',
     path.join(root, 'host-invalid-observation.js'),
     "process.stdin.resume();process.stdin.on('end',()=>process.stdout.write('{}'));",
   );
-  const unobserved = await executePreparedContractV1(
-    prepareExecutionContractV1(asset, { task: 'Review invalid Host receipt.' }),
+  const unobserved = await executePreparedRuntimeContract(
+    prepareRuntimeContract(asset, { task: 'Review invalid Host receipt.' }),
     {
       capabilities: REGISTERED,
       command: process.execPath,
@@ -815,7 +804,7 @@ test('strict Trace distinguishes not_delivered from delivered-but-not_observed',
   assert.match(unobserved.trace.capsule_delivery_evidence.request_id, /^host_[0-9a-f]{24}$/);
 });
 
-test('Host-native matched receipt and all five terminal states produce strict Trace 1 evidence', () => {
+test('Host-native matched receipt and all five terminal states produce strict JudgmentTrace evidence', () => {
   const expected = {
     completed: 'execution_completed',
     failed: 'execution_failed',
@@ -833,7 +822,7 @@ test('Host-native matched receipt and all five terminal states produce strict Tr
       'use',
       asset,
       '--task=Review this packaged decision',
-      '--runtime-contract=1',
+      '--runtime-contract',
       '--runner=cli:default',
       `--agent-host=${process.execPath}`,
       `--agent-host-arg=${script}`,
@@ -843,8 +832,8 @@ test('Host-native matched receipt and all five terminal states produce strict Tr
     ]);
     const trace = JSON.parse(result.stdout);
     assert.equal(trace.overall_status, terminal, `${status}: ${result.stderr}`);
-    assert.equal(trace.trace_version, '1.0.0');
-    assert.equal(trace.runtime_contract.selected_host_protocol, 'kdna.agent-host/2');
+    assert.equal(trace.contract_version, '0.1.0');
+    assert.equal(trace.runtime_contract.selected_host_protocol, 'kdna.agent-host');
     if (status === 'completed') {
       assert.equal(result.status, 0, result.stderr);
       assert.equal(trace.execution.model_identity.value, null);
@@ -878,19 +867,19 @@ test('fixture Host independently rejects identity tampering and reports Capsule 
     encoding: 'utf8',
   });
   assert.equal(mismatch.status, 0, mismatch.stderr);
-  const receipt = core.parseExecutionContractJsonV1(mismatch.stdout);
+  const receipt = core.parseRuntimeContractJson(mismatch.stdout);
   assert.equal(receipt.runtime_receipt.capsule_delivery_comparison, 'mismatched');
   assert.equal(receipt.runtime_receipt.provider_execution_status, 'not_started');
   assert.equal(receipt.outcome, null);
-  assert.equal(core.validateAgentHost2ReceiptV1(receipt, { request: pTampered }).valid, true);
+  assert.equal(core.validateAgentHostReceipt(receipt, { request: pTampered }).valid, true);
 });
 
-test('runtime contract 1 blocks source directories, Cluster, mock, and missing Host explicitly', () => {
+test('runtime contract blocks source directories, Cluster, mock, and missing Host explicitly', () => {
   const source = run([
     'plan-use',
-    path.resolve(__dirname, '..', 'fixtures', 'v1-minimal'),
+    path.resolve(__dirname, '..', 'fixtures', 'minimal'),
     '--task=Review',
-    '--runtime-contract=1',
+    '--runtime-contract',
   ]);
   assert.notEqual(source.status, 0);
   assert.match(source.stderr, /regular packaged \.kdna/);
@@ -898,7 +887,7 @@ test('runtime contract 1 blocks source directories, Cluster, mock, and missing H
     'plan-use',
     path.resolve(__dirname, '..', 'fixtures', 'cluster-launch-decision.json'),
     '--task=Review',
-    '--runtime-contract=1',
+    '--runtime-contract',
   ]);
   assert.notEqual(cluster.status, 0);
   assert.match(cluster.stderr, /packaged \.kdna/);
@@ -906,7 +895,7 @@ test('runtime contract 1 blocks source directories, Cluster, mock, and missing H
     'use',
     asset,
     '--task=Review',
-    '--runtime-contract=1',
+    '--runtime-contract',
     '--runner=mock:default',
     '--agent-host=node',
   ]);
@@ -916,7 +905,7 @@ test('runtime contract 1 blocks source directories, Cluster, mock, and missing H
     'use',
     asset,
     '--task=Review',
-    '--runtime-contract=1',
+    '--runtime-contract',
     '--runner=cli:default',
   ]);
   assert.notEqual(missing.status, 0);
@@ -932,7 +921,7 @@ test('Host registration and Trace never expose the local descriptor, executable,
     'use',
     asset,
     '--task=Review privacy',
-    '--runtime-contract=1',
+    '--runtime-contract',
     '--runner=cli:default',
     `--agent-host=${process.execPath}`,
     `--agent-host-arg=${script}`,
@@ -948,13 +937,13 @@ test('Host registration and Trace never expose the local descriptor, executable,
   assert.equal(output.trace.execution.semantic_consumption.state, 'not_observed');
 });
 
-test('plan-only uses the same Plan 1 planner and does not require a Host', () => {
-  const direct = run(['plan-use', asset, '--task=Review', '--runtime-contract=1', '--as=json']);
+test('plan-only uses the same ConsumptionPlan planner and does not require a Host', () => {
+  const direct = run(['plan-use', asset, '--task=Review', '--runtime-contract', '--as=json']);
   const alias = run([
     'use',
     asset,
     '--task=Review',
-    '--runtime-contract=1',
+    '--runtime-contract',
     '--plan-only',
     '--as=json',
   ]);
@@ -962,8 +951,8 @@ test('plan-only uses the same Plan 1 planner and does not require a Host', () =>
   assert.equal(alias.status, 0, alias.stderr);
   const left = JSON.parse(direct.stdout);
   const right = JSON.parse(alias.stdout);
-  assert.equal(left.plan_version, '1.0.0');
-  assert.equal(right.plan_version, '1.0.0');
+  assert.equal(left.contract_version, '0.1.0');
+  assert.equal(right.contract_version, '0.1.0');
   assert.equal(left.plan_id, right.plan_id);
   assert.equal(
     left.asset_ref.expected_digests.asset.value,

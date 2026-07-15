@@ -6,7 +6,7 @@ const path = require('node:path');
 const os = require('node:os');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
-const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'v1-minimal');
+const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'minimal');
 // Prefer the sibling monorepo checkout when present (local dev / workspace CI),
 // otherwise fall back to the npm-installed copy under node_modules.
 let EVAL_PATH;

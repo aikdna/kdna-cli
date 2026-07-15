@@ -125,7 +125,7 @@ function maliciousArchive(entry) {
 
 function makeValidArchive(tmp) {
   const source = path.join(tmp, 'source');
-  fs.cpSync(path.join(__dirname, '..', 'fixtures', 'v1-judgment'), source, {
+  fs.cpSync(path.join(__dirname, '..', 'fixtures', 'judgment'), source, {
     recursive: true,
   });
   fs.mkdirSync(path.join(source, 'attachments'));
@@ -171,7 +171,7 @@ function makeHistoricalArchive(output, version, axiomText, options = {}) {
 
 function makeRuntimeArchive(root, name, version, axiomText, options = {}) {
   const source = path.join(root, `runtime-source-${version}-${path.basename(name)}`);
-  fs.cpSync(path.join(__dirname, '..', 'fixtures', 'v1-judgment'), source, {
+  fs.cpSync(path.join(__dirname, '..', 'fixtures', 'judgment'), source, {
     recursive: true,
   });
   const manifestPath = path.join(source, 'kdna.json');
@@ -275,7 +275,7 @@ test('domain unpack accepts shell-significant file names without a shell', () =>
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-domain-unpack-'));
   try {
     const source = path.join(tmp, 'source');
-    fs.cpSync(path.join(__dirname, '..', 'fixtures', 'v1-judgment'), source, {
+    fs.cpSync(path.join(__dirname, '..', 'fixtures', 'judgment'), source, {
       recursive: true,
     });
     const assetPath = path.join(tmp, 'asset-"quoted"-$(printf ignored).kdna');
