@@ -2,15 +2,30 @@
 
 ## Unreleased
 
+## 0.33.0 (2026-07-15)
+
 - Make npm publication exclusive to a canonical, stable GitHub Release tag and
   bind the event tag, Git ref, tag commit, workflow commit, package version,
   clean worktree, exact changelog heading, and audited npm client version before
-  publication can proceed.
+  publication can proceed. Same-tag publication runs serialize without
+  cancellation, and the release workflow pins its GitHub Actions to verified
+  commit identifiers.
 - Generate clean `npm pack` evidence with independently recomputed integrity,
   shasum, file list, count, and sizes. Registry outages and ambiguous lookup
   failures now block; an existing version is skipped only when its package
   identity and artifact hashes exactly match the candidate. Source commit
   identity remains independently bound to the release tag and workflow commit.
+- Make development packing and demo assets emit the canonical
+  `kdna-runtime-entry-set-v1` digest profile with its ordered covered entries and
+  `entry_set_digest`. The historical `asset_digest` remains only as a deprecated
+  alias, and checksum records are constrained to canonical SHA-256 values.
+- Verify Capsule entry-set digests from Core layout bytes and route domain
+  unpacking through the validated container boundary and formal payload
+  projection. Corrupt or incomplete protected runtime entries now fail closed
+  instead of relying on best-effort shell extraction.
+- Normalize the transaction-owned staged copy to a writable mode (`0600` on
+  POSIX) and apply a portable durability barrier. Read-only source assets remain
+  unchanged and install correctly on Windows as well as POSIX systems.
 
 - Add a strict `--runtime-contract=1` single-asset opt-in for ConsumptionPlan 1,
   Capsule 2, Agent Host 2, and JudgmentTrace 1 through the exact registry
