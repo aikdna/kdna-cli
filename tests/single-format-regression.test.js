@@ -33,7 +33,7 @@ function makeMinimalSourceDir(dir) {
   fs.writeFileSync(
     path.join(dir, 'kdna.json'),
     JSON.stringify({
-      kdna_version: '1.0',
+      format_version: '0.1.0',
       asset_id: 'kdna:test:single-format',
       asset_uid: 'urn:uuid:00000000-0000-4000-8000-000000000001',
       asset_type: 'sample',
@@ -43,13 +43,18 @@ function makeMinimalSourceDir(dir) {
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
       creator: { name: 'Test' },
-      compatibility: { min_loader_version: '1.0.0', profile: 'judgment-profile-v1' },
+      compatibility: {
+        min_loader_version: '0.18.1',
+        profile: 'kdna.payload.judgment',
+        profile_version: '0.1.0',
+      },
       payload: { path: 'payload.kdnab', encoding: 'cbor', encrypted: false },
       access: 'public',
     }),
   );
   const payload = {
-    profile: 'judgment-profile-v1',
+    profile: 'kdna.payload.judgment',
+    profile_version: '0.1.0',
     core: { highest_question: 'Q', axioms: [{ id: 'a1', one_sentence: 'Test.' }] },
   };
   fs.writeFileSync(path.join(dir, 'payload.kdnab'), cbor.encode(payload));
@@ -79,7 +84,7 @@ test('CLI inspect works against local Core candidate tarball', () => {
     const r = run(['inspect', src, '--json']);
     assert.equal(r.status, 0, r.stderr);
     const out = JSON.parse(r.stdout);
-    assert.equal(out.kdna_version, '1.0');
+    assert.equal(out.format_version, '0.1.0');
     assert.equal(out.asset_id, 'kdna:test:single-format');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
@@ -161,7 +166,7 @@ test('CLI rejects source dir with legacy mimetype', () => {
   }
 });
 
-test('dev-pack produces current mimetype and kdna_version 1.0', () => {
+test('dev-pack produces the current mimetype and manifest contract', () => {
   const devPack = require('../src/dev-pack');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-reg-'));
   try {
@@ -197,8 +202,9 @@ test('dev-pack produces current mimetype and kdna_version 1.0', () => {
     const result = devPack.packKdna(tmp, { name: '@test/regression', version: '0.1.0' });
     assert.equal(result.entries.mimetype, 'application/vnd.kdna.asset');
     const manifest = JSON.parse(result.entries['kdna.json']);
-    assert.equal(manifest.kdna_version, '1.0');
-    assert.equal(manifest.container, undefined, 'container-v2 block removed');
+    assert.equal(manifest.format_version, '0.1.0');
+    assert.equal(manifest.kdna_version, undefined);
+    assert.equal(manifest.container, undefined, 'non-current container block removed');
     assert.equal(manifest.spec_version, undefined, 'spec_version removed');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
@@ -229,7 +235,7 @@ test('encrypted asset: pack → protect → validate → plan-load needs_passwor
       '--entries',
       'payload.kdnab',
     ]);
-    // protect may exit non-zero if warnings, accept 0 or non-zero
+    assert.equal(r2.status, 0, r2.stderr);
     assert.ok(fs.existsSync(prot), 'protected file should exist');
 
     // Validate protected
@@ -250,7 +256,7 @@ test('encrypted asset: pack → protect → validate → plan-load needs_passwor
     const r6 = run(['load', prot, '--as=json', '--password=test123']);
     assert.equal(r6.status, 0, `correct password load failed: ${r6.stderr}`);
     const c6 = JSON.parse(r6.stdout);
-    assert.equal(c6.type, 'kdna.context.capsule');
+    assert.equal(c6.type, 'kdna.runtime-capsule');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -289,7 +295,7 @@ test('compatibility scrypt asset remains loadable and unlockable', () => {
     assert.equal(run(['pack', src, protectedAsset]).status, 0);
     const loaded = run(['load', protectedAsset, '--as=json', '--password=compat-password']);
     assert.equal(loaded.status, 0, loaded.stderr);
-    assert.equal(JSON.parse(loaded.stdout).type, 'kdna.context.capsule');
+    assert.equal(JSON.parse(loaded.stdout).type, 'kdna.runtime-capsule');
 
     const unlocked = path.join(tmp, 'unlocked.kdna');
     const unlock = run([
@@ -315,6 +321,7 @@ test('encrypted demo creates valid fixture', () => {
   try {
     const target = path.join(tmp, 'enc-demo');
     const r = run(['demo', 'judgment', target, '--password', 'demo123']);
+    assert.equal(r.status, 0, r.stderr);
     assert.ok(fs.existsSync(path.join(target, 'payload.kdnab')), 'payload must exist');
     assert.ok(fs.existsSync(path.join(target, 'kdna.json')), 'manifest must exist');
 

@@ -1,0 +1,12 @@
+[
+  {
+    "id": "concept_one",
+    "concept": "Name a domain-specific concept.",
+    "essence": "Give its operational meaning, not a dictionary definition.",
+    "boundary": "Name the confusable concept it must not be blurred with.",
+    "trigger_signal": "Name observable input that makes this concept relevant.",
+    "locked": false,
+    "human_lock": null,
+    "feynman_restatement": null
+  }
+]

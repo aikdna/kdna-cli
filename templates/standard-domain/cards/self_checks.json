@@ -1,0 +1,26 @@
+[
+  {
+    "id": "self_check_one",
+    "question": "Did the judgment use the domain's key distinction?",
+    "applies_to": ["final judgment"],
+    "locked": false,
+    "human_lock": null,
+    "feynman_restatement": null
+  },
+  {
+    "id": "self_check_two",
+    "question": "Did the judgment stay inside the declared boundary?",
+    "applies_to": ["scope"],
+    "locked": false,
+    "human_lock": null,
+    "feynman_restatement": null
+  },
+  {
+    "id": "self_check_three",
+    "question": "Would the conclusion change if the highest-priority value changed?",
+    "applies_to": ["value order"],
+    "locked": false,
+    "human_lock": null,
+    "feynman_restatement": null
+  }
+]

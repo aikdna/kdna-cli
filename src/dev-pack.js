@@ -1,8 +1,8 @@
 // KDNA dev pack — produces a development .kdna container from a source directory.
 //
-// The output uses the single KDNA asset format:
+// The output uses the current KDNA asset format:
 //   - mimetype: application/vnd.kdna.asset
-//   - kdna.json with kdna_version: "1.0"
+//   - kdna.json with format_version: "0.1.0"
 //   - payload.kdnab (CBOR-encoded judgment)
 //
 // This is a dev-only helper. Release assets should be produced through the
@@ -24,6 +24,10 @@ function getCbor() {
 }
 
 const MIMETYPE = 'application/vnd.kdna.asset';
+const FORMAT_VERSION = '0.1.0';
+const PROFILE = 'kdna.payload.judgment';
+const PROFILE_VERSION = '0.1.0';
+const MIN_LOADER_VERSION = '0.18.1';
 
 const KDNA_FILES = [
   'KDNA_Core.json',
@@ -49,8 +53,8 @@ function packKdna(sourceDir, manifest, _options = {}) {
             .replace(/\.json$/, '')
             .toLowerCase()
         ] = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-      } catch {
-        /* skip unreadable */
+      } catch (cause) {
+        throw new Error(`Cannot parse ${f}: ${cause.message}`);
       }
     }
   }
@@ -82,25 +86,52 @@ function packKdna(sourceDir, manifest, _options = {}) {
       });
   }
   const payload = {
-    profile: 'judgment-profile-v1',
+    profile: PROFILE,
+    profile_version: PROFILE_VERSION,
     core: {
-      highest_question: coreData.meta?.purpose || '',
+      highest_question: coreData.highest_question || coreData.meta?.purpose || '',
       axioms: Array.isArray(coreData.axioms) ? coreData.axioms : [],
     },
     patterns,
   };
+  for (const field of ['worldview', 'value_order', 'judgment_role', 'boundaries', 'risk_model']) {
+    if (coreData[field] !== undefined) payload.core[field] = coreData[field];
+  }
   if (coreData.ontology) payload.core.ontology = coreData.ontology;
-  if (coreData.boundaries) payload.core.boundaries = coreData.boundaries;
   if (judgment.scenarios) payload.scenarios = judgment.scenarios;
   if (judgment.cases) payload.cases = judgment.cases;
   if (judgment.reasoning) payload.reasoning = judgment.reasoning;
+  if (Array.isArray(patternsData.self_check)) {
+    payload.reasoning = { ...(payload.reasoning || {}), self_check: patternsData.self_check };
+  }
   if (judgment.evolution) payload.evolution = judgment.evolution;
   const payloadBuf = getCbor().encode(payload);
 
-  // 3. Build single-format manifest
+  // 3. Build the current manifest without compatibility aliases.
+  const sourceManifest = { ...(manifest || {}) };
+  for (const key of ['kdna_version', 'kdna_spec', 'spec_version', 'container', 'author']) {
+    delete sourceManifest[key];
+  }
+  const version = validSemver(sourceManifest.version) ? sourceManifest.version : '0.1.0';
+  const assetId = sourceManifest.asset_id || deriveAssetId(sourceManifest.name, sourceDir);
   const singleManifest = {
-    ...manifest,
-    kdna_version: '1.0',
+    ...sourceManifest,
+    format_version: FORMAT_VERSION,
+    asset_id: assetId,
+    asset_uid: sourceManifest.asset_uid || deterministicAssetUid(assetId),
+    asset_type: sourceManifest.asset_type || 'domain',
+    title: sourceManifest.title || coreData.meta?.domain || path.basename(abs),
+    version,
+    judgment_version: validSemver(sourceManifest.judgment_version)
+      ? sourceManifest.judgment_version
+      : version,
+    created_at: asDateTime(sourceManifest.created_at || coreData.meta?.created),
+    updated_at: asDateTime(sourceManifest.updated_at || coreData.meta?.updated),
+    compatibility: {
+      min_loader_version: MIN_LOADER_VERSION,
+      profile: PROFILE,
+      profile_version: PROFILE_VERSION,
+    },
     payload: {
       path: 'payload.kdnab',
       encoding: 'cbor',
@@ -108,30 +139,29 @@ function packKdna(sourceDir, manifest, _options = {}) {
     },
   };
 
-  // 4. Compute checksums (matches Core buildChecksums algorithm)
-  const manifestJson = JSON.stringify(singleManifest, null, 2);
-  const manifestDigest = sha256Hex(Buffer.from(manifestJson, 'utf8'));
-  const payloadDigest = sha256Hex(payloadBuf);
-  const combined = `kdna.json:${manifestDigest}\npayload.kdnab:${payloadDigest}`;
-  const entrySetDigest = `sha256:${sha256Hex(Buffer.from(combined, 'utf8'))}`;
-  const checksumsJson = JSON.stringify(
-    {
-      digest_profile: 'kdna-runtime-entry-set-v1',
-      covered_entries: ['kdna.json', 'payload.kdnab'],
-      algorithm: 'sha256',
-      manifest_digest: `sha256:${manifestDigest}`,
-      payload_digest: `sha256:${payloadDigest}`,
-      entry_set_digest: entrySetDigest,
-      // Deprecated v1 compatibility alias. This is not the final .kdna file hash.
-      asset_digest: entrySetDigest,
-      entries: {
-        'kdna.json': { algorithm: 'sha256', value: manifestDigest },
-        'payload.kdnab': { algorithm: 'sha256', value: payloadDigest },
-      },
-    },
-    null,
-    2,
-  );
+  // 4. Delegate digest construction and format validation to current Core.
+  const manifestJson = `${JSON.stringify(singleManifest, null, 2)}\n`;
+  const core = require('@aikdna/kdna-core');
+  if (typeof core.buildChecksums !== 'function' || typeof core.validate !== 'function') {
+    throw new Error('Current @aikdna/kdna-core buildChecksums and validate APIs are required.');
+  }
+  const temp = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'kdna-dev-source-'));
+  let checksums;
+  try {
+    fs.writeFileSync(path.join(temp, 'mimetype'), MIMETYPE);
+    fs.writeFileSync(path.join(temp, 'kdna.json'), manifestJson);
+    fs.writeFileSync(path.join(temp, 'payload.kdnab'), payloadBuf);
+    checksums = core.buildChecksums(temp);
+    fs.writeFileSync(path.join(temp, 'checksums.json'), `${JSON.stringify(checksums, null, 2)}\n`);
+    const validation = core.validate(temp);
+    if (!validation || validation.overall_valid !== true) {
+      const problems = Array.isArray(validation?.problems) ? validation.problems.join('; ') : '';
+      throw new Error(`Generated KDNA source failed current Core validation: ${problems}`);
+    }
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+  const checksumsJson = `${JSON.stringify(checksums, null, 2)}\n`;
 
   return {
     entries: {
@@ -143,6 +173,30 @@ function packKdna(sourceDir, manifest, _options = {}) {
     manifest: singleManifest,
     payload,
   };
+}
+
+function validSemver(value) {
+  return typeof value === 'string' && /^\d+\.\d+\.\d+(?:[+-].+)?$/.test(value);
+}
+
+function asDateTime(value) {
+  const parsed = value ? new Date(value) : new Date();
+  return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+}
+
+function deriveAssetId(name, sourceDir) {
+  const raw = name || path.basename(path.resolve(sourceDir));
+  const safe = String(raw)
+    .toLowerCase()
+    .replace(/^@/, '')
+    .replace(/[^a-z0-9_.-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return `kdna:domain:${safe || 'unnamed'}`;
+}
+
+function deterministicAssetUid(assetId) {
+  const hex = sha256Hex(assetId);
+  return `urn:uuid:${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
 function sha256Hex(data) {

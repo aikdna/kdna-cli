@@ -1,0 +1,11 @@
+[
+  {
+    "id": "boundary_one",
+    "scope": "Describe the qualitative decision this domain covers.",
+    "out_of_scope": "Describe a neighboring task where loading this domain would mislead.",
+    "acceptable_exceptions": [],
+    "locked": false,
+    "human_lock": null,
+    "feynman_restatement": null
+  }
+]

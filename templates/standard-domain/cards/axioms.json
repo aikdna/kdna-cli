@@ -1,0 +1,30 @@
+[
+  {
+    "id": "axiom_one",
+    "one_sentence": "A specific, contestable principle this domain claims about judgment.",
+    "full_statement": "Expand the principle in operational terms. Two experts should be able to decide whether it applies to a concrete situation.",
+    "why": "State what the agent gets wrong without this axiom.",
+    "confidence": "high",
+    "evidence_type": ["practice_pattern", "case_observation"],
+    "applies_when": ["Describe a situation where this axiom guides judgment correctly"],
+    "does_not_apply_when": ["Describe a situation where this axiom must step back"],
+    "failure_risk": "State the harm caused by applying the axiom outside its scope.",
+    "locked": false,
+    "human_lock": null,
+    "feynman_restatement": null
+  },
+  {
+    "id": "axiom_two",
+    "one_sentence": "A second independent judgment principle.",
+    "full_statement": "Explain how this principle changes a decision rather than merely describing the domain.",
+    "why": "State the distinct error this axiom prevents.",
+    "confidence": "medium",
+    "evidence_type": ["practice_pattern"],
+    "applies_when": ["Describe its activation conditions"],
+    "does_not_apply_when": ["Describe its boundary"],
+    "failure_risk": "State the risk of over-application.",
+    "locked": false,
+    "human_lock": null,
+    "feynman_restatement": null
+  }
+]

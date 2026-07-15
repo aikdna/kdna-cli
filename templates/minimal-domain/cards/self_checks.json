@@ -1,0 +1,18 @@
+[
+  {
+    "id": "sc_domain_distinction",
+    "question": "Did the answer apply the domain's core distinction instead of giving generic advice?",
+    "applies_to": ["final judgment"],
+    "locked": false,
+    "human_lock": null,
+    "feynman_restatement": null
+  },
+  {
+    "id": "sc_expert_check",
+    "question": "Would a domain expert recognize the reasoning path used here?",
+    "applies_to": ["reasoning"],
+    "locked": false,
+    "human_lock": null,
+    "feynman_restatement": null
+  }
+]

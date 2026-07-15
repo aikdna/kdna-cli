@@ -1,0 +1,12 @@
+[
+  {
+    "id": "ed_con_core_distinction",
+    "concept": "Name one central concept the agent must distinguish.",
+    "essence": "State its operational meaning in this domain.",
+    "boundary": "State the real concept it must not be confused with.",
+    "trigger_signal": "Name observable words or situations that make it relevant.",
+    "locked": false,
+    "human_lock": null,
+    "feynman_restatement": null
+  }
+]

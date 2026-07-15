@@ -97,6 +97,9 @@ function cmdProtect(args) {
       encrypted_entries: entriesToEncrypt,
     },
   };
+  for (const stale of ['signature', 'content_digest', 'asset_digest', 'container_sha256']) {
+    delete newManifest[stale];
+  }
 
   // Build new ZIP with encrypted entries
   const allEntries = reader.listEntriesSync(asset);
@@ -124,9 +127,6 @@ function cmdProtect(args) {
   if (!zipEntries.mimetype) {
     zipEntries.mimetype = 'application/vnd.kdna.asset';
   }
-
-  // Recompute content digest and strip invalidated signature after encryption
-  updateManifestDigest(zipEntries, reader);
 
   // Use Core's canonical packer instead of custom buildZip (ADR-003, B1).
   // BUG-2 fix: also write a fresh checksums.json so the protected asset
@@ -314,6 +314,8 @@ function cmdUnlock(args) {
           );
         }
       }
+    } else {
+      console.log(JSON.stringify(loaded, null, 2));
     }
   } catch (e) {
     error(`Unlock failed: ${e.message}`, EXIT.TRUST_FAILED);
@@ -446,106 +448,7 @@ function cmdRecover(args) {
   console.log('  The old recovery code is no longer valid.');
 }
 
-/**
- * Recompute content_digest after encryption changes and strip invalidated signature fields.
- * The old signature and any stale digest fields are removed because the ciphertext has changed.
- */
-function updateManifestDigest(zipEntries, reader) {
-  const tempAsset = reader.openSync(buildZip(zipEntries));
-  const newDigest = reader.contentDigestSync(tempAsset);
-  let manifest = {};
-  try {
-    manifest = JSON.parse(zipEntries['kdna.json'] || '{}');
-  } catch {
-    manifest = {};
-  }
-  delete manifest.signature;
-  delete manifest.asset_digest;
-  delete manifest.container_sha256;
-  manifest.content_digest = newDigest;
-  zipEntries['kdna.json'] = JSON.stringify(manifest);
-}
-
-// Simple ZIP builder for CLI usage
-function u16(n) {
-  const b = Buffer.alloc(2);
-  b.writeUInt16LE(n);
-  return b;
-}
-
-function u32(n) {
-  const b = Buffer.alloc(4);
-  b.writeUInt32LE(n);
-  return b;
-}
-
-function buildZip(entries) {
-  const localParts = [];
-  const centralParts = [];
-  let offset = 0;
-
-  for (const [name, value] of Object.entries(entries)) {
-    const nameBuf = Buffer.from(name);
-    const data = Buffer.from(value);
-    const local = Buffer.concat([
-      u32(0x04034b50),
-      u16(20),
-      u16(0),
-      u16(0),
-      u16(0),
-      u16(0),
-      u32(0),
-      u32(data.length),
-      u32(data.length),
-      u16(nameBuf.length),
-      u16(0),
-      nameBuf,
-      data,
-    ]);
-    localParts.push(local);
-
-    centralParts.push(
-      Buffer.concat([
-        u32(0x02014b50),
-        u16(20),
-        u16(20),
-        u16(0),
-        u16(0),
-        u16(0),
-        u16(0),
-        u32(0),
-        u32(data.length),
-        u32(data.length),
-        u16(nameBuf.length),
-        u16(0),
-        u16(0),
-        u16(0),
-        u16(0),
-        u32(0),
-        u32(offset),
-        nameBuf,
-      ]),
-    );
-    offset += local.length;
-  }
-
-  const central = Buffer.concat(centralParts);
-  const local = Buffer.concat(localParts);
-  const eocd = Buffer.concat([
-    u32(0x06054b50),
-    u16(0),
-    u16(0),
-    u16(centralParts.length),
-    u16(centralParts.length),
-    u32(central.length),
-    u32(local.length),
-    u16(0),
-  ]);
-  return Buffer.concat([local, central, eocd]);
-}
-
 module.exports = {
-  buildZip,
   cmdProtect,
   cmdUnlock,
   cmdRecover,

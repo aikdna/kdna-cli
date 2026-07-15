@@ -33,11 +33,11 @@ test('demo minimal creates fixture in empty dir', () => {
   assert.ok(fs.existsSync(path.join(target, 'payload.kdnab')));
   assert.ok(fs.existsSync(path.join(target, 'checksums.json')));
   const checksums = JSON.parse(fs.readFileSync(path.join(target, 'checksums.json'), 'utf8'));
-  assert.equal(checksums.digest_profile, 'kdna-runtime-entry-set-v1');
+  assert.equal(checksums.digest_profile, 'kdna.digest-basis.runtime-entry-set');
+  assert.equal(checksums.digest_profile_version, '0.1.0');
   assert.deepEqual(checksums.covered_entries, ['kdna.json', 'payload.kdnab']);
-  assert.notEqual(checksums.asset_digest, 'sha256:placeholder');
-  assert.match(checksums.asset_digest, /^sha256:[a-f0-9]{64}$/);
-  assert.equal(checksums.entry_set_digest, checksums.asset_digest);
+  assert.equal(checksums.asset_digest, undefined);
+  assert.match(checksums.entry_set_digest, /^sha256:[a-f0-9]{64}$/);
   assert.match(r.stdout, /Next:/);
   assert.match(r.stdout, /kdna pack/);
   assert.match(r.stdout, /kdna validate/);
@@ -68,7 +68,7 @@ test('demo minimal with --force overwrites existing non-empty dir', () => {
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
-test('demo minimal fixture validates with v1 route', () => {
+test('demo minimal fixture validates through the current route', () => {
   const tmp = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'kdna-demo-'));
   const target = path.join(tmp, 'minimal');
   run(['demo', 'minimal', target]);
@@ -115,11 +115,11 @@ test('demo judgment creates fixture with real judgment content', () => {
   assert.ok(fs.existsSync(path.join(target, 'checksums.json')));
 
   const checksums = JSON.parse(fs.readFileSync(path.join(target, 'checksums.json'), 'utf8'));
-  assert.equal(checksums.digest_profile, 'kdna-runtime-entry-set-v1');
+  assert.equal(checksums.digest_profile, 'kdna.digest-basis.runtime-entry-set');
+  assert.equal(checksums.digest_profile_version, '0.1.0');
   assert.deepEqual(checksums.covered_entries, ['kdna.json', 'payload.kdnab']);
-  assert.notEqual(checksums.asset_digest, 'sha256:placeholder');
-  assert.match(checksums.asset_digest, /^sha256:[a-f0-9]{64}$/);
-  assert.equal(checksums.entry_set_digest, checksums.asset_digest);
+  assert.equal(checksums.asset_digest, undefined);
+  assert.match(checksums.entry_set_digest, /^sha256:[a-f0-9]{64}$/);
 
   const payload = readPayload(path.join(target, 'payload.kdnab'));
   assert.ok(payload.core.axioms.length >= 4, 'must have at least 4 axioms');

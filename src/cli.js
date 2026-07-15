@@ -210,7 +210,7 @@ function showHelp() {
                                       --runtime-contract  Assert the current Runtime contract
   use <asset.kdna>                   Run through a registered Runner
                                       --task=<text>      Task description
-                                      --runner=<type:id> Runner (default: mock:default)
+                                      --runner=cli:default Current process runner
                                       --agent-host=<cmd> Process host for cli:default
                                       --agent-host-arg=<arg> Repeatable exact argument
                                       --agent-host-capabilities=<file>

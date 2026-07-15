@@ -5,11 +5,11 @@ const path = require('path');
 
 const LINT = path.join(__dirname, '..', 'validators', 'kdna-lint.js');
 const VALIDATE = path.join(__dirname, '..', 'validators', 'kdna-validate.js');
-const VALID_DOMAIN = 'templates/standard-domain';
+const VALID_SOURCE = 'fixtures/judgment';
 
 describe('Validator (kdna-lint)', () => {
   it('passes communication domain', () => {
-    const result = execSync(`node "${LINT}" ${VALID_DOMAIN}`, {
+    const result = execSync(`node "${LINT}" ${VALID_SOURCE}`, {
       cwd: path.join(__dirname, '..'),
       encoding: 'utf8',
     });
@@ -17,7 +17,7 @@ describe('Validator (kdna-lint)', () => {
   });
 
   it('passes code_review domain', () => {
-    const result = execSync(`node "${LINT}" ${VALID_DOMAIN}`, {
+    const result = execSync(`node "${LINT}" ${VALID_SOURCE}`, {
       cwd: path.join(__dirname, '..'),
       encoding: 'utf8',
     });
@@ -25,7 +25,7 @@ describe('Validator (kdna-lint)', () => {
   });
 
   it('passes Chinese product_decision domain', () => {
-    const result = execSync(`node "${LINT}" ${VALID_DOMAIN}`, {
+    const result = execSync(`node "${LINT}" ${VALID_SOURCE}`, {
       cwd: path.join(__dirname, '..'),
       encoding: 'utf8',
     });
@@ -59,7 +59,7 @@ describe('Validator (kdna-lint)', () => {
 
 describe('Validator (kdna-validate)', () => {
   it('passes communication domain', () => {
-    const result = execSync(`node "${VALIDATE}" ${VALID_DOMAIN}`, {
+    const result = execSync(`node "${VALIDATE}" ${VALID_SOURCE}`, {
       cwd: path.join(__dirname, '..'),
       encoding: 'utf8',
     });
@@ -67,7 +67,7 @@ describe('Validator (kdna-validate)', () => {
   });
 
   it('passes code_review domain', () => {
-    const result = execSync(`node "${VALIDATE}" ${VALID_DOMAIN}`, {
+    const result = execSync(`node "${VALIDATE}" ${VALID_SOURCE}`, {
       cwd: path.join(__dirname, '..'),
       encoding: 'utf8',
     });
@@ -75,7 +75,7 @@ describe('Validator (kdna-validate)', () => {
   });
 
   it('passes Chinese product_decision domain', () => {
-    const result = execSync(`node "${VALIDATE}" ${VALID_DOMAIN}`, {
+    const result = execSync(`node "${VALIDATE}" ${VALID_SOURCE}`, {
       cwd: path.join(__dirname, '..'),
       encoding: 'utf8',
     });

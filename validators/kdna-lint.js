@@ -1,116 +1,44 @@
 #!/usr/bin/env node
-/**
- * kdna-lint — Structural and content validation for KDNA domains.
- *
- * Uses @aikdna/kdna-core lintDomain for pure validation logic,
- * handles file I/O here.
- */
+'use strict';
 
-const fs = require('fs');
-const path = require('path');
-const { lintDomain } = require('@aikdna/kdna-core');
+const fs = require('node:fs');
+const path = require('node:path');
+const core = require('@aikdna/kdna-core');
 
-const KDNA_DOMAIN_FILES = new Set([
-  'KDNA_Core.json',
-  'KDNA_Patterns.json',
-  'KDNA_Scenarios.json',
-  'KDNA_Cases.json',
-  'KDNA_Reasoning.json',
-  'KDNA_Evolution.json',
-]);
+const target = process.argv[2];
+if (!target || target === '--help' || target === '-h') {
+  console.log(`kdna-lint — Fail-closed structural lint for a current KDNA source.
 
-const domainDir = process.argv[2];
-if (!domainDir || domainDir === '--help' || domainDir === '-h') {
-  console.log(`kdna-lint — Structural and content validation for KDNA domains.
-
-Usage: kdna-lint <domain-folder>
-
-Runs lint checks on KDNA_*.json files for structure, content, and consistency.
+Usage: kdna-lint <source-folder>
 
 Options:
   -h, --help    Show this help message`);
-  process.exit(domainDir ? 0 : 2);
+  process.exit(target ? 0 : 2);
 }
 
-if (!fs.existsSync(domainDir) || !fs.statSync(domainDir).isDirectory()) {
-  console.error(`Not a directory: ${domainDir}`);
+const absolute = path.resolve(target);
+if (!fs.existsSync(absolute) || !fs.statSync(absolute).isDirectory()) {
+  console.error(`Not a source folder: ${absolute}`);
+  process.exit(2);
+}
+if (typeof core.validate !== 'function') {
+  console.error('Current @aikdna/kdna-core validate API is required.');
   process.exit(2);
 }
 
-// Read only canonical domain content files. Governance metadata such as
-// KDNA_CARD.json is part of the package, but not one of the 6 KDNA JSON files.
-const files = fs.readdirSync(domainDir).filter((f) => KDNA_DOMAIN_FILES.has(f));
-const dataMap = {};
-for (const f of files) {
-  try {
-    dataMap[f] = JSON.parse(fs.readFileSync(path.join(domainDir, f), 'utf8'));
-  } catch {
-    // lintDomain will report missing required files; skip unparseable here
-  }
-}
-
-const result = lintDomain(dataMap);
-
-function validateManifest(manifest) {
-  const errors = [];
-  const warnings = [];
-  const required = [
-    'kdna_version',
-    'name',
-    'version',
-    'judgment_version',
-    'description',
-    'author',
-    'license',
-    'status',
-    'quality_badge',
-    'access',
-    'languages',
-    'default_language',
-  ];
-
-  if (manifest.kdna_spec) errors.push('kdna_spec is not allowed. Use kdna_version.');
-  if (manifest.language)
-    errors.push('language is not allowed. Use default_language and languages.');
-  for (const field of required) {
-    if (!(field in manifest) || manifest[field] === undefined || manifest[field] === '') {
-      errors.push(`missing required field "${field}"`);
-    }
-  }
-  if (manifest.format && manifest.format !== 'kdna') {
-    errors.push(`format: invalid value "${manifest.format}". Expected "kdna".`);
-  }
-  if (!manifest.kdna_version) {
-    errors.push('missing required field "kdna_version"');
-  } else if (manifest.kdna_version !== '1.0') {
-    errors.push(`kdna_version: invalid value "${manifest.kdna_version}". Expected "1.0".`);
-  }
-  return { errors, warnings };
-}
-
-// Also validate kdna.json manifest if present and validateManifest is available
-let manifestPath;
 try {
-  manifestPath = path.join(domainDir, 'kdna.json');
-  if (fs.existsSync(manifestPath)) {
-    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-    const mResult = validateManifest(manifest);
-    for (const e of mResult.errors) result.errors.push(`kdna.json: ${e}`);
-    for (const w of mResult.warnings) result.warnings.push(`kdna.json: ${w}`);
+  const validation = core.validate(absolute);
+  if (!validation || validation.overall_valid !== true || !Array.isArray(validation.problems)) {
+    const problems = Array.isArray(validation?.problems) ? validation.problems : [];
+    console.error('Errors:');
+    for (const problem of problems.length ? problems : ['Core validation did not pass.']) {
+      console.error(`  - ${problem}`);
+    }
+    process.exit(1);
   }
-} catch (e) {
-  if (e.code !== 'ENOENT') {
-    result.errors.push(`kdna.json: failed to parse — ${e.message}`);
-  }
-}
-
-if (result.warnings.length) {
-  console.log('Warnings:');
-  result.warnings.forEach((w) => console.log(`  - ${w}`));
-}
-if (result.errors.length) {
-  console.error('Errors:');
-  result.errors.forEach((e) => console.error(`  - ${e}`));
+} catch (cause) {
+  console.error(`Lint failed closed: ${cause.message}`);
   process.exit(1);
 }
-console.log(`✓ KDNA domain valid: ${domainDir}`);
+
+console.log(`✓ KDNA source valid: ${absolute}`);

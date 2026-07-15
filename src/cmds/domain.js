@@ -1,7 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
-const { error, readJson, writeJson, EXIT } = require('./_common');
+const { error, readJson, EXIT } = require('./_common');
 const { packKdna } = require('../dev-pack');
 const KDNA_DOMAIN_FILES = new Set([
   'KDNA_Core.json',
@@ -320,126 +319,49 @@ function cmdPack(dir, outputDir) {
   console.warn('Human Lock is optional provenance and is not required for format validity.');
 
   const domainName = core.meta?.domain || path.basename(abs);
-  const today = new Date().toISOString().slice(0, 10);
-
-  // Ensure kdna.json manifest exists (generate if missing)
-  let manifest = readJson(path.join(abs, 'kdna.json'));
-  if (!manifest) {
-    manifest = {
-      name: `@aikdna/${domainName}`,
-      version: core.meta?.version || '0.1.0',
-      judgment_version: core.meta?.version || '0.1.0',
-      asset_id: `kdna:${domainName}:dev`,
-      asset_uid: `urn:uuid:${crypto.randomUUID()}`,
-      asset_type: 'domain',
-      title: `${domainName} domain cognition`,
-      status: 'experimental',
-      quality_badge: 'untested',
-      access: 'public',
-      languages: ['en'],
-      default_language: 'en',
-      author: { name: '', id: '' },
-      license: { type: 'CC-BY-4.0' },
-      description: core.meta?.purpose || `${domainName} domain cognition`,
-      compatibility: { min_loader_version: '1.0.0', profile: 'judgment-profile-v1' },
-      created_at: core.meta?.created || today,
-      updated_at: today,
-    };
-    writeJson(path.join(abs, 'kdna.json'), manifest);
-  }
+  const manifest = readJson(path.join(abs, 'kdna.json')) || {
+    name: `@aikdna/${domainName}`,
+    version: core.meta?.version || '0.1.0',
+    judgment_version: core.meta?.version || '0.1.0',
+    asset_id: `kdna:${domainName}:dev`,
+    asset_type: 'domain',
+    title: `${domainName} domain cognition`,
+    status: 'experimental',
+    quality_badge: 'untested',
+    access: 'public',
+    languages: ['en'],
+    default_language: 'en',
+    license: { type: 'CC-BY-4.0' },
+    description: core.meta?.purpose || `${domainName} domain cognition`,
+    created_at: core.meta?.created,
+    updated_at: core.meta?.updated,
+  };
 
   const outName = `${domainName}.kdna`;
   const outPath = outputDir ? path.join(outputDir, outName) : path.join(process.cwd(), outName);
   if (outputDir && !fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
-  const { entries } = packKdna(abs, manifest);
-  createNodeZip(entries, outPath);
+  const { entries, manifest: currentManifest } = packKdna(abs, manifest);
+  const sourceTemp = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'kdna-domain-pack-'));
+  try {
+    for (const [name, bytes] of Object.entries(entries)) {
+      fs.writeFileSync(path.join(sourceTemp, name), bytes);
+    }
+    const currentCore = require('@aikdna/kdna-core');
+    if (typeof currentCore.pack !== 'function') {
+      error('Current @aikdna/kdna-core pack API is required.', EXIT.VALIDATION_FAILED);
+    }
+    currentCore.pack(sourceTemp, outPath);
+  } finally {
+    fs.rmSync(sourceTemp, { recursive: true, force: true });
+  }
 
   const fileCount = [...KDNA_DOMAIN_FILES].filter((f) => fs.existsSync(path.join(abs, f))).length;
   console.log(`✓ Packed: ${outPath}`);
-  console.log(`  Domain: ${domainName} v${manifest.version}`);
+  console.log(`  Domain: ${domainName} ${currentManifest.version}`);
   console.log(`  Files: ${fileCount} KDNA JSONs`);
   console.log(`  Container: ZIP (DEFLATE)`);
   console.log(`  Provenance: dev-only bundle; not release-reviewed`);
-}
-
-// #22: Node.js-native ZIP creator for single-format entries.
-// `entries` is an object { name: Buffer|string }. Mimetype is always stored
-// uncompressed and written first for container detection.
-function createNodeZip(entries, outPath) {
-  const zlib = require('zlib');
-  const names = Object.keys(entries);
-  const order = ['mimetype', 'kdna.json', 'payload.kdnab']
-    .filter((n) => names.includes(n))
-    .concat(names.filter((n) => !['mimetype', 'kdna.json', 'payload.kdnab'].includes(n)).sort());
-
-  const centralDir = [];
-  const fileData = [];
-  let offset = 0;
-
-  for (const f of order) {
-    const raw = Buffer.isBuffer(entries[f]) ? entries[f] : Buffer.from(String(entries[f]), 'utf8');
-    const crc = crc32(raw);
-    const compressed = zlib.deflateRawSync(raw);
-    const useStore = f === 'mimetype' || compressed.length >= raw.length;
-
-    const nameBytes = Buffer.from(f, 'utf8');
-    const localHeader = Buffer.alloc(30);
-    localHeader.writeUInt32LE(0x04034b50, 0); // local file header signature
-    localHeader.writeUInt16LE(20, 4); // version needed
-    localHeader.writeUInt16LE(0x0800, 6); // general purpose bit flag (UTF-8)
-    localHeader.writeUInt16LE(useStore ? 0 : 8, 8); // compression method: stored or deflated
-    // skip mod time, mod date
-    localHeader.writeUInt32LE(crc, 14);
-    localHeader.writeUInt32LE(useStore ? raw.length : compressed.length, 18); // compressed size
-    localHeader.writeUInt32LE(raw.length, 22); // uncompressed size
-    localHeader.writeUInt16LE(nameBytes.length, 26);
-
-    const stored = useStore ? raw : compressed;
-
-    fileData.push(Buffer.concat([localHeader, nameBytes, stored]));
-    offset += localHeader.length + nameBytes.length + stored.length;
-
-    // Central directory entry
-    const cdEntry = Buffer.alloc(46);
-    cdEntry.writeUInt32LE(0x02014b50, 0); // central dir signature
-    cdEntry.writeUInt16LE(20, 4); // version made by
-    cdEntry.writeUInt16LE(20, 6); // version needed
-    cdEntry.writeUInt16LE(0x0800, 8); // UTF-8
-    cdEntry.writeUInt16LE(useStore ? 0 : 8, 10);
-    cdEntry.writeUInt32LE(crc, 16);
-    cdEntry.writeUInt32LE(useStore ? raw.length : compressed.length, 20);
-    cdEntry.writeUInt32LE(raw.length, 24);
-    cdEntry.writeUInt16LE(nameBytes.length, 28);
-    cdEntry.writeUInt32LE(offset - stored.length - nameBytes.length - localHeader.length, 42);
-    centralDir.push(Buffer.concat([cdEntry, nameBytes]));
-  }
-
-  const cdOffset = offset;
-  const cdSize = centralDir.reduce((s, e) => s + e.length, 0);
-  const eocd = Buffer.alloc(22);
-  eocd.writeUInt32LE(0x06054b50, 0); // EOCD signature
-  eocd.writeUInt16LE(0, 4); // disk number
-  eocd.writeUInt16LE(0, 6); // disk with CD
-  eocd.writeUInt16LE(order.length, 8); // entries on disk
-  eocd.writeUInt16LE(order.length, 10); // total entries
-  eocd.writeUInt32LE(cdSize, 12); // CD size
-  eocd.writeUInt32LE(cdOffset, 16); // CD offset
-  eocd.writeUInt16LE(0, 20); // comment length
-
-  const all = Buffer.concat([...fileData, ...centralDir, eocd]);
-  fs.writeFileSync(outPath, all);
-}
-
-function crc32(buf) {
-  let crc = 0xffffffff;
-  for (let i = 0; i < buf.length; i++) {
-    crc ^= buf[i];
-    for (let j = 0; j < 8; j++) {
-      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
-    }
-  }
-  return (crc ^ 0xffffffff) >>> 0;
 }
 
 function cmdUnpack(filePath, force) {

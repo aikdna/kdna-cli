@@ -8,15 +8,13 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('fs');
-const path = require('path');
 const os = require('os');
 
 let hasCbor = false;
 try {
   require('cbor-x');
   hasCbor = true;
-} catch (_) {
+} catch {
   /* ignore */
 }
 
@@ -75,11 +73,20 @@ test('dev-pack: packKdna returns entries object (does not write a file)', () => 
         'mimetype must be the single KDNA asset media type',
       );
       const manifest = JSON.parse(result.entries['kdna.json']);
-      assert.equal(manifest.kdna_version, '1.0', 'kdna_version must be 1.0');
+      assert.equal(manifest.format_version, '0.1.0');
+      assert.equal(manifest.kdna_version, undefined);
+      assert.equal(manifest.compatibility.profile, 'kdna.payload.judgment');
+      assert.equal(manifest.compatibility.profile_version, '0.1.0');
       assert.equal(manifest.payload.path, 'payload.kdnab');
       assert.equal(manifest.payload.encoding, 'cbor');
       assert.equal(manifest.payload.encrypted, false);
       assert.equal(result.entries['payload.kdnab'].length > 0, true);
+      assert.equal(result.payload.profile, 'kdna.payload.judgment');
+      assert.equal(result.payload.profile_version, '0.1.0');
+      const checksums = JSON.parse(result.entries['checksums.json']);
+      assert.equal(checksums.digest_profile, 'kdna.digest-basis.runtime-entry-set');
+      assert.equal(checksums.digest_profile_version, '0.1.0');
+      assert.equal(checksums.asset_digest, undefined);
     } finally {
       fs2.rmSync(src, { recursive: true, force: true });
     }

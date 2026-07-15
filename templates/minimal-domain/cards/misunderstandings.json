@@ -1,0 +1,12 @@
+[
+  {
+    "id": "ms_common_confusion",
+    "wrong": "The common generic interpretation.",
+    "correct": "The domain-specific interpretation.",
+    "key_distinction": "The conceptual boundary the agent must preserve.",
+    "failure_risk": "The wrong interpretation produces a materially different judgment.",
+    "locked": false,
+    "human_lock": null,
+    "feynman_restatement": null
+  }
+]

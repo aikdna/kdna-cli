@@ -1,0 +1,16 @@
+[
+  {
+    "id": "misread_one",
+    "wrong": "A specific belief a real agent in this domain might hold.",
+    "correct": "The operational correction.",
+    "key_distinction": "Name the conceptual boundary, not merely its negation.",
+    "failure_risk": "Describe the bad output produced by the wrong belief.",
+    "confidence": "high",
+    "evidence_type": ["practice_pattern"],
+    "applies_when": ["Describe when this confusion is likely"],
+    "does_not_apply_when": ["Describe when the distinction is irrelevant"],
+    "locked": false,
+    "human_lock": null,
+    "feynman_restatement": null
+  }
+]

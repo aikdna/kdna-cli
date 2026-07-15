@@ -1,5 +1,5 @@
 /**
- * Dev-only Studio project diagnostics retained for old project files.
+ * Studio project diagnostics and current asset-source compiler.
  *
  *   kdna-studio create <name>         Create Studio project skeleton
  *   kdna cards validate <project.json>  Validate Judgment Cards
@@ -12,6 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { error, readJson, writeJson, EXIT, isYesNoSelfCheck } = require('./_common');
+const { packKdna } = require('../dev-pack');
 
 // ─── Scaffold ─────────────────────────────────────────────────────────
 
@@ -106,9 +107,18 @@ function cmdStudioScaffold(name, args = []) {
 
   // Write studio.project.json
   const project = {
-    kdna_studio: '1.0-beta',
+    studio_format: '0.1.0',
     name,
     type,
+    description: '',
+    highest_question: '',
+    worldview: [],
+    value_order: [],
+    judgment_role: {
+      acts_as: '',
+      does_not_act_as: [],
+      responsibility: '',
+    },
     created: today,
     updated: today,
     cards: {
@@ -134,12 +144,6 @@ function cmdStudioScaffold(name, args = []) {
     writeJson(path.join(targetDir, file), CARD_TEMPLATES[type]);
   }
 
-  // Write exports/README.md
-  fs.writeFileSync(
-    path.join(targetDir, 'exports', 'README.md'),
-    `# ${name}\n\nCompiled KDNA domain files will appear here after \`kdna-studio compile\`.\n`,
-  );
-
   console.log(`✓ Studio project created: ${targetDir}/`);
   console.log(`  Type:       ${type}${minimal ? ' (minimal)' : ''}`);
   console.log(`  Cards:      ${cardTypes.join(', ')}`);
@@ -159,7 +163,7 @@ function cmdCardsValidate(projectPath, args = []) {
 
   if (!fs.existsSync(abs)) error(`Project file not found: ${abs}`, EXIT.INPUT_ERROR);
   const project = readJson(abs);
-  if (!project || !project.kdna_studio)
+  if (!project || project.studio_format !== '0.1.0')
     error(`Not a KDNA Studio project: ${abs}`, EXIT.INPUT_ERROR);
 
   const errors = [];
@@ -329,7 +333,7 @@ function cmdLockVerify(projectPath, args = []) {
 
   if (!fs.existsSync(abs)) error(`Project file not found: ${abs}`, EXIT.INPUT_ERROR);
   const project = readJson(abs);
-  if (!project || !project.kdna_studio)
+  if (!project || project.studio_format !== '0.1.0')
     error(`Not a KDNA Studio project: ${abs}`, EXIT.INPUT_ERROR);
 
   const locked = [];
@@ -422,7 +426,7 @@ function cmdStudioCompile(projectPath, args = []) {
 
   if (!fs.existsSync(abs)) error(`Project file not found: ${abs}`, EXIT.INPUT_ERROR);
   const project = readJson(abs);
-  if (!project || !project.kdna_studio)
+  if (!project || project.studio_format !== '0.1.0')
     error(`Not a KDNA Studio project: ${abs}`, EXIT.INPUT_ERROR);
 
   // Determine output directory
@@ -434,22 +438,27 @@ function cmdStudioCompile(projectPath, args = []) {
 
   fs.mkdirSync(outDir, { recursive: true });
 
-  const today = new Date().toISOString().slice(0, 10);
+  const now = new Date().toISOString();
   const excluded = [];
   const included = [];
 
   // Compile axioms → KDNA_Core.json
   const axioms = loadCards(project, path.dirname(abs), 'axioms');
   const ontology = loadCards(project, path.dirname(abs), 'ontology');
+  const boundaries = loadCards(project, path.dirname(abs), 'boundaries');
 
   const core = {
     meta: {
       domain: project.name,
-      purpose: '',
+      purpose: project.highest_question || project.description || '',
       language: 'en',
-      created: project.created || today,
-      updated: today,
+      created: project.created || now,
+      updated: now,
     },
+    highest_question: project.highest_question || project.description || '',
+    worldview: Array.isArray(project.worldview) ? project.worldview : [],
+    value_order: Array.isArray(project.value_order) ? project.value_order : [],
+    judgment_role: project.judgment_role || {},
     axioms: axioms.locked.map((ax) => ({
       id: ax.id,
       one_sentence: ax.one_sentence,
@@ -468,6 +477,9 @@ function cmdStudioCompile(projectPath, args = []) {
       boundary: ont.boundary,
       trigger_signal: ont.trigger_signal,
     })),
+    boundaries: boundaries.locked.map(
+      (boundary) => boundary.out_of_scope || boundary.scope || String(boundary),
+    ),
     stances: [],
     frameworks: [],
     core_structure: [],
@@ -475,6 +487,7 @@ function cmdStudioCompile(projectPath, args = []) {
   excluded.push(
     ...axioms.unlocked.map((ax) => `axiom ${ax.id || '?'} not locked`),
     ...ontology.unlocked.map((ont) => `ontology ${ont.id || '?'} not locked`),
+    ...boundaries.unlocked.map((boundary) => `boundary ${boundary.id || '?'} not locked`),
   );
 
   // Compile misunderstandings + self_checks + banned_terms → KDNA_Patterns.json
@@ -502,7 +515,6 @@ function cmdStudioCompile(projectPath, args = []) {
 
   // Compile manifest → kdna.json
   const manifest = {
-    kdna_version: '1.0',
     name: `@aikdna/${project.name}`,
     asset_id: `kdna:${project.name}:studio`,
     asset_uid: `urn:uuid:${crypto.randomUUID()}`,
@@ -515,27 +527,30 @@ function cmdStudioCompile(projectPath, args = []) {
     access: 'public',
     languages: ['en'],
     default_language: 'en',
-    author: { name: '', id: '' },
     license: { type: 'CC-BY-4.0' },
-    description: '',
-    compatibility: { min_loader_version: '1.0.0', profile: 'judgment-profile-v1' },
+    description: project.description || project.highest_question || '',
     payload: { path: 'payload.kdnab', encoding: 'cbor', encrypted: false },
-    created_at: project.created || today,
-    updated_at: today,
+    created_at: project.created || now,
+    updated_at: now,
   };
 
-  writeJson(path.join(outDir, 'KDNA_Core.json'), core);
-  writeJson(path.join(outDir, 'KDNA_Patterns.json'), patterns);
-  writeJson(path.join(outDir, 'kdna.json'), manifest);
-
-  // Produce the single-format payload so the source directory is loadable
-  const cbor = require('cbor-x');
-  const payloadBuf = cbor.encode({
-    profile: 'judgment-profile-v1',
-    core,
-    patterns,
-  });
-  fs.writeFileSync(path.join(outDir, 'payload.kdnab'), payloadBuf);
+  const authoringTemp = fs.mkdtempSync(
+    path.join(require('node:os').tmpdir(), 'kdna-studio-compile-'),
+  );
+  let compiled;
+  try {
+    writeJson(path.join(authoringTemp, 'KDNA_Core.json'), core);
+    writeJson(path.join(authoringTemp, 'KDNA_Patterns.json'), patterns);
+    compiled = packKdna(authoringTemp, manifest);
+  } finally {
+    fs.rmSync(authoringTemp, { recursive: true, force: true });
+  }
+  for (const obsolete of ['README.md', 'KDNA_Core.json', 'KDNA_Patterns.json']) {
+    fs.rmSync(path.join(outDir, obsolete), { force: true });
+  }
+  for (const [name, bytes] of Object.entries(compiled.entries)) {
+    fs.writeFileSync(path.join(outDir, name), bytes);
+  }
 
   included.push(
     `axioms: ${axioms.locked.length} included`,
@@ -580,7 +595,7 @@ function cmdStudioReadiness(projectPath, args = []) {
 
   if (!fs.existsSync(abs)) error(`Project file not found: ${abs}`, EXIT.INPUT_ERROR);
   const project = readJson(abs);
-  if (!project || !project.kdna_studio)
+  if (!project || project.studio_format !== '0.1.0')
     error(`Not a KDNA Studio project: ${abs}`, EXIT.INPUT_ERROR);
 
   const readiness = {

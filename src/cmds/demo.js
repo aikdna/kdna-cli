@@ -81,20 +81,27 @@ function cmdDemo(args) {
     // Set up encryption metadata for a password-protected licensed asset.
     manifest.access = 'licensed';
     manifest.entitlement = { profile: 'password', offline: true, revocable: false };
+    const core = require('@aikdna/kdna-core');
+    if (
+      typeof core.encryptProtectedEntry !== 'function' ||
+      typeof core.generateRecoveryCode !== 'function' ||
+      typeof core.buildChecksums !== 'function'
+    ) {
+      throw new Error('Current KDNA Core encryption and checksum APIs are required.');
+    }
     manifest.encryption = {
-      profile: 'kdna-password-protected-v1',
+      profile: core.PASSWORD_PROTECTED_PROFILE,
       encrypted_entries: ['payload.kdnab'],
     };
     manifest.payload = manifest.payload || {};
     manifest.payload.encrypted = true;
     manifest.payload.encoding = 'cbor';
 
-    // Actually encrypt the payload using kdna-password-protected-v1.
+    // Encrypt the payload through the current Core profile.
     const cbor = require('cbor-x');
-    const { encryptProtectedEntry, generateRecoveryCode } = require('@aikdna/kdna-core');
     const plaintext = fs.readFileSync(payloadPath);
-    const recoveryCode = generateRecoveryCode();
-    const envelope = encryptProtectedEntry(plaintext, {
+    const recoveryCode = core.generateRecoveryCode();
+    const envelope = core.encryptProtectedEntry(plaintext, {
       entryName: 'payload.kdnab',
       manifest,
       password,
@@ -105,13 +112,7 @@ function cmdDemo(args) {
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 
     // Rebuild checksums after encryption
-    const { buildChecksums } = require('@aikdna/kdna-core');
-    const newChecksums = buildChecksums(outDir);
-    newChecksums.digest_profile = 'kdna-runtime-entry-set-v1';
-    newChecksums.covered_entries = ['kdna.json', 'payload.kdnab'];
-    if (!newChecksums.entry_set_digest && newChecksums.asset_digest) {
-      newChecksums.entry_set_digest = newChecksums.asset_digest;
-    }
+    const newChecksums = core.buildChecksums(outDir);
     fs.writeFileSync(path.join(outDir, 'checksums.json'), JSON.stringify(newChecksums, null, 2));
 
     process.stdout.write(`  ${copied.length} file(s) copied, payload encrypted with password\n\n`);

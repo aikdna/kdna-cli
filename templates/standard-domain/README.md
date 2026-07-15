@@ -1,82 +1,34 @@
-> 🧬 [aikdna.com](https://aikdna.com) — Official website
+# Standard KDNA Studio authoring template
 
-# [Your domain name]
+This is an editable authoring project, not a Runtime asset. Judgment content
+lives in `studio.project.json` and `cards/`; `evals/` preserves the optional
+declared evidence cases used during review. The public Runtime artifact is the
+packaged `.kdna` file produced from the compiled `exports/` directory.
 
-[![KDNA Spec](https://img.shields.io/badge/KDNA-open_protocol-4c1)](https://github.com/aikdna/kdna)
-
-> This README is for an expanded authoring project view. The public runtime
-> asset is the packaged `.kdna` file exported from this project, not the source
-> folder itself.
-
-**[Domain Title]** — [one-sentence description, same as kdna.json.description]
-
-## Core Insight
-
-[one-sentence core insight, same as kdna.json.core_insight]
-
-## Export and load
+## Authoring and compilation
 
 ```bash
+kdna studio cards validate ./studio.project.json
+kdna studio lock verify ./studio.project.json
+kdna studio compile ./studio.project.json
+kdna validate ./exports
 mkdir -p dist
-kdna-studio create ../your-domain-studio --from-folder . --name @yourscope/your-domain
-kdna-studio export ../your-domain-studio --out ./dist/your-domain.kdna
-kdna validate ./dist/your-domain.kdna
-kdna plan-load ./dist/your-domain.kdna
-kdna load ./dist/your-domain.kdna --profile=compact --as=prompt
+kdna pack ./exports ./dist/your-domain.kdna
 ```
 
-## Optional evidence questions
+Compilation emits only the current source entries: `mimetype`, `kdna.json`,
+`payload.kdnab`, and `checksums.json`. Checksums and CBOR are generated through
+the current Core implementation. Do not hand-edit them.
 
-These questions can document authorship, scope, evidence, and limitations.
-They do not determine whether the asset may be created or loaded.
+Creator identity and Human Lock are optional provenance. They may document the
+authoring process, but neither is a format-validity or loading requirement.
 
-### 1. Where does it come from?
+## Evidence questions
 
-- **Authored by**: [Your name / team]
-- **Evidence type**: [practice patterns / case observations / research findings — be specific]
-- **Signed by**: `@yourscope` trust key (fingerprint `[your-fingerprint]`)
+- Which real decisions should this judgment improve?
+- Which neighboring decisions are explicitly outside its scope?
+- Which cases would falsify or weaken an axiom?
+- Which failure risks appear when the asset is loaded on the wrong task?
 
-### 2. Where does it apply?
-
-This KDNA helps agents [specific judgment] in:
-
-- [situation 1]
-- [situation 2]
-- [situation 3]
-
-### 3. How is it verified?
-
-- `evals/` contains optional author-declared cases: 3 core + 3 boundary + 3 failure + 1 excluded
-- [Describe any evidence or review process you actually performed]
-- Format validity is checked separately with `kdna validate` after Studio export
-
-### 4. When does it NOT apply?
-
-Loading this domain on the wrong task is itself a risk. **Do not load** when:
-
-- [explicit case 1 from your axioms' does_not_apply_when]
-- [explicit case 2]
-- [explicit case 3]
-
-If any of the above is true, the agent should decline to load this domain.
-
-## Known Failure Risks
-
-| Risk                                   | When it shows up |
-| -------------------------------------- | ---------------- |
-| [risk 1 from axiom_one.failure_risk]   | [trigger]        |
-| [risk 2 from axiom_two.failure_risk]   | [trigger]        |
-| [risk 3 from misread_one.failure_risk] | [trigger]        |
-
-## Files
-
-| File                 | Purpose                                                                     |
-| -------------------- | --------------------------------------------------------------------------- |
-| `KDNA_Core.json`     | Axioms (with boundaries), ontology, frameworks, causal structure, stances   |
-| `KDNA_Patterns.json` | Terminology, banned terms, misunderstandings (with boundaries), self-checks |
-| `evals/`             | Test cases for `kdna compare` and quality scoring                           |
-| `kdna.json`          | Domain manifest (name, version, judgment_version, signature)                |
-
-## License
-
-[Your license — CC-BY-4.0 / MIT / etc.]
+The files under `evals/` are author-declared cases, not proof that semantic
+consumption or judgment fidelity occurred at Runtime.

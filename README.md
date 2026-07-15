@@ -112,19 +112,17 @@ kdna eval-consumption <asset-path> --fixtures=./fixtures --budget=interactive --
 Generated sidecars are disabled by default. They are not an endorsement of an
 asset or a replacement for independent review.
 
-The built-in `mock` Runner never claims an asset was loaded. The built-in
-`cli` Runner calls KDNA Core `load`, returns the resulting Runtime Capsules,
-and records their measured projection size separately from consumed context.
-Without an Agent host it returns `partial` and never claims a task judgment was
-completed. A provider-neutral process host can be attached explicitly for one
-packaged asset:
+Single-asset execution uses only the `cli:default` process runner. It requires
+one explicit process Host and a capability registration bound to the selected
+executable and ordered arguments:
 
 ```bash
 kdna use ./asset.kdna \
   --task "Review this decision" \
   --runner cli:default \
   --agent-host node \
-  --agent-host-arg ./my-agent-host.js
+  --agent-host-arg ./my-agent-host.js \
+  --agent-host-capabilities ./my-agent-host.registration.json
 ```
 
 The executable is spawned directly, without a shell. It receives one
@@ -300,7 +298,7 @@ kdna plan-load ./asset.kdna
 # ready
 
 kdna load ./asset.kdna --profile=compact --as=json
-# kdna.context.capsule
+# kdna.runtime-capsule
 ```
 
 The browser step authorizes the current device. Device private keys, pinned

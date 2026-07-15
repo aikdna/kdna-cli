@@ -1,93 +1,46 @@
 #!/usr/bin/env node
-/**
- * kdna-validate — Enhanced KDNA domain validator using JSON Schema.
- *
- * Uses @aikdna/kdna-core validateDomainSchema and validateCrossFile for
- * pure validation logic, handles file I/O here.
- */
+'use strict';
 
-const fs = require('fs');
-const path = require('path');
-const { validateDomainSchema, validateCrossFile } = require('@aikdna/kdna-core');
+const fs = require('node:fs');
+const path = require('node:path');
+const core = require('@aikdna/kdna-core');
 
-const domainDir = process.argv[2];
-if (!domainDir || domainDir === '--help' || domainDir === '-h') {
-  console.log(`kdna-validate — Validate a KDNA domain against JSON Schema.
+const target = process.argv[2];
+if (!target || target === '--help' || target === '-h') {
+  console.log(`kdna-validate — Validate a current KDNA source or packaged asset.
 
-Usage: kdna-validate <domain-folder>
-
-Checks each KDNA_*.json file against its schema, then runs cross-file validation.
+Usage: kdna-validate <source-folder|asset.kdna>
 
 Options:
   -h, --help    Show this help message`);
-  process.exit(domainDir ? 0 : 2);
+  process.exit(target ? 0 : 2);
 }
 
-if (!fs.existsSync(domainDir) || !fs.statSync(domainDir).isDirectory()) {
-  console.error(`Not a directory: ${domainDir}`);
+const absolute = path.resolve(target);
+if (!fs.existsSync(absolute)) {
+  console.error(`Not found: ${absolute}`);
+  process.exit(2);
+}
+if (typeof core.validate !== 'function') {
+  console.error('Current @aikdna/kdna-core validate API is required.');
   process.exit(2);
 }
 
-const SCHEMA_DIR = path.join(
-  path.dirname(require.resolve('@aikdna/kdna-core/package.json')),
-  'schema',
-);
-
-const FILE_MAP = {
-  'KDNA_Core.json': 'KDNA_Core.schema.json',
-  'KDNA_Patterns.json': 'KDNA_Patterns.schema.json',
-  'KDNA_Scenarios.json': 'KDNA_Scenarios.schema.json',
-  'KDNA_Cases.json': 'KDNA_Cases.schema.json',
-  'KDNA_Reasoning.json': 'KDNA_Reasoning.schema.json',
-  'KDNA_Evolution.json': 'KDNA_Evolution.schema.json',
-};
-
-// Read only canonical domain content files. Governance metadata such as
-// KDNA_CARD.json is valid package metadata, but not part of the 6-file domain set.
-const dataMap = {};
-for (const [file] of Object.entries(FILE_MAP)) {
-  const filePath = path.join(domainDir, file);
-  if (fs.existsSync(filePath)) {
-    try {
-      dataMap[file] = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    } catch {
-      /* skip unparseable files */
-    }
-  }
+let result;
+try {
+  result = core.validate(absolute);
+} catch (cause) {
+  console.error(`Validation failed closed: ${cause.message}`);
+  process.exit(1);
 }
-
-// Read schemas
-const schemaMap = {};
-for (const schemaFile of Object.values(FILE_MAP)) {
-  const schemaPath = path.join(SCHEMA_DIR, schemaFile);
-  if (fs.existsSync(schemaPath)) {
-    try {
-      schemaMap[schemaFile] = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
-    } catch {
-      /* skip unparseable schemas */
-    }
-  }
+if (!result || typeof result.overall_valid !== 'boolean' || !Array.isArray(result.problems)) {
+  console.error('Validation failed closed: Core returned an incomplete validation result.');
+  process.exit(1);
 }
-
-// Schema validation
-const schemaResult = validateDomainSchema(dataMap, schemaMap);
-
-// Cross-file validation
-const crossResult = validateCrossFile(dataMap);
-
-// Combine results
-const errors = [...schemaResult.errors, ...crossResult.errors];
-const warnings = [...schemaResult.warnings, ...crossResult.warnings];
-
-if (warnings.length) {
-  console.log('Warnings:');
-  warnings.forEach((w) => console.log(`  - ${w}`));
-}
-if (errors.length) {
+if (!result.overall_valid) {
   console.error('Errors:');
-  errors.forEach((e) => console.error(`  - ${e}`));
+  for (const problem of result.problems) console.error(`  - ${problem}`);
   process.exit(1);
 }
 
-const validCount = Object.keys(dataMap).length;
-console.log(`✓ KDNA domain valid (schema): ${domainDir} (${validCount} files passed)`);
+console.log(`✓ KDNA asset valid: ${absolute}`);

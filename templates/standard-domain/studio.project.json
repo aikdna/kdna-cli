@@ -1,0 +1,24 @@
+{
+  "studio_format": "0.1.0",
+  "name": "your_domain_id",
+  "type": "domain",
+  "description": "One sentence describing what judgment this KDNA helps an AI agent make.",
+  "highest_question": "What is the highest-value qualitative question this domain answers?",
+  "worldview": ["State only the scoped assumptions needed at a qualitative decision fork."],
+  "value_order": ["Name the highest qualitative priority", "Name the next priority"],
+  "judgment_role": {
+    "acts_as": "a domain-specific judgment aid",
+    "does_not_act_as": ["a factual authority", "an autonomous decision maker"],
+    "responsibility": "surface the domain-specific qualitative distinctions and boundaries"
+  },
+  "created": "2026-01-01T00:00:00Z",
+  "updated": "2026-01-01T00:00:00Z",
+  "cards": {
+    "axioms": "cards/axioms.json",
+    "ontology": "cards/ontology.json",
+    "misunderstandings": "cards/misunderstandings.json",
+    "boundaries": "cards/boundaries.json",
+    "self_checks": "cards/self_checks.json"
+  },
+  "exports": { "dir": "exports/" }
+}

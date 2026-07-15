@@ -1,0 +1,16 @@
+[
+  {
+    "id": "ed_ax_foundation",
+    "one_sentence": "One core judgment principle that changes how the agent evaluates situations.",
+    "full_statement": "A testable, domain-specific principle. It must be specific enough that two experts would agree on when it applies.",
+    "why": "Explain what the agent would get wrong without this axiom, and what it gets right with it.",
+    "applies_when": ["When the task involves evaluating the named situation type"],
+    "does_not_apply_when": ["When the task is purely mechanical or factual lookup"],
+    "failure_risk": "Without this axiom, the agent applies a generic assumption and reaches the wrong qualitative conclusion.",
+    "confidence": "medium",
+    "evidence_type": ["practice_patterns"],
+    "locked": false,
+    "human_lock": null,
+    "feynman_restatement": null
+  }
+]

@@ -1,0 +1,24 @@
+{
+  "studio_format": "0.1.0",
+  "name": "example_domain",
+  "type": "domain",
+  "description": "Define the core judgment of this domain.",
+  "highest_question": "What domain-specific distinction must the agent preserve?",
+  "worldview": [],
+  "value_order": [],
+  "judgment_role": {
+    "acts_as": "a domain judgment aid",
+    "does_not_act_as": ["a factual authority", "an autonomous decision maker"],
+    "responsibility": "surface the domain-specific qualitative distinction"
+  },
+  "created": "2026-01-01T00:00:00Z",
+  "updated": "2026-01-01T00:00:00Z",
+  "cards": {
+    "axioms": "cards/axioms.json",
+    "ontology": "cards/ontology.json",
+    "misunderstandings": "cards/misunderstandings.json",
+    "boundaries": "cards/boundaries.json",
+    "self_checks": "cards/self_checks.json"
+  },
+  "exports": { "dir": "exports/" }
+}

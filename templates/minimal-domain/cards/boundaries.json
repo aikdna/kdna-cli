@@ -1,0 +1,11 @@
+[
+  {
+    "id": "bd_scope",
+    "scope": "The qualitative decision this asset is meant to support.",
+    "out_of_scope": "Purely mechanical or factual lookup tasks.",
+    "acceptable_exceptions": [],
+    "locked": false,
+    "human_lock": null,
+    "feynman_restatement": null
+  }
+]
