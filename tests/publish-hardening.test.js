@@ -154,6 +154,12 @@ test('publish workflow has one canonical release-only path and publishes the ver
   assert.match(preflight, /scripts\/check-public-surface\.mjs/);
   assert.match(preflight, /scripts\/check-current-protocol-names\.js/);
 
+  const packageJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  assert.match(packageJson.scripts.test, /npm run test:unit/);
+  assert.match(packageJson.scripts['test:unit'], /tests\/e2e-encrypt\.test\.js/);
+  assert.equal(packageJson.scripts['test:all'], 'npm test');
+  assert.match(preflight, /\['npm', \['run', 'test:all'\]\]/);
+
   const ci = fs.readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8');
   assert.match(ci, /npm run check:public-surface/);
 });

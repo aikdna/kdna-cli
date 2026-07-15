@@ -2,8 +2,7 @@
  * e2e-encrypt.test.js — KDNA encrypt/decrypt round-trip tests.
  * Proves: demo --password → pack → load (correct pw) / load (no pw) / load (wrong pw).
  *
- * Requires @aikdna/kdna-core with decryptProtectedEntry + encryptProtectedEntry support (B4+).
- * CI skips these tests until kdna-core with B4 is published to npm.
+ * Requires the current @aikdna/kdna-core encrypted-envelope APIs.
  */
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -11,22 +10,6 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const core = require('@aikdna/kdna-core');
-
-// Gate: skip if installed kdna-core lacks B4 decryption primitives
-let HAS_B4_CORE = false;
-try {
-  HAS_B4_CORE =
-    typeof core.decryptProtectedEntry === 'function' &&
-    typeof core.encryptProtectedEntry === 'function';
-} catch {
-  /* core not installed or outdated */
-}
-if (!HAS_B4_CORE) {
-  console.log(
-    '# SKIP e2e-encrypt: kdna-core lacks B4 decryption primitives — requires core with decryptProtectedEntry',
-  );
-  process.exit(0);
-}
 
 const cliBin = path.join(__dirname, '..', 'src', 'cli.js');
 
@@ -51,13 +34,20 @@ test.before(() => {
   assert.equal(r.status, 0, `demo failed: ${r.stderr}`);
   assert.ok(fs.existsSync(path.join(demoDir, 'payload.kdnab')), 'payload.kdnab missing');
 
-  // Verify payload is NOT plaintext JSON
-  const payloadRaw = fs.readFileSync(path.join(demoDir, 'payload.kdnab'), 'utf8');
-  assert.ok(
-    payloadRaw.includes('"profile":') &&
-      payloadRaw.includes(JSON.stringify(core.PASSWORD_PROTECTED_PROFILE)),
-    'payload should be an encrypted envelope, not plaintext JSON',
-  );
+  // Verify the current CBOR encrypted-envelope contract through Core's public
+  // decoder/profile validator. Do not duplicate the wire parser in CLI tests.
+  const manifest = JSON.parse(fs.readFileSync(path.join(demoDir, 'kdna.json'), 'utf8'));
+  const encryptedPayload = fs.readFileSync(path.join(demoDir, 'payload.kdnab'));
+  assert.equal(manifest.payload.encoding, 'cbor');
+  assert.equal(manifest.payload.encrypted, true);
+  assert.equal(manifest.encryption.profile, core.PASSWORD_PROTECTED_PROFILE);
+  const decryptedPayload = core.decryptProtectedEntry(encryptedPayload, {
+    entryName: 'payload.kdnab',
+    manifest,
+    password,
+  });
+  assert.ok(Buffer.isBuffer(decryptedPayload));
+  assert.ok(decryptedPayload.length > 0, 'Core should decode and decrypt the encrypted payload');
 
   // Pack
   const r2 = runCli(['pack', demoDir, kdnaFile]);
@@ -74,9 +64,22 @@ test.after(() => {
 test('load encrypted asset with correct password returns content', () => {
   const r = runCli(['load', kdnaFile, '--password=' + password, '--profile=compact', '--as=json']);
   assert.equal(r.status, 0, `load should succeed: ${r.stderr}`);
-  const out = JSON.parse(r.stdout);
-  assert.equal(out.status, 'loaded');
-  assert.ok(out.available_profiles.length > 0, 'should have available profiles');
+  const capsule = JSON.parse(r.stdout);
+  assert.equal(capsule.type, 'kdna.runtime-capsule');
+  assert.equal(capsule.contract_version, '0.1.0');
+  assert.equal(capsule.asset.asset_id, 'kdna:example:deployment-review');
+  assert.equal(capsule.asset.version, '1.0.0');
+  assert.equal(capsule.asset.judgment_version, '1.0.0');
+  for (const name of ['asset', 'content', 'runtime_entry_set']) {
+    assert.match(capsule.digests[name].value, /^sha256:[0-9a-f]{64}$/);
+  }
+  assert.equal(capsule.digests.runtime_entry_set.comparison.state, 'matched');
+  assert.equal(
+    capsule.digests.runtime_entry_set.comparison.expected,
+    capsule.digests.runtime_entry_set.value,
+  );
+  assert.equal(capsule.profile, 'compact');
+  assert.ok(capsule.context.axioms.length > 0, 'compact judgment context should not be empty');
 });
 
 test('load encrypted asset with correct password as prompt', () => {
