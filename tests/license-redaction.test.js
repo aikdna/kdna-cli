@@ -61,7 +61,7 @@ async function withReflectingActivationErrorServer(key, fn) {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   try {
     const { port } = server.address();
-    return await fn(`http://127.0.0.1:${port}/v1/entitlements/activate`);
+    return await fn(`http://127.0.0.1:${port}/entitlements/activate`);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

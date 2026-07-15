@@ -24,13 +24,18 @@ test('naming gate rejects obsolete declarations and implementations', (t) => {
   fs.mkdirSync(path.join(root, 'src'), { recursive: true });
   const obsoleteCapsuleType = ['kdna', 'context', 'capsule'].join('.');
   const duplicateRoute = ['quality', 'load'].join(' ');
+  const obsoleteProjectionRoute = ['/', 'v1', '/project'].join('');
   fs.writeFileSync(path.join(root, 'src', 'runner.js'), `const type = '${obsoleteCapsuleType}';\n`);
-  fs.writeFileSync(path.join(root, 'README.md'), `Use ${duplicateRoute} for compatibility.\n`);
+  fs.writeFileSync(
+    path.join(root, 'README.md'),
+    `Use ${duplicateRoute} for compatibility at ${obsoleteProjectionRoute}.\n`,
+  );
 
   const issues = scanCurrentProtocolNames(root);
   assert.ok(issues.some((issue) => issue.rule === 'obsolete shipped implementation'));
   assert.ok(issues.some((issue) => issue.rule === 'obsolete Capsule type'));
   assert.ok(issues.some((issue) => issue.rule === 'duplicate loading route'));
+  assert.ok(issues.some((issue) => issue.rule === 'obsolete remote projection route'));
 });
 
 test('naming gate rejects unknown generation labels without a token allowlist', (t) => {

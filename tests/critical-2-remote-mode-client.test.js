@@ -24,10 +24,10 @@
  *   5. The server's projection response is printed
  *   6. The server's error response is mapped to a CLI error
  *   7. Task verb default is "review"; --task overrides it
- *   8. The request URL normalization accepts both
- *      --remote-server https://example.com (→ /v1/project)
- *      and --remote-server https://example.com/v1/project
- *   9. Packaged access: "remote" .kdna files route to the server too
+ *   8. The request URL normalization accepts both a server base URL
+ *      (→ /project) and the exact current /project endpoint
+ *   9. Obsolete projection paths are rejected instead of treated as aliases
+ *   10. Packaged access: "remote" .kdna files route to the server too
  *
  * Run: node --test tests/critical-2-remote-mode-client.test.js
  */
@@ -148,7 +148,7 @@ async function startFakeRemoteServer(opts = {}) {
   return {
     proc,
     port,
-    url: `http://127.0.0.1:${port}/v1/project`,
+    url: `http://127.0.0.1:${port}/project`,
     lastRequestPath,
     async stop() {
       proc.kill('SIGKILL');
@@ -182,7 +182,7 @@ function makeRemoteFixture(tmpDir) {
     updated_at: '2026-06-28T00:00:00.000Z',
     creator: { name: 'Test', id: 'test' },
     access: 'remote',
-    runtime: { endpoint: 'http://localhost/v1/project' },
+    runtime: { endpoint: 'http://localhost/project' },
   });
   const payload = currentJudgmentPayload({
     core: {
@@ -230,7 +230,7 @@ test('CRITICAL-2: --remote-server <url> flag is used as the projection endpoint'
     assert.equal(r.status, 0, `load failed: ${r.stderr}`);
     const last = readLastRequest(server);
     assert.ok(last, 'fake server should have received a request');
-    assert.equal(last.url, '/v1/project');
+    assert.equal(last.url, '/project');
     assert.equal(last.method, 'POST');
   } finally {
     if (server) await server.stop();
@@ -256,7 +256,7 @@ test('CRITICAL-2: KDNA_REMOTE_SERVER env var is used as the projection endpoint'
     assert.equal(r.status, 0, `load failed: ${r.stderr}`);
     const last = readLastRequest(server);
     assert.ok(last, 'fake server should have received a request');
-    assert.equal(last.url, '/v1/project');
+    assert.equal(last.url, '/project');
   } finally {
     if (server) await server.stop();
     fs.rmSync(tmp, { recursive: true, force: true });
@@ -409,21 +409,41 @@ test('CRITICAL-2: server error response (non-2xx) is mapped to a CLI error', asy
 
 // ─── H: URL normalization ────────────────────────────────────────────
 
-test('CRITICAL-2: --remote-server URL is normalized (with or without /v1/project suffix)', async () => {
+test('CRITICAL-2: --remote-server URL accepts a base URL and uses /project', async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-crit2-'));
   let server;
   try {
     server = await startFakeRemoteServer();
     const dir = makeRemoteFixture(tmp);
-    // Pass the URL WITHOUT /v1/project — CLI should append it.
-    const baseUrl = server.url.replace('/v1/project', '');
+    // Pass the server base URL — CLI should append the current endpoint.
+    const baseUrl = server.url.replace('/project', '');
     const r = run(['load', dir, '--as=json', '--remote-server', baseUrl], {
       env: { KDNA_IDENTITY_DIR: path.join(tmp, 'keys') },
     });
     assert.equal(r.status, 0, `load failed: ${r.stderr}`);
     const last = readLastRequest(server);
     assert.ok(last);
-    assert.equal(last.url, '/v1/project');
+    assert.equal(last.url, '/project');
+  } finally {
+    if (server) await server.stop();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('CRITICAL-2: obsolete projection path is rejected instead of accepted as an alias', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-crit2-'));
+  let server;
+  try {
+    server = await startFakeRemoteServer();
+    const dir = makeRemoteFixture(tmp);
+    const baseUrl = server.url.replace('/project', '');
+    const obsoletePath = ['v1', 'project'].join('/');
+    const r = run(['load', dir, '--as=json', '--remote-server', `${baseUrl}/${obsoletePath}`], {
+      env: { KDNA_IDENTITY_DIR: path.join(tmp, 'keys') },
+    });
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /server base URL or the exact \/project endpoint/);
+    assert.equal(readLastRequest(server), null, 'rejected aliases must not reach the server');
   } finally {
     if (server) await server.stop();
     fs.rmSync(tmp, { recursive: true, force: true });

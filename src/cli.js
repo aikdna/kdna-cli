@@ -171,8 +171,9 @@ function showHelp() {
                                      --profile=<index|compact|scenario|full>
                                      --as=<json|prompt|raw>
                                      --namespace=<component-id>
-                                     --remote-server <url>   Use a
-                                       kdna-remote-server for
+                                     --remote-server <url>   Use a server base
+                                       URL or exact /project
+                                       endpoint with kdna-remote-server for
                                        access: "remote" assets.
                                        Equivalent to the
                                        KDNA_REMOTE_SERVER env var.
@@ -1510,7 +1511,7 @@ async function runRemoteLoad(opts) {
   }
 
   // Build the projection request body. Matches the
-  // kdna-remote-server /v1/project contract (see
+  // kdna-remote-server /project contract (see
   // @aikdna/kdna-remote-server README §HTTP API).
   const reqBody = JSON.stringify({
     kdna_id: assetUid,
@@ -1519,13 +1520,30 @@ async function runRemoteLoad(opts) {
     mode,
   });
 
-  // Compute the projection endpoint. Accept both
-  //   --remote-server https://example.com
-  //   --remote-server https://example.com/
-  //   --remote-server https://example.com/v1/project
-  let url = remoteServer.replace(/\/+$/, '');
-  if (!/\/v1\/(project|projection)/.test(url)) {
-    url = url + '/v1/project';
+  // Compute the projection endpoint without accepting obsolete route
+  // aliases. A caller may provide only a server base URL or the exact
+  // current /project endpoint.
+  let url;
+  try {
+    const parsed = new URL(remoteServer);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      throw new Error('unsupported protocol');
+    }
+    if (parsed.username || parsed.password || parsed.search || parsed.hash) {
+      throw new Error('credentials, query strings, and fragments are not allowed');
+    }
+    const pathname = parsed.pathname.replace(/\/+$/, '') || '/';
+    if (pathname !== '/' && pathname !== '/project') {
+      throw new Error('unsupported path');
+    }
+    parsed.pathname = '/project';
+    url = parsed.toString();
+  } catch (_) {
+    process.stderr.write(
+      'Error: --remote-server must be an HTTP(S) server base URL or the exact /project endpoint.\n',
+    );
+    process.exit(EXIT.INPUT_ERROR);
+    return;
   }
 
   let response;

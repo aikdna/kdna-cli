@@ -80,7 +80,7 @@ test('kdna validate --runtime exits 3 when LoadPlan cannot load now', () => {
     const manifestPath = path.join(tmp, 'kdna.json');
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     manifest.access = 'remote';
-    manifest.runtime = { endpoint: 'https://runtime.example.test/v1/project' };
+    manifest.runtime = { endpoint: 'https://runtime.example.test/project' };
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
     const payloadPath = path.join(tmp, 'payload.kdnab');
     const payload = readPayload(payloadPath);
@@ -150,7 +150,7 @@ test('kdna load refuses current assets when LoadPlan cannot load now', () => {
     const manifestPath = path.join(tmp, 'kdna.json');
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     manifest.access = 'remote';
-    manifest.runtime = { endpoint: 'https://runtime.example.test/v1/project' };
+    manifest.runtime = { endpoint: 'https://runtime.example.test/project' };
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
     const payloadPath = path.join(tmp, 'payload.kdnab');
     const payload = readPayload(payloadPath);
