@@ -32,7 +32,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const crypto = require('node:crypto');
-const cbor = require('cbor-x');
+const {
+  currentManifest,
+  currentJudgmentPayload,
+  writeCurrentSource,
+} = require('./helpers/current-asset');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 
@@ -61,11 +65,8 @@ function run(args, opts = {}) {
 
 function makeFixture(tmpDir, access = 'public') {
   const dir = path.join(tmpDir, 'asset');
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, 'mimetype'), 'application/vnd.kdna.asset');
   const core = require('@aikdna/kdna-core');
-  const manifest = {
-    kdna_version: '1.0',
+  const manifest = currentManifest({
     asset_id: `kdna:test:watermark-${access}`,
     asset_uid: `urn:uuid:11111111-1111-4111-8111-aaaaaaaaaaa${access === 'public' ? '1' : '2'}`,
     asset_type: 'domain',
@@ -75,8 +76,6 @@ function makeFixture(tmpDir, access = 'public') {
     created_at: '2026-06-28T00:00:00.000Z',
     updated_at: '2026-06-28T00:00:00.000Z',
     creator: { name: 'Test', id: 'test' },
-    compatibility: { min_loader_version: '1.0.0', profile: 'judgment-profile-v1' },
-    payload: { path: 'payload.kdnab', encoding: 'cbor', encrypted: false },
     access,
     // Note: no `entitlement` block is set. With no
     // entitlement_profile, the planLoad path falls through
@@ -85,9 +84,8 @@ function makeFixture(tmpDir, access = 'public') {
     // passes --entitlement-status. Setting a profile here
     // (e.g. 'account') would route the plan into a
     // "needs_account" path that ignores --entitlement-status.
-  };
-  const payload = {
-    profile: 'judgment-profile-v1',
+  });
+  const payload = currentJudgmentPayload({
     core: {
       highest_question: 'Q?',
       axioms: [{ id: 'ax1', one_sentence: 'Test axiom.' }],
@@ -97,15 +95,10 @@ function makeFixture(tmpDir, access = 'public') {
     patterns: [],
     scenarios: [],
     cases: [],
-    reasoning: { self_checks: [], failure_modes: [] },
+    reasoning: { self_check: [], failure_modes: [] },
     evolution: { changelog: [], version_notes: [] },
-  };
-  fs.writeFileSync(path.join(dir, 'kdna.json'), JSON.stringify(manifest, null, 2) + '\n');
-  fs.writeFileSync(path.join(dir, 'payload.kdnab'), cbor.encode(payload));
-  fs.writeFileSync(
-    path.join(dir, 'checksums.json'),
-    JSON.stringify(core.buildChecksums(dir), null, 2) + '\n',
-  );
+  });
+  writeCurrentSource(dir, { manifest, payload });
   const assetPath = path.join(tmpDir, `watermark-${access}.kdna`);
   core.pack(dir, assetPath);
   return assetPath;
