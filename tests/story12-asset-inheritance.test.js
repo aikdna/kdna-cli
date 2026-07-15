@@ -23,6 +23,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const cbor = require('cbor-x');
+const { currentManifest, currentJudgmentPayload } = require('./helpers/current-asset');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'minimal');
@@ -45,8 +46,7 @@ function run(args, opts = {}) {
 test('Story 12 schema: validateManifest accepts extends as string', () => {
   const core = require('@aikdna/kdna-core');
   if (typeof core.validateManifest !== 'function') return; // skip if not exposed
-  const manifest = {
-    kdna_version: '1.0',
+  const manifest = currentManifest({
     asset_id: 'kdna:domain:child',
     asset_uid: 'urn:uuid:00000000-0000-4000-8000-000000000020',
     asset_type: 'domain',
@@ -56,10 +56,8 @@ test('Story 12 schema: validateManifest accepts extends as string', () => {
     created_at: '2026-06-28T00:00:00Z',
     updated_at: '2026-06-28T00:00:00Z',
     creator: { name: 'Test' },
-    compatibility: { min_loader_version: '1.0.0', profile: 'judgment-profile-v1' },
-    payload: { path: 'payload.kdnab', encoding: 'json', encrypted: false },
     extends: '@aikdna/base@^1.0.0',
-  };
+  });
   // Should not throw
   assert.doesNotThrow(() => core.validateManifest(manifest));
 });
@@ -195,17 +193,16 @@ test('Story 12 inheritance: child axioms override parent, parent unoverridden ax
     const parentManifest = JSON.parse(fs.readFileSync(path.join(FIXTURE, 'kdna.json'), 'utf8'));
     delete parentManifest.extends;
     fs.writeFileSync(path.join(parentDir, 'kdna.json'), JSON.stringify(parentManifest, null, 2));
-    const parentPayload = {
-      profile: 'judgment-profile-v1',
+    const parentPayload = currentJudgmentPayload({
       core: {
         highest_question: 'What is the parent question?',
         axioms: [
           { id: 'ax1', one_sentence: 'Parent ax1 — will be overridden.' },
           { id: 'ax2', one_sentence: 'Parent ax2 — will be inherited.' },
         ],
+        boundaries: [],
       },
-      patterns: [],
-    };
+    });
     fs.writeFileSync(path.join(parentDir, 'payload.kdnab'), cbor.encode(parentPayload));
     if (typeof core.buildChecksums === 'function') {
       fs.writeFileSync(
@@ -221,17 +218,16 @@ test('Story 12 inheritance: child axioms override parent, parent unoverridden ax
     const childManifest = JSON.parse(fs.readFileSync(path.join(FIXTURE, 'kdna.json'), 'utf8'));
     childManifest.extends = '@test/parent@^1.0.0';
     fs.writeFileSync(path.join(childDir, 'kdna.json'), JSON.stringify(childManifest, null, 2));
-    const childPayload = {
-      profile: 'judgment-profile-v1',
+    const childPayload = currentJudgmentPayload({
       core: {
         highest_question: 'What is the child question?',
         axioms: [
           { id: 'ax1', one_sentence: 'Child ax1 — overrides parent.' },
           { id: 'ax3', one_sentence: 'Child ax3 — new.' },
         ],
+        boundaries: [],
       },
-      patterns: [],
-    };
+    });
     fs.writeFileSync(path.join(childDir, 'payload.kdnab'), cbor.encode(childPayload));
     if (typeof core.buildChecksums === 'function') {
       fs.writeFileSync(
@@ -261,7 +257,9 @@ test('Story 12 inheritance: child axioms override parent, parent unoverridden ax
       resolveAsset,
     });
 
-    assert.ok(result.inheritance_applied === true, 'inheritance_applied should be true');
+    // The current Runtime Capsule is closed-schema and carries only the merged
+    // projection. Inheritance success is demonstrated by the resulting cards,
+    // not by an out-of-contract top-level flag.
     const axioms = result.context.axioms || [];
     const ax1 = axioms.find((a) => a.id === 'ax1');
     const ax2 = axioms.find((a) => a.id === 'ax2');

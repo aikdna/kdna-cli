@@ -43,6 +43,7 @@ const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'minimal');
 const CORE = require('@aikdna/kdna-core');
 const cbor = require('cbor-x');
+const { currentJudgmentPayload } = require('./helpers/current-asset');
 const FIXTURE_TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s13-fixture-'));
 const RUNTIME_FIXTURE = path.join(FIXTURE_TMP, 'minimal.kdna');
 CORE.pack(FIXTURE, RUNTIME_FIXTURE);
@@ -58,7 +59,7 @@ function run(args, opts = {}) {
   });
 }
 
-/** Write a fixture v1 source dir (with payload.kdnab + checksums). */
+/** Write a current-format fixture source dir (with payload.kdnab + checksums). */
 function writeFixtureDir(tmp, name, payload) {
   const dir = path.join(tmp, name);
   fs.mkdirSync(dir, { recursive: true });
@@ -93,8 +94,7 @@ function writeBundleFile(tmp, components, extra = {}, filename = 'bundle.json') 
   return p;
 }
 
-const termPayload = (term, definition) => ({
-  profile: 'judgment-profile-v1',
+const termPayload = (term, definition) => currentJudgmentPayload({
   core: { highest_question: 'Q?', axioms: [], stances: [], boundaries: [] },
   patterns: [{ type: 'term', id: `t_${term}`, term, definition }],
   scenarios: [],
@@ -103,8 +103,7 @@ const termPayload = (term, definition) => ({
   evolution: {},
 });
 
-const axiomPayload = (id, text) => ({
-  profile: 'judgment-profile-v1',
+const axiomPayload = (id, text) => currentJudgmentPayload({
   core: {
     highest_question: 'Q?',
     axioms: [{ id, one_sentence: text }],
@@ -233,17 +232,19 @@ test('Story 13 deprecation: scanBundleDeprecations reads top-level + per-compone
   const { scanBundleDeprecations } = require('../src/cmds/deprecation');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s13-dep-'));
   try {
-    // Build a bundle-profile-v1 source dir
+    // Build a current bundle source dir.
     fs.copyFileSync(path.join(FIXTURE, 'mimetype'), path.join(tmp, 'mimetype'));
     fs.copyFileSync(path.join(FIXTURE, 'kdna.json'), path.join(tmp, 'kdna.json'));
     const m = JSON.parse(fs.readFileSync(path.join(tmp, 'kdna.json'), 'utf8'));
-    m.compatibility.profile = 'bundle-profile-v1';
+    m.asset_type = 'bundle';
+    m.compatibility.profile = 'kdna.payload.bundle';
     m.deprecation = { since: '>=0.28.0', reason: 'bundle-wide deprecation' };
     fs.writeFileSync(path.join(tmp, 'kdna.json'), JSON.stringify(m, null, 2));
     fs.writeFileSync(
       path.join(tmp, 'payload.kdnab'),
       cbor.encode({
-        profile: 'bundle-profile-v1',
+        profile: 'kdna.payload.bundle',
+        profile_version: '0.1.0',
         components: [
           {
             id: '@old/comp-a@1.0.0',
@@ -283,7 +284,7 @@ test('Story 13 deprecation: scanBundleDeprecations reads top-level + per-compone
 
 test('Story 13 deprecation: scanBundleDeprecations returns [] for non-bundle', () => {
   const { scanBundleDeprecations } = require('../src/cmds/deprecation');
-  // FIXTURE is a judgment-profile-v1 source dir, not a bundle
+  // FIXTURE is a judgment source dir, not a bundle.
   const warnings = scanBundleDeprecations(FIXTURE, '0.28.25');
   assert.deepEqual(warnings, []);
 });
@@ -298,7 +299,8 @@ test('Story 13 deprecation: malformed CBOR produces a stable diagnostic', () => 
   try {
     fs.copyFileSync(path.join(FIXTURE, 'kdna.json'), path.join(tmp, 'kdna.json'));
     const manifest = JSON.parse(fs.readFileSync(path.join(tmp, 'kdna.json'), 'utf8'));
-    manifest.compatibility.profile = 'bundle-profile-v1';
+    manifest.asset_type = 'bundle';
+    manifest.compatibility.profile = 'kdna.payload.bundle';
     fs.writeFileSync(path.join(tmp, 'kdna.json'), JSON.stringify(manifest, null, 2));
     fs.writeFileSync(path.join(tmp, 'payload.kdnab'), Buffer.from([0xff, 0x00, 0xaa, 0xbb]));
 
@@ -519,16 +521,18 @@ test('Story 13 validate --bundle: deprecation.since matches → deprecation_warn
 test('Story 13 CLI plan-load: deprecated bundle prints Notice to stderr', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s13-cli-'));
   try {
-    // Build a bundle-profile-v1 source dir
+    // Build a current bundle source dir.
     fs.copyFileSync(path.join(FIXTURE, 'mimetype'), path.join(tmp, 'mimetype'));
     fs.copyFileSync(path.join(FIXTURE, 'kdna.json'), path.join(tmp, 'kdna.json'));
     const m = JSON.parse(fs.readFileSync(path.join(tmp, 'kdna.json'), 'utf8'));
-    m.compatibility.profile = 'bundle-profile-v1';
+    m.asset_type = 'bundle';
+    m.compatibility.profile = 'kdna.payload.bundle';
     fs.writeFileSync(path.join(tmp, 'kdna.json'), JSON.stringify(m, null, 2));
     fs.writeFileSync(
       path.join(tmp, 'payload.kdnab'),
       cbor.encode({
-        profile: 'bundle-profile-v1',
+        profile: 'kdna.payload.bundle',
+        profile_version: '0.1.0',
         components: [
           {
             id: '@old/comp@1.0.0',
@@ -561,7 +565,7 @@ test('Story 13 CLI plan-load: deprecated bundle prints Notice to stderr', () => 
 });
 
 test('Story 13 CLI plan-load: non-deprecated bundle does NOT print deprecation', () => {
-  // FIXTURE is a judgment-profile-v1 dir (not a bundle) — scanBundleDeprecations
+  // FIXTURE is a judgment dir (not a bundle) — scanBundleDeprecations
   // returns [], so no stderr notice.
   const r = run(['plan-load', RUNTIME_FIXTURE, '--json']);
   assert.doesNotMatch(r.stderr, /bundle deprecation signals/i);
@@ -573,12 +577,14 @@ test('Story 13 CLI load: deprecated bundle prints Notice to stderr', () => {
     fs.copyFileSync(path.join(FIXTURE, 'mimetype'), path.join(tmp, 'mimetype'));
     fs.copyFileSync(path.join(FIXTURE, 'kdna.json'), path.join(tmp, 'kdna.json'));
     const m = JSON.parse(fs.readFileSync(path.join(tmp, 'kdna.json'), 'utf8'));
-    m.compatibility.profile = 'bundle-profile-v1';
+    m.asset_type = 'bundle';
+    m.compatibility.profile = 'kdna.payload.bundle';
     fs.writeFileSync(path.join(tmp, 'kdna.json'), JSON.stringify(m, null, 2));
     fs.writeFileSync(
       path.join(tmp, 'payload.kdnab'),
       cbor.encode({
-        profile: 'bundle-profile-v1',
+        profile: 'kdna.payload.bundle',
+        profile_version: '0.1.0',
         components: [
           { id: '@old/comp@1.0.0', path: './x.kdna', deprecation: { since: '>=0.28.0' } },
         ],

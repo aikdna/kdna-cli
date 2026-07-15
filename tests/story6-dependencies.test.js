@@ -16,7 +16,7 @@ test('Story 6: dependencies semver and topological sorting logic', () => {
         version: '1.2.3',
         path: '/mock/dep-a.kdna',
         manifest: {
-          kdna_version: '1.0',
+          format_version: '0.1.0',
           asset_id: 'kdna:domain:dep-a',
           asset_uid: 'urn:uuid:00000000-0000-4000-8000-000000000010',
           asset_type: 'domain',
@@ -24,7 +24,11 @@ test('Story 6: dependencies semver and topological sorting logic', () => {
           version: '1.2.3',
           judgment_version: '1.0.0',
           creator: { name: 'Test' },
-          compatibility: { min_loader_version: '1.0.0', profile: 'judgment-profile-v1' },
+          compatibility: {
+            min_loader_version: '0.18.1',
+            profile: 'kdna.payload.judgment',
+            profile_version: '0.1.0',
+          },
           payload: { path: 'payload.kdnab', encoding: 'cbor', encrypted: false },
           dependencies: {
             '@scope/dep-b': '^2.0.0',
@@ -35,7 +39,7 @@ test('Story 6: dependencies semver and topological sorting logic', () => {
         version: '2.5.1',
         path: '/mock/dep-b.kdna',
         manifest: {
-          kdna_version: '1.0',
+          format_version: '0.1.0',
           asset_id: 'kdna:domain:dep-b',
           asset_uid: 'urn:uuid:00000000-0000-4000-8000-000000000011',
           asset_type: 'domain',
@@ -43,7 +47,11 @@ test('Story 6: dependencies semver and topological sorting logic', () => {
           version: '2.5.1',
           judgment_version: '1.0.0',
           creator: { name: 'Test' },
-          compatibility: { min_loader_version: '1.0.0', profile: 'judgment-profile-v1' },
+          compatibility: {
+            min_loader_version: '0.18.1',
+            profile: 'kdna.payload.judgment',
+            profile_version: '0.1.0',
+          },
           payload: { path: 'payload.kdnab', encoding: 'cbor', encrypted: false },
           dependencies: {},
         },
@@ -57,7 +65,7 @@ test('Story 6: dependencies semver and topological sorting logic', () => {
     fs.writeFileSync(path.join(tmp, 'mimetype'), 'application/vnd.kdna.asset');
 
     const manifest = {
-      kdna_version: '1.0',
+      format_version: '0.1.0',
       asset_id: 'kdna:bundle:test-bundle',
       asset_uid: 'urn:uuid:00000000-0000-4000-8000-000000000012',
       asset_type: 'bundle',
@@ -67,7 +75,11 @@ test('Story 6: dependencies semver and topological sorting logic', () => {
       created_at: '2026-06-28T00:00:00Z',
       updated_at: '2026-06-28T00:00:00Z',
       creator: { name: 'Test' },
-      compatibility: { min_loader_version: '1.0.0', profile: 'bundle-profile-v1' },
+      compatibility: {
+        min_loader_version: '0.18.1',
+        profile: 'kdna.payload.bundle',
+        profile_version: '0.1.0',
+      },
       payload: { path: 'payload.kdnab', encoding: 'cbor', encrypted: false },
       summary: 'Testing dependencies',
       description: 'Test bundle',
@@ -83,7 +95,8 @@ test('Story 6: dependencies semver and topological sorting logic', () => {
     fs.writeFileSync(path.join(tmp, 'kdna.json'), JSON.stringify(manifest, null, 2));
 
     const payload = {
-      profile: 'bundle-profile-v1',
+      profile: 'kdna.payload.bundle',
+      profile_version: '0.1.0',
       components: [{ id: 'comp-a', path: './comp-a.kdna' }],
     };
     fs.writeFileSync(path.join(tmp, 'payload.kdnab'), cbor.encode(payload));
@@ -118,7 +131,7 @@ test('Story 6: circular dependency throwing error', () => {
         version: '1.0.0',
         path: '/mock/dep-a.kdna',
         manifest: {
-          kdna_version: '1.0',
+          format_version: '0.1.0',
           asset_id: 'kdna:domain:dep-a',
           asset_uid: 'urn:uuid:00000000-0000-4000-8000-000000000010',
           asset_type: 'domain',
@@ -126,7 +139,11 @@ test('Story 6: circular dependency throwing error', () => {
           version: '1.0.0',
           judgment_version: '1.0.0',
           creator: { name: 'Test' },
-          compatibility: { min_loader_version: '1.0.0', profile: 'judgment-profile-v1' },
+          compatibility: {
+            min_loader_version: '0.18.1',
+            profile: 'kdna.payload.judgment',
+            profile_version: '0.1.0',
+          },
           payload: { path: 'payload.kdnab', encoding: 'cbor', encrypted: false },
           dependencies: {
             '@scope/dep-b': '^1.0.0',
@@ -137,7 +154,7 @@ test('Story 6: circular dependency throwing error', () => {
         version: '1.0.0',
         path: '/mock/dep-b.kdna',
         manifest: {
-          kdna_version: '1.0',
+          format_version: '0.1.0',
           asset_id: 'kdna:domain:dep-b',
           asset_uid: 'urn:uuid:00000000-0000-4000-8000-000000000011',
           asset_type: 'domain',
@@ -145,7 +162,11 @@ test('Story 6: circular dependency throwing error', () => {
           version: '1.0.0',
           judgment_version: '1.0.0',
           creator: { name: 'Test' },
-          compatibility: { min_loader_version: '1.0.0', profile: 'judgment-profile-v1' },
+          compatibility: {
+            min_loader_version: '0.18.1',
+            profile: 'kdna.payload.judgment',
+            profile_version: '0.1.0',
+          },
           payload: { path: 'payload.kdnab', encoding: 'cbor', encrypted: false },
           dependencies: {
             '@scope/dep-a': '^1.0.0',
@@ -161,7 +182,7 @@ test('Story 6: circular dependency throwing error', () => {
     fs.writeFileSync(path.join(tmp, 'mimetype'), 'application/vnd.kdna.asset');
 
     const manifest = {
-      kdna_version: '1.0',
+      format_version: '0.1.0',
       asset_id: 'kdna:bundle:test-bundle',
       asset_uid: 'urn:uuid:00000000-0000-4000-8000-000000000012',
       asset_type: 'bundle',
@@ -171,7 +192,11 @@ test('Story 6: circular dependency throwing error', () => {
       created_at: '2026-06-28T00:00:00Z',
       updated_at: '2026-06-28T00:00:00Z',
       creator: { name: 'Test' },
-      compatibility: { min_loader_version: '1.0.0', profile: 'bundle-profile-v1' },
+      compatibility: {
+        min_loader_version: '0.18.1',
+        profile: 'kdna.payload.bundle',
+        profile_version: '0.1.0',
+      },
       payload: { path: 'payload.kdnab', encoding: 'cbor', encrypted: false },
       summary: 'Testing dependencies',
       description: 'Test bundle',
@@ -187,7 +212,8 @@ test('Story 6: circular dependency throwing error', () => {
     fs.writeFileSync(path.join(tmp, 'kdna.json'), JSON.stringify(manifest, null, 2));
 
     const payload = {
-      profile: 'bundle-profile-v1',
+      profile: 'kdna.payload.bundle',
+      profile_version: '0.1.0',
       components: [{ id: 'comp-a', path: './comp-a.kdna' }],
     };
     fs.writeFileSync(path.join(tmp, 'payload.kdnab'), cbor.encode(payload));
@@ -221,7 +247,7 @@ test('Story 6: unsatisfied/mismatched dependency throwing error', () => {
         version: '0.9.0', // satisfies ^1.0.0 ? No!
         path: '/mock/dep-a.kdna',
         manifest: {
-          kdna_version: '1.0',
+          format_version: '0.1.0',
           asset_id: 'kdna:domain:dep-a',
           asset_uid: 'urn:uuid:00000000-0000-4000-8000-000000000010',
           asset_type: 'domain',
@@ -229,7 +255,11 @@ test('Story 6: unsatisfied/mismatched dependency throwing error', () => {
           version: '0.9.0',
           judgment_version: '1.0.0',
           creator: { name: 'Test' },
-          compatibility: { min_loader_version: '1.0.0', profile: 'judgment-profile-v1' },
+          compatibility: {
+            min_loader_version: '0.18.1',
+            profile: 'kdna.payload.judgment',
+            profile_version: '0.1.0',
+          },
           payload: { path: 'payload.kdnab', encoding: 'cbor', encrypted: false },
           dependencies: {},
         },
@@ -243,7 +273,7 @@ test('Story 6: unsatisfied/mismatched dependency throwing error', () => {
     fs.writeFileSync(path.join(tmp, 'mimetype'), 'application/vnd.kdna.asset');
 
     const manifest = {
-      kdna_version: '1.0',
+      format_version: '0.1.0',
       asset_id: 'kdna:bundle:test-bundle',
       asset_uid: 'urn:uuid:00000000-0000-4000-8000-000000000012',
       asset_type: 'bundle',
@@ -253,7 +283,11 @@ test('Story 6: unsatisfied/mismatched dependency throwing error', () => {
       created_at: '2026-06-28T00:00:00Z',
       updated_at: '2026-06-28T00:00:00Z',
       creator: { name: 'Test' },
-      compatibility: { min_loader_version: '1.0.0', profile: 'bundle-profile-v1' },
+      compatibility: {
+        min_loader_version: '0.18.1',
+        profile: 'kdna.payload.bundle',
+        profile_version: '0.1.0',
+      },
       payload: { path: 'payload.kdnab', encoding: 'cbor', encrypted: false },
       summary: 'Testing dependencies',
       description: 'Test bundle',
@@ -269,7 +303,8 @@ test('Story 6: unsatisfied/mismatched dependency throwing error', () => {
     fs.writeFileSync(path.join(tmp, 'kdna.json'), JSON.stringify(manifest, null, 2));
 
     const payload = {
-      profile: 'bundle-profile-v1',
+      profile: 'kdna.payload.bundle',
+      profile_version: '0.1.0',
       components: [{ id: 'comp-a', path: './comp-a.kdna' }],
     };
     fs.writeFileSync(path.join(tmp, 'payload.kdnab'), cbor.encode(payload));

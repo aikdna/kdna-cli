@@ -56,7 +56,7 @@ function writeBundleFixture(dir, opts = {}) {
   fs.writeFileSync(path.join(sourceDir, 'mimetype'), 'application/vnd.kdna.asset');
 
   const manifest = {
-    kdna_version: '1.0',
+    format_version: '0.1.0',
     asset_id: 'kdna:bundle:ctx-budget-test',
     asset_uid: 'urn:uuid:00000000-0000-4000-8000-000000000099',
     asset_type: 'bundle',
@@ -66,7 +66,11 @@ function writeBundleFixture(dir, opts = {}) {
     created_at: '2026-06-28T00:00:00Z',
     updated_at: '2026-06-28T00:00:00Z',
     creator: { name: 'Test' },
-    compatibility: { min_loader_version: '1.0.0', profile: 'bundle-profile-v1' },
+    compatibility: {
+      min_loader_version: '0.18.1',
+      profile: 'kdna.payload.bundle',
+      profile_version: '0.1.0',
+    },
     payload: { path: 'payload.kdnab', encoding: 'cbor', encrypted: false },
     summary: 'Test',
     description: 'Context budget test bundle.',
@@ -84,7 +88,8 @@ function writeBundleFixture(dir, opts = {}) {
   fs.writeFileSync(path.join(sourceDir, 'kdna.json'), JSON.stringify(manifest, null, 2));
 
   const payload = {
-    profile: 'bundle-profile-v1',
+    profile: 'kdna.payload.bundle',
+    profile_version: '0.1.0',
     components: [{ id: 'comp-a', path: './comp-a.kdna', priority: 1 }],
   };
   fs.writeFileSync(path.join(sourceDir, 'payload.kdnab'), cbor.encode(payload));

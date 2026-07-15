@@ -55,7 +55,7 @@ const cbor = require('cbor-x');
 const { isDeprecatedAt } = require('./semver-util');
 
 /**
- * Read the bundle manifest if `abs` points at a `bundle-profile-v1` asset.
+ * Read the bundle manifest if `abs` points at a current bundle asset.
  * Returns `{ kind: 'bundle', manifest, components }`, a discriminated
  * `{ kind: 'diagnostic', diagnostic }` result when the bundle payload exists
  * but cannot be decoded, or `null` when the path is not a bundle.
@@ -89,7 +89,7 @@ function readBundleComponents(abs) {
     return null;
   }
 
-  if (!manifest.compatibility || manifest.compatibility.profile !== 'bundle-profile-v1') {
+  if (!manifest.compatibility || manifest.compatibility.profile !== 'kdna.payload.bundle') {
     return null;
   }
 

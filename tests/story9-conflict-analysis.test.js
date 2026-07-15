@@ -141,14 +141,16 @@ test('Story 9 unit: term conflict → ERROR entry', () => {
     fs.mkdirSync(dirB);
 
     const payloadA = {
-      profile: 'judgment-profile-v1',
+      profile: 'kdna.payload.judgment',
+      profile_version: '0.1.0',
       core: { axioms: [], stances: [], boundaries: [] },
       patterns: [
         { type: 'term', id: 't1', term: 'clarity', definition: 'Being clear and direct.' },
       ],
     };
     const payloadB = {
-      profile: 'judgment-profile-v1',
+      profile: 'kdna.payload.judgment',
+      profile_version: '0.1.0',
       core: { axioms: [], stances: [], boundaries: [] },
       patterns: [
         {
@@ -191,12 +193,14 @@ test('Story 9 unit: axiom id clash → WARNING entry', () => {
     fs.mkdirSync(dirB);
 
     const payloadA = {
-      profile: 'judgment-profile-v1',
+      profile: 'kdna.payload.judgment',
+      profile_version: '0.1.0',
       core: { axioms: [{ id: 'ax1', one_sentence: 'Clarity first.' }] },
       patterns: [],
     };
     const payloadB = {
-      profile: 'judgment-profile-v1',
+      profile: 'kdna.payload.judgment',
+      profile_version: '0.1.0',
       core: { axioms: [{ id: 'ax1', one_sentence: 'Different axiom, same id.' }] },
       patterns: [],
     };
@@ -230,7 +234,8 @@ test('Story 9 unit: banned_term replace_with conflict → WARNING', () => {
     fs.mkdirSync(dirB);
 
     const make = (replaceWith) => ({
-      profile: 'judgment-profile-v1',
+      profile: 'kdna.payload.judgment',
+      profile_version: '0.1.0',
       core: {},
       patterns: [{ type: 'banned_term', id: 'bt1', term: 'synergy', replace_with: replaceWith }],
     });
@@ -301,7 +306,8 @@ test('Story 9 CLI: bundle with term conflict → ERROR, bundle_valid=false, exit
       fs.copyFileSync(path.join(FIXTURE, 'mimetype'), path.join(dir, 'mimetype'));
       // Build a payload with a term
       const payload = {
-        profile: 'judgment-profile-v1',
+        profile: 'kdna.payload.judgment',
+        profile_version: '0.1.0',
         core: { highest_question: 'Test?', axioms: [], stances: [], boundaries: [] },
         patterns: [{ type: 'term', id: 'term_clarity', term: 'clarity', definition }],
         scenarios: [],
