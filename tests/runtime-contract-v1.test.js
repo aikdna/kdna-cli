@@ -358,35 +358,57 @@ test('Plan 1 uses one packaged-byte snapshot and contains no local path', () => 
 test('installed Plan 1 binds A and C to the independent install receipt', () => {
   const home = path.join(root, 'installed-home');
   const env = { HOME: home, KDNA_HOME: path.join(home, '.kdna') };
-  const installed = run(['install', asset, '--yes', '--json'], env);
-  assert.equal(installed.status, 0, installed.stderr);
-  const receipt = JSON.parse(installed.stdout);
-  const planned = run(
-    [
-      'plan-use',
-      `${receipt.name}@1.0.0`,
-      '--task=Review installed asset',
-      '--runtime-contract=1',
-      '--as=json',
-    ],
-    env,
-  );
-  assert.equal(planned.status, 0, planned.stderr);
-  const plan = JSON.parse(planned.stdout);
-  assert.deepEqual(
-    {
-      source: plan.asset_ref.expected_digests.asset.source,
-      comparison: plan.asset_ref.expected_digests.asset.comparison,
-    },
-    { source: 'install_receipt', comparison: 'matched' },
-  );
-  assert.deepEqual(
-    {
-      source: plan.asset_ref.expected_digests.content.source,
-      comparison: plan.asset_ref.expected_digests.content.comparison,
-    },
-    { source: 'install_receipt', comparison: 'matched' },
-  );
+  const readOnlyAsset = path.join(root, 'read-only-fixture.kdna');
+  fs.copyFileSync(asset, readOnlyAsset);
+  fs.chmodSync(readOnlyAsset, 0o444);
+  const sourceBytes = fs.readFileSync(readOnlyAsset);
+  const sourceMode = fs.statSync(readOnlyAsset).mode & 0o777;
+  try {
+    const installed = run(['install', readOnlyAsset, '--yes', '--json'], env);
+    assert.equal(installed.status, 0, installed.stderr);
+    const receipt = JSON.parse(installed.stdout);
+    assert.deepEqual(fs.readFileSync(readOnlyAsset), sourceBytes);
+    assert.deepEqual(fs.readFileSync(receipt.path), sourceBytes);
+    if (process.platform !== 'win32') {
+      assert.equal(fs.statSync(readOnlyAsset).mode & 0o777, sourceMode);
+      assert.equal(fs.statSync(receipt.path).mode & 0o777, 0o600);
+    }
+    assert.equal(
+      fs
+        .readdirSync(path.dirname(path.dirname(receipt.path)))
+        .some((entry) => entry.includes('.tmp-')),
+      false,
+    );
+
+    const planned = run(
+      [
+        'plan-use',
+        receipt.name + '@1.0.0',
+        '--task=Review installed asset',
+        '--runtime-contract=1',
+        '--as=json',
+      ],
+      env,
+    );
+    assert.equal(planned.status, 0, planned.stderr);
+    const plan = JSON.parse(planned.stdout);
+    assert.deepEqual(
+      {
+        source: plan.asset_ref.expected_digests.asset.source,
+        comparison: plan.asset_ref.expected_digests.asset.comparison,
+      },
+      { source: 'install_receipt', comparison: 'matched' },
+    );
+    assert.deepEqual(
+      {
+        source: plan.asset_ref.expected_digests.content.source,
+        comparison: plan.asset_ref.expected_digests.content.comparison,
+      },
+      { source: 'install_receipt', comparison: 'matched' },
+    );
+  } finally {
+    fs.chmodSync(readOnlyAsset, 0o600);
+  }
 });
 
 test('missing descriptor remains legacy_assumption and blocks before projection', () => {
