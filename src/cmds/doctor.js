@@ -4,6 +4,7 @@ const { EXIT } = require('./_common');
 const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
 const PATHS = require('../paths');
 const { listInstalled } = require('../package-store');
+const BUNDLED_SKILL_VERSION = require('../../package.json').version;
 
 const AGENTS = [
   { name: 'OpenCode', dir: path.join(process.env.HOME || '', '.agents'), skillsDir: 'skills' },
@@ -27,7 +28,7 @@ function checkAgentSkill(agent) {
     const isCurrent = content.includes(CURRENT_SKILL_MARKER);
     return {
       installed: true,
-      version: isCurrent ? '2026.05' : 'outdated',
+      version: isCurrent ? BUNDLED_SKILL_VERSION : 'outdated',
       path: skillPath,
     };
   } catch {
@@ -101,7 +102,7 @@ function cmdDoctor(args) {
       if (!agentDirExists) {
         status = 'warn';
         detail = 'agent not detected';
-      } else if (skill.installed && skill.version === 'v2026.05') {
+      } else if (skill.installed && skill.version === BUNDLED_SKILL_VERSION) {
         status = 'ok';
         detail = `kdna-loader installed (${skill.version})`;
       } else if (skill.installed && skill.version === 'outdated') {

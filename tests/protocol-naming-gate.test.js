@@ -50,13 +50,25 @@ test('naming gate rejects unknown generation labels without a token allowlist', 
   );
   fs.writeFileSync(
     path.join(root, 'tests', 'protocol.test.js'),
-    `const note = '${[['v', '8'].join(''), 'indexes'].join(' ')}';\n`,
+    [
+      `const singularAfter = '${['index', ['v', '8'].join('')].join(' ')}';`,
+      `const pluralAfter = '${['indexes', ['v', '7'].join('')].join(' ')}';`,
+      `const singularBefore = '${[['v', '6'].join(''), 'index'].join(' ')}';`,
+      `const record = '${['record', ['v', '5'].join('')].join(' ')}';`,
+      `const fixture = '${[['v', '4'].join(''), 'fixture'].join(' ')}';`,
+    ].join('\n'),
   );
 
   const issues = scanCurrentProtocolNames(root);
   assert.ok(issues.some((issue) => issue.rule === 'generation suffix on a KDNA-owned name'));
-  assert.ok(issues.some((issue) => issue.rule === 'generation label after a KDNA-owned concept'));
-  assert.ok(issues.some((issue) => issue.rule === 'generation label before a KDNA-owned concept'));
+  assert.ok(
+    issues.filter((issue) => issue.rule === 'generation label after a KDNA-owned concept').length >=
+      3,
+  );
+  assert.ok(
+    issues.filter((issue) => issue.rule === 'generation label before a KDNA-owned concept')
+      .length >= 2,
+  );
   assert.ok(
     issues.some((issue) => issue.rule === 'generation encoded in an implementation identifier'),
   );

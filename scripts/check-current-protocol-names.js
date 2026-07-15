@@ -28,6 +28,9 @@ function joinedInsensitivePattern(...parts) {
   return new RegExp(parts.join(''), 'i');
 }
 
+const KDNA_OWNED_CONCEPT =
+  '(?:kdna|core|registry|index(?:es)?|records?|fixtures?|bundle|capsule|runtime|manifest|profile|grant|proof|envelope|container|format|protocol)';
+
 const FORBIDDEN_DECLARATIONS = Object.freeze([
   ['obsolete manifest discriminator', joinedPattern('kdna', '_version')],
   ['obsolete judgment profile', joinedPattern('judgment', '-profile-', 'v1')],
@@ -45,19 +48,11 @@ const FORBIDDEN_DECLARATIONS = Object.freeze([
   ],
   [
     'generation label after a KDNA-owned concept',
-    joinedInsensitivePattern(
-      '\\b(?:kdna|core|registry|indexes?|bundle|capsule|runtime|manifest|profile|grant|proof|envelope|container|format|protocol)\\s+',
-      'v',
-      '[0-9]+(?![0-9.])',
-    ),
+    joinedInsensitivePattern(`\\b${KDNA_OWNED_CONCEPT}\\s+`, 'v', '[0-9]+(?![0-9.])'),
   ],
   [
     'generation label before a KDNA-owned concept',
-    joinedInsensitivePattern(
-      '\\b',
-      'v',
-      '[0-9]+\\s+(?:kdna|core|registry|indexes?|bundle|capsule|runtime|manifest|profile|grant|proof|envelope|container|format|protocol)\\b',
-    ),
+    joinedInsensitivePattern('\\b', 'v', `[0-9]+\\s+${KDNA_OWNED_CONCEPT}\\b`),
   ],
   [
     'generation encoded in an implementation identifier',

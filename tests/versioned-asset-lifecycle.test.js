@@ -259,29 +259,38 @@ test('registry version selection follows full SemVer precedence and skips yanked
 
 test('version-aware install, migration, inspect, plan, use, remove and rollback', () => {
   const { root, kdnaHome, project, env } = makeEnv();
-  const v1 = buildAsset(root, '1.0.0');
-  const v2 = buildAsset(root, '1.1.0');
+  const initialAsset = buildAsset(root, '1.0.0');
+  const updatedAsset = buildAsset(root, '1.1.0');
 
-  const installV1 = run(['install', v1.asset, '--yes', '--json'], { env, cwd: project });
-  assert.ok(installV1.ok, installV1.stderr);
+  const installInitial = run(['install', initialAsset.asset, '--yes', '--json'], {
+    env,
+    cwd: project,
+  });
+  assert.ok(installInitial.ok, installInitial.stderr);
 
-  const installV2 = run(['install', v2.asset, '--yes', '--json'], { env, cwd: project });
-  assert.ok(installV2.ok, installV2.stderr);
+  const installUpdated = run(['install', updatedAsset.asset, '--yes', '--json'], {
+    env,
+    cwd: project,
+  });
+  assert.ok(installUpdated.ok, installUpdated.stderr);
 
-  // Replace the v3 index with a v2 record that omits v1 while leaving v1's
-  // immutable directory and receipt on disk. A read must recover the orphan,
-  // and the next write must persist both versions.
+  // Replace the current index with a predecessor record that omits the older
+  // installed version while leaving its immutable directory and receipt on disk.
+  // A read must recover the orphan, and the next write must persist both versions.
   const indexPath = path.join(kdnaHome, 'index.json');
   const current = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
-  const legacyEntry = current.packages[NAME].versions['1.1.0'];
-  writeJson(indexPath, { version: 2, packages: { [NAME]: legacyEntry } });
+  const predecessorRecord = current.packages[NAME].versions['1.1.0'];
+  writeJson(indexPath, { version: 2, packages: { [NAME]: predecessorRecord } });
 
   const inspectLegacyPin = run(['inspect', `${NAME}@1.0.0`, '--json'], { env, cwd: project });
   assert.ok(inspectLegacyPin.ok, inspectLegacyPin.stderr);
   assert.equal(JSON.parse(inspectLegacyPin.stdout).version, '1.0.0');
 
-  const reactivateV2 = run(['install', v2.asset, '--yes', '--json'], { env, cwd: project });
-  assert.ok(reactivateV2.ok, reactivateV2.stderr);
+  const reactivateUpdated = run(['install', updatedAsset.asset, '--yes', '--json'], {
+    env,
+    cwd: project,
+  });
+  assert.ok(reactivateUpdated.ok, reactivateUpdated.stderr);
   const migrated = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
   assert.equal(migrated.version, 3);
   assert.equal(migrated.packages[NAME].active_version, '1.1.0');
@@ -317,7 +326,7 @@ test('version-aware install, migration, inspect, plan, use, remove and rollback'
   assert.ok(plannedPinned.ok, plannedPinned.stderr);
   const plan = JSON.parse(plannedPinned.stdout);
   assert.equal(plan.asset_ref.version, '1.0.0');
-  assert.equal(plan.asset_ref.expected_digests.asset.value, sha256(v1.asset));
+  assert.equal(plan.asset_ref.expected_digests.asset.value, sha256(initialAsset.asset));
   assert.equal(plan.type, 'kdna.consumption-plan');
   assert.equal(plan.contract_version, '0.1.0');
 
@@ -339,11 +348,11 @@ test('version-aware install, migration, inspect, plan, use, remove and rollback'
   assert.ok(usedPinned.ok, usedPinned.stderr);
   const trace = JSON.parse(usedPinned.stdout);
   assert.equal(trace.asset_identity.version, '1.0.0');
-  assert.equal(trace.digest_evidence.asset.value, sha256(v1.asset));
+  assert.equal(trace.digest_evidence.asset.value, sha256(initialAsset.asset));
 
-  const removeV2 = run(['remove', `${NAME}@1.1.0`], { env, cwd: project });
-  assert.ok(removeV2.ok, removeV2.stderr);
-  assert.match(removeV2.stdout, /@example\/versioned-review@1\.1\.0/);
+  const removeUpdated = run(['remove', `${NAME}@1.1.0`], { env, cwd: project });
+  assert.ok(removeUpdated.ok, removeUpdated.stderr);
+  assert.match(removeUpdated.stdout, /@example\/versioned-review@1\.1\.0/);
   assert.ok(!fs.existsSync(path.dirname(migrated.packages[NAME].versions['1.1.0'].asset_path)));
 
   const afterRollback = run(['list', '--json'], { env, cwd: project });
@@ -405,10 +414,13 @@ test('invalid local asset install fails closed unless explicitly overridden', ()
 
 test('atomic index failure leaves the old index intact and recovers the committed asset', () => {
   const { root, kdnaHome, project, env } = makeEnv();
-  const v1 = buildAsset(root, '1.0.0');
-  const v2 = buildAsset(root, '1.1.0');
-  const installV1 = run(['install', v1.asset, '--yes', '--json'], { env, cwd: project });
-  assert.ok(installV1.ok, installV1.stderr);
+  const initialAsset = buildAsset(root, '1.0.0');
+  const updatedAsset = buildAsset(root, '1.1.0');
+  const installInitial = run(['install', initialAsset.asset, '--yes', '--json'], {
+    env,
+    cwd: project,
+  });
+  assert.ok(installInitial.ok, installInitial.stderr);
 
   const indexPath = path.join(kdnaHome, 'index.json');
   const oldIndex = fs.readFileSync(indexPath, 'utf8');
@@ -422,7 +434,7 @@ test('atomic index failure leaves the old index intact and recovers the committe
       assert.throws(
         () =>
           store.installAsset({
-            sourcePath: v2.asset,
+            sourcePath: updatedAsset.asset,
             name: NAME,
             version: '1.1.0',
             source: { type: 'test' },
@@ -438,7 +450,7 @@ test('atomic index failure leaves the old index intact and recovers the committe
 
     const recovered = store.getInstalled(`${NAME}@1.1.0`);
     assert.equal(recovered.version, '1.1.0');
-    assert.equal(recovered.asset_digest, sha256(v2.asset));
+    assert.equal(recovered.asset_digest, sha256(updatedAsset.asset));
     store.writeIndex(store.readIndex());
   });
 
@@ -448,10 +460,13 @@ test('atomic index failure leaves the old index intact and recovers the committe
 
 test('staging rename failure exposes neither a partial version nor a changed index', () => {
   const { root, kdnaHome, project, env } = makeEnv();
-  const v1 = buildAsset(root, '1.0.0');
-  const v2 = buildAsset(root, '1.1.0');
-  const installV1 = run(['install', v1.asset, '--yes', '--json'], { env, cwd: project });
-  assert.ok(installV1.ok, installV1.stderr);
+  const initialAsset = buildAsset(root, '1.0.0');
+  const updatedAsset = buildAsset(root, '1.1.0');
+  const installInitial = run(['install', initialAsset.asset, '--yes', '--json'], {
+    env,
+    cwd: project,
+  });
+  assert.ok(installInitial.ok, installInitial.stderr);
 
   const indexPath = path.join(kdnaHome, 'index.json');
   const oldIndex = fs.readFileSync(indexPath, 'utf8');
@@ -466,7 +481,7 @@ test('staging rename failure exposes neither a partial version nor a changed ind
       assert.throws(
         () =>
           store.installAsset({
-            sourcePath: v2.asset,
+            sourcePath: updatedAsset.asset,
             name: NAME,
             version: '1.1.0',
             source: { type: 'test' },
@@ -531,8 +546,8 @@ test('update --all continues after returned and thrown failures, then summarizes
 
 test('project-only update keeps the selected registry version in the project tier', () => {
   const { root, project, env } = makeEnv();
-  const v1 = buildAsset(root, '1.0.0');
-  const installed = run(['install', v1.asset, '--yes', '--json', '--local'], {
+  const initialAsset = buildAsset(root, '1.0.0');
+  const installed = run(['install', initialAsset.asset, '--yes', '--json', '--local'], {
     env,
     cwd: project,
   });
@@ -552,11 +567,14 @@ test('project-only update keeps the selected registry version in the project tie
 
 test('project tier remains the update target when a newer global version also exists', () => {
   const { root, project, env } = makeEnv();
-  const globalV2 = buildAsset(root, '2.0.0');
-  const projectV1 = buildAsset(root, '1.0.0');
-  assert.ok(run(['install', globalV2.asset, '--yes', '--json'], { env, cwd: project }).ok);
+  const globalNewerAsset = buildAsset(root, '2.0.0');
+  const projectOlderAsset = buildAsset(root, '1.0.0');
+  assert.ok(run(['install', globalNewerAsset.asset, '--yes', '--json'], { env, cwd: project }).ok);
   assert.ok(
-    run(['install', projectV1.asset, '--yes', '--json', '--local'], { env, cwd: project }).ok,
+    run(['install', projectOlderAsset.asset, '--yes', '--json', '--local'], {
+      env,
+      cwd: project,
+    }).ok,
   );
 
   const requests = [];
@@ -573,8 +591,11 @@ test('project tier remains the update target when a newer global version also ex
 
 test('update never downgrades an installed version that is newer than the registry release', () => {
   const { root, project, env } = makeEnv();
-  const v2 = buildAsset(root, '2.0.0');
-  const installed = run(['install', v2.asset, '--yes', '--json'], { env, cwd: project });
+  const newerInstalledAsset = buildAsset(root, '2.0.0');
+  const installed = run(['install', newerInstalledAsset.asset, '--yes', '--json'], {
+    env,
+    cwd: project,
+  });
   assert.ok(installed.ok, installed.stderr);
 
   const requests = [];
@@ -591,8 +612,11 @@ test('update never downgrades an installed version that is newer than the regist
 
 test('tampered installed bytes make update and same-version reinstall fail closed', () => {
   const { root, kdnaHome, project, env } = makeEnv();
-  const v1 = buildAsset(root, '1.0.0');
-  const installed = run(['install', v1.asset, '--yes', '--json'], { env, cwd: project });
+  const installedAsset = buildAsset(root, '1.0.0');
+  const installed = run(['install', installedAsset.asset, '--yes', '--json'], {
+    env,
+    cwd: project,
+  });
   assert.ok(installed.ok, installed.stderr);
 
   const index = JSON.parse(fs.readFileSync(path.join(kdnaHome, 'index.json'), 'utf8'));
@@ -607,7 +631,10 @@ test('tampered installed bytes make update and same-version reinstall fail close
   assert.match(update.stderr, /kdna remove @example\/versioned-review@1\.0\.0/);
   assert.doesNotMatch(update.stdout, /up to date/);
 
-  const reinstall = run(['install', v1.asset, '--yes', '--json'], { env, cwd: project });
+  const reinstall = run(['install', installedAsset.asset, '--yes', '--json'], {
+    env,
+    cwd: project,
+  });
   assert.equal(reinstall.code, 1);
   assert.match(reinstall.stderr, /failed integrity/);
   assert.doesNotMatch(reinstall.stdout, /"installed":true/);
@@ -615,14 +642,17 @@ test('tampered installed bytes make update and same-version reinstall fail close
 
 test('stale index writers merge committed versions and preserve the active version', () => {
   const { root, kdnaHome, project, env } = makeEnv();
-  const v1 = buildAsset(root, '1.0.0');
-  const v2 = buildAsset(root, '1.1.0');
-  assert.ok(run(['install', v1.asset, '--yes', '--json'], { env, cwd: project }).ok);
+  const initialAsset = buildAsset(root, '1.0.0');
+  const updatedAsset = buildAsset(root, '1.1.0');
+  assert.ok(run(['install', initialAsset.asset, '--yes', '--json'], { env, cwd: project }).ok);
 
   withFreshPackageStore(env, (store) => {
     const stale = store.readIndex();
-    const installV2 = run(['install', v2.asset, '--yes', '--json'], { env, cwd: project });
-    assert.ok(installV2.ok, installV2.stderr);
+    const installUpdated = run(['install', updatedAsset.asset, '--yes', '--json'], {
+      env,
+      cwd: project,
+    });
+    assert.ok(installUpdated.ok, installUpdated.stderr);
     store.writeIndex(stale);
   });
 
@@ -633,11 +663,11 @@ test('stale index writers merge committed versions and preserve the active versi
 
 test('concurrent different-version installs serialize without losing either index entry', async () => {
   const { root, kdnaHome, project, env } = makeEnv();
-  const v1 = buildAsset(root, '1.0.0');
-  const v2 = buildAsset(root, '1.1.0');
+  const initialAsset = buildAsset(root, '1.0.0');
+  const updatedAsset = buildAsset(root, '1.1.0');
   const [first, second] = await Promise.all([
-    runAsync(['install', v1.asset, '--yes', '--json'], { env, cwd: project }),
-    runAsync(['install', v2.asset, '--yes', '--json'], { env, cwd: project }),
+    runAsync(['install', initialAsset.asset, '--yes', '--json'], { env, cwd: project }),
+    runAsync(['install', updatedAsset.asset, '--yes', '--json'], { env, cwd: project }),
   ]);
   assert.ok(first.ok, first.stderr);
   assert.ok(second.ok, second.stderr);
@@ -649,7 +679,7 @@ test('concurrent different-version installs serialize without losing either inde
 
 test('a dead stale index lock is recovered before installation', () => {
   const { root, kdnaHome, project, env } = makeEnv();
-  const v1 = buildAsset(root, '1.0.0');
+  const initialAsset = buildAsset(root, '1.0.0');
   const lockDir = path.join(kdnaHome, 'index.json.lock');
   fs.mkdirSync(lockDir, { recursive: true });
   writeJson(path.join(lockDir, 'owner.json'), {
@@ -659,7 +689,10 @@ test('a dead stale index lock is recovered before installation', () => {
   const old = new Date(Date.now() - 60000);
   fs.utimesSync(lockDir, old, old);
 
-  const installed = run(['install', v1.asset, '--yes', '--json'], { env, cwd: project });
+  const installed = run(['install', initialAsset.asset, '--yes', '--json'], {
+    env,
+    cwd: project,
+  });
   assert.ok(installed.ok, installed.stderr);
   assert.equal(fs.existsSync(lockDir), false);
 });
