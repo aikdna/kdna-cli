@@ -1,0 +1,15 @@
+{
+  "package": "@aikdna/kdna-core",
+  "version": "0.18.0",
+  "git_head": "fed4fc86e3c8447a94e7498a795d0fcd5108595e",
+  "registry_integrity": "sha512-2z8cJX+L39QdtwPoBI4tM0e5o5K7GOBliMeF60Ja3Uv6smJYBLRMSts1sIO/7ECGyk46HCOOs82VvVvLsGPBUQ==",
+  "files": {
+    "src/execution-contract-v1.js": "feed02b244516c2195325a7f4278f8dc576a56834ce1b3098abd799c81e8745d",
+    "src/capsule-v2.js": "11bee0a78561bcccaff0ac5efad667cc29728a357de8769b94a994afbfcfdf4c",
+    "schema/agent-host-capabilities-1.schema.json": "c1e55662ffa3932d8566f690eedae361ddbbd5bffe49ec580216ee30626a85ff",
+    "schema/agent-host-2-request.schema.json": "bd7380886bae5e7310c484e1f87b3576e39957a2a2b0d4cd5d90f801fcaea79d",
+    "schema/agent-host-2-receipt.schema.json": "f1bfeb9b88eddaed9750cacb92c99d0ac5ec6fb998f02d4086e8c1b394869480",
+    "schema/consumption-plan-1.schema.json": "b858839d17542a499bb3fc346584029dc2e2e8a4eadb10fe875bf12897d07f66",
+    "schema/judgment-trace-1.schema.json": "abd7e0d3f5d99bdcd70e45daa49d2a58a88272b5309fa2d03409b12d18fad782"
+  }
+}

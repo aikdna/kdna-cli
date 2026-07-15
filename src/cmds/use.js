@@ -17,6 +17,11 @@ const crypto = require('node:crypto');
 const { error, EXIT, readJson } = require('./_common');
 const { planSingleAsset } = require('./plan-use');
 const { createProcessAgentHost } = require('../agent-host-process');
+const { createAgentHostCapabilityRegistry } = require('../agent-host-capabilities');
+const {
+  executePreparedContractV1,
+  prepareExecutionContractV1,
+} = require('../execution-contract-v1');
 const {
   executePlan,
   buildTraceFromResult,
@@ -34,6 +39,100 @@ try {
 try {
   registerRunner('cli', 'default', createCliRunner({ id: 'default' }));
 } catch (_) {}
+
+function runRuntimeContractV1(options) {
+  const {
+    target,
+    task,
+    taskFamily,
+    runnerSpec,
+    agentHostCommand,
+    agentHostArgs,
+    capabilityPath,
+    budgetProfile,
+    shape,
+    timeoutMs,
+    as,
+    outPath,
+    planOnly,
+    dryRun,
+  } = options;
+
+  if (dryRun) error('Runtime contract 1 does not support legacy --dry-run.', EXIT.INPUT_ERROR);
+  if (!['json', 'trace'].includes(as)) {
+    error('Runtime contract 1 supports --as=json or --as=trace only.', EXIT.INPUT_ERROR);
+  }
+
+  let prepared;
+  try {
+    prepared = prepareExecutionContractV1(target, {
+      task,
+      taskFamily: taskFamily === 'general' ? null : taskFamily,
+      budgetProfile,
+      profile: shape,
+    });
+  } catch (runtimeError) {
+    error(`Runtime contract 1 planning failed: ${runtimeError.message}`, EXIT.VALIDATION_FAILED);
+  }
+
+  if (planOnly) {
+    const json = JSON.stringify(prepared.plan, null, 2);
+    if (outPath) fs.writeFileSync(path.resolve(outPath), `${json}\n`);
+    console.log(json);
+    return;
+  }
+  if (runnerSpec !== 'cli:default') {
+    error('Runtime contract 1 requires --runner=cli:default.', EXIT.INPUT_ERROR);
+  }
+  if (!agentHostCommand) {
+    error('Runtime contract 1 requires an explicit --agent-host process.', EXIT.INPUT_ERROR);
+  }
+
+  let capabilities;
+  try {
+    const registry = createAgentHostCapabilityRegistry(prepared.core);
+    const selection = { command: agentHostCommand, args: agentHostArgs };
+    if (capabilityPath) registry.registerProcessFile(capabilityPath, selection);
+    capabilities = registry.resolveProcess(selection);
+  } catch (capabilityError) {
+    error(
+      `Agent Host capability registration failed: ${capabilityError.message}`,
+      EXIT.INPUT_ERROR,
+    );
+  }
+
+  executePreparedContractV1(prepared, {
+    capabilities,
+    command: agentHostCommand,
+    args: agentHostArgs,
+    timeoutMs,
+  })
+    .then((execution) => {
+      const output = {
+        plan_id: execution.plan.plan_id,
+        mode: 'single',
+        runner: 'cli:default',
+        status: execution.trace.overall_status,
+        result: execution.receipt?.outcome || null,
+        trace: execution.trace,
+      };
+      if (outPath) {
+        const absolute = path.resolve(outPath);
+        fs.mkdirSync(path.dirname(absolute), { recursive: true });
+        fs.writeFileSync(
+          absolute,
+          `${JSON.stringify({ plan: execution.plan, receipt: execution.receipt, trace: execution.trace }, null, 2)}\n`,
+        );
+      }
+      console.log(JSON.stringify(as === 'trace' ? execution.trace : output, null, 2));
+      if (execution.trace.overall_status !== 'execution_completed') {
+        process.exitCode = EXIT.VALIDATION_FAILED;
+      }
+    })
+    .catch((runtimeError) => {
+      error(`Runtime contract 1 execution failed: ${runtimeError.message}`, EXIT.PROVIDER_ERROR);
+    });
+}
 
 function cmdUse(args) {
   const getFlag = (name) => {
@@ -80,6 +179,8 @@ function cmdUse(args) {
         '  --runner=<type:id>      Runner to use (default: mock:default)\n' +
         '  --agent-host=<command>  Invoke a JSON process host with cli:default\n' +
         '  --agent-host-arg=<arg>  Add one exact process argument (repeatable)\n' +
+        '  --agent-host-capabilities=<file>  Bound Host capability registration\n' +
+        '  --runtime-contract=1   Opt in to Plan 1 / Capsule 2 / Host 2 / Trace 1\n' +
         '  --budget=<profile>      interactive|code-review|offline-audit\n' +
         '  --shape=<name>          answer-pattern|compact|scenario|full\n' +
         '  --timeout=<ms>          Execution timeout in ms (default: 30000)\n' +
@@ -104,6 +205,10 @@ function cmdUse(args) {
   const runnerSpec = getFlag('--runner') || 'mock:default';
   const agentHostCommand = getFlag('--agent-host');
   const agentHostArgs = getFlags('--agent-host-arg');
+  const capabilityPath = getFlag('--agent-host-capabilities');
+  const runtimeContractArg = args.find(
+    (value) => value === '--runtime-contract' || value.startsWith('--runtime-contract='),
+  );
   const budgetProfile = getFlag('--budget') || 'code-review';
   const shape = getFlag('--shape') || 'compact';
   const timeoutMs = parseInt(getFlag('--timeout') || '30000', 10);
@@ -111,6 +216,32 @@ function cmdUse(args) {
   const outPath = getFlag('--out');
   const planOnly = args.includes('--plan-only');
   const dryRun = args.includes('--dry-run');
+
+  if (runtimeContractArg) {
+    const runtimeContract = getFlag('--runtime-contract');
+    if (runtimeContract !== '1') {
+      error('Unknown --runtime-contract value; no legacy fallback was selected.', EXIT.INPUT_ERROR);
+    }
+    return runRuntimeContractV1({
+      target,
+      task,
+      taskFamily,
+      runnerSpec,
+      agentHostCommand,
+      agentHostArgs,
+      capabilityPath,
+      budgetProfile,
+      shape,
+      timeoutMs,
+      as,
+      outPath,
+      planOnly,
+      dryRun,
+    });
+  }
+  if (capabilityPath) {
+    error('--agent-host-capabilities requires --runtime-contract=1.', EXIT.INPUT_ERROR);
+  }
 
   if (agentHostArgs.length > 0 && !agentHostCommand) {
     error('--agent-host-arg requires --agent-host.', EXIT.INPUT_ERROR);

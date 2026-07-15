@@ -136,6 +136,29 @@ consumption, judgment fidelity, or conformance. Those facts remain separate in
 Trace, and model identity and usage remain host-reported.
 Staged Cluster execution remains an explicit, disabled advanced path.
 
+ConsumptionPlan 1, Capsule 2, Agent Host 2, and JudgmentTrace 1 are available
+only through the explicit `--runtime-contract=1` option. The default command
+above remains on Plan 0.9 / Capsule 1 / Host 1 / Trace 0.9. Strict execution
+also requires a process-bound capability registration; the runtime flag and
+the process command do not create Host 2 capabilities:
+
+```bash
+kdna use ./asset.kdna \
+  --task "Review this decision" \
+  --runner cli:default \
+  --agent-host node \
+  --agent-host-arg ./my-agent-host-2.js \
+  --agent-host-capabilities ./my-agent-host-2.registration.json \
+  --runtime-contract=1 \
+  --as trace
+```
+
+The strict path accepts one regular packaged `.kdna` file or installed asset.
+It rejects source directories, Cluster, mock runners, missing process Hosts,
+unknown contract values, and unsupported capability pairs without downgrading.
+See [`docs/consumption-runtime.md`](docs/consumption-runtime.md) for the bound
+registration format and evidence limits.
+
 ## Asset Management
 
 | Command                                    | Purpose                                                       |

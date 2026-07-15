@@ -44,31 +44,16 @@ check('STANDARD_ENTRIES exported', () => {
 });
 
 // 3. kdna-core version matches what kdna-cli declares.
-check('installed kdna-core version satisfies declared range', () => {
+check('installed kdna-core version exactly matches declared version', () => {
   const corePath = require.resolve('@aikdna/kdna-core/package.json');
   const installed = require(corePath).version;
   const declared = require('../package.json').dependencies['@aikdna/kdna-core'];
   if (!declared) throw new Error('kdna-cli does not declare @aikdna/kdna-core');
-  // Naive semver check: declared ^X.Y.Z allows >=X.Y.Z <(X+1).0.0
-  const m = declared.match(/\^?(\d+)\.(\d+)\.(\d+)/);
-  if (!m) throw new Error(`unparseable declared range: ${declared}`);
-  const [, dmaj, dmin, dpat] = m;
-  const inst = installed.split('.').map(Number);
-  if (inst[0] !== +dmaj) {
-    throw new Error(`major mismatch: installed ${installed} vs declared ${declared}`);
+  if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(declared)) {
+    throw new Error(`declared Core dependency must be an exact version: ${declared}`);
   }
-  if (inst[0] === 0) {
-    // 0.x.y is special: ^0.y.z means >=0.y.z <0.(y+1).0
-    if (inst[1] !== +dmin) {
-      throw new Error(`minor mismatch on 0.x: installed ${installed} vs declared ${declared}`);
-    }
-    if (inst[2] < +dpat) {
-      throw new Error(`patch behind: installed ${installed} vs declared ${declared}`);
-    }
-  } else {
-    if (inst[1] < +dmin) {
-      throw new Error(`minor behind: installed ${installed} vs declared ${declared}`);
-    }
+  if (installed !== declared) {
+    throw new Error(`exact mismatch: installed ${installed} vs declared ${declared}`);
   }
   console.log(`       installed=${installed} declared=${declared}`);
 });

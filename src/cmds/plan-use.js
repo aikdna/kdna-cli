@@ -367,6 +367,9 @@ function cmdPlanUse(args) {
 
   const posArgs = args.filter((a) => !a.startsWith('--'));
   const target = posArgs[0];
+  const runtimeContractArg = args.find(
+    (value) => value === '--runtime-contract' || value.startsWith('--runtime-contract='),
+  );
 
   if (!target || args.includes('--help') || args.includes('-h')) {
     process.stderr.write(
@@ -380,6 +383,7 @@ function cmdPlanUse(args) {
         '  --as=<format>         json|md (default: json)\n' +
         '  --out=<path>          Write plan to file\n' +
         '  --plan-id=<id>        Use a specific plan_id (deterministic default)\n' +
+        '  --runtime-contract=1  Opt in to strict ConsumptionPlan 1 (JSON only)\n' +
         '\n' +
         'The plan is deterministic: same asset + same task = same plan_id.\n' +
         'No model call is made. No runner is required.\n',
@@ -395,6 +399,32 @@ function cmdPlanUse(args) {
   const as = getFlag('--as') || 'json';
   const outPath = getFlag('--out');
   const planIdOverride = getFlag('--plan-id');
+
+  if (runtimeContractArg) {
+    const runtimeContract = getFlag('--runtime-contract');
+    if (runtimeContract !== '1') {
+      error('Unknown --runtime-contract value; no legacy fallback was selected.', EXIT.INPUT_ERROR);
+    }
+    if (as !== 'json') {
+      error('Runtime contract 1 plan output supports --as=json only.', EXIT.INPUT_ERROR);
+    }
+    try {
+      const { prepareExecutionContractV1 } = require('../execution-contract-v1');
+      const prepared = prepareExecutionContractV1(target, {
+        task,
+        taskFamily: taskFamily === 'general' ? null : taskFamily,
+        budgetProfile,
+        profile: shape,
+        planId: planIdOverride || undefined,
+      });
+      const json = JSON.stringify(prepared.plan, null, 2);
+      if (outPath) fs.writeFileSync(path.resolve(outPath), `${json}\n`);
+      console.log(json);
+      return;
+    } catch (runtimeError) {
+      error(`Runtime contract 1 planning failed: ${runtimeError.message}`, EXIT.VALIDATION_FAILED);
+    }
+  }
 
   // Determine mode: single asset or cluster
   const abs = resolveAssetTarget(target);

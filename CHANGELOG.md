@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Add a strict `--runtime-contract=1` single-asset opt-in for ConsumptionPlan 1,
+  Capsule 2, Agent Host 2, and JudgmentTrace 1 through the exact registry
+  release `@aikdna/kdna-core@0.18.0`. The default Plan 0.9 / Capsule 1 / Host 1 /
+  Trace 0.9 behavior is unchanged.
+- Require an independent, process-bound Host capability registration before
+  strict execution. Registration input is a bounded regular-file snapshot,
+  parsed through Core's raw JSON boundary and correlated to the exact command
+  and ordered arguments. Missing or incompatible capabilities block before
+  projection without a downgrade.
+- Snapshot one regular packaged asset for A/C/E, Plan, Capsule, P, request, and
+  Trace evidence. Host 2 output is bounded and parsed by Core, receipts remain
+  Host-native, pre-Host budget failures call no Host, and unknown model/usage
+  facts remain `null` / `not_observed`.
+
 - Bind registry-backed `quality diff` and `changelog` inputs to the exact
   registry digest, manifest identity, and version before reading judgment
   content. Single-argument diff now compares the integrity-checked installed

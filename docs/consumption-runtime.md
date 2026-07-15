@@ -113,6 +113,86 @@ of `kdna.agent-host/1`. Trace character counters are non-negative integers;
 their basis fields use closed enums so unknown or malformed evidence labels
 fail validation.
 
+## Opt in to Plan 1 and Agent Host 2
+
+The default command remains on ConsumptionPlan 0.9, Capsule 1, Agent Host 1,
+and Trace 0.9. The strict contract is a separate, explicit path:
+
+```bash
+kdna plan-use ./domain.kdna \
+  --task "Review this decision" \
+  --runtime-contract=1 \
+  --as json
+
+kdna use ./domain.kdna \
+  --task "Review this decision" \
+  --runner cli:default \
+  --agent-host node \
+  --agent-host-arg ./my-agent-host-2.js \
+  --agent-host-capabilities ./my-agent-host-2.registration.json \
+  --runtime-contract=1 \
+  --as trace
+```
+
+`--runtime-contract=1` does not declare Host capabilities. The capability
+registration is an independent local input with this exact CLI wrapper:
+
+```json
+{
+  "type": "kdna.cli.agent-host-registration",
+  "version": "1.0",
+  "process": {
+    "command": "node",
+    "args": ["./my-agent-host-2.js"]
+  },
+  "capabilities": {
+    "type": "kdna.agent-host.capabilities",
+    "version": "1.0",
+    "capability_basis": "registered_descriptor",
+    "host_protocols": ["kdna.agent-host/2"],
+    "capsule_versions": ["2.0"],
+    "capsule_digest_profiles": ["kdna-capsule-jcs-v1"]
+  }
+}
+```
+
+The wrapper binds the descriptor to the exact command and ordered argument
+strings selected for this invocation. The CLI snapshots one regular,
+non-symlink registration file (maximum 64 KiB), parses it with the Core strict
+JSON boundary, and retains only that snapshot. Replacing the file afterward
+cannot change the registered value for the running command. The descriptor is
+then validated and negotiated by Core; the CLI wrapper defines only process
+binding and does not redefine the capability Schema. The registration path,
+process command, arguments, and asset resolution path are not copied into the
+Plan, Host request, or Trace.
+
+Without a matching registration the process has only
+`capability_basis: legacy_assumption`. Core negotiation blocks before Capsule
+projection. A registered descriptor that lacks Capsule 2, Host 2, or the
+`kdna-capsule-jcs-v1` delivery digest also blocks before projection. Unknown
+`--runtime-contract` values fail closed instead of selecting the default path.
+
+The strict executor snapshots one regular packaged `.kdna` file and uses those
+same bytes for A/C/E evidence, Plan identity, Capsule 2, delivery digest P, and
+the Host request. Installed assets may match A and C against their independent
+install receipt; a local file records A as caller-provided `not_compared`.
+Source directories, symlinks, Cluster, remote fallback, mock execution, and a
+missing process Host are not accepted by this path.
+
+The Host receives the Core-built `kdna.agent-host/2` request unchanged and must
+return its own complete Host 2 receipt. The CLI parses raw standard output with
+the Core strict JSON parser and never synthesizes a receipt. Duplicate keys,
+BOMs, invalid UTF-8, excessive nesting or output, trailing JSON, timeout, and
+uncorrelated receipts fail closed. A pre-Host projection or task budget failure
+uses Core's evidence-only blocked Trace and does not call the Host.
+
+JudgmentTrace 1 keeps delivery, execution, semantic consumption, model
+identity, usage, and conformance separate. A matched receipt establishes the
+correlated Host boundary for the exact Capsule delivery digest P. It does not
+establish that a model understood the Capsule, that the Capsule affected the
+answer, or that the result is faithful or high quality. Unknown model identity,
+tokens, and model calls remain `null` with a `not_observed` basis.
+
 ## Evaluate and review
 
 Use public-safe fixtures to compare a policy across the configured replay

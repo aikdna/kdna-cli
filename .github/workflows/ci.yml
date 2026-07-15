@@ -26,6 +26,24 @@ jobs:
         run: npm run test:golden-host-request
         env:
           KDNA_GOLDEN_CORE_ROOT: ${{ github.workspace }}/.cross-repo/kdna/packages/kdna-core
+  runtime-contract-v1:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: aikdna/kdna
+          ref: fed4fc86e3c8447a94e7498a795d0fcd5108595e
+          path: .cross-repo/kdna-runtime-contract-v1
+      - uses: actions/setup-node@v6
+        with: { node-version: 22 }
+      - run: npm ci
+      - name: Verify the released Core 0.18 source pin
+        run: test "$(git -C .cross-repo/kdna-runtime-contract-v1 rev-parse HEAD)" = fed4fc86e3c8447a94e7498a795d0fcd5108595e
+      - name: Verify strict Plan 1 / Capsule 2 / Host 2 / Trace 1 opt-in
+        run: npm run test:runtime-contract-v1
+        env:
+          KDNA_RUNTIME_CONTRACT_CORE_ROOT: ${{ github.workspace }}/.cross-repo/kdna-runtime-contract-v1/packages/kdna-core
   evidence:
     runs-on: ubuntu-latest
     needs: test
