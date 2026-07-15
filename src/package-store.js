@@ -759,8 +759,8 @@ function installAssetUnlocked({ sourcePath, name, version, source = {}, local = 
     // read-only or overly broad mode into the private package store.
     fs.chmodSync(stagedAsset, 0o600);
     // Windows requires a writable descriptor for fsync/_commit. The staged
-    // copy is owned by this transaction, so open it read/write before the
-    // durability barrier and verify its bytes immediately afterward.
+    // copy is owned by this transaction, so open it write-only without
+    // truncation before the durability barrier and verify its bytes afterward.
     const descriptor = fs.openSync(stagedAsset, fs.constants.O_WRONLY);
     try {
       fs.fsyncSync(descriptor);
