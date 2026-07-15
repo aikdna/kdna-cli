@@ -62,13 +62,11 @@ const rules = [
   {
     name: 'full-commit-hash',
     pattern: /(?<![a-f0-9])[a-f0-9]{40}(?![a-f0-9])/gi,
-    excludePaths: [
-      '.github/workflows/',
-      'ecosystem-manifest.json',
-      // This public release-evidence fixture deliberately binds a registry
-      // package to its exact published source commit.
-      'tests/fixtures/core-0.18-release-evidence.json',
-    ],
+    excludePathPrefixes: ['.github/workflows/'],
+    excludeExactPaths: ['ecosystem-manifest.json'],
+    allowMatch: (_match, context) =>
+      context.file === 'tests/fixtures/core-0.18-release-evidence.json' &&
+      /^\s*"git_head":\s*"[a-f0-9]{40}"\s*,?\s*$/i.test(context.line),
     hint: 'Use a short public ref or a public acceptance-note link.',
   },
   {
@@ -86,7 +84,10 @@ function listTrackedFiles() {
 }
 
 function isExcluded(file, rule) {
-  return (rule.excludePaths || []).some((prefix) => file === prefix || file.startsWith(prefix));
+  return (
+    (rule.excludeExactPaths || []).includes(file) ||
+    (rule.excludePathPrefixes || []).some((prefix) => file.startsWith(prefix))
+  );
 }
 
 const findings = [];
@@ -110,6 +111,9 @@ for (const file of listTrackedFiles()) {
       let match;
       while ((match = rule.pattern.exec(line)) !== null) {
         if (rule.check && !rule.check(match)) continue;
+        if (rule.allowMatch && rule.allowMatch(match, { file, line, lineNumber: lineNumber + 1 })) {
+          continue;
+        }
         findings.push({
           file,
           line: lineNumber + 1,
