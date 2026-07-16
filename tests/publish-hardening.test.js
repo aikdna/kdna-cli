@@ -18,6 +18,7 @@ const {
   canonicalRegistryUrl,
   resolveTrustedNpmInvocation,
 } = require('../scripts/runtime-candidate-binding');
+const { createCanonicalReleaseTemp } = require('../scripts/generate-release-evidence');
 const {
   validateEvidenceArtifact,
   validatePackReport,
@@ -29,6 +30,7 @@ const { guardCandidate } = require('../scripts/registry-duplicate-guard');
 const {
   assertTrustedIndexIsOrdinary,
   materializeTrustedCommit,
+  runTrustedGit,
   trustedGitEnvironment,
 } = require('../scripts/trusted-git');
 const {
@@ -135,6 +137,53 @@ function git(repository, args) {
   assert.equal(result.status, 0, result.stderr || result.stdout);
   return result.stdout.trim();
 }
+
+test('release temp canonicalizes an os.tmpdir symlink alias without weakening trusted paths', (t) => {
+  const sandbox = fs.realpathSync(
+    fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-release-temp-alias-')),
+  );
+  t.after(() => fs.rmSync(sandbox, { recursive: true, force: true }));
+  const physicalTemp = path.join(sandbox, 'physical-temp');
+  const tempAlias = path.join(sandbox, 'temp-alias');
+  fs.mkdirSync(physicalTemp);
+  fs.symlinkSync(physicalTemp, tempAlias, process.platform === 'win32' ? 'junction' : 'dir');
+
+  const names = ['TMPDIR', 'TMP', 'TEMP'];
+  const previous = new Map(names.map((name) => [name, process.env[name]]));
+  for (const name of names) process.env[name] = tempAlias;
+  let releaseTemp;
+  try {
+    assert.equal(path.resolve(os.tmpdir()), path.resolve(tempAlias));
+    assert.notEqual(path.resolve(os.tmpdir()), fs.realpathSync(os.tmpdir()));
+    releaseTemp = createCanonicalReleaseTemp();
+  } finally {
+    for (const [name, value] of previous) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+
+  assert.equal(releaseTemp, fs.realpathSync(releaseTemp));
+  assert.equal(path.dirname(releaseTemp), fs.realpathSync(physicalTemp));
+  const commit = runTrustedGit(ROOT, ['rev-parse', 'HEAD']).trim();
+  materializeTrustedCommit(ROOT, commit, releaseTemp);
+  assert.ok(fs.existsSync(path.join(releaseTemp, 'package.json')));
+
+  const physicalDestination = path.join(physicalTemp, 'noncanonical-destination');
+  const aliasDestination = path.join(tempAlias, 'noncanonical-destination');
+  fs.mkdirSync(physicalDestination);
+  assert.throws(
+    () => materializeTrustedCommit(ROOT, commit, aliasDestination),
+    /trusted Git root path must be canonical/,
+  );
+
+  const repositoryAlias = path.join(sandbox, 'repository-alias');
+  fs.symlinkSync(ROOT, repositoryAlias, process.platform === 'win32' ? 'junction' : 'dir');
+  assert.throws(
+    () => runTrustedGit(repositoryAlias, ['rev-parse', 'HEAD']),
+    /trusted Git root must be a regular directory/,
+  );
+});
 
 test('publish workflow has one canonical release-only path and publishes the verified tarball', () => {
   const workflow = fs.readFileSync(path.join(ROOT, '.github/workflows/publish.yml'), 'utf8');

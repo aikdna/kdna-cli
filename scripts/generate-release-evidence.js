@@ -37,6 +37,10 @@ function treeStatus() {
   return runTrustedGit(root, ['status', '--porcelain', '--untracked-files=all']).trim();
 }
 
+function createCanonicalReleaseTemp(baseDirectory = os.tmpdir()) {
+  return fs.realpathSync(fs.mkdtempSync(path.join(baseDirectory, 'kdna-cli-release-pack-')));
+}
+
 function packOnce(packageRoot, destination, npm) {
   const reportText = run(
     npm.command,
@@ -103,7 +107,7 @@ function main() {
     commit: runTrustedGit(root, ['rev-parse', 'HEAD']).trim(),
   };
   if (process.env.GITHUB_SHA !== source.commit) fail('GITHUB_SHA must equal the packed commit');
-  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-release-pack-'));
+  const temp = createCanonicalReleaseTemp();
   const npm = resolveTrustedNpmInvocation(root);
   let complete = false;
   try {
@@ -150,9 +154,13 @@ function main() {
   console.log(`Release evidence written to ${output}; verified artifact retained at ${artifact}`);
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(`Release evidence rejected: ${error.message}`);
-  process.exitCode = 1;
+if (require.main === module) {
+  try {
+    main();
+  } catch (error) {
+    console.error(`Release evidence rejected: ${error.message}`);
+    process.exitCode = 1;
+  }
 }
+
+module.exports = { createCanonicalReleaseTemp };
