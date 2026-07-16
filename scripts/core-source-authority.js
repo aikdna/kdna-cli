@@ -71,6 +71,16 @@ function assertIndexIsOrdinary(repository, treeEntries) {
   }
 }
 
+function readCoreCommitFile(authority, relativePath) {
+  assert(
+    authority && typeof authority === 'object' && Array.isArray(authority.treeEntries),
+    'Core commit authority is invalid',
+  );
+  const entry = authority.treeEntries.find((candidate) => candidate.relativePath === relativePath);
+  assert(entry, `Core commit tree is missing: ${relativePath}`);
+  return readTrustedGitBlob(authority.repository, entry.object);
+}
+
 function inspectCoreSourceAuthority(sourceRoot, expectedCommit) {
   assert(
     typeof sourceRoot === 'string' && path.isAbsolute(sourceRoot),
@@ -128,14 +138,12 @@ function inspectCoreSourceAuthority(sourceRoot, expectedCommit) {
       fs.realpathSync(file) === file,
       `Core source tracked file path must be canonical: ${entry.relativePath}`,
     );
-    const bytes = fs.readFileSync(file);
-    assert(
-      gitBlobId(bytes) === entry.object,
-      `Core source tracked file differs from the pinned commit: ${entry.relativePath}`,
-    );
   }
 
-  const packageJson = JSON.parse(fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'));
+  const commitAuthority = Object.freeze({ repository, treeEntries });
+  const packageJson = JSON.parse(
+    readCoreCommitFile(commitAuthority, 'package.json').toString('utf8'),
+  );
   return Object.freeze({
     expectedCommit,
     head,
@@ -175,7 +183,7 @@ function materializeCoreCommitPackage(authority, destination) {
       `Core isolated package path escapes destination: ${entry.relativePath}`,
     );
     fs.mkdirSync(path.dirname(target), { recursive: true });
-    const bytes = readTrustedGitBlob(authority.repository, entry.object);
+    const bytes = readCoreCommitFile(authority, entry.relativePath);
     assert(gitBlobId(bytes) === entry.object, `Core Git blob is corrupt: ${entry.relativePath}`);
     fs.writeFileSync(target, bytes, { flag: 'wx', mode: entry.mode === '100755' ? 0o755 : 0o644 });
     const stat = fs.lstatSync(target);
@@ -205,4 +213,5 @@ module.exports = {
   coreSourcePackArguments,
   inspectCoreSourceAuthority,
   materializeCoreCommitPackage,
+  readCoreCommitFile,
 };

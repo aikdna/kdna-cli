@@ -2,6 +2,7 @@
 
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -27,8 +28,13 @@ const {
   coreSourcePackArguments,
   inspectCoreSourceAuthority,
   materializeCoreCommitPackage,
+  readCoreCommitFile,
 } = require('../scripts/core-source-authority');
-const { assertSourceFactsUnchanged } = require('../scripts/generate-core-candidate-evidence');
+const {
+  assertEvidenceDocument,
+  assertSourceFactsUnchanged,
+  sourceFileHashes,
+} = require('../scripts/generate-core-candidate-evidence');
 const {
   gitNullDevice,
   materializeTrustedCommit,
@@ -363,6 +369,52 @@ test('Core source authority rejects wrong roots, links, and hidden index state',
     assert.equal(authority.head, fixture.head);
   });
 
+  await t.test('clean CRLF checkout uses exact commit blobs for content authority', (t) => {
+    const fixture = createCoreSourceFixture(t);
+    fs.writeFileSync(
+      path.join(fixture.repository, '.gitattributes'),
+      [
+        'packages/kdna-core/package.json text eol=crlf',
+        'packages/kdna-core/index.js text eol=crlf',
+        '',
+      ].join('\n'),
+    );
+    git(fixture.repository, ['add', '.gitattributes']);
+    git(fixture.repository, ['commit', '--quiet', '-m', 'test: CRLF checkout policy']);
+    const head = git(fixture.repository, ['rev-parse', 'HEAD']);
+    fs.rmSync(fixture.packageRoot, { recursive: true, force: true });
+    git(fixture.repository, ['checkout', 'HEAD', '--', 'packages/kdna-core']);
+    assert.equal(git(fixture.repository, ['status', '--porcelain', '--untracked-files=all']), '');
+
+    const checkoutPackage = fs.readFileSync(path.join(fixture.packageRoot, 'package.json'));
+    const checkoutIndex = fs.readFileSync(path.join(fixture.packageRoot, 'index.js'));
+    assert.ok(checkoutPackage.includes(Buffer.from('\r\n')));
+    assert.ok(checkoutIndex.includes(Buffer.from('\r\n')));
+
+    const authority = inspectCoreSourceAuthority(fixture.packageRoot, head);
+    const commitPackage = readCoreCommitFile(authority, 'package.json');
+    const commitIndex = readCoreCommitFile(authority, 'index.js');
+    assert.equal(commitPackage.includes(Buffer.from('\r\n')), false);
+    assert.equal(commitIndex.includes(Buffer.from('\r\n')), false);
+    assert.equal(authority.packageJson.name, CORE);
+    assert.deepEqual(sourceFileHashes(authority, ['index.js']), {
+      'index.js': crypto.createHash('sha256').update(commitIndex).digest('hex'),
+    });
+    assert.notEqual(
+      sourceFileHashes(authority, ['index.js'])['index.js'],
+      crypto.createHash('sha256').update(checkoutIndex).digest('hex'),
+    );
+  });
+
+  await t.test('dirty tracked file', (t) => {
+    const fixture = createCoreSourceFixture(t);
+    fs.appendFileSync(path.join(fixture.packageRoot, 'index.js'), 'dirty\n');
+    assert.throws(
+      () => inspectCoreSourceAuthority(fixture.packageRoot, fixture.head),
+      /worktree must be clean/,
+    );
+  });
+
   await t.test('ignored wrong root', (t) => {
     const fixture = createCoreSourceFixture(t);
     const wrongRoot = path.join(fixture.repository, 'ignored', 'packages', 'kdna-core');
@@ -574,7 +626,7 @@ test('portable candidate tar reader rejects corrupted headers and hostile paths'
   assert.throws(() => readTarFileEntries(traversalPath), /entry path invalid/);
 });
 
-test('strict package install equivalence excludes only declared archive metadata', (t) => {
+test('strict package install equivalence excludes only declared archive metadata', async (t) => {
   const binding = verifyCandidateBinding(ROOT);
   const artifact = fs.readFileSync(path.join(ROOT, binding.packages[0].artifact));
   const archive = zlib.gunzipSync(artifact);
@@ -634,7 +686,7 @@ test('strict package install equivalence excludes only declared archive metadata
     },
   ];
   for (const mutation of mutations) {
-    t.test(mutation.name, () => {
+    await t.test(mutation.name, () => {
       const candidate = Buffer.from(archive);
       mutation.mutate(candidate);
       assert.throws(
@@ -668,6 +720,39 @@ test('candidate pack evidence rejects source mutations between its two packs', (
     mutation(after);
     assert.throws(() => assertSourceFactsUnchanged(before, after), /changed during npm pack/);
   }
+});
+
+test('candidate evidence authority ignores formatting and blocks every semantic drift', () => {
+  const expected = {
+    evidence_kind: 'candidate_source_pack',
+    package: CORE,
+    version: '0.19.0',
+    git_head: 'a'.repeat(40),
+    pack: { status: 'strict', reproducible_runs: 2 },
+    files: { 'src/runtime-contract.js': 'b'.repeat(64) },
+  };
+  const reordered = Object.fromEntries(Object.entries(expected).reverse());
+  assert.deepEqual(assertEvidenceDocument(JSON.stringify(reordered), expected), reordered);
+
+  for (const mutation of [
+    (candidate) => {
+      delete candidate.pack.reproducible_runs;
+    },
+    (candidate) => {
+      candidate.extra = true;
+    },
+    (candidate) => {
+      candidate.files['src/runtime-contract.js'] = 'c'.repeat(64);
+    },
+  ]) {
+    const candidate = cloneJson(expected);
+    mutation(candidate);
+    assert.throws(
+      () => assertEvidenceDocument(JSON.stringify(candidate, null, 4), expected),
+      /Core candidate evidence is stale/,
+    );
+  }
+  assert.throws(() => assertEvidenceDocument('{', expected), /must be one valid JSON document/);
 });
 
 test('binding completeness rejects omissions, extras, duplicate copies, and hostile lock paths', (t) => {

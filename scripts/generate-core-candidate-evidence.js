@@ -2,6 +2,7 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const assert = require('node:assert/strict');
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -25,6 +26,7 @@ const {
   coreSourcePackArguments,
   inspectCoreSourceAuthority,
   materializeCoreCommitPackage,
+  readCoreCommitFile,
 } = require('./core-source-authority');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -45,6 +47,12 @@ const FILES = [
 
 function digest(algorithm, value, encoding = 'hex') {
   return crypto.createHash(algorithm).update(value).digest(encoding);
+}
+
+function sourceFileHashes(authority, files = FILES) {
+  return Object.fromEntries(
+    files.map((file) => [file, digest('sha256', readCoreCommitFile(authority, file))]),
+  );
 }
 
 function runTrustedNpm(invocation, args, options = {}) {
@@ -95,12 +103,7 @@ function sourceFacts() {
     packageRoot: authority.packageRoot,
     packageJson,
     head,
-    files: Object.fromEntries(
-      FILES.map((file) => [
-        file,
-        digest('sha256', fs.readFileSync(path.join(authority.packageRoot, file))),
-      ]),
-    ),
+    files: sourceFileHashes(authority),
   };
 }
 
@@ -210,11 +213,20 @@ function checkedEvidence() {
   return expectedEvidence(sourceFacts(), boundPackEvidence());
 }
 
-function verifyEvidence() {
-  const expected = `${JSON.stringify(checkedEvidence(), null, 2)}\n`;
-  if (!fs.existsSync(OUTPUT) || fs.readFileSync(OUTPUT, 'utf8') !== expected) {
-    throw new Error('Core candidate evidence is stale. Run with --write.');
+function assertEvidenceDocument(text, expected) {
+  let actual;
+  try {
+    actual = JSON.parse(text);
+  } catch {
+    throw new Error('Core candidate evidence must be one valid JSON document.');
   }
+  assert.deepStrictEqual(actual, expected, 'Core candidate evidence is stale. Run with --write.');
+  return actual;
+}
+
+function verifyEvidence() {
+  if (!fs.existsSync(OUTPUT)) throw new Error('Core candidate evidence is missing.');
+  assertEvidenceDocument(fs.readFileSync(OUTPUT, 'utf8'), checkedEvidence());
   verifyCandidateBinding(ROOT);
 }
 
@@ -235,8 +247,10 @@ function main() {
 if (require.main === module) main();
 
 module.exports = {
+  assertEvidenceDocument,
   assertSourceFactsUnchanged,
   buildEvidence,
   checkedEvidence,
+  sourceFileHashes,
   verifyEvidence,
 };
