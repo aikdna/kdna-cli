@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
+const { readTarFileEntries, resolveTrustedNpmInvocation } = require('./runtime-candidate-binding');
 
 const PACKAGED_ROOTS = Object.freeze([
   'src',
@@ -115,21 +116,48 @@ function scanCurrentProtocolNames(root) {
 }
 
 function scanPackedArtifact(root) {
-  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-protocol-pack-'));
+  const temporary = fs.realpathSync(
+    fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-protocol-pack-')),
+  );
+  const npm = resolveTrustedNpmInvocation(root);
   try {
-    const tarballName = execFileSync(
-      'npm',
-      ['pack', '--silent', '--ignore-scripts', '--pack-destination', temporary],
-      { cwd: root, encoding: 'utf8' },
-    ).trim();
-    const tarball = path.join(temporary, tarballName.split(/\r?\n/).at(-1));
-    execFileSync('tar', ['-xzf', tarball, '-C', temporary]);
+    const reports = JSON.parse(
+      execFileSync(
+        npm.command,
+        [
+          ...npm.prefixArgs,
+          'pack',
+          '--json',
+          '--ignore-scripts',
+          '--pack-destination',
+          temporary,
+          '--registry=https://registry.npmjs.org/',
+          '--@aikdna:registry=https://registry.npmjs.org/',
+        ],
+        { cwd: root, encoding: 'utf8' },
+      ),
+    );
+    if (reports.length !== 1 || typeof reports[0]?.filename !== 'string') {
+      throw new Error('current protocol pack must produce one artifact');
+    }
+    const tarball = path.join(temporary, reports[0].filename);
     const packageRoot = path.join(temporary, 'package');
+    fs.mkdirSync(packageRoot);
+    for (const entry of readTarFileEntries(tarball)) {
+      if (!entry.path.startsWith('package/')) {
+        throw new Error('current protocol pack path is invalid: ' + entry.path);
+      }
+      const relative = entry.path.slice('package/'.length);
+      const target = path.join(packageRoot, ...relative.split('/'));
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, entry.bytes, { flag: 'wx' });
+    }
     return scanPaths(packageRoot, PACKAGED_ROOTS, PACKAGED_FILES).map((issue) => ({
       ...issue,
       file: `npm-pack/${issue.file}`,
     }));
   } finally {
+    npm.dispose();
     fs.rmSync(temporary, { recursive: true, force: true });
   }
 }

@@ -16,6 +16,13 @@ const {
   resolveTrustedNpmInvocation,
   verifyCandidateBinding,
 } = require('./runtime-candidate-binding');
+const {
+  assertCoreSourceAuthorityUnchanged,
+  coreSourcePackArguments,
+  inspectCoreSourceAuthority,
+  materializeCoreCommitPackage,
+} = require('./core-source-authority');
+const { initializeTrustedGitFixture, runTrustedGit } = require('./trusted-git');
 
 const ROOT = path.resolve(__dirname, '..');
 
@@ -37,7 +44,7 @@ function run(command, args, options = {}) {
 
 function packOnce(packageRoot, destination, npm) {
   const report = JSON.parse(
-    run(npm.command, [...npm.prefixArgs, 'pack', '--json', '--pack-destination', destination], {
+    run(npm.command, [...npm.prefixArgs, ...coreSourcePackArguments(destination)], {
       cwd: packageRoot,
     }),
   );
@@ -60,39 +67,83 @@ function copyCandidateCli(destination) {
 }
 
 function verifyCandidateSource(sourceRoot) {
-  const packageJson = JSON.parse(fs.readFileSync(path.join(sourceRoot, 'package.json'), 'utf8'));
+  const authority = inspectCoreSourceAuthority(sourceRoot, readPinnedCoreCommit(ROOT));
+  const packageJson = authority.packageJson;
   assert.equal(packageJson.name, CORE_CANDIDATE_PACKAGE);
   assert.equal(packageJson.version, CORE_CANDIDATE_VERSION);
-  const repository = path.resolve(sourceRoot, '..', '..');
-  const head = run('git', ['-C', repository, 'rev-parse', 'HEAD']).trim();
-  assert.equal(head, readPinnedCoreCommit(ROOT), 'Core source must match the exact CI commit pin');
-  assert.equal(
-    run('git', ['-C', repository, 'status', '--porcelain=v1']).trim(),
-    '',
-    'Core source worktree must be clean',
+  return authority;
+}
+
+function verifyLifecycleScriptsAreDisabled(temporary, npm) {
+  const hostilePackage = path.join(temporary, 'hostile-lifecycle-package');
+  const destination = path.join(temporary, 'hostile-lifecycle-output');
+  const marker = path.join(temporary, 'prepack-marker');
+  fs.mkdirSync(hostilePackage);
+  fs.mkdirSync(destination);
+  fs.writeFileSync(
+    path.join(hostilePackage, 'package.json'),
+    `${JSON.stringify(
+      {
+        name: 'kdna-hostile-lifecycle-check',
+        version: '1.0.0',
+        scripts: { prepack: 'node prepack.js' },
+      },
+      null,
+      2,
+    )}\n`,
   );
+  fs.writeFileSync(
+    path.join(hostilePackage, 'prepack.js'),
+    `'use strict';\nrequire('node:fs').writeFileSync(${JSON.stringify(marker)}, 'executed');\n`,
+  );
+  packOnce(hostilePackage, destination, npm);
+  assert.equal(
+    fs.existsSync(marker),
+    false,
+    'npm pack must never execute package lifecycle scripts',
+  );
+}
+
+function createNpmPathShadow(temporary) {
+  const shadow = path.join(temporary, 'hostile-path');
+  const marker = path.join(temporary, 'path-npm-marker');
+  fs.mkdirSync(shadow);
+  if (process.platform === 'win32') {
+    fs.writeFileSync(
+      path.join(shadow, 'npm.cmd'),
+      `@echo off\r\n>"${marker}" echo executed\r\nexit /b 0\r\n`,
+    );
+  } else {
+    const executable = path.join(shadow, 'npm');
+    fs.writeFileSync(executable, `#!/bin/sh\nprintf executed > ${JSON.stringify(marker)}\n`);
+    fs.chmodSync(executable, 0o755);
+  }
+  return { marker, shadow };
 }
 
 function main() {
   const sourceRoot = process.env.KDNA_CORE_SOURCE_ROOT;
   if (!sourceRoot) throw new Error('KDNA_CORE_SOURCE_ROOT is required.');
   const absoluteSource = path.resolve(sourceRoot);
-  verifyCandidateSource(absoluteSource);
+  const sourceAuthority = verifyCandidateSource(absoluteSource);
   const npm = resolveTrustedNpmInvocation(ROOT);
 
-  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-core-tar-'));
+  const temporary = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-core-tar-')));
   try {
+    verifyLifecycleScriptsAreDisabled(temporary, npm);
     const firstDirectory = path.join(temporary, 'first');
     const secondDirectory = path.join(temporary, 'second');
     const cliCopy = path.join(temporary, 'cli');
     const cache = path.join(temporary, 'empty-cache');
-    for (const directory of [firstDirectory, secondDirectory, cache]) {
+    const isolatedSource = path.join(temporary, 'core-commit-package');
+    for (const directory of [firstDirectory, secondDirectory, cache, isolatedSource]) {
       fs.mkdirSync(directory, { recursive: true });
     }
 
-    const first = packOnce(absoluteSource, firstDirectory, npm);
-    const second = packOnce(absoluteSource, secondDirectory, npm);
-    verifyCandidateSource(absoluteSource);
+    materializeCoreCommitPackage(sourceAuthority, isolatedSource);
+    const first = packOnce(isolatedSource, firstDirectory, npm);
+    const second = packOnce(isolatedSource, secondDirectory, npm);
+    assertCoreSourceAuthorityUnchanged(sourceAuthority, verifyCandidateSource(absoluteSource));
     assert.ok(first.bytes.equals(second.bytes), 'two Core candidate packs must be byte-identical');
     assert.equal(first.metadata.name, CORE_CANDIDATE_PACKAGE);
     assert.equal(first.metadata.version, CORE_CANDIDATE_VERSION);
@@ -105,8 +156,8 @@ function main() {
     );
 
     copyCandidateCli(cliCopy);
-    run('git', ['init', '--quiet'], { cwd: cliCopy });
-    run('git', ['add', '--all'], { cwd: cliCopy });
+    initializeTrustedGitFixture(cliCopy);
+    runTrustedGit(cliCopy, ['add', '--all']);
     const packagePath = path.join(cliCopy, 'package.json');
     const lockPath = path.join(cliCopy, 'package-lock.json');
     const packageBefore = fs.readFileSync(packagePath);
@@ -171,16 +222,24 @@ function main() {
     ]) {
       delete env[name];
     }
-    run(npm.command, [...npm.prefixArgs, 'test'], {
+    const npmShadow = createNpmPathShadow(temporary);
+    env.PATH = `${npmShadow.shadow}${path.delimiter}${env.PATH || ''}`;
+    run(process.execPath, ['scripts/run-complete-suite.js', '--complete'], {
       cwd: cliCopy,
       env,
       stdio: 'inherit',
     });
+    assert.equal(
+      fs.existsSync(npmShadow.marker),
+      false,
+      'complete candidate test suite must not resolve npm through PATH',
+    );
 
     console.log(
       `Exact Core candidate tar verified: ${CORE_CANDIDATE_PACKAGE}@${CORE_CANDIDATE_VERSION} ${readPinnedCoreCommit(ROOT).slice(0, 12)}`,
     );
   } finally {
+    npm.dispose();
     fs.rmSync(temporary, { recursive: true, force: true });
   }
 }

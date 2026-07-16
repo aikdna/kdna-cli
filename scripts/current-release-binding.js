@@ -1,10 +1,10 @@
 'use strict';
 
-const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const { validateReleaseEvidence } = require('./release-evidence');
 const { validateReleaseContext } = require('./release-policy');
+const { assertTrustedIndexIsOrdinary, runTrustedGit } = require('./trusted-git');
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -21,12 +21,9 @@ function validateCurrentReleaseBinding({ evidence: rawEvidence, pkg, changelog, 
 }
 
 function readCurrentReleaseBinding({ root, evidence, env = process.env }) {
+  assertTrustedIndexIsOrdinary(root);
   function git(args) {
-    return execFileSync('git', args, {
-      cwd: root,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    }).trim();
+    return runTrustedGit(root, args).trim();
   }
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const changelog = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
@@ -37,7 +34,7 @@ function readCurrentReleaseBinding({ root, evidence, env = process.env }) {
     changelog,
     env,
     git: {
-      status: git(['status', '--porcelain=v1', '--untracked-files=all']),
+      status: git(['status', '--porcelain', '--untracked-files=all']),
       head: git(['rev-parse', 'HEAD']),
       tagCommit: git(['rev-parse', `${tag}^{commit}`]),
     },

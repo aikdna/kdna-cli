@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const zlib = require('node:zlib');
@@ -13,6 +14,9 @@ const {
 } = require('./core-candidate');
 
 const BINDING_PATH = 'tests/fixtures/runtime-candidates/binding.json';
+const TRUSTED_NPM_ARCHIVE_INTEGRITY =
+  'sha512-PurxiZexEHDTE4SSaLI3ZrnbAGiZfeyUcQcxcP5D+hfytNAze/D1IzDuInTn9XVLIbAQUnQuSPXJx02LHjLvQw==';
+const TRUSTED_NPM_ENTRY_COUNT = 1938;
 const AIKDNA_PACKAGE_RE = /^@aikdna\/[a-z0-9][a-z0-9._-]*$/;
 const COMMIT_RE = /^[0-9a-f]{40}$/;
 const SEMVER_RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
@@ -43,74 +47,125 @@ function isWithin(parent, candidate) {
   return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
 }
 
-function resolveTrustedNpmInvocation(
-  root,
-  npmExecPath = process.env.npm_execpath,
-  nodeExecPath = process.execPath,
-) {
-  assert(
-    typeof npmExecPath === 'string' && path.isAbsolute(npmExecPath),
-    'trusted npm_execpath must be absolute',
-  );
+function resolveTrustedNpmInvocation(root, options = {}) {
+  const nodeExecPath = options.nodeExecPath || process.execPath;
   assert(path.isAbsolute(nodeExecPath), 'trusted Node executable path must be absolute');
-  for (const [file, label] of [
-    [npmExecPath, 'npm CLI'],
-    [nodeExecPath, 'Node executable'],
-  ]) {
-    const stat = fs.lstatSync(file);
-    assert(stat.isFile() && !stat.isSymbolicLink(), `${label} must be a regular non-symlink file`);
-    assert(fs.realpathSync(file) === file, `${label} path must be canonical`);
-  }
+  const nodeStat = fs.lstatSync(nodeExecPath);
+  assert(
+    nodeStat.isFile() && !nodeStat.isSymbolicLink(),
+    'trusted Node executable must be a regular non-symlink file',
+  );
+  assert(fs.realpathSync(nodeExecPath) === nodeExecPath, 'trusted Node path must be canonical');
+
   const rootReal = fs.realpathSync(root);
-  assert(!isWithin(rootReal, npmExecPath), 'trusted npm CLI must be outside the repository');
-  assert(path.basename(npmExecPath) === 'npm-cli.js', 'trusted npm CLI filename is invalid');
-  const npmRoot = path.resolve(path.dirname(npmExecPath), '..');
-  const npmManifestPath = path.join(npmRoot, 'package.json');
-  const npmManifestStat = fs.lstatSync(npmManifestPath);
-  assert(
-    npmManifestStat.isFile() && !npmManifestStat.isSymbolicLink(),
-    'trusted npm package manifest must be a regular non-symlink file',
-  );
-  assert(
-    fs.realpathSync(npmManifestPath) === npmManifestPath,
-    'trusted npm package manifest path must be canonical',
-  );
-  const npmManifest = readJson(npmManifestPath);
-  assert(
-    npmManifest.name === 'npm' && npmManifest.version === '11.17.0',
-    'trusted npm release client must be npm 11.17.0',
-  );
-  return Object.freeze({ command: nodeExecPath, prefixArgs: Object.freeze([npmExecPath]) });
+  const downloader = path.join(rootReal, 'scripts', 'download-trusted-npm.js');
+  assertAuthorityFile(downloader, downloader, 'trusted npm downloader');
+  const workspace = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-trusted-npm-')));
+  fs.chmodSync(workspace, 0o700);
+  try {
+    const archivePath = path.join(workspace, 'npm-11.17.0.tgz');
+    if (options.archiveBytes) {
+      fs.writeFileSync(archivePath, options.archiveBytes, { flag: 'wx', mode: 0o600 });
+    } else {
+      const download = spawnSync(nodeExecPath, [downloader, archivePath], {
+        encoding: 'utf8',
+        maxBuffer: 1024 * 1024,
+        shell: false,
+        timeout: 35_000,
+      });
+      assert(download && !download.error, 'trusted npm archive download failed');
+      assert(
+        download.status === 0 && download.signal == null,
+        'trusted npm archive download was not successful',
+      );
+      assert(download.stdout === '' && download.stderr === '', 'trusted npm downloader was noisy');
+    }
+    assertAuthorityFile(archivePath, archivePath, 'trusted npm archive');
+    const archiveBytes = fs.readFileSync(archivePath);
+    const integrity = `sha512-${digest(archiveBytes, 'sha512', 'base64')}`;
+    assert(integrity === TRUSTED_NPM_ARCHIVE_INTEGRITY, 'trusted npm archive integrity mismatch');
+    const entries = readTarFileEntriesFromBytes(archiveBytes, 'trusted npm archive');
+    assert(entries.length === TRUSTED_NPM_ENTRY_COUNT, 'trusted npm archive entry count mismatch');
+
+    const npmRoot = path.join(workspace, 'npm');
+    fs.mkdirSync(npmRoot, { mode: 0o700 });
+    for (const entry of entries) {
+      assert(entry.path.startsWith('package/'), `trusted npm archive path invalid: ${entry.path}`);
+      const relative = entry.path.slice('package/'.length);
+      assert(relative, 'trusted npm archive contains an empty package path');
+      const target = path.join(npmRoot, ...relative.split('/'));
+      assert(
+        target.startsWith(`${npmRoot}${path.sep}`),
+        `trusted npm archive path escapes extraction root: ${entry.path}`,
+      );
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, entry.bytes, { flag: 'wx', mode: 0o600 });
+      const stat = fs.lstatSync(target);
+      assert(
+        stat.isFile() && !stat.isSymbolicLink() && stat.nlink === 1,
+        `trusted npm extracted file is invalid: ${entry.path}`,
+      );
+    }
+
+    const npmExecPath = path.join(npmRoot, 'bin', 'npm-cli.js');
+    const npmManifestPath = path.join(npmRoot, 'package.json');
+    assertAuthorityFile(npmExecPath, npmExecPath, 'trusted npm CLI');
+    assertAuthorityFile(npmManifestPath, npmManifestPath, 'trusted npm package manifest');
+    assert(!isWithin(rootReal, npmExecPath), 'trusted npm CLI must be outside the repository');
+    const npmManifest = readJson(npmManifestPath);
+    assert(
+      npmManifest.name === 'npm' && npmManifest.version === '11.17.0',
+      'trusted npm archive package identity mismatch',
+    );
+    let disposed = false;
+    return Object.freeze({
+      command: nodeExecPath,
+      prefixArgs: Object.freeze([npmExecPath]),
+      dispose() {
+        if (disposed) return;
+        disposed = true;
+        fs.rmSync(workspace, { recursive: true, force: true });
+      },
+    });
+  } catch (error) {
+    fs.rmSync(workspace, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 function strictRegistryLookup(name, version, options = {}) {
   const runner = options.runner || spawnSync;
-  const invocation = resolveTrustedNpmInvocation(
-    options.root || path.resolve(__dirname, '..'),
-    options.npmExecPath,
-    options.nodeExecPath,
-  );
-  const result = runner(
-    invocation.command,
-    [
-      ...invocation.prefixArgs,
-      'view',
-      `${name}@${version}`,
-      'name',
-      'version',
-      'dist.integrity',
-      '--json',
-      '--loglevel=silent',
-      '--registry=https://registry.npmjs.org/',
-      '--@aikdna:registry=https://registry.npmjs.org/',
-    ],
-    {
-      encoding: 'utf8',
-      maxBuffer: 1024 * 1024,
-      shell: false,
-      timeout: 30_000,
-    },
-  );
+  const invocation =
+    options.invocation ||
+    resolveTrustedNpmInvocation(options.root || path.resolve(__dirname, '..'), {
+      nodeExecPath: options.nodeExecPath,
+    });
+  let result;
+  try {
+    result = runner(
+      invocation.command,
+      [
+        ...invocation.prefixArgs,
+        'view',
+        `${name}@${version}`,
+        'name',
+        'version',
+        'dist.integrity',
+        '--json',
+        '--loglevel=silent',
+        '--registry=https://registry.npmjs.org/',
+        '--@aikdna:registry=https://registry.npmjs.org/',
+      ],
+      {
+        encoding: 'utf8',
+        maxBuffer: 1024 * 1024,
+        shell: false,
+        timeout: 30_000,
+      },
+    );
+  } finally {
+    if (!options.invocation) invocation.dispose();
+  }
   assert(result && !result.error, 'registry dependency lookup failed');
   assert(
     result.status === 0 && result.signal == null,
@@ -173,12 +228,12 @@ function tarOctal(block, offset, length, label) {
   return value;
 }
 
-function readTarFileEntries(artifact) {
+function readTarFileEntriesFromBytes(compressed, label = 'candidate tar') {
   let archive;
   try {
-    archive = zlib.gunzipSync(fs.readFileSync(artifact), { maxOutputLength: 64 * 1024 * 1024 });
+    archive = zlib.gunzipSync(compressed, { maxOutputLength: 64 * 1024 * 1024 });
   } catch {
-    throw new Error('candidate tar gzip stream is invalid');
+    throw new Error(`${label} gzip stream is invalid`);
   }
   const entries = [];
   const paths = new Set();
@@ -232,6 +287,10 @@ function readTarFileEntries(artifact) {
   assert(terminated, 'candidate tar end marker is missing');
   assert(entries.length > 0, 'candidate tar contains no regular files');
   return Object.freeze(entries);
+}
+
+function readTarFileEntries(artifact) {
+  return readTarFileEntriesFromBytes(fs.readFileSync(artifact));
 }
 
 function tarPackageManifest(artifact) {

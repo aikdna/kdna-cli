@@ -6,6 +6,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const cbor = require('cbor-x');
+const { readPinnedCoreCommit } = require('./core-candidate');
+const { inspectCoreSourceAuthority } = require('./core-source-authority');
 
 const ROOT = path.resolve(__dirname, '..');
 const OUTPUT = path.join(ROOT, 'tests', 'fixtures', 'golden-single-asset-host-contract.json');
@@ -15,15 +17,8 @@ const FIXED_TIME = '2026-07-15T00:00:00.000Z';
 
 function corePackageRoot() {
   const sourceRoot = process.env.KDNA_CORE_SOURCE_ROOT || process.env.KDNA_GOLDEN_CORE_ROOT;
-  if (sourceRoot) return path.resolve(sourceRoot);
-  return path.dirname(require.resolve('@aikdna/kdna-core/package.json'));
-}
-
-function gitHead(packageRoot) {
-  const repository = path.resolve(packageRoot, '..', '..');
-  return require('node:child_process')
-    .execFileSync('git', ['-C', repository, 'rev-parse', 'HEAD'], { encoding: 'utf8' })
-    .trim();
+  if (!sourceRoot) throw new Error('KDNA_CORE_SOURCE_ROOT is required for Golden evidence.');
+  return path.resolve(sourceRoot);
 }
 
 function sha256(value) {
@@ -42,6 +37,7 @@ function normalizedCapsule(capsule, assetBytes) {
 
 function buildContract() {
   const packageRoot = corePackageRoot();
+  const authority = inspectCoreSourceAuthority(packageRoot, readPinnedCoreCommit(ROOT));
   const core = require(path.join(packageRoot, 'src'));
   const source = JSON.parse(
     fs.readFileSync(path.join(packageRoot, 'test', 'fixtures', 'golden-single-asset.json'), 'utf8'),
@@ -71,7 +67,7 @@ function buildContract() {
       provenance: {
         contract_id: source.contract_id,
         core_repository: 'https://github.com/aikdna/kdna',
-        core_commit: gitHead(packageRoot).slice(0, 7),
+        core_commit: authority.head.slice(0, 7),
         core_fixture_path: 'packages/kdna-core/test/fixtures/golden-single-asset.json',
         dynamic_field_normalization: {
           'trace.loaded_at': NORMALIZED_TIME,

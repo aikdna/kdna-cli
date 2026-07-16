@@ -2,7 +2,6 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const {
@@ -10,6 +9,7 @@ const {
   CORE_CANDIDATE_VERSION,
   readPinnedCoreCommit,
 } = require('./core-candidate');
+const { inspectCoreSourceAuthority } = require('./core-source-authority');
 
 const ROOT = path.resolve(__dirname, '..');
 
@@ -19,25 +19,15 @@ function isWithin(parent, child) {
 }
 
 function verifyCoreSourceDependencies(sourceRoot) {
-  const packageRoot = fs.realpathSync(path.resolve(sourceRoot));
-  const repository = fs.realpathSync(path.resolve(packageRoot, '..', '..'));
+  const authority = inspectCoreSourceAuthority(
+    path.resolve(sourceRoot),
+    readPinnedCoreCommit(ROOT),
+  );
+  const { packageJson, packageRoot, repository } = authority;
   const candidateNodeModules = fs.realpathSync(path.join(repository, 'node_modules'));
-  const packageJson = JSON.parse(fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'));
 
   assert.equal(packageJson.name, CORE_CANDIDATE_PACKAGE);
   assert.equal(packageJson.version, CORE_CANDIDATE_VERSION);
-  assert.equal(
-    execFileSync('git', ['-C', repository, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
-    readPinnedCoreCommit(ROOT),
-    'Core source must match the exact CI commit pin',
-  );
-  assert.equal(
-    execFileSync('git', ['-C', repository, 'status', '--porcelain=v1'], {
-      encoding: 'utf8',
-    }).trim(),
-    '',
-    'Core source worktree must remain clean after dependency installation',
-  );
 
   const verified = [];
   for (const dependency of Object.keys(packageJson.dependencies || {}).sort()) {

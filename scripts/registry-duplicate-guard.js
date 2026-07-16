@@ -38,12 +38,14 @@ function main() {
     fs.readFileSync(path.resolve(process.argv[evidenceIndex + 1]), 'utf8'),
   );
   const root = path.resolve(__dirname, '..');
+  const tarball = fs.readFileSync(path.resolve(process.argv[artifactIndex + 1]));
+  readCurrentReleaseBinding({ root, evidence });
+  validateEvidenceArtifact(evidence, tarball);
   const npmInvocation = resolveTrustedNpmInvocation(root);
-  const decision = guardCandidate({
-    evidence,
-    tarball: fs.readFileSync(path.resolve(process.argv[artifactIndex + 1])),
-    bindCurrent: (candidate) => readCurrentReleaseBinding({ root, evidence: candidate }),
-    lookup: (spec) =>
+  let decision;
+  try {
+    const spec = `${evidence.package.name}@${evidence.package.version}`;
+    decision = evaluateRegistryResult(
       spawnSync(
         npmInvocation.command,
         [
@@ -66,7 +68,11 @@ function main() {
           timeout: 30_000,
         },
       ),
-  });
+      evidence,
+    );
+  } finally {
+    npmInvocation.dispose();
+  }
   if (process.env.GITHUB_OUTPUT) {
     fs.appendFileSync(
       process.env.GITHUB_OUTPUT,

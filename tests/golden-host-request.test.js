@@ -2,12 +2,14 @@
 
 const { after, test } = require('node:test');
 const assert = require('node:assert/strict');
-const { execFileSync, spawnSync } = require('node:child_process');
+const { spawnSync } = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const cbor = require('cbor-x');
+const { readPinnedCoreCommit } = require('../scripts/core-candidate');
+const { inspectCoreSourceAuthority } = require('../scripts/core-source-authority');
 
 const contract = require('./fixtures/golden-single-asset-host-contract.json');
 
@@ -135,10 +137,10 @@ function writeRegistration(host) {
 
 test('Golden Runtime Capsule reaches the real process Host without semantic loss', () => {
   const core = requireCandidateCore();
-  const coreRepository = path.resolve(CORE_ROOT, '..', '..');
-  const actualCommit = execFileSync('git', ['-C', coreRepository, 'rev-parse', 'HEAD'], {
-    encoding: 'utf8',
-  }).trim();
+  const actualCommit = inspectCoreSourceAuthority(
+    CORE_ROOT,
+    readPinnedCoreCommit(path.resolve(__dirname, '..')),
+  ).head;
   assert.ok(actualCommit.startsWith(contract.provenance.core_commit));
 
   const upstreamFixture = JSON.parse(

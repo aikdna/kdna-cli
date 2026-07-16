@@ -1,7 +1,14 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const { test } = require('node:test');
+const { trustedGitEnvironment } = require('../scripts/trusted-git');
+
+const ROOT = path.resolve(__dirname, '..');
 
 const EVIDENCE_PATH = 'tests/fixtures/core-0.19-candidate-evidence.json';
 const BINDING_PATH = 'tests/fixtures/runtime-candidates/binding.json';
@@ -154,4 +161,64 @@ test('public-surface path exclusions distinguish exact files from prefixes', asy
   assert.equal(isRulePathExcluded('ecosystem-manifest.json.private', rule), false);
   assert.equal(isRulePathExcluded('.github/workflows/ci.yml', rule), true);
   assert.equal(isRulePathExcluded('docs/.github/workflows/ci.yml', rule), false);
+});
+
+test('public-surface scan ignores hostile Git repository and index redirection', (t) => {
+  const source = fs.readFileSync(path.join(ROOT, 'scripts/check-public-surface.mjs'), 'utf8');
+  assert.match(source, /readTrustedIndexEntries\(ROOT\)/);
+  const fixture = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-public-git-')));
+  const poison = path.join(fixture, 'poison');
+  t.after(() => fs.rmSync(fixture, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(fixture, 'scripts'), { recursive: true });
+  for (const file of [
+    'check-public-surface.mjs',
+    'public-surface-policy.mjs',
+    'public-surface.config.json',
+    'trusted-git.js',
+  ]) {
+    fs.copyFileSync(path.join(ROOT, 'scripts', file), path.join(fixture, 'scripts', file));
+  }
+  fs.writeFileSync(path.join(fixture, 'safe.txt'), 'safe\n');
+  const git = (args) => {
+    const result = spawnSync('git', ['-C', fixture, ...args], {
+      encoding: 'utf8',
+      env: trustedGitEnvironment(),
+      shell: false,
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+  };
+  git(['init', '--quiet']);
+  git(['config', 'user.email', 'test@example.invalid']);
+  git(['config', 'user.name', 'KDNA Test']);
+  git(['add', '--all']);
+  git(['commit', '--quiet', '-m', 'test: public surface fixture']);
+  const hostileEnvironment = {
+    ...process.env,
+    GIT_CONFIG_COUNT: '1',
+    GIT_CONFIG_GLOBAL: path.join(poison, 'config'),
+    GIT_CONFIG_KEY_0: 'core.useReplaceRefs',
+    GIT_CONFIG_VALUE_0: 'true',
+    GIT_DIR: path.join(poison, '.git'),
+    GIT_INDEX_FILE: path.join(poison, 'index'),
+    GIT_OBJECT_DIRECTORY: path.join(poison, 'objects'),
+    GIT_WORK_TREE: poison,
+  };
+  const result = spawnSync(process.execPath, ['scripts/check-public-surface.mjs'], {
+    cwd: fixture,
+    encoding: 'utf8',
+    env: hostileEnvironment,
+    shell: false,
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /public-surface check passed:/);
+  git(['update-index', '--assume-unchanged', 'safe.txt']);
+  fs.writeFileSync(path.join(fixture, 'safe.txt'), 'masked working tree bytes\n');
+  const hidden = spawnSync(process.execPath, ['scripts/check-public-surface.mjs'], {
+    cwd: fixture,
+    encoding: 'utf8',
+    env: hostileEnvironment,
+    shell: false,
+  });
+  assert.notEqual(hidden.status, 0);
+  assert.match(hidden.stderr, /hidden or non-ordinary state/);
 });

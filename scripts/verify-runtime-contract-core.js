@@ -6,6 +6,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
+const { inspectCoreSourceAuthority } = require('./core-source-authority');
 const {
   CORE_CANDIDATE_EVIDENCE_PATH,
   CORE_CANDIDATE_PACKAGE,
@@ -34,7 +35,8 @@ execFileSync(
 const evidence = JSON.parse(fs.readFileSync(evidencePath, 'utf8'));
 const packageJson = require('../package.json');
 const packageLock = require('../package-lock.json');
-const candidateRoot = path.resolve(sourceRoot);
+const authority = inspectCoreSourceAuthority(path.resolve(sourceRoot), readPinnedCoreCommit(root));
+const candidateRoot = authority.packageRoot;
 
 function digest(file) {
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -55,11 +57,7 @@ const candidatePackage = JSON.parse(
 );
 assert.equal(candidatePackage.name, evidence.package);
 assert.equal(candidatePackage.version, evidence.version);
-const repository = path.resolve(candidateRoot, '..', '..');
-const sourceCommit = execFileSync('git', ['-C', repository, 'rev-parse', 'HEAD'], {
-  encoding: 'utf8',
-}).trim();
-assert.equal(sourceCommit, evidence.git_head, 'candidate Core source commit');
+assert.equal(authority.head, evidence.git_head, 'candidate Core source commit');
 for (const [relative, expected] of Object.entries(evidence.files)) {
   assert.equal(
     digest(path.join(candidateRoot, relative)),

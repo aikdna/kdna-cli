@@ -21,7 +21,17 @@ const {
   CORE_CANDIDATE_EVIDENCE_PATH,
   CORE_CANDIDATE_WORKFLOW_PATH,
 } = require('../scripts/core-candidate');
+const {
+  coreSourcePackArguments,
+  inspectCoreSourceAuthority,
+  materializeCoreCommitPackage,
+} = require('../scripts/core-source-authority');
 const { assertSourceFactsUnchanged } = require('../scripts/generate-core-candidate-evidence');
+const {
+  materializeTrustedCommit,
+  readTrustedCommitTree,
+  trustedGitEnvironment,
+} = require('../scripts/trusted-git');
 
 const ROOT = path.resolve(__dirname, '..');
 const CORE = '@aikdna/kdna-core';
@@ -70,21 +80,55 @@ function createCanonicalInstalledGraph(root) {
   writeInstalledPackage(root, EVAL, EVAL, '0.3.1');
 }
 
-function createTrustedNpmFixture(t, manifest = { name: 'npm', version: '11.17.0' }) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-trusted-npm-'));
+function git(repository, args) {
+  const result = spawnSync('git', ['-C', repository, ...args], {
+    encoding: 'utf8',
+    env: trustedGitEnvironment(),
+    shell: false,
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  return result.stdout.trim();
+}
+
+function gitBuffer(repository, args, input) {
+  const result = spawnSync('git', ['-C', repository, ...args], {
+    encoding: 'buffer',
+    env: trustedGitEnvironment(),
+    input,
+    shell: false,
+  });
+  assert.equal(result.status, 0, (result.stderr || result.stdout).toString('utf8'));
+  return result.stdout;
+}
+
+function createCoreSourceFixture(t) {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-core-source-')));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const npmRoot = path.join(root, 'npm');
-  const npmExecPath = path.join(npmRoot, 'bin/npm-cli.js');
-  fs.mkdirSync(path.dirname(npmExecPath), { recursive: true });
-  fs.writeFileSync(npmExecPath, '#!/usr/bin/env node\n');
-  fs.writeFileSync(path.join(npmRoot, 'package.json'), `${JSON.stringify(manifest)}\n`);
-  return fs.realpathSync(npmExecPath);
+  const repository = path.join(root, 'repository');
+  const packageRoot = path.join(repository, 'packages', 'kdna-core');
+  fs.mkdirSync(packageRoot, { recursive: true });
+  git(repository, ['init', '--quiet']);
+  git(repository, ['config', 'user.email', 'test@example.invalid']);
+  git(repository, ['config', 'user.name', 'KDNA Test']);
+  fs.writeFileSync(path.join(repository, '.gitignore'), 'ignored/\n');
+  fs.writeFileSync(
+    path.join(packageRoot, 'package.json'),
+    `${JSON.stringify({ name: CORE, version: '0.19.0' }, null, 2)}\n`,
+  );
+  fs.writeFileSync(path.join(packageRoot, 'index.js'), "'use strict';\n");
+  git(repository, ['add', '--all']);
+  git(repository, ['commit', '--quiet', '-m', 'test: source authority fixture']);
+  return { root, repository, packageRoot, head: git(repository, ['rev-parse', 'HEAD']) };
 }
 
 function rewriteTarChecksum(header) {
   header.fill(32, 148, 156);
   const checksum = header.reduce((sum, byte) => sum + byte, 0);
   Buffer.from(`${checksum.toString(8).padStart(6, '0')}\0 `).copy(header, 148);
+}
+
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
 }
 
 test('default install binds one exact Core candidate while published Eval stays canonical', () => {
@@ -160,10 +204,11 @@ test('registry release gate checks exact package identity, version, and integrit
   }
 });
 
-test('registry dependency lookup uses one trusted client and fixed exact arguments', (t) => {
+test('registry dependency lookup uses one trusted client and fixed exact arguments', () => {
   const integrity = `sha512-${Buffer.alloc(64).toString('base64')}`;
-  const npmExecPath = createTrustedNpmFixture(t);
-  let invocation;
+  const npmExecPath = path.join(os.tmpdir(), 'verified-npm', 'bin', 'npm-cli.js');
+  const invocation = { command: process.execPath, prefixArgs: [npmExecPath] };
+  let observed;
   const validResult = {
     status: 0,
     signal: null,
@@ -173,22 +218,21 @@ test('registry dependency lookup uses one trusted client and fixed exact argumen
   const lookup = (result = validResult) =>
     strictRegistryLookup(CORE, '0.19.0', {
       root: ROOT,
-      npmExecPath,
-      nodeExecPath: process.execPath,
+      invocation,
       runner: (command, args, options) => {
-        invocation = { command, args, options };
+        observed = { command, args, options };
         return result;
       },
     });
   const metadata = lookup();
   assert.equal(metadata.name, CORE);
-  assert.equal(invocation.command, process.execPath);
-  assert.equal(invocation.args[0], npmExecPath);
-  assert.ok(invocation.args.includes('--registry=https://registry.npmjs.org/'));
-  assert.ok(invocation.args.includes('--@aikdna:registry=https://registry.npmjs.org/'));
-  assert.ok(invocation.args.includes('--loglevel=silent'));
-  assert.equal(invocation.options.shell, false);
-  assert.equal(invocation.options.timeout, 30_000);
+  assert.equal(observed.command, process.execPath);
+  assert.equal(observed.args[0], npmExecPath);
+  assert.ok(observed.args.includes('--registry=https://registry.npmjs.org/'));
+  assert.ok(observed.args.includes('--@aikdna:registry=https://registry.npmjs.org/'));
+  assert.ok(observed.args.includes('--loglevel=silent'));
+  assert.equal(observed.options.shell, false);
+  assert.equal(observed.options.timeout, 30_000);
 
   for (const [mutation, pattern] of [
     [(result) => ({ ...result, status: 1 }), /not successful/],
@@ -214,48 +258,236 @@ test('registry dependency lookup uses one trusted client and fixed exact argumen
   }
 });
 
-test('trusted npm invocation rejects PATH shadows and unpinned or mutable clients', (t) => {
-  const npmExecPath = createTrustedNpmFixture(t);
-  assert.deepEqual(resolveTrustedNpmInvocation(ROOT, npmExecPath, process.execPath), {
-    command: process.execPath,
-    prefixArgs: [npmExecPath],
+test('trusted npm invocation rejects self-reported clients and copied candidate tar bytes', () => {
+  const fakeNpm = Buffer.from(
+    `${JSON.stringify({ name: 'npm', version: '11.17.0' })}\ncopy candidate tar`,
+  );
+  const binding = verifyCandidateBinding(ROOT);
+  const copiedCandidateTar = fs.readFileSync(path.join(ROOT, binding.packages[0].artifact));
+  for (const archiveBytes of [fakeNpm, copiedCandidateTar]) {
+    assert.throws(
+      () =>
+        resolveTrustedNpmInvocation(ROOT, {
+          archiveBytes,
+          npmExecPath: '/tmp/fake/npm-cli.js',
+        }),
+      /archive integrity mismatch/,
+    );
+  }
+  assert.equal(
+    fs
+      .readFileSync(path.join(ROOT, 'scripts/runtime-candidate-binding.js'), 'utf8')
+      .includes('npm_execpath'),
+    false,
+  );
+});
+
+test('source pack arguments disable lifecycle scripts and pin both registries', () => {
+  assert.deepEqual(coreSourcePackArguments('/tmp/output'), [
+    'pack',
+    '--ignore-scripts',
+    '--json',
+    '--pack-destination',
+    '/tmp/output',
+    '--registry=https://registry.npmjs.org/',
+    '--@aikdna:registry=https://registry.npmjs.org/',
+  ]);
+});
+
+test('Core source authority rejects wrong roots, links, and hidden index state', async (t) => {
+  await t.test('canonical clean source', (t) => {
+    const fixture = createCoreSourceFixture(t);
+    const authority = inspectCoreSourceAuthority(fixture.packageRoot, fixture.head);
+    assert.equal(authority.repository, fixture.repository);
+    assert.equal(authority.packageRoot, fixture.packageRoot);
+    assert.equal(authority.head, fixture.head);
   });
 
-  for (const [candidate, pattern] of [
-    [null, /npm_execpath must be absolute/],
-    ['npm', /npm_execpath must be absolute/],
+  await t.test('ignored wrong root', (t) => {
+    const fixture = createCoreSourceFixture(t);
+    const wrongRoot = path.join(fixture.repository, 'ignored', 'packages', 'kdna-core');
+    fs.mkdirSync(wrongRoot, { recursive: true });
+    fs.writeFileSync(
+      path.join(wrongRoot, 'package.json'),
+      `${JSON.stringify({ name: CORE, version: '0.19.0' })}\n`,
+    );
+    assert.throws(
+      () => inspectCoreSourceAuthority(wrongRoot, fixture.head),
+      /package root must be exactly packages\/kdna-core/,
+    );
+  });
+
+  await t.test('canonical package symlink', (t) => {
+    const fixture = createCoreSourceFixture(t);
+    const backing = path.join(fixture.root, 'package-backing');
+    fs.renameSync(fixture.packageRoot, backing);
+    fs.symlinkSync(backing, fixture.packageRoot, 'dir');
+    assert.throws(
+      () => inspectCoreSourceAuthority(fixture.packageRoot, fixture.head),
+      /regular non-symlink directory/,
+    );
+  });
+
+  await t.test('tracked file hard link', (t) => {
+    const fixture = createCoreSourceFixture(t);
+    fs.linkSync(
+      path.join(fixture.packageRoot, 'package.json'),
+      path.join(fixture.root, 'hardlink'),
+    );
+    assert.throws(
+      () => inspectCoreSourceAuthority(fixture.packageRoot, fixture.head),
+      /must have one hard link/,
+    );
+  });
+
+  for (const [name, flag, undo] of [
+    ['assume unchanged', '--assume-unchanged', '--no-assume-unchanged'],
+    ['skip worktree', '--skip-worktree', '--no-skip-worktree'],
   ]) {
-    assert.throws(() => resolveTrustedNpmInvocation(ROOT, candidate, process.execPath), pattern);
+    await t.test(name, (t) => {
+      const fixture = createCoreSourceFixture(t);
+      const tracked = 'packages/kdna-core/package.json';
+      git(fixture.repository, ['update-index', flag, tracked]);
+      assert.throws(
+        () => inspectCoreSourceAuthority(fixture.packageRoot, fixture.head),
+        /hidden or non-ordinary state/,
+      );
+      git(fixture.repository, ['update-index', undo, tracked]);
+    });
   }
 
-  const repoNpmRoot = path.join(ROOT, 'tmp-trusted-npm-rejection');
-  const repoNpmExec = path.join(repoNpmRoot, 'bin/npm-cli.js');
-  t.after(() => fs.rmSync(repoNpmRoot, { recursive: true, force: true }));
-  fs.mkdirSync(path.dirname(repoNpmExec), { recursive: true });
-  fs.writeFileSync(repoNpmExec, '#!/usr/bin/env node\n');
-  fs.writeFileSync(
-    path.join(repoNpmRoot, 'package.json'),
-    `${JSON.stringify({ name: 'npm', version: '11.17.0' })}\n`,
-  );
-  assert.throws(
-    () => resolveTrustedNpmInvocation(ROOT, repoNpmExec, process.execPath),
-    /must be outside the repository/,
-  );
+  await t.test('Git replace ref', (t) => {
+    const fixture = createCoreSourceFixture(t);
+    const original = fs.readFileSync(path.join(fixture.packageRoot, 'index.js'));
+    fs.writeFileSync(
+      path.join(fixture.packageRoot, 'index.js'),
+      "'use strict';\nmodule.exports = 'replaced';\n",
+    );
+    git(fixture.repository, ['add', 'packages/kdna-core/index.js']);
+    git(fixture.repository, ['commit', '--quiet', '-m', 'test: replacement commit']);
+    const replacement = git(fixture.repository, ['rev-parse', 'HEAD']);
+    git(fixture.repository, ['checkout', '--quiet', '--detach', fixture.head]);
+    const authority = inspectCoreSourceAuthority(fixture.packageRoot, fixture.head);
 
-  const wrongVersion = createTrustedNpmFixture(t, { name: 'npm', version: '11.16.0' });
-  assert.throws(
-    () => resolveTrustedNpmInvocation(ROOT, wrongVersion, process.execPath),
-    /must be npm 11\.17\.0/,
-  );
+    const isolated = fs.realpathSync(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-replace-proof-')),
+    );
+    t.after(() => fs.rmSync(isolated, { recursive: true, force: true }));
+    materializeCoreCommitPackage(authority, isolated);
+    assert.ok(original.equals(fs.readFileSync(path.join(isolated, 'index.js'))));
+    git(fixture.repository, ['replace', fixture.head, replacement]);
+    const rejected = fs.realpathSync(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-replace-rejected-')),
+    );
+    t.after(() => fs.rmSync(rejected, { recursive: true, force: true }));
+    assert.throws(
+      () => materializeCoreCommitPackage(authority, rejected),
+      /must not contain Git replace refs/,
+    );
+    assert.throws(
+      () => inspectCoreSourceAuthority(fixture.packageRoot, fixture.head),
+      /must not contain Git replace refs/,
+    );
+  });
 
-  const symlinkRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-npm-link-'));
-  t.after(() => fs.rmSync(symlinkRoot, { recursive: true, force: true }));
-  const symlink = path.join(symlinkRoot, 'npm-cli.js');
-  fs.symlinkSync(npmExecPath, symlink);
-  assert.throws(
-    () => resolveTrustedNpmInvocation(ROOT, symlink, process.execPath),
-    /regular non-symlink/,
-  );
+  await t.test('hostile Git environment', (t) => {
+    const fixture = createCoreSourceFixture(t);
+    const poison = path.join(fixture.root, 'hostile-git-environment');
+    const variables = {
+      GIT_ALTERNATE_OBJECT_DIRECTORIES: path.join(poison, 'alternate-objects'),
+      GIT_CONFIG_COUNT: '1',
+      GIT_CONFIG_GLOBAL: path.join(poison, 'global-config'),
+      GIT_CONFIG_KEY_0: 'core.useReplaceRefs',
+      GIT_CONFIG_SYSTEM: path.join(poison, 'system-config'),
+      GIT_CONFIG_VALUE_0: 'true',
+      GIT_DIR: path.join(poison, '.git'),
+      GIT_INDEX_FILE: path.join(poison, 'index'),
+      GIT_OBJECT_DIRECTORY: path.join(poison, 'objects'),
+      GIT_WORK_TREE: poison,
+    };
+    const previous = new Map(Object.keys(variables).map((name) => [name, process.env[name]]));
+    Object.assign(process.env, variables);
+    try {
+      const authority = inspectCoreSourceAuthority(fixture.packageRoot, fixture.head);
+      const isolated = fs.realpathSync(
+        fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-git-env-proof-')),
+      );
+      t.after(() => fs.rmSync(isolated, { recursive: true, force: true }));
+      materializeCoreCommitPackage(authority, isolated);
+      assert.equal(
+        fs.readFileSync(path.join(isolated, 'package.json'), 'utf8'),
+        fs.readFileSync(path.join(fixture.packageRoot, 'package.json'), 'utf8'),
+      );
+    } finally {
+      for (const [name, value] of previous) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
+  });
+});
+
+test('trusted Git commit reader rejects links and invalid tree paths', async (t) => {
+  await t.test('symbolic link', (t) => {
+    const fixture = createCoreSourceFixture(t);
+    fs.symlinkSync('package.json', path.join(fixture.packageRoot, 'linked.json'));
+    git(fixture.repository, ['add', '--all']);
+    git(fixture.repository, ['commit', '--quiet', '-m', 'test: symlink tree']);
+    const commit = git(fixture.repository, ['rev-parse', 'HEAD']);
+    const destination = fs.realpathSync(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-trusted-tree-link-')),
+    );
+    t.after(() => fs.rmSync(destination, { recursive: true, force: true }));
+    assert.throws(
+      () => materializeTrustedCommit(fixture.repository, commit, destination),
+      /non-regular entry/,
+    );
+  });
+
+  await t.test('gitlink', (t) => {
+    const fixture = createCoreSourceFixture(t);
+    git(fixture.repository, [
+      'update-index',
+      '--add',
+      '--cacheinfo',
+      `160000,${fixture.head},nested-repository`,
+    ]);
+    git(fixture.repository, ['commit', '--quiet', '-m', 'test: gitlink tree']);
+    const commit = git(fixture.repository, ['rev-parse', 'HEAD']);
+    assert.throws(() => readTrustedCommitTree(fixture.repository, commit), /non-blob entry/);
+  });
+
+  await t.test('backslash path', (t) => {
+    const fixture = createCoreSourceFixture(t);
+    fs.writeFileSync(path.join(fixture.repository, 'invalid\\path'), 'invalid\n');
+    git(fixture.repository, ['add', '--all']);
+    git(fixture.repository, ['commit', '--quiet', '-m', 'test: invalid tree path']);
+    const commit = git(fixture.repository, ['rev-parse', 'HEAD']);
+    assert.throws(() => readTrustedCommitTree(fixture.repository, commit), /path is invalid/);
+  });
+
+  await t.test('invalid UTF-8 path', (t) => {
+    const fixture = createCoreSourceFixture(t);
+    const blob = git(fixture.repository, [
+      'rev-parse',
+      `${fixture.head}:packages/kdna-core/package.json`,
+    ]);
+    const treeInput = Buffer.concat([
+      Buffer.from(`100644 blob ${blob}\tinvalid-`),
+      Buffer.from([0xff, 0]),
+    ]);
+    const tree = gitBuffer(fixture.repository, ['mktree', '-z'], treeInput)
+      .toString('ascii')
+      .trim();
+    const commit = gitBuffer(
+      fixture.repository,
+      ['commit-tree', tree, '-m', 'test: invalid UTF-8 tree'],
+      Buffer.alloc(0),
+    )
+      .toString('ascii')
+      .trim();
+    assert.throws(() => readTrustedCommitTree(fixture.repository, commit), /invalid UTF-8/);
+  });
 });
 
 test('portable candidate tar reader rejects corrupted headers and hostile paths', (t) => {
@@ -289,7 +521,7 @@ test('candidate pack evidence rejects source mutations between its two packs', (
     head: 'a'.repeat(40),
     files: { 'src/runtime-contract.js': 'b'.repeat(64) },
   };
-  assert.doesNotThrow(() => assertSourceFactsUnchanged(before, structuredClone(before)));
+  assert.doesNotThrow(() => assertSourceFactsUnchanged(before, cloneJson(before)));
   for (const mutation of [
     (after) => {
       after.head = 'c'.repeat(40);
@@ -301,7 +533,7 @@ test('candidate pack evidence rejects source mutations between its two packs', (
       after.files['src/runtime-contract.js'] = 'd'.repeat(64);
     },
   ]) {
-    const after = structuredClone(before);
+    const after = cloneJson(before);
     mutation(after);
     assert.throws(() => assertSourceFactsUnchanged(before, after), /changed during npm pack/);
   }
@@ -839,11 +1071,26 @@ test('binding rejects changed candidate bytes and lock integrity', (t) => {
 test('npm package contains zero candidate binding or nested tar entries', (t) => {
   const output = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-candidate-pack-'));
   t.after(() => fs.rmSync(output, { recursive: true, force: true }));
-  const result = spawnSync(
-    'npm',
-    ['pack', '--json', '--ignore-scripts', '--pack-destination', output],
-    { cwd: ROOT, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 },
-  );
+  const npm = resolveTrustedNpmInvocation(ROOT);
+  let result;
+  try {
+    result = spawnSync(
+      npm.command,
+      [
+        ...npm.prefixArgs,
+        'pack',
+        '--json',
+        '--ignore-scripts',
+        '--pack-destination',
+        output,
+        '--registry=https://registry.npmjs.org/',
+        '--@aikdna:registry=https://registry.npmjs.org/',
+      ],
+      { cwd: ROOT, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, shell: false },
+    );
+  } finally {
+    npm.dispose();
+  }
   assert.equal(result.status, 0, result.stderr);
   const reports = JSON.parse(result.stdout);
   assert.equal(reports.length, 1);

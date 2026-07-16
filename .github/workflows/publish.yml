@@ -35,15 +35,11 @@ jobs:
         with:
           node-version: 22
           registry-url: 'https://registry.npmjs.org'
-      - name: Pin the audited npm release client
-        run: |
-          npm install --global npm@11.17.0 --ignore-scripts --registry=https://registry.npmjs.org/
-          npm --version | grep -Fx 11.17.0
-      - run: npm ci --ignore-scripts
+      - run: node scripts/run-trusted-npm.js ci --ignore-scripts --no-audit --no-fund
       - name: Verify release event, tag, commit, package, and changelog
-        run: npm run release:check
+        run: node scripts/release-check.js
       - name: Run the complete release preflight
-        run: npm run release:preflight
+        run: node scripts/release-preflight.js
       - name: Build independently verified pack evidence
         run: >-
           node scripts/generate-release-evidence.js
@@ -52,13 +48,13 @@ jobs:
       - name: Apply fail-closed registry duplicate policy
         id: registry
         run: >-
-          npm run release:registry-guard --
+          node scripts/registry-duplicate-guard.js
           --evidence "$RUNNER_TEMP/kdna-cli-release-evidence.json"
           --artifact "$RUNNER_TEMP/kdna-cli-release.tgz"
       - name: Publish the verified package
         if: steps.registry.outputs.should_publish == 'true'
         run: >-
-          npm run release:publish-verified --
+          node scripts/publish-verified-artifact.js
           --evidence "$RUNNER_TEMP/kdna-cli-release-evidence.json"
           --artifact "$RUNNER_TEMP/kdna-cli-release.tgz"
         env:

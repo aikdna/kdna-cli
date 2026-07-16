@@ -18,6 +18,12 @@ const {
   resolveTrustedNpmInvocation,
   verifyCandidateBinding,
 } = require('./runtime-candidate-binding');
+const {
+  assertCoreSourceAuthorityUnchanged,
+  coreSourcePackArguments,
+  inspectCoreSourceAuthority,
+  materializeCoreCommitPackage,
+} = require('./core-source-authority');
 
 const ROOT = path.resolve(__dirname, '..');
 const OUTPUT = path.join(ROOT, CORE_CANDIDATE_EVIDENCE_PATH);
@@ -47,7 +53,7 @@ function packOnce(packageRoot, invocation) {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-core-candidate-pack-'));
   try {
     const metadata = JSON.parse(
-      runTrustedNpm(invocation, ['pack', '--json', '--pack-destination', temp], {
+      runTrustedNpm(invocation, coreSourcePackArguments(temp), {
         cwd: packageRoot,
         encoding: 'utf8',
       }),
@@ -68,31 +74,27 @@ function packOnce(packageRoot, invocation) {
 function sourceFacts() {
   const packageRoot = process.env.KDNA_CORE_SOURCE_ROOT;
   if (!packageRoot) throw new Error('KDNA_CORE_SOURCE_ROOT is required for candidate evidence.');
-  const absolute = path.resolve(packageRoot);
-  const repository = path.resolve(absolute, '..', '..');
-  const packageJson = JSON.parse(fs.readFileSync(path.join(absolute, 'package.json'), 'utf8'));
-  const head = execFileSync('git', ['-C', repository, 'rev-parse', 'HEAD'], {
-    encoding: 'utf8',
-  }).trim();
-  const status = execFileSync('git', ['-C', repository, 'status', '--porcelain=v1'], {
-    encoding: 'utf8',
-  }).trim();
-  if (status !== '') throw new Error('Core source worktree must be clean for candidate evidence.');
+  const authority = inspectCoreSourceAuthority(
+    path.resolve(packageRoot),
+    readPinnedCoreCommit(ROOT),
+  );
+  const { packageJson, head } = authority;
   if (packageJson.name !== CORE_CANDIDATE_PACKAGE) {
     throw new Error(`Core candidate package must be ${CORE_CANDIDATE_PACKAGE}.`);
   }
   if (packageJson.version !== CORE_CANDIDATE_VERSION) {
     throw new Error(`Core candidate version must be ${CORE_CANDIDATE_VERSION}.`);
   }
-  if (head !== readPinnedCoreCommit(ROOT)) {
-    throw new Error('Core candidate source does not match the exact CI commit pin.');
-  }
   return {
-    packageRoot: absolute,
+    authority,
+    packageRoot: authority.packageRoot,
     packageJson,
     head,
     files: Object.fromEntries(
-      FILES.map((file) => [file, digest('sha256', fs.readFileSync(path.join(absolute, file)))]),
+      FILES.map((file) => [
+        file,
+        digest('sha256', fs.readFileSync(path.join(authority.packageRoot, file))),
+      ]),
     ),
   };
 }
@@ -152,24 +154,35 @@ function assertSourceFactsUnchanged(before, after) {
 function buildEvidence() {
   const source = sourceFacts();
   const invocation = resolveTrustedNpmInvocation(ROOT);
-  const npmClient = runTrustedNpm(invocation, ['--version'], { encoding: 'utf8' }).trim();
-  if (npmClient !== '11.17.0') throw new Error('Core candidate pack requires npm 11.17.0.');
-  const first = packOnce(source.packageRoot, invocation);
-  const second = packOnce(source.packageRoot, invocation);
-  assertSourceFactsUnchanged(source, sourceFacts());
-  if (JSON.stringify(first) !== JSON.stringify(second)) {
-    throw new Error('Core candidate package is not reproducible across two npm pack runs.');
+  const isolated = fs.realpathSync(
+    fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-core-commit-package-')),
+  );
+  try {
+    const npmClient = runTrustedNpm(invocation, ['--version'], { encoding: 'utf8' }).trim();
+    if (npmClient !== '11.17.0') throw new Error('Core candidate pack requires npm 11.17.0.');
+    materializeCoreCommitPackage(source.authority, isolated);
+    const first = packOnce(isolated, invocation);
+    const second = packOnce(isolated, invocation);
+    const after = sourceFacts();
+    assertCoreSourceAuthorityUnchanged(source.authority, after.authority);
+    assertSourceFactsUnchanged(source, after);
+    if (JSON.stringify(first) !== JSON.stringify(second)) {
+      throw new Error('Core candidate package is not reproducible across two npm pack runs.');
+    }
+    const pack = {
+      status: 'candidate_source_pack_not_registry_artifact',
+      npm_client: npmClient,
+      ...first,
+      reproducible_runs: 2,
+    };
+    if (JSON.stringify(pack) !== JSON.stringify(boundPackEvidence())) {
+      throw new Error('Core candidate source pack does not match the bound candidate artifact.');
+    }
+    return expectedEvidence(source, pack);
+  } finally {
+    invocation.dispose();
+    fs.rmSync(isolated, { recursive: true, force: true });
   }
-  const pack = {
-    status: 'candidate_source_pack_not_registry_artifact',
-    npm_client: npmClient,
-    ...first,
-    reproducible_runs: 2,
-  };
-  if (JSON.stringify(pack) !== JSON.stringify(boundPackEvidence())) {
-    throw new Error('Core candidate source pack does not match the bound candidate artifact.');
-  }
-  return expectedEvidence(source, pack);
 }
 
 function checkedEvidence() {

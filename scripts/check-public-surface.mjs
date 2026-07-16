@@ -10,19 +10,23 @@
  */
 
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import trustedGit from './trusted-git.js';
 import { allowFormalReleaseHash, isRulePathExcluded } from './public-surface-policy.mjs';
 
-const ROOT = process.cwd();
-const CONFIG_PATH = new URL('./public-surface.config.json', import.meta.url);
+const { readTrustedGitBlob, readTrustedIndexEntries } = trustedGit;
+const ROOT = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
+const CONFIG_PATH = 'scripts/public-surface.config.json';
 const SELF = 'scripts/check-public-surface.mjs';
 const MAX_TEXT_BYTES = 1_000_000;
+const trackedEntries = readTrustedIndexEntries(ROOT);
 
 const forbiddenHashes = new Set();
-if (existsSync(CONFIG_PATH)) {
+const configEntry = trackedEntries.find(({ file }) => file === CONFIG_PATH);
+if (configEntry) {
   try {
-    const config = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
+    const config = JSON.parse(readTrustedGitBlob(ROOT, configEntry.object).toString('utf8'));
     for (const hash of config.forbiddenPatternHashes || []) forbiddenHashes.add(hash);
     if (Array.isArray(config.forbiddenPatterns) && config.forbiddenPatterns.length > 0) {
       throw new Error('forbiddenPatterns is not public-safe; store only forbiddenPatternHashes');
@@ -75,23 +79,11 @@ const rules = [
   },
 ];
 
-function listTrackedFiles() {
-  return execFileSync('git', ['ls-files', '-z'], { cwd: ROOT })
-    .toString('utf8')
-    .split('\0')
-    .filter(Boolean);
-}
-
 const findings = [];
 let scanned = 0;
-for (const file of listTrackedFiles()) {
+for (const { file, object } of trackedEntries) {
   if (file === SELF) continue;
-  let buffer;
-  try {
-    buffer = readFileSync(file);
-  } catch {
-    continue;
-  }
+  const buffer = readTrustedGitBlob(ROOT, object);
   if (buffer.length > MAX_TEXT_BYTES || buffer.includes(0)) continue;
   scanned += 1;
   const text = buffer.toString('utf8');

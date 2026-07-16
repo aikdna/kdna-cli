@@ -12,27 +12,23 @@ jobs:
           path: .cross-repo/kdna
       - uses: actions/setup-node@v6
         with: { node-version: 22 }
-      - run: npm ci
-      - name: Install exact Core candidate dependencies
+      - run: node scripts/run-trusted-npm.js ci --ignore-scripts --no-audit --no-fund
+      - name: Install Core test dependencies with its lock-compatible client
         working-directory: .cross-repo/kdna
-        run: npm ci
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Verify exact Core candidate dependency isolation
         run: node scripts/verify-core-source-dependencies.js
         env:
           KDNA_CORE_SOURCE_ROOT: ${{ github.workspace }}/.cross-repo/kdna/packages/kdna-core
       - name: Enforce public repository boundary
-        run: npm run check:public-surface
+        run: node scripts/check-public-surface.mjs
       - name: Run the complete CLI suite against the exact Core candidate
-        run: npm test
+        run: node scripts/run-complete-suite.js --complete
         env:
           KDNA_CORE_SOURCE_ROOT: ${{ github.workspace }}/.cross-repo/kdna/packages/kdna-core
           NODE_OPTIONS: --require=${{ github.workspace }}/tests/helpers/require-golden-core.js
-      - name: Pin the candidate pack npm client
-        run: |
-          npm install --global npm@11.17.0 --ignore-scripts --registry=https://registry.npmjs.org/
-          npm --version | grep -Fx 11.17.0
       - name: Verify the exact Core candidate through a reproducible local tar install
-        run: npm run test:core-candidate-tar
+        run: node scripts/verify-core-candidate-tar.js
         env:
           KDNA_CORE_SOURCE_ROOT: ${{ github.workspace }}/.cross-repo/kdna/packages/kdna-core
   golden-host-request:
@@ -46,16 +42,18 @@ jobs:
           path: .cross-repo/kdna
       - uses: actions/setup-node@v6
         with: { node-version: 22 }
-      - run: npm ci
-      - name: Install exact Core candidate dependencies
+      - run: node scripts/run-trusted-npm.js ci --ignore-scripts --no-audit --no-fund
+      - name: Install Core test dependencies with its lock-compatible client
         working-directory: .cross-repo/kdna
-        run: npm ci
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Verify exact Core candidate dependency isolation
         run: node scripts/verify-core-source-dependencies.js
         env:
           KDNA_CORE_SOURCE_ROOT: ${{ github.workspace }}/.cross-repo/kdna/packages/kdna-core
       - name: Verify Golden Core Capsule through the real process Host path
-        run: npm run test:golden-host-request
+        run: >-
+          node scripts/generate-golden-host-contract.js --check &&
+          node --test tests/golden-host-request.test.js
         env:
           KDNA_GOLDEN_CORE_ROOT: ${{ github.workspace }}/.cross-repo/kdna/packages/kdna-core
   runtime-contract:
@@ -74,9 +72,17 @@ jobs:
           path: .cross-repo/kdna-runtime-contract
       - uses: actions/setup-node@v6
         with: { node-version: '${{ matrix.node }}' }
-      - run: npm ci
+      - name: Install dependencies with the audited client
+        if: matrix.node != 18
+        run: node scripts/run-trusted-npm.js ci --ignore-scripts --no-audit --no-fund
+      - name: Install dependencies for compatibility only
+        if: matrix.node == 18
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Verify the current Runtime Capsule and process Host contract
-        run: npm run test:runtime-contract
+        run: >-
+          node scripts/verify-runtime-contract-core.js &&
+          node --require ./tests/helpers/require-golden-core.js
+          --test tests/runtime-contract.test.js
         env:
           KDNA_CORE_SOURCE_ROOT: ${{ github.workspace }}/.cross-repo/kdna-runtime-contract/packages/kdna-core
   evidence:
@@ -86,6 +92,6 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with: { node-version: 22 }
-      - run: npm ci
+      - run: node scripts/run-trusted-npm.js ci --ignore-scripts --no-audit --no-fund
       - name: Run README command evidence checks
         run: node scripts/evidence-ci.js

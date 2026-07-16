@@ -6,6 +6,12 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { validatePackReport } = require('./release-evidence');
+const { resolveTrustedNpmInvocation } = require('./runtime-candidate-binding');
+const {
+  assertTrustedIndexIsOrdinary,
+  materializeTrustedCommit,
+  runTrustedGit,
+} = require('./trusted-git');
 
 const root = path.resolve(__dirname, '..');
 
@@ -28,17 +34,24 @@ function run(command, args, options = {}) {
 }
 
 function treeStatus() {
-  return run('git', ['status', '--porcelain=v1', '--untracked-files=all']).trim();
+  return runTrustedGit(root, ['status', '--porcelain', '--untracked-files=all']).trim();
 }
 
-function packOnce(destination) {
-  const reportText = run('npm', [
-    'pack',
-    '--json',
-    '--ignore-scripts',
-    '--pack-destination',
-    destination,
-  ]);
+function packOnce(packageRoot, destination, npm) {
+  const reportText = run(
+    npm.command,
+    [
+      ...npm.prefixArgs,
+      'pack',
+      '--json',
+      '--ignore-scripts',
+      '--pack-destination',
+      destination,
+      '--registry=https://registry.npmjs.org/',
+      '--@aikdna:registry=https://registry.npmjs.org/',
+    ],
+    { cwd: packageRoot },
+  );
   let reports;
   try {
     reports = JSON.parse(reportText);
@@ -83,25 +96,30 @@ function main() {
   fs.mkdirSync(path.dirname(output), { recursive: true });
   fs.mkdirSync(path.dirname(artifact), { recursive: true });
 
+  assertTrustedIndexIsOrdinary(root);
   if (treeStatus()) fail('worktree must be clean before packing');
-  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const source = {
     ref: process.env.GITHUB_REF,
-    commit: run('git', ['rev-parse', 'HEAD']).trim(),
+    commit: runTrustedGit(root, ['rev-parse', 'HEAD']).trim(),
   };
   if (process.env.GITHUB_SHA !== source.commit) fail('GITHUB_SHA must equal the packed commit');
-  const tagCommit = run('git', ['rev-parse', `${pkg.version}^{commit}`]).trim();
-  if (tagCommit !== source.commit)
-    fail('the package version tag must resolve to the packed commit');
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-release-pack-'));
+  const npm = resolveTrustedNpmInvocation(root);
   let complete = false;
   try {
+    const packageRoot = path.join(temp, 'source');
     const firstDir = path.join(temp, 'first');
     const secondDir = path.join(temp, 'second');
+    fs.mkdirSync(packageRoot);
     fs.mkdirSync(firstDir);
     fs.mkdirSync(secondDir);
-    const first = packOnce(firstDir);
-    const second = packOnce(secondDir);
+    materializeTrustedCommit(root, source.commit, packageRoot);
+    const pkg = JSON.parse(fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'));
+    const tagCommit = runTrustedGit(root, ['rev-parse', `${pkg.version}^{commit}`]).trim();
+    if (tagCommit !== source.commit)
+      fail('the package version tag must resolve to the packed commit');
+    const first = packOnce(packageRoot, firstDir, npm);
+    const second = packOnce(packageRoot, secondDir, npm);
     const firstTarball = fs.readFileSync(first.tarballPath);
     const secondTarball = fs.readFileSync(second.tarballPath);
     if (!firstTarball.equals(secondTarball)) {
@@ -118,9 +136,11 @@ function main() {
       fail('retained release artifact differs from the verified tarball');
     }
     fs.writeFileSync(output, `${JSON.stringify(evidence, null, 2)}\n`, { flag: 'wx', mode: 0o600 });
+    assertTrustedIndexIsOrdinary(root);
     if (treeStatus()) fail('packing changed the repository');
     complete = true;
   } finally {
+    npm.dispose();
     fs.rmSync(temp, { recursive: true, force: true });
     if (!complete) {
       fs.rmSync(output, { force: true });

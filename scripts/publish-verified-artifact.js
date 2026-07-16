@@ -49,20 +49,25 @@ function main() {
   const artifactPath = path.resolve(process.argv[artifactIndex + 1]);
   const evidence = JSON.parse(fs.readFileSync(evidencePath, 'utf8'));
   const root = path.resolve(__dirname, '..');
+  const tarball = fs.readFileSync(artifactPath);
+  readCurrentReleaseBinding({ root, evidence });
+  validateEvidenceArtifact(evidence, tarball);
   const npmInvocation = resolveTrustedNpmInvocation(root);
-  const result = publishCandidate({
-    evidence,
-    tarball: fs.readFileSync(artifactPath),
-    artifactPath,
-    bindCurrent: (candidate) => readCurrentReleaseBinding({ root, evidence: candidate }),
-    publish: (args) =>
-      spawnSync(npmInvocation.command, [...npmInvocation.prefixArgs, ...args], {
+  let result;
+  try {
+    result = spawnSync(
+      npmInvocation.command,
+      [...npmInvocation.prefixArgs, ...publishArguments(artifactPath)],
+      {
         encoding: 'utf8',
         maxBuffer: 16 * 1024 * 1024,
         shell: false,
         stdio: 'inherit',
-      }),
-  });
+      },
+    );
+  } finally {
+    npmInvocation.dispose();
+  }
   if (result.error) fail(`npm publish failed: ${result.error.message}`);
   if (result.status !== 0) fail(`npm publish exited ${String(result.status)}`);
 }

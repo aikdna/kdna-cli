@@ -6,6 +6,12 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { validatePackReport } = require('./release-evidence');
+const { resolveTrustedNpmInvocation } = require('./runtime-candidate-binding');
+const {
+  assertTrustedIndexIsOrdinary,
+  materializeTrustedCommit,
+  runTrustedGit,
+} = require('./trusted-git');
 
 const root = path.resolve(__dirname, '..');
 
@@ -24,14 +30,21 @@ function run(command, args, options = {}) {
   return result.stdout;
 }
 
-function packOnce(destination) {
-  const reportText = run('npm', [
-    'pack',
-    '--json',
-    '--ignore-scripts',
-    '--pack-destination',
-    destination,
-  ]);
+function packOnce(packageRoot, destination, npm) {
+  const reportText = run(
+    npm.command,
+    [
+      ...npm.prefixArgs,
+      'pack',
+      '--json',
+      '--ignore-scripts',
+      '--pack-destination',
+      destination,
+      '--registry=https://registry.npmjs.org/',
+      '--@aikdna:registry=https://registry.npmjs.org/',
+    ],
+    { cwd: packageRoot },
+  );
   const reports = JSON.parse(reportText);
   if (!Array.isArray(reports) || reports.length !== 1 || !reports[0].filename) {
     throw new Error('npm pack did not report exactly one artifact');
@@ -44,18 +57,27 @@ function packOnce(destination) {
 
 function verifyReproduciblePack() {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-pack-policy-'));
+  const npm = resolveTrustedNpmInvocation(root);
   try {
+    assertTrustedIndexIsOrdinary(root);
+    const status = runTrustedGit(root, ['status', '--porcelain', '--untracked-files=all']).trim();
+    if (status) throw new Error('worktree must be clean before pack policy verification');
+    const commit = runTrustedGit(root, ['rev-parse', 'HEAD']).trim();
+    const packageRoot = path.join(temp, 'source');
     const firstDir = path.join(temp, 'first');
     const secondDir = path.join(temp, 'second');
+    fs.mkdirSync(packageRoot);
     fs.mkdirSync(firstDir);
     fs.mkdirSync(secondDir);
-    const first = packOnce(firstDir);
-    const second = packOnce(secondDir);
+    materializeTrustedCommit(root, commit, packageRoot);
+    const pkg = JSON.parse(fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'));
+    const tagCommit = runTrustedGit(root, ['rev-parse', `${pkg.version}^{commit}`]).trim();
+    if (tagCommit !== commit) throw new Error('package version tag must match HEAD');
+    const first = packOnce(packageRoot, firstDir, npm);
+    const second = packOnce(packageRoot, secondDir, npm);
     if (!first.tarball.equals(second.tarball)) {
       throw new Error('two clean npm pack runs produced different bytes');
     }
-    const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-    const commit = run('git', ['rev-parse', 'HEAD']).trim();
     const evidence = validatePackReport({
       reportText: first.reportText,
       tarball: first.tarball,
@@ -64,6 +86,7 @@ function verifyReproduciblePack() {
     });
     return evidence.artifact;
   } finally {
+    npm.dispose();
     fs.rmSync(temp, { recursive: true, force: true });
   }
 }
