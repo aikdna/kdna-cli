@@ -31,6 +31,26 @@ function joinedInsensitivePattern(...parts) {
 
 const KDNA_OWNED_CONCEPT =
   '(?:kdna|core|registry|index(?:es)?|records?|fixtures?|bundle|capsule|runtime|manifest|profile|grant|proof|envelope|container|format|protocol|spec(?:ification)?s?|support)';
+const RESPONSIBILITY_WORD_SEPARATOR = '[\\s._/+\\-\\u2010-\\u2015]*';
+const GENERATION_SEPARATOR = '[\\s._/+\\-\\u2010-\\u2015]+';
+const KDNA_RESPONSIBILITY =
+  `(?:runtime${RESPONSIBILITY_WORD_SEPARATOR}(?:contract|capsule)|capsule|` +
+  `agent${RESPONSIBILITY_WORD_SEPARATOR}host|judgment${RESPONSIBILITY_WORD_SEPARATOR}trace)`;
+const BARE_GENERATION_INTEGER = '[0-9]+(?![0-9]|\\.[0-9])\\b';
+const PREFIXED_GENERATION_COORDINATE = 'v[0-9]+(?:\\.[0-9]+)*\\b';
+const RESPONSIBILITY_GENERATION_TOKEN = `(?:${PREFIXED_GENERATION_COORDINATE}|${BARE_GENERATION_INTEGER})`;
+const RESPONSIBILITY_GENERATION = Object.freeze([
+  'generation on a KDNA responsibility',
+  joinedInsensitivePattern(
+    `\\b${KDNA_RESPONSIBILITY}(?:`,
+    `\\s*\\(\\s*${RESPONSIBILITY_GENERATION_TOKEN}\\s*\\)`,
+    '|',
+    `${GENERATION_SEPARATOR}${RESPONSIBILITY_GENERATION_TOKEN}`,
+    '|',
+    RESPONSIBILITY_GENERATION_TOKEN,
+    ')',
+  ),
+]);
 
 const FORBIDDEN_DECLARATIONS = Object.freeze([
   ['obsolete manifest discriminator', joinedPattern('kdna', '_version')],
@@ -65,6 +85,7 @@ const FORBIDDEN_DECLARATIONS = Object.freeze([
     ),
   ],
   ['generation-style version placeholder', joinedInsensitivePattern('<', 'v', '[0-9]+>')],
+  RESPONSIBILITY_GENERATION,
 ]);
 
 function listFiles(root, relative) {
@@ -97,6 +118,10 @@ function scanPaths(root, roots, topLevelFiles) {
   for (const relative of files) {
     if (FORBIDDEN_FILES.has(relative)) {
       issues.push({ file: relative, line: null, rule: 'obsolete shipped implementation' });
+    }
+    const [pathRule, pathPattern] = RESPONSIBILITY_GENERATION;
+    if (pathPattern.test(relative)) {
+      issues.push({ file: relative, line: null, rule: pathRule });
     }
     if (!isTextFile(relative)) continue;
     const lines = fs.readFileSync(path.join(root, relative), 'utf8').split(/\r?\n/);
