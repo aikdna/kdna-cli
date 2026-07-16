@@ -5,13 +5,13 @@
   "git_head": "556f8cec37c94fc9c006035b0bdeefc80d04d9c2",
   "source_worktree_clean": true,
   "pack": {
-    "status": "candidate_source_pack_not_registry_artifact",
+    "status": "registry_artifact",
     "npm_client": "11.17.0",
     "filename": "aikdna-kdna-core-0.19.0.tgz",
-    "size": 113936,
+    "size": 114267,
     "entry_count": 42,
-    "sha1": "cf63f5e24c413b2db24bf085d98ae3a0a91cff64",
-    "sha512": "sha512-17t5Ztiuf0sGUKKZnAQxEsgMOgVDGiVc6IrzNwipwHiJeQQtGpDrGsadiNQ+9x7FEeBZg3X9BrtA1mda0jjHrQ==",
+    "sha1": "358e33e009399379775335ef6ad35ff565cca57f",
+    "sha512": "sha512-Ewm+Lx1VEAf9hjIeoulwZNNC3/TnnOzgW59lQNNguleKBnCf+2cptdBjM0oAOQe8oPKneTWE5owmZpI1Lmdgxg==",
     "reproducible_runs": 2,
     "source_equivalence": {
       "status": "strict_install_equivalent",
@@ -26,7 +26,11 @@
       "excluded_non_install_metadata": ["gzip_wrapper", "tar_mtime", "tar_uid", "tar_gid"]
     }
   },
-  "registry_artifact": null,
+  "registry_artifact": {
+    "published": true,
+    "sha256": "8b3938405b60cf611623dd5496e5e7334b2b5545fb6b8c84f56c48dae8cfbf62",
+    "integrity": "sha512-Ewm+Lx1VEAf9hjIeoulwZNNC3/TnnOzgW59lQNNguleKBnCf+2cptdBjM0oAOQe8oPKneTWE5owmZpI1Lmdgxg=="
+  },
   "files": {
     "src/runtime-contract.js": "abbf13855cd50a9f6358ba19a8145d3b5988abd065fa8098dac761ac31874e5c",
     "src/runtime-capsule.js": "9bc25c0e07114314b3b515c1c929a61fe53212ccc4f1d1dd31baba4dd9bf53e5",
