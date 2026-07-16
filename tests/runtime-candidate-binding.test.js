@@ -9,6 +9,8 @@ const zlib = require('node:zlib');
 const { test } = require('node:test');
 const {
   BINDING_PATH,
+  STRICT_PACKAGE_INSTALL_EQUIVALENCE,
+  assertPackageTarInstallEquivalent,
   assertRegistryReleaseReady,
   canonicalRegistryUrl,
   readTarFileEntries,
@@ -28,6 +30,7 @@ const {
 } = require('../scripts/core-source-authority');
 const { assertSourceFactsUnchanged } = require('../scripts/generate-core-candidate-evidence');
 const {
+  gitNullDevice,
   materializeTrustedCommit,
   readTrustedCommitTree,
   trustedGitEnvironment,
@@ -127,9 +130,66 @@ function rewriteTarChecksum(header) {
   Buffer.from(`${checksum.toString(8).padStart(6, '0')}\0 `).copy(header, 148);
 }
 
+function writeTarOctal(header, offset, length, value) {
+  header.fill(0, offset, offset + length);
+  Buffer.from(`${value.toString(8).padStart(length - 1, '0')}\0`).copy(header, offset);
+}
+
+function tarEntryOffsets(archive) {
+  const offsets = [];
+  let offset = 0;
+  while (offset + 512 <= archive.length) {
+    const header = archive.subarray(offset, offset + 512);
+    if (header.every((byte) => byte === 0)) break;
+    const sizeField = header.subarray(124, 136);
+    const end = sizeField.indexOf(0);
+    const size = Number.parseInt(
+      sizeField
+        .subarray(0, end < 0 ? sizeField.length : end)
+        .toString('ascii')
+        .trim(),
+      8,
+    );
+    assert.ok(Number.isSafeInteger(size) && size >= 0);
+    offsets.push({ body: offset + 512, header: offset, size });
+    offset += 512 + Math.ceil(size / 512) * 512;
+  }
+  return offsets;
+}
+
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
 }
+
+test('trusted Git uses a Git-compatible null config device and still scrubs every Git input', () => {
+  assert.equal(gitNullDevice('win32'), 'NUL');
+  assert.equal(gitNullDevice('linux'), '/dev/null');
+  assert.equal(gitNullDevice('darwin'), '/dev/null');
+
+  const source = {
+    PATH: '/trusted/bin',
+    GIT_DIR: '/hostile/repository',
+    GIT_CONFIG_GLOBAL: '/hostile/global-config',
+    GIT_CONFIG_COUNT: '1',
+    GIT_CONFIG_KEY_0: 'core.useReplaceRefs',
+    GIT_CONFIG_VALUE_0: 'true',
+  };
+  for (const [platform, expected] of [
+    ['win32', 'NUL'],
+    ['linux', '/dev/null'],
+  ]) {
+    const environment = trustedGitEnvironment(source, { platform });
+    assert.equal(environment.PATH, source.PATH);
+    assert.equal(environment.GIT_CONFIG_GLOBAL, expected);
+    assert.equal(environment.GIT_CONFIG_NOSYSTEM, '1');
+    assert.equal(environment.GIT_NO_REPLACE_OBJECTS, '1');
+    assert.equal(environment.GIT_TERMINAL_PROMPT, '0');
+    assert.equal(environment.GIT_DIR, undefined);
+    assert.equal(environment.GIT_CONFIG_COUNT, undefined);
+    assert.equal(environment.GIT_CONFIG_KEY_0, undefined);
+    assert.equal(environment.GIT_CONFIG_VALUE_0, undefined);
+  }
+});
 
 test('default install binds one exact Core candidate while published Eval stays canonical', () => {
   const pkg = require('../package.json');
@@ -512,6 +572,77 @@ test('portable candidate tar reader rejects corrupted headers and hostile paths'
   const traversalPath = path.join(root, 'traversal.tgz');
   fs.writeFileSync(traversalPath, zlib.gzipSync(traversal));
   assert.throws(() => readTarFileEntries(traversalPath), /entry path invalid/);
+});
+
+test('strict package install equivalence excludes only declared archive metadata', (t) => {
+  const binding = verifyCandidateBinding(ROOT);
+  const artifact = fs.readFileSync(path.join(ROOT, binding.packages[0].artifact));
+  const archive = zlib.gunzipSync(artifact);
+  const offsets = tarEntryOffsets(archive);
+  assert.equal(offsets.length, 39);
+
+  const metadataOnly = Buffer.from(archive);
+  for (const { header } of offsets) {
+    const block = metadataOnly.subarray(header, header + 512);
+    writeTarOctal(block, 108, 8, 1);
+    writeTarOctal(block, 116, 8, 2);
+    writeTarOctal(block, 136, 12, 3);
+    rewriteTarChecksum(block);
+  }
+  const metadataOnlyArtifact = zlib.gzipSync(metadataOnly, { level: 1 });
+  assert.equal(metadataOnlyArtifact.equals(artifact), false);
+  assert.deepEqual(assertPackageTarInstallEquivalent(artifact, metadataOnlyArtifact), {
+    ...STRICT_PACKAGE_INSTALL_EQUIVALENCE,
+    entry_count: 39,
+  });
+
+  const mutations = [
+    {
+      name: 'complete entry set',
+      pattern: /complete entry set differs/,
+      mutate(candidate) {
+        const header = candidate.subarray(0, 512);
+        header.fill(0, 0, 100);
+        Buffer.from('package/renamed-entry').copy(header, 0);
+        rewriteTarChecksum(header);
+      },
+    },
+    {
+      name: 'file mode',
+      pattern: /file mode differs/,
+      mutate(candidate) {
+        const header = candidate.subarray(0, 512);
+        writeTarOctal(header, 100, 8, 0o755);
+        rewriteTarChecksum(header);
+      },
+    },
+    {
+      name: 'file bytes',
+      pattern: /file bytes differ/,
+      mutate(candidate) {
+        candidate[offsets[0].body] ^= 1;
+      },
+    },
+    {
+      name: 'regular file type',
+      pattern: /entry type is unsupported/,
+      mutate(candidate) {
+        const header = candidate.subarray(0, 512);
+        header[156] = 50;
+        rewriteTarChecksum(header);
+      },
+    },
+  ];
+  for (const mutation of mutations) {
+    t.test(mutation.name, () => {
+      const candidate = Buffer.from(archive);
+      mutation.mutate(candidate);
+      assert.throws(
+        () => assertPackageTarInstallEquivalent(artifact, zlib.gzipSync(candidate)),
+        mutation.pattern,
+      );
+    });
+  }
 });
 
 test('candidate pack evidence rejects source mutations between its two packs', () => {

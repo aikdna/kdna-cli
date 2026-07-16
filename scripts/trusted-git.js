@@ -3,7 +3,6 @@
 const { execFileSync } = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const { TextDecoder } = require('node:util');
 
@@ -34,14 +33,18 @@ function canonicalDirectory(directory) {
   return real;
 }
 
-function trustedGitEnvironment(source = process.env) {
+function gitNullDevice(platform = process.platform) {
+  return platform === 'win32' ? 'NUL' : '/dev/null';
+}
+
+function trustedGitEnvironment(source = process.env, options = {}) {
   const environment = {};
   for (const [name, value] of Object.entries(source)) {
     if (!name.startsWith('GIT_')) environment[name] = value;
   }
   return {
     ...environment,
-    GIT_CONFIG_GLOBAL: os.devNull,
+    GIT_CONFIG_GLOBAL: gitNullDevice(options.platform),
     GIT_CONFIG_NOSYSTEM: '1',
     GIT_NO_REPLACE_OBJECTS: '1',
     GIT_TERMINAL_PROMPT: '0',
@@ -267,6 +270,7 @@ function initializeTrustedGitFixture(directory) {
 module.exports = {
   assertTrustedIndexIsOrdinary,
   discoverTrustedGitRoot,
+  gitNullDevice,
   initializeTrustedGitFixture,
   materializeTrustedCommit,
   readTrustedGitBlob,

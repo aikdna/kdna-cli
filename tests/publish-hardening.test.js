@@ -165,20 +165,30 @@ test('release temp canonicalizes an os.tmpdir symlink alias without weakening tr
 
   assert.equal(releaseTemp, fs.realpathSync(releaseTemp));
   assert.equal(path.dirname(releaseTemp), fs.realpathSync(physicalTemp));
-  const commit = runTrustedGit(ROOT, ['rev-parse', 'HEAD']).trim();
-  materializeTrustedCommit(ROOT, commit, releaseTemp);
-  assert.ok(fs.existsSync(path.join(releaseTemp, 'package.json')));
+  const repository = path.join(sandbox, 'repository');
+  fs.mkdirSync(repository);
+  git(repository, ['init', '--quiet']);
+  git(repository, ['config', 'user.email', 'test@example.invalid']);
+  git(repository, ['config', 'user.name', 'KDNA Test']);
+  fs.writeFileSync(path.join(repository, 'package.json'), '{"name":"temp-alias-fixture"}\n');
+  git(repository, ['add', '--all']);
+  git(repository, ['commit', '--quiet', '-m', 'test: temp alias fixture']);
+  const commit = runTrustedGit(repository, ['rev-parse', 'HEAD']).trim();
+  materializeTrustedCommit(repository, commit, releaseTemp);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(releaseTemp, 'package.json'), 'utf8')), {
+    name: 'temp-alias-fixture',
+  });
 
   const physicalDestination = path.join(physicalTemp, 'noncanonical-destination');
   const aliasDestination = path.join(tempAlias, 'noncanonical-destination');
   fs.mkdirSync(physicalDestination);
   assert.throws(
-    () => materializeTrustedCommit(ROOT, commit, aliasDestination),
+    () => materializeTrustedCommit(repository, commit, aliasDestination),
     /trusted Git root path must be canonical/,
   );
 
   const repositoryAlias = path.join(sandbox, 'repository-alias');
-  fs.symlinkSync(ROOT, repositoryAlias, process.platform === 'win32' ? 'junction' : 'dir');
+  fs.symlinkSync(repository, repositoryAlias, process.platform === 'win32' ? 'junction' : 'dir');
   assert.throws(
     () => runTrustedGit(repositoryAlias, ['rev-parse', 'HEAD']),
     /trusted Git root must be a regular directory/,

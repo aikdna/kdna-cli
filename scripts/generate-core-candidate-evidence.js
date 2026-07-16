@@ -14,7 +14,9 @@ const {
 } = require('./core-candidate');
 const {
   BINDING_PATH,
-  readTarFileEntries,
+  STRICT_PACKAGE_INSTALL_EQUIVALENCE,
+  assertPackageTarInstallEquivalent,
+  readTarFileEntriesFromBytes,
   resolveTrustedNpmInvocation,
   verifyCandidateBinding,
 } = require('./runtime-candidate-binding');
@@ -60,11 +62,14 @@ function packOnce(packageRoot, invocation) {
     )[0];
     const bytes = fs.readFileSync(path.join(temp, metadata.filename));
     return {
-      filename: metadata.filename,
-      size: bytes.length,
-      entry_count: metadata.entryCount,
-      sha1: digest('sha1', bytes),
-      sha512: `sha512-${digest('sha512', bytes, 'base64')}`,
+      bytes,
+      facts: {
+        filename: metadata.filename,
+        size: bytes.length,
+        entry_count: metadata.entryCount,
+        sha1: digest('sha1', bytes),
+        sha512: `sha512-${digest('sha512', bytes, 'base64')}`,
+      },
     };
   } finally {
     fs.rmSync(temp, { recursive: true, force: true });
@@ -99,7 +104,7 @@ function sourceFacts() {
   };
 }
 
-function boundPackEvidence() {
+function boundPackArtifact() {
   const binding = JSON.parse(fs.readFileSync(path.join(ROOT, BINDING_PATH), 'utf8'));
   const entry = binding.packages?.find(({ name }) => name === CORE_CANDIDATE_PACKAGE);
   if (!entry) throw new Error('Core candidate binding is missing.');
@@ -115,15 +120,23 @@ function boundPackEvidence() {
   const artifact = path.join(ROOT, ...entry.artifact.split('/'));
   const bytes = fs.readFileSync(artifact);
   return {
-    status: 'candidate_source_pack_not_registry_artifact',
-    npm_client: '11.17.0',
-    filename: `${CORE_CANDIDATE_PACKAGE.slice(1).replace('/', '-')}-${CORE_CANDIDATE_VERSION}.tgz`,
-    size: bytes.length,
-    entry_count: readTarFileEntries(artifact).length,
-    sha1: digest('sha1', bytes),
-    sha512: `sha512-${digest('sha512', bytes, 'base64')}`,
-    reproducible_runs: 2,
+    bytes,
+    evidence: {
+      status: 'candidate_source_pack_not_registry_artifact',
+      npm_client: '11.17.0',
+      filename: `${CORE_CANDIDATE_PACKAGE.slice(1).replace('/', '-')}-${CORE_CANDIDATE_VERSION}.tgz`,
+      size: bytes.length,
+      entry_count: readTarFileEntriesFromBytes(bytes, 'bound Core candidate artifact').length,
+      sha1: digest('sha1', bytes),
+      sha512: `sha512-${digest('sha512', bytes, 'base64')}`,
+      reproducible_runs: 2,
+      source_equivalence: STRICT_PACKAGE_INSTALL_EQUIVALENCE,
+    },
   };
+}
+
+function boundPackEvidence() {
+  return boundPackArtifact().evidence;
 }
 
 function expectedEvidence(source, pack) {
@@ -166,19 +179,27 @@ function buildEvidence() {
     const after = sourceFacts();
     assertCoreSourceAuthorityUnchanged(source.authority, after.authority);
     assertSourceFactsUnchanged(source, after);
-    if (JSON.stringify(first) !== JSON.stringify(second)) {
+    if (
+      !first.bytes.equals(second.bytes) ||
+      JSON.stringify(first.facts) !== JSON.stringify(second.facts)
+    ) {
       throw new Error('Core candidate package is not reproducible across two npm pack runs.');
     }
-    const pack = {
-      status: 'candidate_source_pack_not_registry_artifact',
-      npm_client: npmClient,
-      ...first,
-      reproducible_runs: 2,
-    };
-    if (JSON.stringify(pack) !== JSON.stringify(boundPackEvidence())) {
-      throw new Error('Core candidate source pack does not match the bound candidate artifact.');
+    const bound = boundPackArtifact();
+    if (first.facts.filename !== bound.evidence.filename) {
+      throw new Error('Core candidate source pack filename does not match the bound artifact.');
     }
-    return expectedEvidence(source, pack);
+    const comparison = assertPackageTarInstallEquivalent(bound.bytes, first.bytes, {
+      referenceLabel: 'bound Core candidate artifact',
+      candidateLabel: 'exact Core source pack',
+    });
+    if (
+      comparison.entry_count !== first.facts.entry_count ||
+      comparison.entry_count !== bound.evidence.entry_count
+    ) {
+      throw new Error('Core candidate package entry count does not match npm pack metadata.');
+    }
+    return expectedEvidence(source, bound.evidence);
   } finally {
     invocation.dispose();
     fs.rmSync(isolated, { recursive: true, force: true });

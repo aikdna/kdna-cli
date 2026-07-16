@@ -28,6 +28,18 @@ const DEPENDENCY_MAP_NAMES = Object.freeze([
   'peerDependencies',
   'devDependencies',
 ]);
+const STRICT_PACKAGE_INSTALL_EQUIVALENCE = Object.freeze({
+  status: 'strict_install_equivalent',
+  compared_fields: Object.freeze([
+    'complete_entry_set',
+    'canonical_path',
+    'regular_file_type',
+    'file_size',
+    'file_mode',
+    'file_bytes',
+  ]),
+  excluded_non_install_metadata: Object.freeze(['gzip_wrapper', 'tar_mtime', 'tar_uid', 'tar_gid']),
+});
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -220,12 +232,20 @@ function tarString(block, offset, length) {
   return field.subarray(0, end < 0 ? field.length : end).toString('utf8');
 }
 
-function tarOctal(block, offset, length, label) {
+function tarOctal(block, offset, length, field, label) {
   const raw = tarString(block, offset, length).trim();
-  assert(/^[0-7]+$/.test(raw), `candidate tar ${label} is invalid`);
+  assert(/^[0-7]+$/.test(raw), `${label} ${field} is invalid`);
   const value = Number.parseInt(raw, 8);
-  assert(Number.isSafeInteger(value) && value >= 0, `candidate tar ${label} is invalid`);
+  assert(Number.isSafeInteger(value) && value >= 0, `${label} ${field} is invalid`);
   return value;
+}
+
+function validateOptionalTarOctal(block, offset, length, field, label) {
+  const raw = tarString(block, offset, length).trim();
+  if (raw === '') return;
+  assert(/^[0-7]+$/.test(raw), `${label} ${field} is invalid`);
+  const value = Number.parseInt(raw, 8);
+  assert(Number.isSafeInteger(value) && value >= 0, `${label} ${field} is invalid`);
 }
 
 function readTarFileEntriesFromBytes(compressed, label = 'candidate tar') {
@@ -244,17 +264,17 @@ function readTarFileEntriesFromBytes(compressed, label = 'candidate tar') {
     if (header.every((byte) => byte === 0)) {
       assert(
         archive.subarray(offset).every((byte) => byte === 0),
-        'candidate tar has data after its end marker',
+        `${label} has data after its end marker`,
       );
       terminated = true;
       break;
     }
-    const storedChecksum = tarOctal(header, 148, 8, 'header checksum');
+    const storedChecksum = tarOctal(header, 148, 8, 'header checksum', label);
     let actualChecksum = 0;
     for (let index = 0; index < header.length; index += 1) {
       actualChecksum += index >= 148 && index < 156 ? 32 : header[index];
     }
-    assert(storedChecksum === actualChecksum, 'candidate tar header checksum mismatch');
+    assert(storedChecksum === actualChecksum, `${label} header checksum mismatch`);
     const name = tarString(header, 0, 100);
     const prefix = tarString(header, 345, 155);
     const entryPath = prefix ? `${prefix}/${name}` : name;
@@ -266,27 +286,64 @@ function readTarFileEntriesFromBytes(compressed, label = 'candidate tar') {
         path.posix.normalize(entryPath) === entryPath &&
         !entryPath.split('/').some((segment) => ['', '.', '..'].includes(segment)) &&
         !paths.has(entryPath),
-      `candidate tar entry path invalid: ${entryPath}`,
+      `${label} entry path invalid: ${entryPath}`,
     );
-    const size = tarOctal(header, 124, 12, 'entry size');
+    const mode = tarOctal(header, 100, 8, 'entry mode', label);
+    assert(mode === 0o644 || mode === 0o755, `${label} entry mode is unsupported: ${entryPath}`);
+    validateOptionalTarOctal(header, 108, 8, 'uid', label);
+    validateOptionalTarOctal(header, 116, 8, 'gid', label);
+    validateOptionalTarOctal(header, 136, 12, 'mtime', label);
+    const size = tarOctal(header, 124, 12, 'entry size', label);
     const type = header[156];
-    assert(type === 0 || type === 48, `candidate tar entry type is unsupported: ${entryPath}`);
+    assert(type === 0 || type === 48, `${label} entry type is unsupported: ${entryPath}`);
     const bodyStart = offset + 512;
     const bodyEnd = bodyStart + size;
-    assert(bodyEnd <= archive.length, `candidate tar entry is truncated: ${entryPath}`);
+    assert(bodyEnd <= archive.length, `${label} entry is truncated: ${entryPath}`);
     paths.add(entryPath);
     entries.push(
       Object.freeze({
         path: entryPath,
         size,
+        mode,
         bytes: Buffer.from(archive.subarray(bodyStart, bodyEnd)),
       }),
     );
     offset = bodyStart + Math.ceil(size / 512) * 512;
   }
-  assert(terminated, 'candidate tar end marker is missing');
-  assert(entries.length > 0, 'candidate tar contains no regular files');
+  assert(terminated, `${label} end marker is missing`);
+  assert(entries.length > 0, `${label} contains no regular files`);
   return Object.freeze(entries);
+}
+
+function assertPackageTarInstallEquivalent(referenceBytes, candidateBytes, options = {}) {
+  assert(Buffer.isBuffer(referenceBytes), 'reference package tar must be a buffer');
+  assert(Buffer.isBuffer(candidateBytes), 'candidate package tar must be a buffer');
+  const referenceLabel = options.referenceLabel || 'reference package tar';
+  const candidateLabel = options.candidateLabel || 'candidate package tar';
+  const referenceEntries = readTarFileEntriesFromBytes(referenceBytes, referenceLabel);
+  const candidateEntries = readTarFileEntriesFromBytes(candidateBytes, candidateLabel);
+  const reference = new Map(referenceEntries.map((entry) => [entry.path, entry]));
+  const candidate = new Map(candidateEntries.map((entry) => [entry.path, entry]));
+  const referencePaths = [...reference.keys()].sort();
+  const candidatePaths = [...candidate.keys()].sort();
+  assert(
+    JSON.stringify(candidatePaths) === JSON.stringify(referencePaths),
+    `${candidateLabel} complete entry set differs from ${referenceLabel}`,
+  );
+  for (const entryPath of referencePaths) {
+    const expected = reference.get(entryPath);
+    const actual = candidate.get(entryPath);
+    assert(actual.size === expected.size, `${candidateLabel} file size differs: ${entryPath}`);
+    assert(actual.mode === expected.mode, `${candidateLabel} file mode differs: ${entryPath}`);
+    assert(
+      actual.bytes.equals(expected.bytes),
+      `${candidateLabel} file bytes differ: ${entryPath}`,
+    );
+  }
+  return Object.freeze({
+    ...STRICT_PACKAGE_INSTALL_EQUIVALENCE,
+    entry_count: referencePaths.length,
+  });
 }
 
 function readTarFileEntries(artifact) {
@@ -659,6 +716,11 @@ function verifyCandidateBinding(root) {
       coreEvidence.pack?.sha512 === entry.integrity && coreEvidence.pack?.size === bytes.length,
       `candidate pack evidence mismatch: ${entry.name}`,
     );
+    assert(
+      JSON.stringify(coreEvidence.pack?.source_equivalence) ===
+        JSON.stringify(STRICT_PACKAGE_INSTALL_EQUIVALENCE),
+      `candidate source equivalence policy mismatch: ${entry.name}`,
+    );
 
     const packedPackage = tarPackageManifest(artifact);
     assert(packedPackage.name === entry.name, `candidate tar package name mismatch: ${entry.name}`);
@@ -882,10 +944,13 @@ function assertRegistryReleaseReady(root, registryLookup = null) {
 
 module.exports = {
   BINDING_PATH,
+  STRICT_PACKAGE_INSTALL_EQUIVALENCE,
+  assertPackageTarInstallEquivalent,
   assertRegistryReleaseReady,
   canonicalRegistryUrl,
   resolveTrustedNpmInvocation,
   readTarFileEntries,
+  readTarFileEntriesFromBytes,
   strictRegistryLookup,
   verifyCandidateBinding,
   verifyInstalledAikdnaGraph,

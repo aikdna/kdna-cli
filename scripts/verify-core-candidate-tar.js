@@ -13,6 +13,8 @@ const {
   readPinnedCoreCommit,
 } = require('./core-candidate');
 const {
+  STRICT_PACKAGE_INSTALL_EQUIVALENCE,
+  assertPackageTarInstallEquivalent,
   resolveTrustedNpmInvocation,
   verifyCandidateBinding,
 } = require('./runtime-candidate-binding');
@@ -150,10 +152,16 @@ function main() {
     const binding = verifyCandidateBinding(ROOT);
     const entry = binding.packages.find(({ name }) => name === CORE_CANDIDATE_PACKAGE);
     assert.ok(entry, 'Core candidate binding is missing');
-    assert.ok(
-      first.bytes.equals(fs.readFileSync(path.join(ROOT, entry.artifact))),
-      'checked-in Core candidate bytes must equal the exact reproducible source pack',
+    const comparison = assertPackageTarInstallEquivalent(
+      fs.readFileSync(path.join(ROOT, entry.artifact)),
+      first.bytes,
+      {
+        referenceLabel: 'checked-in Core candidate artifact',
+        candidateLabel: 'exact reproducible Core source pack',
+      },
     );
+    assert.equal(comparison.status, STRICT_PACKAGE_INSTALL_EQUIVALENCE.status);
+    assert.equal(comparison.entry_count, first.metadata.entryCount);
 
     copyCandidateCli(cliCopy);
     initializeTrustedGitFixture(cliCopy);
@@ -236,7 +244,7 @@ function main() {
     );
 
     console.log(
-      `Exact Core candidate tar verified: ${CORE_CANDIDATE_PACKAGE}@${CORE_CANDIDATE_VERSION} ${readPinnedCoreCommit(ROOT).slice(0, 12)}`,
+      `Exact Core candidate tar verified: ${CORE_CANDIDATE_PACKAGE}@${CORE_CANDIDATE_VERSION} ${readPinnedCoreCommit(ROOT).slice(0, 12)} (${comparison.status}; excluded ${comparison.excluded_non_install_metadata.join(', ')})`,
     );
   } finally {
     npm.dispose();
