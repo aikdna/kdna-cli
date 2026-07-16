@@ -4,10 +4,10 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const {
-  assertTrustedIndexIsOrdinary,
   discoverTrustedGitRoot,
   readTrustedCommitTree,
   readTrustedGitBlob,
+  readTrustedIndexEntries,
   runTrustedGit,
 } = require('./trusted-git');
 
@@ -36,9 +36,9 @@ function assertCanonicalDirectory(directory, expectedRealPath, label) {
   assert(fs.realpathSync(directory) === expectedRealPath, `${label} path must be canonical`);
 }
 
-function parseCommitTree(repository, commit) {
+function parseCommitTree(commitTree) {
   const prefix = `${CORE_PACKAGE_RELATIVE}/`;
-  const entries = readTrustedCommitTree(repository, commit)
+  const entries = commitTree
     .filter(({ file }) => file.startsWith(prefix))
     .map(({ file: treePath, mode, object }) =>
       Object.freeze({ mode, object, relativePath: treePath.slice(prefix.length), treePath }),
@@ -51,24 +51,37 @@ function gitBlobId(bytes) {
   return crypto.createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
 }
 
-function assertIndexIsOrdinary(repository, treeEntries) {
-  const output = runGit(repository, ['ls-files', '-v', '-z', '--', CORE_PACKAGE_RELATIVE], {
+function assertIndexMatchesCommit(repository, commitTree) {
+  const indexed = readTrustedIndexEntries(repository);
+  assert(
+    indexed.length === commitTree.length,
+    'Core source index does not match the pinned commit tree',
+  );
+  for (let index = 0; index < commitTree.length; index += 1) {
+    const expected = commitTree[index];
+    const actual = indexed[index];
+    assert(
+      actual.file === expected.file &&
+        actual.mode === expected.mode &&
+        actual.object === expected.object,
+      `Core source index differs from the pinned commit tree: ${expected.file}`,
+    );
+  }
+}
+
+function assertNormalizedWorktreeClean(repository) {
+  const trackedChanges = runGit(
+    repository,
+    ['-c', 'core.autocrlf=true', 'diff', '--name-only', '-z', '--no-ext-diff', '--no-textconv'],
+    { encoding: 'buffer' },
+  );
+  const untrackedFiles = runGit(repository, ['ls-files', '--others', '--exclude-standard', '-z'], {
     encoding: 'buffer',
-  }).toString('utf8');
-  const indexed = new Set();
-  for (const record of output.split('\0')) {
-    if (!record) continue;
-    const match = record.match(/^(.?) (.+)$/s);
-    assert(match, 'Core source index contains an invalid entry');
-    const [, state, trackedPath] = match;
-    assert(state === 'H', `Core source index has a hidden or non-ordinary state: ${trackedPath}`);
-    indexed.add(trackedPath);
-  }
-  const expected = new Set(treeEntries.map(({ treePath }) => treePath));
-  assert(indexed.size === expected.size, 'Core source index does not match the pinned commit tree');
-  for (const trackedPath of expected) {
-    assert(indexed.has(trackedPath), `Core source index is missing: ${trackedPath}`);
-  }
+  });
+  assert(
+    trackedChanges.length === 0 && untrackedFiles.length === 0,
+    'Core source worktree must be clean',
+  );
 }
 
 function readCoreCommitFile(authority, relativePath) {
@@ -112,12 +125,10 @@ function inspectCoreSourceAuthority(sourceRoot, expectedCommit) {
 
   const head = runGit(repository, ['rev-parse', 'HEAD']).trim();
   assert(head === expectedCommit, 'Core source does not match the exact commit authority');
-  const status = runGit(repository, ['status', '--porcelain', '--untracked-files=all']).trim();
-  assert(status === '', 'Core source worktree must be clean');
-
-  const treeEntries = parseCommitTree(repository, expectedCommit);
-  assertTrustedIndexIsOrdinary(repository);
-  assertIndexIsOrdinary(repository, treeEntries);
+  const commitTree = readTrustedCommitTree(repository, expectedCommit);
+  const treeEntries = parseCommitTree(commitTree);
+  assertIndexMatchesCommit(repository, commitTree);
+  assertNormalizedWorktreeClean(repository);
   for (const entry of treeEntries) {
     const file = path.join(packageRoot, ...entry.relativePath.split('/'));
     let stat;

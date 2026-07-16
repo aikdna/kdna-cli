@@ -25,6 +25,10 @@ const {
   CORE_CANDIDATE_WORKFLOW_PATH,
 } = require('../scripts/core-candidate');
 const {
+  assertCheckedArtifactIntegrity,
+  sha512Integrity,
+} = require('../scripts/verify-core-candidate-tar');
+const {
   coreSourcePackArguments,
   inspectCoreSourceAuthority,
   materializeCoreCommitPackage,
@@ -369,6 +373,28 @@ test('Core source authority rejects wrong roots, links, and hidden index state',
     assert.equal(authority.head, fixture.head);
   });
 
+  await t.test('autocrlf-normalized CRLF checkout is clean but substantive drift blocks', (t) => {
+    const fixture = createCoreSourceFixture(t);
+    for (const file of ['package.json', 'index.js']) {
+      const target = path.join(fixture.packageRoot, file);
+      fs.writeFileSync(target, fs.readFileSync(target, 'utf8').replaceAll('\n', '\r\n'));
+    }
+    assert.notEqual(
+      git(fixture.repository, ['status', '--porcelain', '--untracked-files=all']),
+      '',
+    );
+    assert.doesNotThrow(() => inspectCoreSourceAuthority(fixture.packageRoot, fixture.head));
+
+    fs.writeFileSync(
+      path.join(fixture.packageRoot, 'index.js'),
+      "'use strict';\r\nmodule.exports = 'substantive-drift';\r\n",
+    );
+    assert.throws(
+      () => inspectCoreSourceAuthority(fixture.packageRoot, fixture.head),
+      /worktree must be clean/,
+    );
+  });
+
   await t.test('clean CRLF checkout uses exact commit blobs for content authority', (t) => {
     const fixture = createCoreSourceFixture(t);
     fs.writeFileSync(
@@ -628,10 +654,23 @@ test('portable candidate tar reader rejects corrupted headers and hostile paths'
 
 test('strict package install equivalence excludes only declared archive metadata', async (t) => {
   const binding = verifyCandidateBinding(ROOT);
-  const artifact = fs.readFileSync(path.join(ROOT, binding.packages[0].artifact));
+  const entry = binding.packages[0];
+  const artifact = fs.readFileSync(path.join(ROOT, entry.artifact));
   const archive = zlib.gunzipSync(artifact);
   const offsets = tarEntryOffsets(archive);
   assert.equal(offsets.length, 39);
+
+  await t.test('gzip wrapper variance keeps lock authority on checked artifact bytes', () => {
+    const wrapperVariant = zlib.gzipSync(archive, { level: 1 });
+    assert.equal(wrapperVariant.equals(artifact), false);
+    assert.notEqual(sha512Integrity(wrapperVariant), entry.integrity);
+    assert.deepEqual(assertPackageTarInstallEquivalent(artifact, wrapperVariant), {
+      ...STRICT_PACKAGE_INSTALL_EQUIVALENCE,
+      entry_count: 39,
+    });
+    const locked = require('../package-lock.json').packages[`node_modules/${CORE}`];
+    assert.equal(assertCheckedArtifactIntegrity(entry, locked, artifact), entry.integrity);
+  });
 
   const metadataOnly = Buffer.from(archive);
   for (const { header } of offsets) {

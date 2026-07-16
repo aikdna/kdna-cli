@@ -56,6 +56,25 @@ function packOnce(packageRoot, destination, npm) {
   return { bytes: fs.readFileSync(file), file, metadata };
 }
 
+function sha512Integrity(bytes) {
+  return `sha512-${crypto.createHash('sha512').update(bytes).digest('base64')}`;
+}
+
+function assertCheckedArtifactIntegrity(entry, locked, artifactBytes) {
+  const integrity = sha512Integrity(artifactBytes);
+  assert.equal(
+    entry.integrity,
+    integrity,
+    'candidate binding integrity must come from the checked-in local artifact bytes',
+  );
+  assert.equal(
+    locked.integrity,
+    integrity,
+    'lock integrity must come from the checked-in local artifact bytes',
+  );
+  return integrity;
+}
+
 function copyCandidateCli(destination) {
   fs.cpSync(ROOT, destination, {
     recursive: true,
@@ -152,14 +171,11 @@ function main() {
     const binding = verifyCandidateBinding(ROOT);
     const entry = binding.packages.find(({ name }) => name === CORE_CANDIDATE_PACKAGE);
     assert.ok(entry, 'Core candidate binding is missing');
-    const comparison = assertPackageTarInstallEquivalent(
-      fs.readFileSync(path.join(ROOT, entry.artifact)),
-      first.bytes,
-      {
-        referenceLabel: 'checked-in Core candidate artifact',
-        candidateLabel: 'exact reproducible Core source pack',
-      },
-    );
+    const checkedArtifactBytes = fs.readFileSync(path.join(ROOT, entry.artifact));
+    const comparison = assertPackageTarInstallEquivalent(checkedArtifactBytes, first.bytes, {
+      referenceLabel: 'checked-in Core candidate artifact',
+      candidateLabel: 'exact reproducible Core source pack',
+    });
     assert.equal(comparison.status, STRICT_PACKAGE_INSTALL_EQUIVALENCE.status);
     assert.equal(comparison.entry_count, first.metadata.entryCount);
 
@@ -203,15 +219,10 @@ function main() {
     const lock = JSON.parse(fs.readFileSync(path.join(cliCopy, 'package-lock.json'), 'utf8'));
     const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
     const locked = lock.packages[`node_modules/${CORE_CANDIDATE_PACKAGE}`];
-    const actualIntegrity = `sha512-${crypto.createHash('sha512').update(first.bytes).digest('base64')}`;
     assert.equal(packageJson.dependencies[CORE_CANDIDATE_PACKAGE], CORE_CANDIDATE_VERSION);
     assert.equal(lock.packages[''].dependencies[CORE_CANDIDATE_PACKAGE], CORE_CANDIDATE_VERSION);
     assert.equal(locked.version, CORE_CANDIDATE_VERSION);
-    assert.equal(
-      locked.integrity,
-      actualIntegrity,
-      'lock integrity must come from the local tar bytes',
-    );
+    assertCheckedArtifactIntegrity(entry, locked, checkedArtifactBytes);
     assert.equal(
       locked.resolved,
       `file:${entry.artifact}`,
@@ -252,9 +263,13 @@ function main() {
   }
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(`Core candidate tar verification blocked: ${error.message}`);
-  process.exitCode = 1;
+if (require.main === module) {
+  try {
+    main();
+  } catch (error) {
+    console.error(`Core candidate tar verification blocked: ${error.message}`);
+    process.exitCode = 1;
+  }
 }
+
+module.exports = { assertCheckedArtifactIntegrity, sha512Integrity };
