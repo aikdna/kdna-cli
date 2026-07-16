@@ -3,8 +3,8 @@
 
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
+const { createCanonicalReleaseTemp } = require('./generate-release-evidence');
 const { validatePackReport } = require('./release-evidence');
 const { resolveTrustedNpmInvocation } = require('./runtime-candidate-binding');
 const {
@@ -56,7 +56,7 @@ function packOnce(packageRoot, destination, npm) {
 }
 
 function verifyReproduciblePack() {
-  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-pack-policy-'));
+  const temp = createCanonicalReleaseTemp();
   const npm = resolveTrustedNpmInvocation(root);
   try {
     assertTrustedIndexIsOrdinary(root);

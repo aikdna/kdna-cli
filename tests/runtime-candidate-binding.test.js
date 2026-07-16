@@ -631,7 +631,7 @@ test('trusted Git commit reader rejects links and invalid tree paths', async (t)
 test('portable candidate tar reader rejects corrupted headers and hostile paths', (t) => {
   const binding = verifyCandidateBinding(ROOT);
   const artifact = path.join(ROOT, binding.packages[0].artifact);
-  assert.equal(readTarFileEntries(artifact).length, 39);
+  assert.equal(readTarFileEntries(artifact).length, 42);
 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-hostile-tar-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -658,7 +658,7 @@ test('strict package install equivalence excludes only declared archive metadata
   const artifact = fs.readFileSync(path.join(ROOT, entry.artifact));
   const archive = zlib.gunzipSync(artifact);
   const offsets = tarEntryOffsets(archive);
-  assert.equal(offsets.length, 39);
+  assert.equal(offsets.length, 42);
 
   await t.test('gzip wrapper variance keeps lock authority on checked artifact bytes', () => {
     const wrapperVariant = zlib.gzipSync(archive, { level: 1 });
@@ -666,7 +666,7 @@ test('strict package install equivalence excludes only declared archive metadata
     assert.notEqual(sha512Integrity(wrapperVariant), entry.integrity);
     assert.deepEqual(assertPackageTarInstallEquivalent(artifact, wrapperVariant), {
       ...STRICT_PACKAGE_INSTALL_EQUIVALENCE,
-      entry_count: 39,
+      entry_count: 42,
     });
     const locked = require('../package-lock.json').packages[`node_modules/${CORE}`];
     assert.equal(assertCheckedArtifactIntegrity(entry, locked, artifact), entry.integrity);
@@ -684,7 +684,7 @@ test('strict package install equivalence excludes only declared archive metadata
   assert.equal(metadataOnlyArtifact.equals(artifact), false);
   assert.deepEqual(assertPackageTarInstallEquivalent(artifact, metadataOnlyArtifact), {
     ...STRICT_PACKAGE_INSTALL_EQUIVALENCE,
-    entry_count: 39,
+    entry_count: 42,
   });
 
   const mutations = [

@@ -25,6 +25,7 @@
     "format:check": "prettier --check .",
     "test": "node scripts/run-complete-suite.js --complete",
     "check:public-surface": "node scripts/check-public-surface.mjs",
+    "check:workflow-authority": "node scripts/check-workflow-authority.js",
     "check:protocol-names": "node scripts/check-current-protocol-names.js",
     "test:golden-host-request": "node scripts/generate-golden-host-contract.js --check && node --test tests/golden-host-request.test.js",
     "test:runtime-contract": "node scripts/verify-runtime-contract-core.js && node --require ./tests/helpers/require-golden-core.js --test tests/runtime-contract.test.js",

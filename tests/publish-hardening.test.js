@@ -232,6 +232,7 @@ test('publish workflow has one canonical release-only path and publishes the ver
 
   const preflight = fs.readFileSync(path.join(ROOT, 'scripts/release-preflight.js'), 'utf8');
   assert.match(preflight, /scripts\/check-public-surface\.mjs/);
+  assert.match(preflight, /scripts\/check-workflow-authority\.js/);
   assert.match(preflight, /scripts\/check-current-protocol-names\.js/);
 
   const packageJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
@@ -268,7 +269,7 @@ test('publish workflow has one canonical release-only path and publishes the ver
     2,
   );
   assert.match(ci, /Install dependencies for compatibility only/);
-  assert.match(ci, /if: matrix\.node == 18/);
+  assert.match(ci, /if: matrix\.node == '18\.20\.8'/);
   assert.match(ci, /node scripts\/verify-core-candidate-tar\.js/);
   assert.match(ci, /node scripts\/check-public-surface\.mjs/);
   assert.doesNotMatch(ci, /npm ci --prefix \.cross-repo\/kdna/);
@@ -310,6 +311,9 @@ test('publish workflow has one canonical release-only path and publishes the ver
     assert.match(source, /materializeTrustedCommit/);
     assert.doesNotMatch(source, /packOnce\(root,/);
   }
+  const packPolicy = fs.readFileSync(path.join(ROOT, 'scripts/verify-pack-policy.js'), 'utf8');
+  assert.match(packPolicy, /createCanonicalReleaseTemp/);
+  assert.doesNotMatch(packPolicy, /mkdtempSync/);
 
   for (const script of [
     'scripts/generate-golden-host-contract.js',

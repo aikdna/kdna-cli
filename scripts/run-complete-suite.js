@@ -55,6 +55,7 @@ const UNIT_TEST_FILES = Object.freeze([
   'tests/validator.test.js',
   'tests/public-surface-policy.test.js',
   'tests/protocol-naming-gate.test.js',
+  'tests/workflow-authority.test.js',
   'tests/runtime-candidate-binding.test.js',
   'tests/publish-hardening.test.js',
   'tests/cluster.test.js',

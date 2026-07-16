@@ -11,6 +11,7 @@ const checks = [
   [node, ['scripts/run-trusted-npm.js', 'ci', '--ignore-scripts', '--no-audit', '--no-fund']],
   [node, ['scripts/release-readiness.js']],
   [node, ['scripts/check-public-surface.mjs']],
+  [node, ['scripts/check-workflow-authority.js']],
   [node, ['scripts/check-current-protocol-names.js']],
   [node, ['node_modules/prettier/bin/prettier.cjs', '--check', '.']],
   [node, ['node_modules/eslint/bin/eslint.js', 'src/', 'validators/', 'tests/']],
