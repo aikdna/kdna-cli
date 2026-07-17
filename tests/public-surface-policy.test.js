@@ -10,7 +10,7 @@ const { trustedGitEnvironment } = require('../scripts/trusted-git');
 
 const ROOT = path.resolve(__dirname, '..');
 
-const EVIDENCE_PATH = 'tests/fixtures/core-0.19-candidate-evidence.json';
+const EVIDENCE_PATH = 'tests/fixtures/core-0.20-candidate-evidence.json';
 const BINDING_PATH = 'tests/fixtures/runtime-candidates/binding.json';
 const SHA = 'a'.repeat(40);
 const OTHER_SHA = 'b'.repeat(40);

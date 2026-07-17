@@ -66,7 +66,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@aikdna/kdna-core": "0.19.0",
+    "@aikdna/kdna-core": "0.20.0",
     "@aikdna/kdna-eval": "0.3.1"
   },
   "optionalDependencies": {

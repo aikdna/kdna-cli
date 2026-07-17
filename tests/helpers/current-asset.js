@@ -26,7 +26,7 @@ function currentManifest(overrides = {}) {
     updated_at: '2026-07-16T00:00:00Z',
     creator: { name: 'KDNA Test' },
     compatibility: {
-      min_loader_version: '0.19.0',
+      min_loader_version: '0.20.0',
       profile,
       profile_version: PROFILE_VERSION,
       ...compatibilityOverrides,

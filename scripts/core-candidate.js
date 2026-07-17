@@ -4,11 +4,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const CORE_CANDIDATE_PACKAGE = '@aikdna/kdna-core';
-const CORE_CANDIDATE_VERSION = '0.19.0';
+const CORE_CANDIDATE_VERSION = '0.20.0';
 const CORE_CANDIDATE_EVIDENCE_PATH = path.join(
   'tests',
   'fixtures',
-  'core-0.19-candidate-evidence.json',
+  'core-0.20-candidate-evidence.json',
 );
 const CORE_CANDIDATE_WORKFLOW_PATH = path.join('.github', 'workflows', 'ci.yml');
 

@@ -2,13 +2,13 @@
   "provenance": {
     "contract_id": "kdna.golden-single-asset",
     "core_repository": "https://github.com/aikdna/kdna",
-    "core_commit": "556f8ce",
+    "core_commit": "1e77e3e",
     "core_fixture_path": "packages/kdna-core/test/fixtures/golden-single-asset.json",
     "dynamic_field_normalization": {
       "trace.loaded_at": "<runtime-generated-iso8601>",
       "digests.asset.value": "<runtime-generated-container-sha256>"
     },
-    "normalized_capsule_sha256": "sha256:2be57f3dd063a526c4a1df1dc6166d792a7124dba29fbfaf773f26c22890a51c"
+    "normalized_capsule_sha256": "sha256:47e9ab977fdd95675eb26c8f8f0633eace5216d6c0ee5ae662c667c064f12d95"
   },
   "task": "Choose the rollout mode after required checks passed but rollback-drill evidence remains incomplete.",
   "source": {
@@ -28,7 +28,7 @@
         "id": "synthetic_protocol_fixture"
       },
       "compatibility": {
-        "min_loader_version": "0.19.0",
+        "min_loader_version": "0.20.0",
         "profile": "kdna.payload.judgment",
         "profile_version": "0.1.0"
       },
@@ -160,7 +160,7 @@
         }
       },
       "content": {
-        "value": "sha256:714d608763d2c927b428bdbc023c225f8140ce80168a5f7e70a4e9f4ec92eca1",
+        "value": "sha256:daa858ed839066b82770c8e984682cf577db45828ae6b9b8bc29aed235ab1daa",
         "basis": "kdna.digest-basis.content-tree",
         "comparison": {
           "state": "not_compared",
@@ -170,12 +170,12 @@
         }
       },
       "runtime_entry_set": {
-        "value": "sha256:d8dbaf438a953517a4690751659d3b062fd42002993653004a85e0f9d9ebaded",
+        "value": "sha256:dd0f4fa6630d8ae28304ceb7492dd0184543f8464197b34c3c41e6a7d581074b",
         "basis": "kdna.digest-basis.runtime-entry-set",
         "comparison": {
           "state": "matched",
           "against": "checksum_declaration",
-          "expected": "sha256:d8dbaf438a953517a4690751659d3b062fd42002993653004a85e0f9d9ebaded",
+          "expected": "sha256:dd0f4fa6630d8ae28304ceb7492dd0184543f8464197b34c3c41e6a7d581074b",
           "source": "checksums.json.entry_set_digest"
         }
       }
@@ -184,7 +184,6 @@
       "state": "absent"
     },
     "access": "public",
-    "risk_level": null,
     "profile": "compact",
     "context": {
       "highest_question": "Which rollout choice preserves the safest verified recovery path?",

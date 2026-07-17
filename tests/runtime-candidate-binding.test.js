@@ -89,7 +89,7 @@ function writeInstalledPackage(root, installPath, name, version) {
 }
 
 function createCanonicalInstalledGraph(root) {
-  writeInstalledPackage(root, CORE, CORE, '0.19.0');
+  writeInstalledPackage(root, CORE, CORE, '0.20.0');
   writeInstalledPackage(root, EVAL, EVAL, '0.3.1');
 }
 
@@ -126,7 +126,7 @@ function createCoreSourceFixture(t) {
   fs.writeFileSync(path.join(repository, '.gitignore'), 'ignored/\n');
   fs.writeFileSync(
     path.join(packageRoot, 'package.json'),
-    `${JSON.stringify({ name: CORE, version: '0.19.0' }, null, 2)}\n`,
+    `${JSON.stringify({ name: CORE, version: '0.20.0' }, null, 2)}\n`,
   );
   fs.writeFileSync(path.join(packageRoot, 'index.js'), "'use strict';\n");
   git(repository, ['add', '--all']);
@@ -201,30 +201,39 @@ test('trusted Git uses a Git-compatible null config device and still scrubs ever
   }
 });
 
-test('default install binds one exact Core registry artifact while published Eval stays canonical', () => {
+test('default install binds one exact Core candidate while published Eval stays canonical', () => {
   const pkg = require('../package.json');
   const lock = require('../package-lock.json');
   const binding = verifyCandidateBinding(ROOT);
-  assert.equal(pkg.dependencies[CORE], '0.19.0');
-  assert.equal(lock.packages[''].dependencies[CORE], '0.19.0');
-  assert.equal(lock.packages[`node_modules/${CORE}`].version, '0.19.0');
+  assert.equal(pkg.dependencies[CORE], '0.20.0');
+  assert.equal(lock.packages[''].dependencies[CORE], '0.20.0');
+  assert.equal(lock.packages[`node_modules/${CORE}`].version, '0.20.0');
   assert.equal(
     lock.packages[`node_modules/${CORE}`].resolved,
-    canonicalRegistryUrl(CORE, binding.packages[0].version),
+    `file:${binding.packages[0].artifact}`,
   );
   assert.equal(
     lock.packages[`node_modules/${EVAL}`].resolved,
     canonicalRegistryUrl(EVAL, pkg.dependencies[EVAL]),
   );
-  assert.equal(require('@aikdna/kdna-core/package.json').version, '0.19.0');
+  assert.equal(require('@aikdna/kdna-core/package.json').version, '0.20.0');
   assert.deepEqual(verifyInstalledAikdnaGraph(ROOT), {
-    [CORE]: '0.19.0',
+    [CORE]: '0.20.0',
     [EVAL]: '0.3.1',
   });
 });
 
-test('registry release gate accepts the real published Core 0.19.0', () => {
-  assert.doesNotThrow(() => assertRegistryReleaseReady(ROOT, strictRegistryLookup));
+test('candidate-bound release gate blocks before registry lookup', () => {
+  let lookups = 0;
+  assert.throws(
+    () =>
+      assertRegistryReleaseReady(ROOT, () => {
+        lookups += 1;
+        throw new Error('registry lookup must not run');
+      }),
+    /still candidate-bound/,
+  );
+  assert.equal(lookups, 0);
 });
 
 test('registry release gate checks exact package identity, version, and integrity', (t) => {
@@ -273,11 +282,11 @@ test('registry dependency lookup uses one trusted client and fixed exact argumen
   const validResult = {
     status: 0,
     signal: null,
-    stdout: JSON.stringify({ name: CORE, version: '0.19.0', 'dist.integrity': integrity }),
+    stdout: JSON.stringify({ name: CORE, version: '0.20.0', 'dist.integrity': integrity }),
     stderr: '',
   };
   const lookup = (result = validResult) =>
-    strictRegistryLookup(CORE, '0.19.0', {
+    strictRegistryLookup(CORE, '0.20.0', {
       root: ROOT,
       invocation,
       runner: (command, args, options) => {
@@ -307,7 +316,7 @@ test('registry dependency lookup uses one trusted client and fixed exact argumen
         ...result,
         stdout: JSON.stringify({
           name: CORE,
-          version: '0.19.0',
+          version: '0.20.0',
           'dist.integrity': integrity,
           extra: true,
         }),
@@ -438,7 +447,7 @@ test('Core source authority rejects wrong roots, links, and hidden index state',
     fs.mkdirSync(wrongRoot, { recursive: true });
     fs.writeFileSync(
       path.join(wrongRoot, 'package.json'),
-      `${JSON.stringify({ name: CORE, version: '0.19.0' })}\n`,
+      `${JSON.stringify({ name: CORE, version: '0.20.0' })}\n`,
     );
     assert.throws(
       () => inspectCoreSourceAuthority(wrongRoot, fixture.head),
@@ -730,7 +739,7 @@ test('strict package install equivalence excludes only declared archive metadata
 test('candidate pack evidence rejects source mutations between its two packs', () => {
   const before = {
     packageRoot: '/candidate/core',
-    packageJson: { name: CORE, version: '0.19.0' },
+    packageJson: { name: CORE, version: '0.20.0' },
     head: 'a'.repeat(40),
     files: { 'src/runtime-contract.js': 'b'.repeat(64) },
   };
@@ -756,7 +765,7 @@ test('candidate evidence authority ignores formatting and blocks every semantic 
   const expected = {
     evidence_kind: 'candidate_source_pack',
     package: CORE,
-    version: '0.19.0',
+    version: '0.20.0',
     git_head: 'a'.repeat(40),
     pack: { status: 'strict', reproducible_runs: 2 },
     files: { 'src/runtime-contract.js': 'b'.repeat(64) },
@@ -842,11 +851,11 @@ test('binding completeness rejects omissions, extras, duplicate copies, and host
     /candidate binding package set mismatch|duplicate packages/,
   );
   for (const artifact of [
-    'tests\\fixtures\\runtime-candidates\\kdna-core-0.19.0.tgz',
-    'tests/fixtures/runtime-candidates//kdna-core-0.19.0.tgz',
-    'tests/fixtures/runtime-candidates/./kdna-core-0.19.0.tgz',
+    'tests\\fixtures\\runtime-candidates\\kdna-core-0.20.0.tgz',
+    'tests/fixtures/runtime-candidates//kdna-core-0.20.0.tgz',
+    'tests/fixtures/runtime-candidates/./kdna-core-0.20.0.tgz',
     'tests/fixtures/runtime-candidates/%2e%2e.tgz',
-    'tests/fixtures/runtime-candidates/KDNA-core-0.19.0.tgz',
+    'tests/fixtures/runtime-candidates/KDNA-core-0.20.0.tgz',
   ]) {
     rejects(
       BINDING_PATH,
@@ -904,13 +913,13 @@ test('binding completeness rejects omissions, extras, duplicate copies, and host
         ...lock.packages[`node_modules/${CORE}`],
       };
     },
-    /AIKDNA lock (?:package must appear exactly once|resolution\/path mismatch).*kdna-core.*count=2|AIKDNA lock resolution\/path mismatch: node_modules\/foreign\/node_modules\/\@aikdna\/kdna-core/,
+    /AIKDNA lock (?:package must appear exactly once|resolution\/path mismatch).*kdna-core.*count=2|AIKDNA lock resolution\/path mismatch: node_modules\/foreign\/node_modules\/@aikdna\/kdna-core/,
   );
   rejects(
     'package-lock.json',
     (lock) => {
       lock.packages['node_modules/foreign/node_modules/@aikdna%2fkdna-core'] = {
-        version: '0.19.0',
+        version: '0.20.0',
       };
     },
     /AIKDNA lock package (?:path|name) invalid/,
@@ -919,7 +928,7 @@ test('binding completeness rejects omissions, extras, duplicate copies, and host
     'package-lock.json',
     (lock) => {
       lock.packages['node_modules/foreign/node_modules/%2540aikdna%252fkdna-core'] = {
-        version: '0.19.0',
+        version: '0.20.0',
       };
     },
     /AIKDNA lock package name invalid/,
@@ -927,7 +936,7 @@ test('binding completeness rejects omissions, extras, duplicate copies, and host
   rejects(
     'package-lock.json',
     (lock) => {
-      lock.packages['node_modules/foreign/node_modules/@AIKDNA/kdna-core'] = { version: '0.19.0' };
+      lock.packages['node_modules/foreign/node_modules/@AIKDNA/kdna-core'] = { version: '0.20.0' };
     },
     /AIKDNA lock package name invalid/,
   );
@@ -935,7 +944,7 @@ test('binding completeness rejects omissions, extras, duplicate copies, and host
     'package-lock.json',
     (lock) => {
       lock.packages['node_modules\\foreign\\node_modules\\@aikdna\\kdna-core'] = {
-        version: '0.19.0',
+        version: '0.20.0',
       };
     },
     /AIKDNA lock package path invalid/,
@@ -1162,7 +1171,7 @@ test('installed graph rejects alias copies, nested copies, symlinks, extras, and
     const root = copyFixtureRoot(t);
     createCanonicalInstalledGraph(root);
     assert.deepEqual(verifyInstalledAikdnaGraph(root), {
-      [CORE]: '0.19.0',
+      [CORE]: '0.20.0',
       [EVAL]: '0.3.1',
     });
   });
@@ -1176,42 +1185,42 @@ test('installed graph rejects alias copies, nested copies, symlinks, extras, and
     const root = copyFixtureRoot(t);
     createCanonicalInstalledGraph(root);
     writeInstalledPackage(root, 'foreign', 'foreign', '1.0.0');
-    writeInstalledPackage(root, 'foreign/node_modules/shadow-core', CORE, '0.19.0');
+    writeInstalledPackage(root, 'foreign/node_modules/shadow-core', CORE, '0.20.0');
     assert.throws(() => verifyInstalledAikdnaGraph(root), /not at its canonical top-level path/);
   });
   await t.test('deep descendant node_modules alias', (t) => {
     const root = copyFixtureRoot(t);
     createCanonicalInstalledGraph(root);
     writeInstalledPackage(root, 'ajv', 'ajv', '1.0.0');
-    writeInstalledPackage(root, 'ajv/dist/node_modules/shadow-core', CORE, '0.19.0');
+    writeInstalledPackage(root, 'ajv/dist/node_modules/shadow-core', CORE, '0.20.0');
     assert.throws(() => verifyInstalledAikdnaGraph(root), /not at its canonical top-level path/);
   });
   await t.test('arbitrarily deep descendant node_modules alias', (t) => {
     const root = copyFixtureRoot(t);
     createCanonicalInstalledGraph(root);
     writeInstalledPackage(root, 'ajv', 'ajv', '1.0.0');
-    writeInstalledPackage(root, 'ajv/dist/a/b/node_modules/shadow-core', CORE, '0.19.0');
+    writeInstalledPackage(root, 'ajv/dist/a/b/node_modules/shadow-core', CORE, '0.20.0');
     assert.throws(() => verifyInstalledAikdnaGraph(root), /not at its canonical top-level path/);
   });
   await t.test('vendored package manifest identity', (t) => {
     const root = copyFixtureRoot(t);
     createCanonicalInstalledGraph(root);
     writeInstalledPackage(root, 'ajv', 'ajv', '1.0.0');
-    writeInstalledPackage(root, 'ajv/vendor/shadow-core', CORE, '0.19.0');
+    writeInstalledPackage(root, 'ajv/vendor/shadow-core', CORE, '0.20.0');
     assert.throws(() => verifyInstalledAikdnaGraph(root), /not at its canonical top-level path/);
   });
   await t.test('deep vendored encoded package manifest identity', (t) => {
     const root = copyFixtureRoot(t);
     createCanonicalInstalledGraph(root);
     writeInstalledPackage(root, 'ajv', 'ajv', '1.0.0');
-    writeInstalledPackage(root, 'ajv/vendor/a/b/shadow-core', '%40aikdna%2fkdna-core', '0.19.0');
+    writeInstalledPackage(root, 'ajv/vendor/a/b/shadow-core', '%40aikdna%2fkdna-core', '0.20.0');
     assert.throws(() => verifyInstalledAikdnaGraph(root), /installed AIKDNA package name invalid/);
   });
   await t.test('non-canonical node_modules case', (t) => {
     const root = copyFixtureRoot(t);
     createCanonicalInstalledGraph(root);
     writeInstalledPackage(root, 'ajv', 'ajv', '1.0.0');
-    writeInstalledPackage(root, 'ajv/dist/NODE_MODULES/shadow-core', CORE, '0.19.0');
+    writeInstalledPackage(root, 'ajv/dist/NODE_MODULES/shadow-core', CORE, '0.20.0');
     assert.throws(
       () => verifyInstalledAikdnaGraph(root),
       /node_modules path has non-canonical case/,
@@ -1229,7 +1238,7 @@ test('installed graph rejects alias copies, nested copies, symlinks, extras, and
   await t.test('root .bin descendant node_modules', (t) => {
     const root = copyFixtureRoot(t);
     createCanonicalInstalledGraph(root);
-    writeInstalledPackage(root, '.bin/node_modules/shadow-core', CORE, '0.19.0');
+    writeInstalledPackage(root, '.bin/node_modules/shadow-core', CORE, '0.20.0');
     assert.throws(() => verifyInstalledAikdnaGraph(root), /\.bin must not contain directories/);
   });
   await t.test('nested .bin descendant node_modules', (t) => {
@@ -1240,7 +1249,7 @@ test('installed graph rejects alias copies, nested copies, symlinks, extras, and
       root,
       'ajv/dist/node_modules/.bin/node_modules/shadow-core',
       CORE,
-      '0.19.0',
+      '0.20.0',
     );
     assert.throws(() => verifyInstalledAikdnaGraph(root), /\.bin must not contain directories/);
   });
@@ -1280,7 +1289,7 @@ test('installed graph rejects alias copies, nested copies, symlinks, extras, and
   await t.test('case-disguised package name', (t) => {
     const root = copyFixtureRoot(t);
     createCanonicalInstalledGraph(root);
-    writeInstalledPackage(root, 'shadow-core', '@AIKDNA/kdna-core', '0.19.0');
+    writeInstalledPackage(root, 'shadow-core', '@AIKDNA/kdna-core', '0.20.0');
     assert.throws(() => verifyInstalledAikdnaGraph(root), /installed AIKDNA package name invalid/);
   });
   await t.test('canonical package version drift', (t) => {

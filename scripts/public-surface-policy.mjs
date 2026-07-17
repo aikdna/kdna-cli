@@ -1,4 +1,4 @@
-const EVIDENCE_PATH = 'tests/fixtures/core-0.19-candidate-evidence.json';
+const EVIDENCE_PATH = 'tests/fixtures/core-0.20-candidate-evidence.json';
 const CANDIDATE_BINDING_PATH = 'tests/fixtures/runtime-candidates/binding.json';
 const FULL_HASH = /^[a-f0-9]{40}$/i;
 

@@ -573,19 +573,6 @@ function installFromLocalFile(
       EXIT.TRUST_FAILED,
     );
   }
-  // For tested+ quality_badge, require Studio-compatible authoring provenance.
-  const highTrustBadges = new Set(['tested', 'validated', 'expert_reviewed', 'production_ready']);
-  if (
-    trusted &&
-    highTrustBadges.has(manifest.quality_badge) &&
-    (!manifest.authoring?.compiler || !manifest.authoring?.compiler_version)
-  ) {
-    error(
-      `--trusted requires Studio-compatible authoring provenance for quality_badge "${manifest.quality_badge}".\n` +
-        'This asset lacks compiler provenance. Re-publish through Studio pipeline.',
-      EXIT.TRUST_FAILED,
-    );
-  }
 
   if (trustLevel.issues.length > 0 && !allowUnverified) {
     const reasons = trustLevel.issues.map((issue) => `  - ${issue}`).join('\n');

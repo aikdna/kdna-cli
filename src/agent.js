@@ -923,14 +923,14 @@ function cmdRoute(taskText, args = []) {
       })),
     ];
 
-    // ═══ Trust Gate ═══
-    const trust = checkTrust(selected.domain);
-    result.trust = trust;
+    // ═══ Caller Policy Gate ═══
+    const policy = checkTrust(selected.domain);
+    result.policy = policy;
 
-    if (!trust.passed) {
-      result.status = 'BLOCK_TRUST_FAILED';
+    if (!policy.passed) {
+      result.status = 'BLOCK_POLICY_FAILED';
       result.action = 'block';
-      result.reason = `domain matched but trust check failed: ${trust.failures.join(', ')}`;
+      result.reason = `domain matched but caller policy check failed: ${policy.failures.join(', ')}`;
     } else {
       result.status = 'LOAD_STRONG_FIT';
       result.action = 'load';
@@ -1022,22 +1022,7 @@ function checkTrust(domainName) {
     warnings.push('domain is unsigned — trust depends on source');
   }
 
-  // 4. Risk level check
-  const riskLevel = manifest.risk_level || entry.risk_level || 'R1';
-  const riskMap = { R0: 0, R1: 1, R2: 2, R3: 3, R4: 4 };
-  const riskNum = riskMap[riskLevel] || 1;
-  if (riskNum >= 3) {
-    warnings.push(
-      `domain risk level is ${riskLevel} — high-risk judgment may influence agent behavior`,
-    );
-  }
-  if (riskNum >= 2 && (manifest.quality_badge === 'untested' || !manifest.quality_badge)) {
-    warnings.push(
-      `risk level ${riskLevel} with quality_badge '${manifest.quality_badge || 'none'}' — consider requiring review`,
-    );
-  }
-
-  // 5. KDNA container format check
+  // 4. KDNA container format check
   const formatVersion = manifest.format_version || 'unknown';
   const supportedVersions = ['0.1.0'];
   if (!supportedVersions.includes(formatVersion)) {
@@ -1046,7 +1031,7 @@ function checkTrust(domainName) {
     );
   }
 
-  // 6. License validity (commercial domains)
+  // 5. License validity (commercial domains)
   if (planAccess === 'licensed' || planAccess === 'runtime') {
     const licenseCheck = licenseDecryptOptionsForManifest({ ...manifest, name: domainName });
     if (!licenseCheck.ok) {
@@ -1058,7 +1043,7 @@ function checkTrust(domainName) {
     }
   }
 
-  // 7. Human Lock check (judgment-class cards)
+  // 6. Human Lock check (judgment-class cards)
   const axioms = core.axioms || [];
   const hasJudgmentCards = axioms.length > 0;
   if (hasJudgmentCards) {
@@ -1078,7 +1063,6 @@ function checkTrust(domainName) {
     passed: failures.length === 0,
     failures,
     warnings,
-    riskLevel,
     formatVersion,
     signatureValid: !isPlaceholder,
   };

@@ -27,7 +27,7 @@ const MIMETYPE = 'application/vnd.kdna.asset';
 const FORMAT_VERSION = '0.1.0';
 const PROFILE = 'kdna.payload.judgment';
 const PROFILE_VERSION = '0.1.0';
-const MIN_LOADER_VERSION = '0.19.0';
+const MIN_LOADER_VERSION = '0.20.0';
 
 const KDNA_FILES = [
   'KDNA_Core.json',

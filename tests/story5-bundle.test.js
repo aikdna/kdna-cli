@@ -70,7 +70,6 @@ test('Story 5: validate bundle manifest and payload successfully', () => {
       default_language: 'en',
       license: 'Apache-2.0',
       status: 'stable',
-      quality_badge: 'tested',
     });
     writeCurrentSource(tmp, {
       manifest,

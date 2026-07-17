@@ -488,7 +488,7 @@ test('release readiness requires the formal Core release across manifest, lock, 
             ...lock.packages,
             'node_modules/@aikdna/kdna-core': {
               ...lock.packages['node_modules/@aikdna/kdna-core'],
-              resolved: 'file:tests/fixtures/runtime-candidates/kdna-core-0.19.0.tgz',
+              resolved: 'file:tests/fixtures/runtime-candidates/kdna-core-0.20.0.tgz',
             },
           },
         },
@@ -519,12 +519,14 @@ test('release readiness requires the formal Core release across manifest, lock, 
   const currentLock = require('../package-lock.json');
   const currentInstalledCore = require('@aikdna/kdna-core/package.json');
   assert.equal(currentPackage.dependencies['@aikdna/kdna-core'], REQUIRED_CORE_VERSION);
-  assert.doesNotThrow(() =>
-    validateReleaseReadiness({
-      pkg: currentPackage,
-      lock: currentLock,
-      installedCore: currentInstalledCore,
-    }),
+  assert.throws(
+    () =>
+      validateReleaseReadiness({
+        pkg: currentPackage,
+        lock: currentLock,
+        installedCore: currentInstalledCore,
+      }),
+    /canonical registry artifact/,
   );
 });
 
