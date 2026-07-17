@@ -201,7 +201,7 @@ test('trusted Git uses a Git-compatible null config device and still scrubs ever
   }
 });
 
-test('default install binds one exact Core candidate while published Eval stays canonical', () => {
+test('default install binds one exact Core registry artifact while published Eval stays canonical', () => {
   const pkg = require('../package.json');
   const lock = require('../package-lock.json');
   const binding = verifyCandidateBinding(ROOT);
@@ -210,7 +210,7 @@ test('default install binds one exact Core candidate while published Eval stays 
   assert.equal(lock.packages[`node_modules/${CORE}`].version, '0.20.0');
   assert.equal(
     lock.packages[`node_modules/${CORE}`].resolved,
-    `file:${binding.packages[0].artifact}`,
+    canonicalRegistryUrl(CORE, binding.packages[0].version),
   );
   assert.equal(
     lock.packages[`node_modules/${EVAL}`].resolved,
@@ -223,17 +223,8 @@ test('default install binds one exact Core candidate while published Eval stays 
   });
 });
 
-test('candidate-bound release gate blocks before registry lookup', () => {
-  let lookups = 0;
-  assert.throws(
-    () =>
-      assertRegistryReleaseReady(ROOT, () => {
-        lookups += 1;
-        throw new Error('registry lookup must not run');
-      }),
-    /still candidate-bound/,
-  );
-  assert.equal(lookups, 0);
+test('registry release gate accepts the real published Core 0.20.0', () => {
+  assert.doesNotThrow(() => assertRegistryReleaseReady(ROOT, strictRegistryLookup));
 });
 
 test('registry release gate checks exact package identity, version, and integrity', (t) => {

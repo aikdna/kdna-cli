@@ -10,6 +10,7 @@ const path = require('node:path');
 const {
   CORE_CANDIDATE_PACKAGE,
   CORE_CANDIDATE_VERSION,
+  CORE_CANDIDATE_EVIDENCE_PATH,
   readPinnedCoreCommit,
 } = require('./core-candidate');
 const {
@@ -223,11 +224,22 @@ function main() {
     assert.equal(lock.packages[''].dependencies[CORE_CANDIDATE_PACKAGE], CORE_CANDIDATE_VERSION);
     assert.equal(locked.version, CORE_CANDIDATE_VERSION);
     assertCheckedArtifactIntegrity(entry, locked, checkedArtifactBytes);
-    assert.equal(
-      locked.resolved,
-      `file:${entry.artifact}`,
-      'candidate lock must identify the checked-in local tar',
+    const evidence = JSON.parse(
+      fs.readFileSync(path.join(ROOT, CORE_CANDIDATE_EVIDENCE_PATH), 'utf8'),
     );
+    if (evidence.pack?.status === 'registry_artifact') {
+      assert.equal(
+        locked.resolved,
+        `https://registry.npmjs.org/@aikdna/kdna-core/-/kdna-core-${CORE_CANDIDATE_VERSION}.tgz`,
+        'registry-bound lock must identify the canonical registry artifact',
+      );
+    } else {
+      assert.equal(
+        locked.resolved,
+        `file:${entry.artifact}`,
+        'candidate lock must identify the checked-in local tar',
+      );
+    }
 
     const env = {
       ...process.env,

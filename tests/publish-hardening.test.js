@@ -519,14 +519,12 @@ test('release readiness requires the formal Core release across manifest, lock, 
   const currentLock = require('../package-lock.json');
   const currentInstalledCore = require('@aikdna/kdna-core/package.json');
   assert.equal(currentPackage.dependencies['@aikdna/kdna-core'], REQUIRED_CORE_VERSION);
-  assert.throws(
-    () =>
-      validateReleaseReadiness({
-        pkg: currentPackage,
-        lock: currentLock,
-        installedCore: currentInstalledCore,
-      }),
-    /canonical registry artifact/,
+  assert.doesNotThrow(() =>
+    validateReleaseReadiness({
+      pkg: currentPackage,
+      lock: currentLock,
+      installedCore: currentInstalledCore,
+    }),
   );
 });
 
