@@ -436,7 +436,7 @@ test('release readiness requires exact formal Core and Eval releases across mani
   const integrity = `sha512-${Buffer.alloc(64).toString('base64')}`;
   const pkg = {
     name: '@aikdna/kdna-cli',
-    version: '0.35.0',
+    version: '0.35.1',
     dependencies: {
       '@aikdna/kdna-core': REQUIRED_CORE_VERSION,
       '@aikdna/kdna-eval': REQUIRED_EVAL_VERSION,
@@ -468,7 +468,7 @@ test('release readiness requires exact formal Core and Eval releases across mani
   const installedCore = { name: '@aikdna/kdna-core', version: REQUIRED_CORE_VERSION };
   const installedEval = { name: '@aikdna/kdna-eval', version: REQUIRED_EVAL_VERSION };
   assert.deepEqual(validateReleaseReadiness({ pkg, lock, installedCore, installedEval }), {
-    cli: '@aikdna/kdna-cli@0.35.0',
+    cli: '@aikdna/kdna-cli@0.35.1',
     core: `@aikdna/kdna-core@${REQUIRED_CORE_VERSION}`,
     eval: `@aikdna/kdna-eval@${REQUIRED_EVAL_VERSION}`,
   });
@@ -542,7 +542,7 @@ test('release readiness requires exact formal Core and Eval releases across mani
       validateReleaseReadiness({
         pkg: {
           ...pkg,
-          dependencies: { ...pkg.dependencies, '@aikdna/kdna-eval': '0.3.2' },
+          dependencies: { ...pkg.dependencies, '@aikdna/kdna-eval': '0.3.1' },
         },
         lock,
         installedCore,
@@ -575,7 +575,7 @@ test('release readiness requires exact formal Core and Eval releases across mani
         pkg,
         lock,
         installedCore,
-        installedEval: { ...installedEval, version: '0.3.2' },
+        installedEval: { ...installedEval, version: '0.3.1' },
       }),
     /installed Eval artifact does not match/,
   );

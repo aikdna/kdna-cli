@@ -3,9 +3,9 @@ const path = require('node:path');
 const { error, EXIT } = require('./_common');
 
 const PACKAGE_NAME = '@aikdna/kdna-eval';
-const PACKAGE_VERSION = '0.3.1';
+const PACKAGE_VERSION = '0.3.2';
 const FAILURE_MESSAGE =
-  '@aikdna/kdna-eval@0.3.1 is missing or incompatible; reinstall @aikdna/kdna-cli.';
+  '@aikdna/kdna-eval@0.3.2 is missing or incompatible; reinstall @aikdna/kdna-cli.';
 
 const COMMAND_EXPORTS = Object.freeze({
   compose: Object.freeze({

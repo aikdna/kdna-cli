@@ -31,7 +31,12 @@ function buildAssayInput() {
   const observations = [];
   categories.forEach((category, index) => {
     const fixtureId = `fixture_${String(index).padStart(2, '0')}`;
-    const fixture = { fixture_id: fixtureId, category, task: `Task ${index}`, expected: {} };
+    const fixture = {
+      fixture_id: fixtureId,
+      category,
+      task: `Task ${index}`,
+      expected: { outcome: `Bounded result ${index}` },
+    };
     fs.writeFileSync(path.join(fixtureDir, `${fixtureId}.json`), JSON.stringify(fixture));
     for (const arm of [
       'no_kdna',
@@ -80,16 +85,47 @@ test('eval asset executes a complete behavioral observation matrix', () => {
       ASSET,
       `--fixtures=${input.fixtureDir}`,
       `--observations=${input.observationsFile}`,
+      '--trace-id=trace_asset_assay_observations',
       '--as=json',
     ]);
-    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.status, 0, `${result.stderr}\n${result.stdout}`);
     const report = JSON.parse(result.stdout);
     assert.equal(report.mode, 'behavioral_observations');
     assert.equal(report.fixture_validation.valid, true);
     assert.equal(report.observations_loaded, 84);
     assert.equal(report.overall_verdict, 'pass');
     assert.ok(report.classification.levels.includes('behavior_evaluated_asset'));
+    assert.equal(report.evidence_claim.trace_id, 'trace_asset_assay_observations');
     assert.equal(report.evidence_claim.classification.not_behavior_evaluated, false);
+    assert.deepEqual(report.evidence_claim_status, {
+      generated: true,
+      basis: 'caller_supplied_judgment_trace',
+    });
+  } finally {
+    fs.rmSync(input.dir, { recursive: true, force: true });
+  }
+});
+
+test('eval asset never invents EvidenceClaim identity when trace evidence is absent', () => {
+  const input = buildAssayInput();
+  try {
+    const result = runCli([
+      'eval',
+      'asset',
+      ASSET,
+      `--fixtures=${input.fixtureDir}`,
+      `--observations=${input.observationsFile}`,
+      '--as=json',
+    ]);
+    assert.equal(result.status, 0, `${result.stderr}\n${result.stdout}`);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.overall_verdict, 'pass');
+    assert.ok(report.classification.levels.includes('behavior_evaluated_asset'));
+    assert.equal(report.evidence_claim, null);
+    assert.deepEqual(report.evidence_claim_status, {
+      generated: false,
+      reason: 'A real JudgmentTrace ID is required; rerun with --trace-id=<id>.',
+    });
   } finally {
     fs.rmSync(input.dir, { recursive: true, force: true });
   }

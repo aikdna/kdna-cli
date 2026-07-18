@@ -14,7 +14,7 @@ const {
 const CORE_PACKAGE_NAME = '@aikdna/kdna-core';
 const REQUIRED_CORE_VERSION = CORE_CANDIDATE_VERSION;
 const EVAL_PACKAGE_NAME = '@aikdna/kdna-eval';
-const REQUIRED_EVAL_VERSION = '0.3.1';
+const REQUIRED_EVAL_VERSION = '0.3.2';
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);

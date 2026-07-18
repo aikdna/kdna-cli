@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.35.1 (2026-07-19)
 
 - Bind every Eval-backed command to the exact official `@aikdna/kdna-eval`
   package identity, version, and command-level root API. Remove environment,
@@ -8,6 +8,13 @@
   closed with one stable, non-leaking error instead of silently executing a
   different implementation. Release and smoke gates now verify the exact Eval
   registry artifact and all six command contracts.
+- Keep Cluster promotion fail-closed when `--gates` narrows the displayed
+  report. Every gate and all underlying evidence remain part of the verdict,
+  and unknown gate names are rejected instead of producing an empty passing
+  selection.
+- Emit an Asset Assay EvidenceClaim only when the caller supplies a real
+  JudgmentTrace identity through `--trace-id`. Offline observation matrices
+  remain evaluable, but no longer invent trace provenance for their claims.
 
 ## 0.35.0 (2026-07-18)
 

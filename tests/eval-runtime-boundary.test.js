@@ -10,7 +10,7 @@ const LOADER = path.join(ROOT, 'src', 'cmds', '_kdna-eval.js');
 const CLI = path.join(ROOT, 'src', 'cli.js');
 const HELPER = path.join(ROOT, 'tests', 'helpers', 'require-kdna-eval-fixture.js');
 const FAILURE =
-  'Error: @aikdna/kdna-eval@0.3.1 is missing or incompatible; reinstall @aikdna/kdna-cli.\n';
+  'Error: @aikdna/kdna-eval@0.3.2 is missing or incompatible; reinstall @aikdna/kdna-cli.\n';
 const tempDirs = [];
 
 const CONTRACTS = Object.freeze({
@@ -87,7 +87,7 @@ test('package name and every non-exact or invalid version fail closed', async (t
   await t.test('wrong package name', () => {
     assertRejected(runLoader('compose', { name: '@example/kdna-eval' }));
   });
-  for (const version of ['0.3.0', '0.3.2', '0.4.0', '1.0.0', 'garbage']) {
+  for (const version of ['0.3.0', '0.3.1', '0.3.3', '0.4.0', '1.0.0', 'garbage']) {
     await t.test(version, () => {
       assertRejected(runLoader('compose', { version }));
     });

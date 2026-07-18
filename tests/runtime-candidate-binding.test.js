@@ -90,7 +90,7 @@ function writeInstalledPackage(root, installPath, name, version) {
 
 function createCanonicalInstalledGraph(root) {
   writeInstalledPackage(root, CORE, CORE, '0.20.0');
-  writeInstalledPackage(root, EVAL, EVAL, '0.3.1');
+  writeInstalledPackage(root, EVAL, EVAL, '0.3.2');
 }
 
 function git(repository, args) {
@@ -219,7 +219,7 @@ test('default install binds one exact Core registry artifact while published Eva
   assert.equal(require('@aikdna/kdna-core/package.json').version, '0.20.0');
   assert.deepEqual(verifyInstalledAikdnaGraph(ROOT), {
     [CORE]: '0.20.0',
-    [EVAL]: '0.3.1',
+    [EVAL]: '0.3.2',
   });
 });
 
@@ -1163,7 +1163,7 @@ test('installed graph rejects alias copies, nested copies, symlinks, extras, and
     createCanonicalInstalledGraph(root);
     assert.deepEqual(verifyInstalledAikdnaGraph(root), {
       [CORE]: '0.20.0',
-      [EVAL]: '0.3.1',
+      [EVAL]: '0.3.2',
     });
   });
   await t.test('npm alias physical package identity', (t) => {
@@ -1286,7 +1286,7 @@ test('installed graph rejects alias copies, nested copies, symlinks, extras, and
   await t.test('canonical package version drift', (t) => {
     const root = copyFixtureRoot(t);
     writeInstalledPackage(root, CORE, CORE, '0.18.0');
-    writeInstalledPackage(root, EVAL, EVAL, '0.3.1');
+    writeInstalledPackage(root, EVAL, EVAL, '0.3.2');
     assert.throws(() => verifyInstalledAikdnaGraph(root), /version mismatch/);
   });
   await t.test('installed package manifest symlink', (t) => {

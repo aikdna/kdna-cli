@@ -16,7 +16,7 @@ const REGISTRY_ARGS = [
   '--@aikdna:registry=https://registry.npmjs.org/',
 ];
 const FAILURE =
-  'Error: @aikdna/kdna-eval@0.3.1 is missing or incompatible; reinstall @aikdna/kdna-cli.\n';
+  'Error: @aikdna/kdna-eval@0.3.2 is missing or incompatible; reinstall @aikdna/kdna-cli.\n';
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {

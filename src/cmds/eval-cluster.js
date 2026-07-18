@@ -29,7 +29,7 @@ function cmdEvalCluster(args) {
         '  --trace=<file>        Observed Cluster JudgmentTrace for trust and cost gates\n' +
         '  --as=<format>         json|md (default: json)\n' +
         '  --out=<path>          Write output to file\n' +
-        '  --gates=<list>        Comma-separated gates to run (default: all)\n\n' +
+        '  --gates=<list>        Comma-separated gates to display; all remain required for promotion\n\n' +
         'Gates (all required for promotion):\n' +
         '  structural   — Does the cluster resolve and compose correctly?\n' +
         '  behavioral   — Does the cluster improve over primary-only?\n' +
@@ -115,30 +115,28 @@ function cmdEvalCluster(args) {
     manifest,
     plan,
     assetsLoaded: observedTrace?.assets_loaded,
-    executionCost: observedTrace?.cost || { tokens_used: 0, model_calls: 0 },
+    executionCost: observedTrace?.cost,
     fixtures,
     comparisonArms,
   });
 
   // Filter gates if requested
   if (gatesFilter) {
-    const filterList = gatesFilter.split(',').map((s) => s.trim());
+    const availableGates = Object.keys(result.gates);
+    const filterList = gatesFilter
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const unknownGates = filterList.filter((gate) => !availableGates.includes(gate));
+    if (filterList.length === 0 || unknownGates.length > 0) {
+      error(
+        `Unknown Cluster assay gate${unknownGates.length === 1 ? '' : 's'}: ${unknownGates.join(', ') || '(empty)'}. Expected one or more of: ${availableGates.join(', ')}.`,
+        EXIT.INPUT_ERROR,
+      );
+    }
     for (const gate of Object.keys(result.gates)) {
       if (!filterList.includes(gate)) delete result.gates[gate];
     }
-    // Recompute verdict
-    const remaining = Object.values(result.gates);
-    result.verdict.overall = remaining.every((g) => g.pass === true) ? 'pass' : 'fail';
-    result.verdict.passed = remaining.filter((g) => g.pass === true).length;
-    result.verdict.blocked = remaining.filter((g) => g.pass === false).length;
-    result.verdict.not_run = remaining.filter((g) => g.pass === null).length;
-    result.verdict.all_passed = remaining.every((g) => g.pass === true);
-    result.verdict.failed_gates = Object.entries(result.gates)
-      .filter(([, gate]) => gate.pass === false)
-      .map(([name]) => name);
-    result.verdict.incomplete_gates = Object.entries(result.gates)
-      .filter(([, gate]) => gate.pass === null)
-      .map(([name]) => name);
   }
 
   // Output

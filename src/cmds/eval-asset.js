@@ -79,6 +79,7 @@ async function cmdEvalAsset(args) {
         '  --fixtures=<dir>      Directory containing assay fixture JSON files\n' +
         '  --baselines=<dir>     Directory containing baseline fixture results\n' +
         '  --observations=<file>  JSON observations for every fixture × baseline arm\n' +
+        '  --trace-id=<id>        Real JudgmentTrace ID required to emit EvidenceClaim\n' +
         '  --as=<format>         Output: json|md (default: json)\n' +
         '  --out=<path>          Write output to file\n' +
         '  --profile=<json>      Assay profile JSON (overrides defaults)\n' +
@@ -91,6 +92,7 @@ async function cmdEvalAsset(args) {
   const fixturesPath = getFlag('--fixtures');
   const baselinesPath = getFlag('--baselines');
   const observationsPath = getFlag('--observations') || baselinesPath;
+  const traceId = getFlag('--trace-id');
   const as = getFlag('--as') || 'json';
   const outPath = getFlag('--out');
   const profilePath = getFlag('--profile');
@@ -230,16 +232,28 @@ async function cmdEvalAsset(args) {
       assay_passed: assay.overall_verdict === 'pass',
       comparison_arms_run: comparisonArmsRun,
     });
-    const evidenceClaim = generateEvidenceClaim(assay, {
-      taskFamily: 'asset_assay',
-      runtime: '@aikdna/kdna-cli asset assay observations',
-    });
+    const evidenceClaim = traceId
+      ? generateEvidenceClaim(assay, {
+          traceId,
+          taskFamily: 'asset_assay',
+          runtime: '@aikdna/kdna-cli asset assay observations',
+        })
+      : null;
     const report = {
       ...assay,
       mode: 'behavioral_observations',
       observations_loaded: observations.length,
       classification,
       evidence_claim: evidenceClaim,
+      evidence_claim_status: evidenceClaim
+        ? {
+            generated: true,
+            basis: 'caller_supplied_judgment_trace',
+          }
+        : {
+            generated: false,
+            reason: 'A real JudgmentTrace ID is required; rerun with --trace-id=<id>.',
+          },
     };
     output(JSON.stringify(report, null, 2), as, outPath);
     if (assay.overall_verdict !== 'pass') process.exitCode = EXIT.JUDGMENT_QUALITY_FAILED;

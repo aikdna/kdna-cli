@@ -43,7 +43,7 @@ if (spec.getterError?.name) {
 
 const metadata = {
   name: spec.name === undefined ? PACKAGE_NAME : spec.name,
-  version: spec.version === undefined ? '0.3.1' : spec.version,
+  version: spec.version === undefined ? '0.3.2' : spec.version,
   exports: {
     '.': { require: spec.requireEntry === undefined ? './src/index.js' : spec.requireEntry },
   },
