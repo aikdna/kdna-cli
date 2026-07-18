@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.35.0 (2026-07-18)
+
 - Add `--password-stdin` to encrypted demo generation and make stdin the
   documented and tested password path for demo, protect, unlock, and load.
   Legacy `--password <value>` input remains compatible but now emits an
