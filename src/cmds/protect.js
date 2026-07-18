@@ -36,7 +36,7 @@ function parseEntriesFlag(flag) {
 function cmdProtect(args) {
   if (args.includes('--help') || args.includes('-h')) {
     console.log(
-      'Usage: kdna protect <file.kdna> --out <file.kdna> [--password <pw>|--password-stdin] [--entries payload.kdnab]\n' +
+      'Usage: kdna protect <file.kdna> --out <file.kdna> [--password-stdin] [--password <pw>] [--entries payload.kdnab]\n' +
         '\n' +
         'Encrypt a .kdna asset with a password.\n' +
         '\n' +
@@ -48,8 +48,8 @@ function cmdProtect(args) {
         '  --entries payload.kdnab           Entry to encrypt (the only supported target)\n' +
         '\n' +
         'Examples:\n' +
-        '  echo "mypass" | kdna protect asset.kdna --out protected.kdna --password-stdin\n' +
-        '  kdna protect asset.kdna --out protected.kdna --password mypass\n',
+        '  printf \'%s\' "$KDNA_PASSWORD" | kdna protect asset.kdna --out protected.kdna --password-stdin\n' +
+        '  kdna protect asset.kdna --out protected.kdna  # secure interactive prompt\n',
     );
     return;
   }
@@ -57,7 +57,7 @@ function cmdProtect(args) {
   const file = args[0];
   if (!file)
     error(
-      'Usage: kdna protect <file.kdna> --out <file.kdna> [--password <pw>|--password-stdin] [--entries payload.kdnab]\nRun: kdna help protect',
+      'Usage: kdna protect <file.kdna> --out <file.kdna> [--password-stdin] [--password <pw>] [--entries payload.kdnab]\nRun: kdna help protect',
       EXIT.INPUT_ERROR,
     );
 
@@ -170,7 +170,7 @@ function cmdProtect(args) {
 function cmdUnlock(args) {
   if (args.includes('--help') || args.includes('-h')) {
     console.log(
-      'Usage: kdna protect unlock <file.kdna> [--password <pw>|--password-stdin] [--out <file.kdna>] [--profile compact|index|full]\n' +
+      'Usage: kdna protect unlock <file.kdna> [--password-stdin] [--password <pw>] [--out <file.kdna>] [--profile compact|index|full]\n' +
         '\n' +
         'Decrypt a protected .kdna asset. With --out, write the decrypted asset\n' +
         'to a new file (the original stays encrypted on disk). Without --out,\n' +
@@ -179,13 +179,13 @@ function cmdUnlock(args) {
         'Arguments:\n' +
         '  <file.kdna>             Protected .kdna asset\n' +
         '  --password <pw>         Password (insecure)\n' +
-        '  --password-stdin        Read password from stdin\n' +
+        '  --password-stdin        Read password from stdin (preferred for automation)\n' +
         '  --out <file.kdna>        Write decrypted asset to this path\n' +
         '  --profile <name>        compact | index | full (default: compact)\n' +
         '\n' +
         'Examples:\n' +
-        '  echo "pw" | kdna protect unlock protected.kdna --password-stdin --out clear.kdna\n' +
-        '  kdna protect unlock protected.kdna --password pw > loaded.json\n',
+        '  printf \'%s\' "$KDNA_PASSWORD" | kdna protect unlock protected.kdna --password-stdin --out clear.kdna\n' +
+        '  kdna protect unlock protected.kdna > loaded.json  # secure interactive prompt\n',
     );
     return;
   }
@@ -193,7 +193,7 @@ function cmdUnlock(args) {
   const file = args[0];
   if (!file)
     error(
-      'Usage: kdna protect unlock <file.kdna> [--password <pw>|--password-stdin] [--out <file.kdna>] [--profile compact|index|full]\nRun: kdna help protect',
+      'Usage: kdna protect unlock <file.kdna> [--password-stdin] [--password <pw>] [--out <file.kdna>] [--profile compact|index|full]\nRun: kdna help protect',
       EXIT.INPUT_ERROR,
     );
 
@@ -331,7 +331,7 @@ function cmdRecover(args) {
   const file = args[0];
   if (!file)
     error(
-      'Usage: kdna recover <file.kdna> --out <file.kdna> [--code-stdin] [--password <new-password>|--password-stdin]',
+      'Usage: kdna recover <file.kdna> --out <file.kdna> [--code-stdin] [--password-stdin] [--password <new-password>]',
       EXIT.INPUT_ERROR,
     );
 

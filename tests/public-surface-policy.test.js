@@ -163,6 +163,64 @@ test('public-surface path exclusions distinguish exact files from prefixes', asy
   assert.equal(isRulePathExcluded('docs/.github/workflows/ci.yml', rule), false);
 });
 
+test('password argv policy distinguishes executable examples from safe syntax and stdin', async () => {
+  const { isPasswordArgvExample } = await policy();
+  const legacyFlag = ['--pass', 'word'].join('');
+  assert.equal(isPasswordArgvExample(`kdna load asset.kdna ${legacyFlag}=secret`), true);
+  assert.equal(isPasswordArgvExample(`$ kdna protect asset.kdna ${legacyFlag} secret`), true);
+  assert.equal(isPasswordArgvExample(`npx kdna load asset.kdna ${legacyFlag}=secret`), true);
+  assert.equal(isPasswordArgvExample(`  kdna load asset.kdna ${legacyFlag}-stdin`), false);
+  assert.equal(isPasswordArgvExample(`Usage: kdna load asset.kdna [${legacyFlag} <value>]`), false);
+});
+
+test('public-surface scan rejects password-bearing argv examples under hostile Git env', (t) => {
+  const fixture = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-public-password-')));
+  const poison = path.join(fixture, 'poison');
+  t.after(() => fs.rmSync(fixture, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(fixture, 'scripts'), { recursive: true });
+  for (const file of [
+    'check-public-surface.mjs',
+    'public-surface-policy.mjs',
+    'public-surface.config.json',
+    'trusted-git.js',
+  ]) {
+    fs.copyFileSync(path.join(ROOT, 'scripts', file), path.join(fixture, 'scripts', file));
+  }
+  const legacyFlag = ['--pass', 'word=exposed'].join('');
+  fs.writeFileSync(path.join(fixture, 'README.md'), `npx kdna load asset.kdna ${legacyFlag}\n`);
+  const git = (args) => {
+    const result = spawnSync('git', ['-C', fixture, ...args], {
+      encoding: 'utf8',
+      env: trustedGitEnvironment(),
+      shell: false,
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+  };
+  git(['init', '--quiet']);
+  git(['config', 'user.email', 'test@example.invalid']);
+  git(['config', 'user.name', 'KDNA Test']);
+  git(['add', '--all']);
+  git(['commit', '--quiet', '-m', 'test: hostile password example']);
+  const result = spawnSync(process.execPath, ['scripts/check-public-surface.mjs'], {
+    cwd: fixture,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      GIT_CONFIG_COUNT: '1',
+      GIT_CONFIG_GLOBAL: path.join(poison, 'config'),
+      GIT_CONFIG_KEY_0: 'core.useReplaceRefs',
+      GIT_CONFIG_VALUE_0: 'true',
+      GIT_DIR: path.join(poison, '.git'),
+      GIT_INDEX_FILE: path.join(poison, 'index'),
+      GIT_OBJECT_DIRECTORY: path.join(poison, 'objects'),
+      GIT_WORK_TREE: poison,
+    },
+    shell: false,
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /password-in-argv-example/);
+});
+
 test('public-surface scan ignores hostile Git repository and index redirection', (t) => {
   const source = fs.readFileSync(path.join(ROOT, 'scripts/check-public-surface.mjs'), 'utf8');
   assert.match(source, /readTrustedIndexEntries\(ROOT\)/);

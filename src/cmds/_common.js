@@ -196,6 +196,23 @@ function promptPassword(question) {
   return password;
 }
 
+const PASSWORD_ARGV_WARNING =
+  'Warning: --password places a secret in process arguments, where it may be visible in shell history or process listings. Prefer --password-stdin (or an interactive prompt where supported).';
+
+function passwordArgvValue(args) {
+  const equalsArg = args.find((arg) => arg.startsWith('--password='));
+  if (equalsArg) return equalsArg.slice('--password='.length);
+  const index = args.indexOf('--password');
+  if (index < 0 || !args[index + 1] || args[index + 1].startsWith('--')) return null;
+  return args[index + 1];
+}
+
+function readPasswordArgv(args) {
+  const value = passwordArgvValue(args);
+  if (value !== null) warn(PASSWORD_ARGV_WARNING);
+  return value;
+}
+
 // Resolve a password from CLI flags, environment, or stdin.
 //
 // Bug (#60): prior version of protect.js had this same block
@@ -205,17 +222,20 @@ function promptPassword(question) {
 // Sources (in priority order):
 //   1. --password-stdin (with TTY-hang guard, refuses up front on a TTY)
 //   2. KDNA_PASSWORD env var
-//   3. --password <value> (legacy / insecure; prints a warning)
+//   3. --password <value> (legacy / insecure; always prints a warning)
 //   4. promptPassword() interactive fallback
 //
 // Throws via the project's `error` helper (process.exit on the
 // configured EXIT code) if stdin fails or no password is obtainable.
 function resolvePassword(args, { prompt = 'Password: ' } = {}) {
+  // Warn even when stdin or the environment takes precedence: merely placing
+  // the secret in argv has already exposed it to process listings/history.
+  const argvPassword = readPasswordArgv(args);
   if (args.includes('--password-stdin')) {
     if (process.stdin.isTTY) {
       error(
         '--password-stdin requires the password to be piped in on stdin.\n' +
-          'Example:  echo "$KDNA_PASSWORD" | kdna protect <file> --password-stdin\n' +
+          'Example:  printf \'%s\' "$KDNA_PASSWORD" | kdna protect <file> --password-stdin\n' +
           'If you are running interactively, omit --password-stdin and you will be prompted.',
         EXIT.INPUT_ERROR,
       );
@@ -227,10 +247,7 @@ function resolvePassword(args, { prompt = 'Password: ' } = {}) {
     }
   }
   if (process.env.KDNA_PASSWORD) return process.env.KDNA_PASSWORD;
-  const pwIdx = args.indexOf('--password');
-  if (pwIdx >= 0 && args[pwIdx + 1] && !args[pwIdx + 1].startsWith('--')) {
-    return args[pwIdx + 1];
-  }
+  if (argvPassword !== null) return argvPassword;
   return promptPassword(prompt);
 }
 
@@ -251,6 +268,9 @@ module.exports = {
   selfCheckText,
   isYesNoSelfCheck,
   loadRegistry,
+  PASSWORD_ARGV_WARNING,
+  passwordArgvValue,
+  readPasswordArgv,
   promptPassword,
   resolvePassword,
 };

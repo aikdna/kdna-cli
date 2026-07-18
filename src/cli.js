@@ -8,7 +8,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { error, EXIT, setQuiet, setExitCodeOnly } = require('./cmds/_common');
+const { error, EXIT, readPasswordArgv, setQuiet, setExitCodeOnly } = require('./cmds/_common');
 const { cmdDemo: cmdDemoMinimal } = require('./cmds/demo');
 const {
   runAntiMonolithicCheck,
@@ -171,6 +171,10 @@ function showHelp() {
                                      --profile=<index|compact|scenario|full>
                                      --as=<json|prompt|raw>
                                      --namespace=<component-id>
+                                     --password-stdin        Read a protected
+                                       asset password from stdin
+                                     --password <value>     Legacy; exposes the
+                                       password in process arguments
                                      --remote-server <url>   Use a visible-ASCII
                                        HTTP(S) server base URL or exact /project
                                        endpoint with kdna-remote-server for
@@ -187,6 +191,8 @@ function showHelp() {
   pack      <dev-source> <out>       Pack into .kdna (--force to overwrite)
   unpack    <file.kdna> <out>        Extract .kdna into an editing/debug view
   demo      <minimal|judgment> <dir>  Create a current KDNA demo source
+                                      --password-stdin creates an encrypted demo
+                                      --password <value> is legacy and insecure
   lint      <source-dir>             Anti-Monolithic Domain check (RFC-0013 §4)
                                       --strict: upgrade warnings to errors
                                       --json: machine-readable output
@@ -301,13 +307,16 @@ Diagnostics:
   history  --audit [--stats] [--json] CLI load audit log (~/.kdna/audit.jsonl)
   cluster  <path>                    Validate a cluster manifest
   protect  <file> --out <file>       Encrypt a .kdna asset with a password
-           [--password <pw>|--password-stdin]
+           [--password-stdin]
+           [--password <pw>]         Legacy; exposes the password in argv
            [--entries payload.kdnab]
   protect  unlock <file>             Decrypt a protected .kdna
-           [--password <pw>|--password-stdin]
+           [--password-stdin]
+           [--password <pw>]         Legacy; exposes the password in argv
            [--profile compact|index|full]
   protect  recover <file>            Recover a .kdna using a recovery code
-           --out <file> --code-stdin [--password <new-password>|--password-stdin]
+           --out <file> --code-stdin [--password-stdin]
+           [--password <new-password>] Legacy; exposes the password in argv
   available                            List available installed domains
   match     "<task>"                  Find the best-matching domain for a task
   install   <name|@scope/name|file>   Install a .kdna asset from local/registry
@@ -439,7 +448,7 @@ switch (cmd) {
       const assetTarget = args.filter((a) => !a.startsWith('--'))[1];
       if (!assetTarget)
         error(
-          'Usage: kdna plan-load <path> [--json] [--has-password | --password <value>] [--entitlement-status <status>]',
+          'Usage: kdna plan-load <path> [--json] [--has-password] [--entitlement-status <status>]\nLegacy: --password <value> remains accepted but exposes the secret in argv; use --has-password for planning.',
           EXIT.INPUT_ERROR,
         );
       const core = require('@aikdna/kdna-core');
@@ -487,11 +496,7 @@ switch (cmd) {
       // The LoadPlan does NOT verify the password (only `kdna load` does that),
       // but presence of --password makes has_password_input: true and lets
       // downstream callers skip the "enter_password" step.
-      const planLoadPwIdx = args.indexOf('--password');
-      const planLoadPassword =
-        planLoadPwIdx >= 0 && args[planLoadPwIdx + 1] && !args[planLoadPwIdx + 1].startsWith('--')
-          ? args[planLoadPwIdx + 1]
-          : null;
+      const planLoadPassword = readPasswordArgv(args);
       const planManifest = readManifestForPath(abs);
       let externalSession = null;
       try {
@@ -689,7 +694,7 @@ switch (cmd) {
     const target = args.filter((a) => !a.startsWith('--'))[1];
     if (!target)
       error(
-        'Usage: kdna load <file.kdna> [--profile=<index|compact|scenario|full>] [--as=<json|prompt|raw>] [--namespace=<component-id>] [--password=<value>|--password-stdin]',
+        'Usage: kdna load <file.kdna> [--profile=<index|compact|scenario|full>] [--as=<json|prompt|raw>] [--namespace=<component-id>] [--password-stdin]\nLegacy: --password <value> remains accepted but exposes the secret in argv.',
         EXIT.INPUT_ERROR,
       );
     const core = require('@aikdna/kdna-core');
@@ -723,6 +728,7 @@ switch (cmd) {
     // and plan-load paths: --password-stdin reads from stdin; if both
     // are present, --password-stdin wins (explicit intent).
     const useStdin = args.includes('--password-stdin');
+    const argvPassword = readPasswordArgv(args);
     let password;
     if (useStdin) {
       // Bug fix: refuse up front on a TTY rather than calling
@@ -731,21 +737,22 @@ switch (cmd) {
       if (process.stdin.isTTY) {
         error(
           '--password-stdin requires the password to be piped in on stdin.\n' +
-            'Example:  echo "$KDNA_PASSWORD" | kdna load <file.kdna> --password-stdin\n' +
-            'If you are running interactively, omit --password-stdin and you will be prompted.',
+            'Example:  printf \'%s\' "$KDNA_PASSWORD" | kdna load <file.kdna> --password-stdin',
           EXIT.INPUT_ERROR,
         );
       }
       const stdinPw = fs.readFileSync(0, 'utf8').trim();
       password = stdinPw.length > 0 ? stdinPw : undefined;
+    } else if (process.env.KDNA_PASSWORD) {
+      password = process.env.KDNA_PASSWORD;
     } else {
-      const passwordRaw = getFlag('--password');
       password =
-        typeof passwordRaw === 'string' && passwordRaw.length > 0 ? passwordRaw : undefined;
+        typeof argvPassword === 'string' && argvPassword.length > 0 ? argvPassword : undefined;
     }
     if (args.includes('--has-password')) {
-      process.stderr.write(
-        'Warning: --has-password is a plan-load diagnostic. Use --password=<value> for actual decryption.\n',
+      error(
+        '--has-password is a plan-load diagnostic only; it does not decrypt. Use `kdna plan-load --has-password` for dry-runs. For `kdna load`, pipe the real password with --password-stdin.',
+        EXIT.INPUT_ERROR,
       );
     }
 
@@ -910,7 +917,9 @@ switch (cmd) {
         process.exit(EXIT.JUDGMENT_QUALITY_FAILED);
       }
       if (e.code === 'KDNA_AUTH_PASSWORD_REQUIRED' || e.code === 'requires_decryption') {
-        process.stderr.write('Error: payload requires a password. Use --password=<value>.\n');
+        process.stderr.write(
+          'Error: payload requires a password. Pipe it with --password-stdin.\n',
+        );
         process.exit(EXIT.JUDGMENT_QUALITY_FAILED);
       }
       if (e.code === 'KDNA_AUTH_ACCOUNT_REQUIRED' || e.code === 'KDNA_AUTH_ORG_REQUIRED') {
@@ -1298,8 +1307,8 @@ switch (cmd) {
   }
 
   case 'protect': {
-    // Subcommands: protect <file> --password <pw>, unlock <file> --password <pw>,
-    // recover <file> --out <file> --code <code|stdin>
+    // Subcommands: protect/unlock prefer --password-stdin; recover combines
+    // --code-stdin with a new password from an approved non-argv source.
     const sub = args[1];
     if (sub === 'unlock') {
       cmdUnlock(args.slice(2));

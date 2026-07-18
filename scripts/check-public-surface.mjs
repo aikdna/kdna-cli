@@ -13,7 +13,12 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import trustedGit from './trusted-git.js';
-import { allowFormalReleaseHash, isRulePathExcluded } from './public-surface-policy.mjs';
+import {
+  allowPasswordArgvSyntax,
+  allowFormalReleaseHash,
+  isRulePathExcluded,
+  PASSWORD_ARGV_EXAMPLE_PATTERN,
+} from './public-surface-policy.mjs';
 
 const { readTrustedGitBlob, readTrustedIndexEntries } = trustedGit;
 const ROOT = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -76,6 +81,12 @@ const rules = [
     name: 'internal-code-name',
     pattern: /\bM3 self-eval\b/gi,
     hint: 'Replace with "single-model self-evaluation".',
+  },
+  {
+    name: 'password-in-argv-example',
+    pattern: PASSWORD_ARGV_EXAMPLE_PATTERN,
+    allowMatch: allowPasswordArgvSyntax,
+    hint: 'Pipe the password with --password-stdin; do not publish executable examples that put secrets in argv.',
   },
 ];
 

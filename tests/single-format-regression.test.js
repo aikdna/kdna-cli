@@ -27,6 +27,14 @@ function run(args, opts = {}) {
   });
 }
 
+function runWithPassword(args, password, opts = {}) {
+  return run([...args, '--password-stdin'], {
+    ...opts,
+    input: `${password}\n`,
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+}
+
 function makeMinimalSourceDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'mimetype'), 'application/vnd.kdna.asset');
@@ -256,32 +264,20 @@ test('encrypted asset: pack → protect → validate → plan-load needs_passwor
     assert.equal(r1.status, 0, `pack failed: ${r1.stderr}`);
 
     const unsupported = path.join(tmp, 'unsupported.kdna');
-    const rejected = run([
-      'protect',
-      kdna,
-      '--out',
-      unsupported,
-      '--password',
+    const rejected = runWithPassword(
+      ['protect', kdna, '--out', unsupported, '--entries', 'payload.kdnab,checksums.json'],
       'test123',
-      '--entries',
-      'payload.kdnab,checksums.json',
-    ]);
+    );
     assert.notEqual(rejected.status, 0, 'unsupported encrypted entries must fail closed');
     assert.match(rejected.stderr, /Only payload\.kdnab can be encrypted/);
     assert.equal(fs.existsSync(unsupported), false);
 
     // Protect with password
     const prot = path.join(tmp, 'protected.kdna');
-    const r2 = run([
-      'protect',
-      kdna,
-      '--out',
-      prot,
-      '--password',
+    const r2 = runWithPassword(
+      ['protect', kdna, '--out', prot, '--entries', 'payload.kdnab'],
       'test123',
-      '--entries',
-      'payload.kdnab',
-    ]);
+    );
     assert.equal(r2.status, 0, r2.stderr);
     assert.ok(fs.existsSync(prot), 'protected file should exist');
 
@@ -300,11 +296,11 @@ test('encrypted asset: pack → protect → validate → plan-load needs_passwor
     assert.equal(p4.state, 'needs_password');
 
     // Wrong password fails
-    const r5 = run(['load', prot, '--as=json', '--password=wrong']);
+    const r5 = runWithPassword(['load', prot, '--as=json'], 'wrong');
     assert.notEqual(r5.status, 0, 'wrong password should fail');
 
     // Correct password loads Capsule
-    const r6 = run(['load', prot, '--as=json', '--password=test123']);
+    const r6 = runWithPassword(['load', prot, '--as=json'], 'test123');
     assert.equal(r6.status, 0, `correct password load failed: ${r6.stderr}`);
     const c6 = JSON.parse(r6.stdout);
     assert.equal(c6.type, 'kdna.runtime-capsule');
@@ -329,11 +325,11 @@ test('encrypted asset: pack → protect → validate → plan-load needs_passwor
     assert.equal(recoveredValidation.overall_valid, true, recoveredValidation.problems?.join('; '));
     assert.equal(recoveredValidation.checksums_valid, true);
     assert.notEqual(
-      run(['load', recovered, '--as=json', '--password=test123']).status,
+      runWithPassword(['load', recovered, '--as=json'], 'test123').status,
       0,
       'the old password must no longer authorize the recovered asset',
     );
-    const recoveredLoad = run(['load', recovered, '--as=json', '--password=replacement-password']);
+    const recoveredLoad = runWithPassword(['load', recovered, '--as=json'], 'replacement-password');
     assert.equal(recoveredLoad.status, 0, recoveredLoad.stderr);
     assert.equal(JSON.parse(recoveredLoad.stdout).type, 'kdna.runtime-capsule');
   } finally {
@@ -373,20 +369,15 @@ test('compatibility scrypt asset remains loadable and unlockable', () => {
 
     const protectedAsset = path.join(tmp, 'scrypt.kdna');
     assert.equal(run(['pack', src, protectedAsset]).status, 0);
-    const loaded = run(['load', protectedAsset, '--as=json', '--password=compat-password']);
+    const loaded = runWithPassword(['load', protectedAsset, '--as=json'], 'compat-password');
     assert.equal(loaded.status, 0, loaded.stderr);
     assert.equal(JSON.parse(loaded.stdout).type, 'kdna.runtime-capsule');
 
     const unlocked = path.join(tmp, 'unlocked.kdna');
-    const unlock = run([
-      'protect',
-      'unlock',
-      protectedAsset,
-      '--out',
-      unlocked,
-      '--password',
+    const unlock = runWithPassword(
+      ['protect', 'unlock', protectedAsset, '--out', unlocked],
       'compat-password',
-    ]);
+    );
     assert.equal(unlock.status, 0, unlock.stderr);
     const unlockedLoad = run(['load', unlocked, '--as=json']);
     assert.equal(unlockedLoad.status, 0, unlockedLoad.stderr);
@@ -400,7 +391,7 @@ test('encrypted demo creates valid fixture', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-demo-enc-'));
   try {
     const target = path.join(tmp, 'enc-demo');
-    const r = run(['demo', 'judgment', target, '--password', 'demo123']);
+    const r = runWithPassword(['demo', 'judgment', target], 'demo123');
     assert.equal(r.status, 0, r.stderr);
     assert.ok(fs.existsSync(path.join(target, 'payload.kdnab')), 'payload must exist');
     assert.ok(fs.existsSync(path.join(target, 'kdna.json')), 'manifest must exist');

@@ -279,7 +279,17 @@ kdna load ./asset.kdna --profile=compact --as=json
 > ⚠️ `--has-password` is a **plan-load** diagnostic only. It tells the
 > planner "I would have a password if I had to provide one" so it can
 > skip the `needs_password` gate. It does **not** decrypt. To actually
-> load a protected asset, use `kdna load --password=<value>`. See
+> load a protected asset, pipe the password to `kdna load --password-stdin`.
+> For example:
+>
+> ```bash
+> printf '%s' "$KDNA_PASSWORD" | kdna load ./asset.kdna \
+>   --password-stdin --profile=compact --as=json
+> ```
+>
+> The legacy `--password <value>` form remains accepted for compatibility,
+> but it exposes the secret through process arguments and may also persist in
+> shell history. Do not use it in new integrations. See
 > [`docs/asset-authorization.md`](docs/asset-authorization.md) for the
 > full distinction and end-to-end examples.
 

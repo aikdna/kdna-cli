@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { resolvePassword } = require('./_common');
 
 const DEMOS = {
   minimal: {
@@ -19,16 +20,21 @@ function cmdDemo(args) {
   const demo = DEMOS[sub];
   if (!demo) {
     const names = Object.keys(DEMOS).join('|');
-    console.error(`Usage: kdna demo <${names}> <output-dir> [--force] [--password <pw>]`);
+    console.error(
+      `Usage: kdna demo <${names}> <output-dir> [--force] [--password-stdin] [--password <pw>]`,
+    );
     console.error('  minimal   — minimal schema-shape demo (protocol debugging)');
     console.error('  judgment  — real judgment-content demo (recommended first-run)');
-    console.error('  --password <pw> — create an encrypted licensed asset (sets access=licensed)');
+    console.error('  --password-stdin — create an encrypted licensed asset (preferred)');
+    console.error('  --password <pw> — legacy compatibility; exposes the password in argv');
     process.exit(2);
   }
 
   const dest = args.filter((a) => !a.startsWith('--'))[1];
   if (!dest) {
-    console.error(`Usage: kdna demo ${sub} <output-dir> [--force] [--password <pw>]`);
+    console.error(
+      `Usage: kdna demo ${sub} <output-dir> [--force] [--password-stdin] [--password <pw>]`,
+    );
     process.exit(2);
   }
 
@@ -60,12 +66,17 @@ function cmdDemo(args) {
     }
   }
 
-  // Handle --password: encrypt the payload and set licensed access
-  const passwordIndex = args.indexOf('--password');
-  if (passwordIndex >= 0) {
-    const password = args[passwordIndex + 1];
+  // Encrypt only when a password input mode is explicitly selected. The stdin
+  // mode keeps the password out of process arguments; --password is retained
+  // solely for compatibility and emits the shared security warning.
+  const passwordRequested =
+    args.includes('--password-stdin') ||
+    args.includes('--password') ||
+    args.some((arg) => arg.startsWith('--password='));
+  if (passwordRequested) {
+    const password = resolvePassword(args);
     if (!password) {
-      console.error('Error: --password requires a value');
+      console.error('Error: password input is empty');
       process.exit(2);
     }
 
@@ -124,7 +135,7 @@ function cmdDemo(args) {
     process.stdout.write(`  kdna pack          ${dest} ${dest}.kdna\n`);
     process.stdout.write(`  kdna validate      ${dest}.kdna\n`);
     process.stdout.write(
-      `  kdna load          ${dest}.kdna --password=<pw> --profile=compact --as=json\n`,
+      `  printf '%s' "$KDNA_PASSWORD" | kdna load ${dest}.kdna --password-stdin --profile=compact --as=json\n`,
     );
     return;
   }
