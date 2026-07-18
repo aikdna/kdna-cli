@@ -1,6 +1,6 @@
 /**
  * e2e-encrypt.test.js — KDNA encrypt/decrypt round-trip tests.
- * Proves: demo --password → pack → load (correct pw) / load (no pw) / load (wrong pw).
+ * Proves: password-stdin demo → pack → load (correct / missing / wrong password).
  *
  * Requires the current @aikdna/kdna-core encrypted-envelope APIs.
  */
@@ -16,11 +16,16 @@ const cliBin = path.join(__dirname, '..', 'src', 'cli.js');
 let tmpDir, demoDir, kdnaFile;
 const password = 'test-password-2026';
 
-function runCli(args) {
+function runCli(args, input) {
   return spawnSync(process.execPath, [cliBin, ...args], {
     encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
+    input,
+    stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
   });
+}
+
+function runWithPassword(args, value) {
+  return runCli([...args, '--password-stdin'], `${value}\n`);
 }
 
 test.before(() => {
@@ -30,7 +35,7 @@ test.before(() => {
   kdnaFile = path.join(tmpDir, 'demo.kdna');
 
   // Create encrypted demo
-  const r = runCli(['demo', 'minimal', demoDir, '--password', password]);
+  const r = runWithPassword(['demo', 'minimal', demoDir], password);
   assert.equal(r.status, 0, `demo failed: ${r.stderr}`);
   assert.ok(fs.existsSync(path.join(demoDir, 'payload.kdnab')), 'payload.kdnab missing');
 
@@ -64,7 +69,7 @@ test.after(() => {
 // ─── Happy path ──────────────────────────────────────────────────────────
 
 test('load encrypted asset with correct password returns content', () => {
-  const r = runCli(['load', kdnaFile, '--password=' + password, '--profile=compact', '--as=json']);
+  const r = runWithPassword(['load', kdnaFile, '--profile=compact', '--as=json'], password);
   assert.equal(r.status, 0, `load should succeed: ${r.stderr}`);
   const capsule = JSON.parse(r.stdout);
   assert.equal(capsule.type, 'kdna.runtime-capsule');
@@ -85,13 +90,7 @@ test('load encrypted asset with correct password returns content', () => {
 });
 
 test('load encrypted asset with correct password as prompt', () => {
-  const r = runCli([
-    'load',
-    kdnaFile,
-    '--password=' + password,
-    '--profile=compact',
-    '--as=prompt',
-  ]);
+  const r = runWithPassword(['load', kdnaFile, '--profile=compact', '--as=prompt'], password);
   assert.equal(r.status, 0, `load prompt should succeed: ${r.stderr}`);
   assert.ok(r.stdout.length > 0, 'prompt output should not be empty');
 });
@@ -112,13 +111,7 @@ test('load encrypted asset without password fails', () => {
 // ─── Negative: wrong password ───────────────────────────────────────────
 
 test('load encrypted asset with wrong password fails', () => {
-  const r = runCli([
-    'load',
-    kdnaFile,
-    '--password=wrong-password',
-    '--profile=compact',
-    '--as=json',
-  ]);
+  const r = runWithPassword(['load', kdnaFile, '--profile=compact', '--as=json'], 'wrong-password');
   assert.notEqual(r.status, 0, 'load with wrong password should fail');
   assert.ok(
     r.stderr.includes('decrypt') ||
@@ -152,13 +145,7 @@ test('tampered checksum fails to load', () => {
   assert.equal(r2.status, 0, `pack failed: ${r2.stderr}`);
 
   // Try to load — should fail on checksum mismatch
-  const r = runCli([
-    'load',
-    tamperedKdna,
-    '--password=' + password,
-    '--profile=compact',
-    '--as=json',
-  ]);
+  const r = runWithPassword(['load', tamperedKdna, '--profile=compact', '--as=json'], password);
   assert.notEqual(r.status, 0, 'tampered checksum should fail');
   assert.ok(
     r.stderr.includes('checksum') || r.stderr.includes('invalid') || r.stderr.includes('block'),

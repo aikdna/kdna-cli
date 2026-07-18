@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add `--password-stdin` to encrypted demo generation and make stdin the
+  documented and tested password path for demo, protect, unlock, and load.
+  Legacy `--password <value>` input remains compatible but now emits an
+  explicit process-argument and shell-history warning. A public-surface gate
+  rejects executable examples that place passwords in argv.
+
 ## 0.34.0 (2026-07-16)
 
 - Cut the CLI over to the stable KDNA Runtime contract through the formal Core
@@ -784,13 +790,22 @@ that the `publish.js` signing path depends on.
 - **Fresh-environ audit follow-ups** — small consumer-side fixes for issues surfaced by a clean-`npm install -g` audit on 2026-06-27:
   - **fixtures in tarball**: `package.json` `files` array now includes `fixtures/`. The `kdna demo minimal` and `kdna demo judgment` commands now work for fresh `npm install -g @aikdna/kdna-cli` users (the README "5 minutes" path).
   - **`kdna protect unlock --out <file>`**: previously the flag was silently ignored; the unlocked payload was printed to stdout. The command now writes a decrypted, re-packed `.kdna` to the given path. Without `--out` it still prints to stdout (backward compatible).
-  - **`kdna load --password-stdin`**: previously `load` only accepted `--password=<value>`, forcing users to either type the password inline (shell history) or pipe nothing. The command now matches `protect` and `plan-load` and accepts `--password-stdin` to read from stdin.
+  - **`kdna load --password-stdin`** added a non-argv password input path.
+    Previously, `load` only accepted the legacy `--password=<value>` form,
+    forcing users to expose the password to shell history or provide no input.
 
 ## v0.28.8 (2026-06-27)
 
 ### Fixed
 
-- **BUG-1 (A1): `kdna plan-load --password <value>` now threads the password to `kdna-core.planLoad`.** Previously, `planLoad` only honored the `--has-password` diagnostic flag, so a `kdna load --password <pw>` invocation could not satisfy the plan-load gate and was rejected with `state: needs_password`. `plan-load` now accepts `--password <value>` directly; the resulting plan reports `input_fingerprint.has_password_input: true`, `state: ready`, `can_load_now: true`. This makes the `load --password` round-trip fully end-to-end on the runtime side. The encryption envelope itself was already in place (kdna-studio 0.8.0 → B2 scrypt); this fix closes the consumer-side loop.
+- **BUG-1 (A1): `plan-load` began accepting the legacy `--password <value>`
+  form and threading it to `kdna-core.planLoad`.** Previously, `planLoad` only
+  honored the `--has-password` diagnostic flag, so legacy argv-based loading
+  could not satisfy the plan-load gate and was rejected with
+  `state: needs_password`. The resulting plan reports
+  `input_fingerprint.has_password_input: true`, `state: ready`, and
+  `can_load_now: true`. The encryption envelope itself was already in place
+  (kdna-studio 0.8.0 → B2 scrypt); this fix closed the consumer-side loop.
 
 ### Fixed
 
@@ -798,7 +813,12 @@ that the `publish.js` signing path depends on.
 
 ### Fixed
 
-- **BUG-4/5/6 (D1/D2): CLI routing consistency.** `kdna version` is now a first-class command (previously returned `Unknown command: version`); `kdna help <subcmd> [...]` re-routes to `<subcmd> --help` so each subcommand prints its own Usage; `kdna protect` and `kdna protect unlock` accept `--help` / `-h`. Help text in `src/cli.js` and Usage in `src/cmds/protect.js` are aligned on the canonical flag set: `--out`, `--password <pw> | --password-stdin`, `--entries <list>`, `--profile <name>`.
+- **BUG-4/5/6 (D1/D2): CLI routing consistency.** `kdna version` is now a
+  first-class command (previously returned `Unknown command: version`);
+  `kdna help <subcmd> [...]` re-routes to `<subcmd> --help`; and the protect and
+  unlock commands accept `--help` / `-h`. Their help text was aligned on the
+  canonical flag set, including `--out`, password input, `--entries <list>`,
+  and `--profile <name>`.
 
 ### Fixed
 

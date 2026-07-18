@@ -9,10 +9,10 @@ reference.
 
 There are two flags that look similar but mean very different things:
 
-| Flag                 | Command          | Meaning                          | Use case                                                                           |
-| -------------------- | ---------------- | -------------------------------- | ---------------------------------------------------------------------------------- |
-| `--has-password`     | `kdna plan-load` | Diagnostic **presence signal**   | "I have a password somewhere; skip the `needs_password` gate so I can plan ahead." |
-| `--password=<value>` | `kdna load`      | **Real** password for decryption | Actually decrypt the protected entry and read its content.                         |
+| Flag               | Command          | Meaning                          | Use case                                                                           |
+| ------------------ | ---------------- | -------------------------------- | ---------------------------------------------------------------------------------- |
+| `--has-password`   | `kdna plan-load` | Diagnostic **presence signal**   | "I have a password somewhere; skip the `needs_password` gate so I can plan ahead." |
+| `--password-stdin` | `kdna load`      | **Real** password for decryption | Read the password from standard input, then decrypt the protected entry.           |
 
 The plan-load stage decides _whether_ the asset can be loaded. The load
 stage actually _does_ the loading (and decryption).
@@ -33,7 +33,12 @@ decrypting. If you don't have a password, you don't have a key, and
 the load should fail.
 
 As of v0.28, `kdna load` **rejects** `--has-password` with a clear
-error. Use `--password=<value>` to actually decrypt.
+error. Pipe the real password with `--password-stdin` to decrypt it.
+
+The legacy `--password <value>` form remains accepted for compatibility. It
+places the secret in the process argument list, where it may be visible in
+process listings or shell history, so the CLI emits a warning and new
+integrations must not use it.
 
 ## End-to-end example
 
@@ -65,15 +70,15 @@ $ kdna plan-load ./my-protected.kdna --has-password
 
 # 2b. ⚠️ Do NOT do this. The CLI rejects --has-password in load:
 $ kdna load ./my-protected.kdna --has-password --profile=compact --as=prompt
-Error: --has-password is a plan-load diagnostic only; it does not decrypt. Use `kdna plan-load --has-password` for dry-runs. For `kdna load`, supply the real password via --password=<value>.
+Error: --has-password is a plan-load diagnostic only; it does not decrypt. Use `kdna plan-load --has-password` for dry-runs. For `kdna load`, pipe the real password with --password-stdin.
 
-# 3. Correct: supply the actual password
-$ kdna load ./my-protected.kdna --password="correct horse battery staple" --profile=compact --as=prompt
+# 3. Correct: keep the actual password out of argv
+$ printf '%s' "$KDNA_PASSWORD" | kdna load ./my-protected.kdna --password-stdin --profile=compact --as=prompt
 KDNA Judgment Asset: my-protected
 ...
 
 # 4. Wrong password: clear error
-$ kdna load ./my-protected.kdna --password="wrong" --profile=compact --as=prompt
+$ printf '%s' "$WRONG_PASSWORD" | kdna load ./my-protected.kdna --password-stdin --profile=compact --as=prompt
 Error: LoadPlan denied loading: state=needs_password required_action=enter_password
 ```
 
@@ -95,5 +100,4 @@ intend to read the content, and reading requires the key.
   the policy behind the `password` entitlement profile
 - LoadPlan: `packages/kdna-core/src/container/index.js` (the password
   authorization branch)
-- CLI guard: `kdna-cli/src/cli.js:286-292` (the `load` command's
-  `--has-password` rejection)
+- CLI guard: `src/cli.js` (the `load` command's `--has-password` rejection)

@@ -37,6 +37,10 @@ We will acknowledge within 5 business days and provide a timeline for a fix.
   fail closed for this material
 - `kdna load --remote-server`: remote projection client behavior and
   avoidance of plaintext payload exposure
+- Password-protected `demo`, `protect`, `unlock`, and `load` paths: pass
+  passwords over standard input with `--password-stdin` (or use the secure
+  interactive prompt where supported). The legacy `--password <value>` form is
+  accepted only for compatibility and exposes the secret in process arguments.
 
 ## Out of Scope
 

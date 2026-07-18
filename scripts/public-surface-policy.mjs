@@ -2,6 +2,22 @@ const EVIDENCE_PATH = 'tests/fixtures/core-0.20-candidate-evidence.json';
 const CANDIDATE_BINDING_PATH = 'tests/fixtures/runtime-candidates/binding.json';
 const FULL_HASH = /^[a-f0-9]{40}$/i;
 
+export const PASSWORD_ARGV_EXAMPLE_PATTERN = /\bkdna\b[^\n]*--password(?:=|\s+)/gi;
+
+export function allowPasswordArgvSyntax(_match, context) {
+  return (
+    /Usage:\s*kdna\b/i.test(context.line) &&
+    /--password\s+<[^>]+>/i.test(context.line) &&
+    !/--password=/i.test(context.line)
+  );
+}
+
+export function isPasswordArgvExample(line) {
+  PASSWORD_ARGV_EXAMPLE_PATTERN.lastIndex = 0;
+  const match = PASSWORD_ARGV_EXAMPLE_PATTERN.exec(line);
+  return match !== null && !allowPasswordArgvSyntax(match, { line });
+}
+
 export function allowFormalReleaseHash(match, context) {
   if (context.file === CANDIDATE_BINDING_PATH) {
     if (!/^\s*"commit":\s*"[a-f0-9]{40}"\s*,?\s*$/i.test(context.line)) return false;

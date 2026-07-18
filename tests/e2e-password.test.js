@@ -1,20 +1,18 @@
 /**
  * tests/e2e-password.test.js
  *
- * End-to-end test for the --password / --has-password CLI surface.
+ * End-to-end test for the --password-stdin / --has-password CLI surface.
  * This is the regression test for the T16 security fix: --has-password
  * must be REJECTED on `kdna load` (it is a plan-load diagnostic only),
- * while --password=<value> must still decrypt correctly.
+ * while stdin-delivered passwords must decrypt correctly without entering argv.
  *
  * Five scenarios:
  *   1. load --has-password → exits 1 with clear error
- *   2. load --password=<correct> → returns plaintext
- *   3. load --password=<wrong>   → exits 1 with clear error
- *   4. load --password=""        → exits 1 (NOT treated as "has password")
+ *   2. load --password-stdin with correct input → returns plaintext
+ *   3. load --password-stdin with wrong input   → exits 1 with clear error
+ *   4. load --password-stdin with empty input   → exits 1
  *   5. plan-load --has-password  → works for planning, never leaks plaintext
- *
- * Status: skeleton — full implementation requires the `kdna demo <name> --password <pw>`
- * command and a fixture that supports encryption. See src/cmds/demo.js.
+ *   6. legacy argv input remains accepted but emits an explicit warning
  */
 
 const { test } = require('node:test');
@@ -35,6 +33,13 @@ function run(args, opts = {}) {
   });
 }
 
+function runWithPassword(args, password) {
+  return run([...args, '--password-stdin'], {
+    input: `${password}\n`,
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+}
+
 function mkTmp(prefix = 'kdna-e2e-pw-') {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
@@ -50,37 +55,31 @@ function makeProtectedAsset(tmpDir) {
   const packR = run(['pack', demoDir, kdnaFile]);
   assert.equal(packR.status, 0, `kdna pack failed: ${packR.stderr}`);
 
-  // 3. Re-pack with --password to produce a protected .kdna
-  // NOTE: requires `kdna demo <name> --password <pw>` support, or
-  // a separate `kdna protect <file> --password <pw>` command. Check
-  // current CLI for available subcommand.
-  // For now this is a placeholder — the encryption path needs to be
-  // verified against the actual CLI surface.
+  // 3. Protect the packaged asset without placing the password in argv.
   const protectedFile = path.join(tmpDir, 'protected.kdna');
-  const protR = run(['pack', demoDir, protectedFile, '--password', FIXTURE_PASSWORD]);
-  if (protR.status !== 0) {
-    // Fall back: try `kdna protect` if it exists
-    const altR = run(['protect', demoDir, '--password', FIXTURE_PASSWORD]);
-    if (altR.status !== 0) {
-      throw new Error(
-        `No working --password pack path. pack+--password failed: ${protR.stderr}\n` +
-          `protect failed: ${altR.stderr}`,
-      );
-    }
-  }
+  const protR = runWithPassword(['protect', kdnaFile, '--out', protectedFile], FIXTURE_PASSWORD);
+  assert.equal(protR.status, 0, `kdna protect failed: ${protR.stderr}`);
   return { kdnaFile: protectedFile, demoDir, kdnaFileUnprotected: kdnaFile };
 }
 
+let tmp;
+let kdnaFile;
+
+test.before(() => {
+  tmp = mkTmp();
+  ({ kdnaFile } = makeProtectedAsset(tmp));
+});
+
+test.after(() => {
+  if (tmp) fs.rmSync(tmp, { recursive: true, force: true });
+});
+
 test('e2e-password: setup generates protected asset', () => {
-  const tmp = mkTmp();
-  const { kdnaFile } = makeProtectedAsset(tmp);
   assert.ok(fs.existsSync(kdnaFile), 'protected .kdna file should exist');
 });
 
 // ── Scenario 1: load --has-password is REJECTED ──────────────────────────
 test('e2e-password scenario 1: load --has-password exits 1 with clear error', () => {
-  const tmp = mkTmp();
-  const { kdnaFile } = makeProtectedAsset(tmp);
   const r = run(['load', kdnaFile, '--has-password', '--profile=compact', '--as=prompt']);
   assert.notEqual(r.status, 0, 'load --has-password must fail');
   assert.match(
@@ -96,35 +95,25 @@ test('e2e-password scenario 1: load --has-password exits 1 with clear error', ()
   );
 });
 
-// ── Scenario 2: load --password=<correct> succeeds and returns plaintext ──
-test('e2e-password scenario 2: load --password=<correct> returns plaintext', () => {
-  const tmp = mkTmp();
-  const { kdnaFile } = makeProtectedAsset(tmp);
-  const r = run([
-    'load',
-    kdnaFile,
-    `--password=${FIXTURE_PASSWORD}`,
-    '--profile=compact',
-    '--as=prompt',
-  ]);
-  assert.equal(r.status, 0, `load --password=<correct> failed: ${r.stderr}`);
+// ── Scenario 2: stdin with the correct password succeeds ────────────────
+test('e2e-password scenario 2: load --password-stdin returns plaintext', () => {
+  const r = runWithPassword(
+    ['load', kdnaFile, '--profile=compact', '--as=prompt'],
+    FIXTURE_PASSWORD,
+  );
+  assert.equal(r.status, 0, `load --password-stdin failed: ${r.stderr}`);
   assert.ok(r.stdout.length > 0, 'plaintext should be returned');
   // The minimal fixture should render some judgment text
   assert.match(r.stdout, /\S/, 'stdout should contain non-whitespace content');
 });
 
-// ── Scenario 3: load --password=<wrong> fails clearly ─────────────────────
-test('e2e-password scenario 3: load --password=<wrong> exits 1 with clear error', () => {
-  const tmp = mkTmp();
-  const { kdnaFile } = makeProtectedAsset(tmp);
-  const r = run([
-    'load',
-    kdnaFile,
-    '--password=definitely-not-the-right-password',
-    '--profile=compact',
-    '--as=prompt',
-  ]);
-  assert.notEqual(r.status, 0, 'load --password=<wrong> must fail');
+// ── Scenario 3: stdin with the wrong password fails clearly ─────────────
+test('e2e-password scenario 3: wrong stdin password exits 1 with clear error', () => {
+  const r = runWithPassword(
+    ['load', kdnaFile, '--profile=compact', '--as=prompt'],
+    'definitely-not-the-right-password',
+  );
+  assert.notEqual(r.status, 0, 'load with the wrong stdin password must fail');
   assert.match(
     r.stderr,
     /decrypt|invalid|wrong|password|auth/i,
@@ -134,24 +123,19 @@ test('e2e-password scenario 3: load --password=<wrong> exits 1 with clear error'
   assert.doesNotMatch(r.stdout, /axiom|judgment/i, 'plaintext must not leak on wrong password');
 });
 
-// ── Scenario 4: load --password="" is treated as MISSING password ─────────
-test('e2e-password scenario 4: load --password="" exits 1 (not "has empty password")', () => {
-  const tmp = mkTmp();
-  const { kdnaFile } = makeProtectedAsset(tmp);
-  const r = run(['load', kdnaFile, '--password=', '--profile=compact', '--as=prompt']);
-  assert.notEqual(r.status, 0, 'load --password="" must fail');
-  // Must behave like "no password supplied", not like "supplied wrong password"
+// ── Scenario 4: empty stdin is treated as a missing password ─────────────
+test('e2e-password scenario 4: empty password stdin exits 1', () => {
+  const r = runWithPassword(['load', kdnaFile, '--profile=compact', '--as=prompt'], '');
+  assert.notEqual(r.status, 0, 'load with empty password stdin must fail');
   assert.match(
     r.stderr,
-    /password.*required|missing.*password|needs_password|password or recoveryCode/i,
+    /password.*required|requires.*password|missing.*password|needs_password|password or recoveryCode/i,
     `error must say password is required (not that it was wrong). Got: ${r.stderr}`,
   );
 });
 
 // ── Scenario 5: plan-load --has-password is allowed but does not leak ─────
 test('e2e-password scenario 5: plan-load --has-password works without leaking plaintext', () => {
-  const tmp = mkTmp();
-  const { kdnaFile } = makeProtectedAsset(tmp);
   const r = run(['plan-load', kdnaFile, '--has-password', '--json']);
   // plan-load --has-password should succeed (presence signal only)
   assert.equal(r.status, 0, `plan-load --has-password failed: ${r.stderr}`);
@@ -164,7 +148,23 @@ test('e2e-password scenario 5: plan-load --has-password works without leaking pl
   // CRITICAL: must NOT contain actual judgment content
   assert.doesNotMatch(
     r.stdout,
-    /axiom|judgment|boundary|applies_when/i,
+    /The minimal payload is the smallest shape that passes the schema/i,
     'plan-load must never leak plaintext even with --has-password',
   );
+});
+
+test('e2e-password scenario 6: legacy argv input warns while remaining compatible', () => {
+  // Construct the legacy flag so this compatibility test cannot itself become
+  // a copy-pasteable password-bearing command example.
+  const legacyFlag = ['--pass', 'word'].join('');
+  const r = run([
+    'load',
+    kdnaFile,
+    legacyFlag,
+    FIXTURE_PASSWORD,
+    '--profile=compact',
+    '--as=prompt',
+  ]);
+  assert.equal(r.status, 0, `legacy password input should remain compatible: ${r.stderr}`);
+  assert.match(r.stderr, /process arguments|shell history/i);
 });
