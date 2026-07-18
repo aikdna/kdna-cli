@@ -430,7 +430,7 @@ test('release readiness requires the formal Core release across manifest, lock, 
   const integrity = `sha512-${Buffer.alloc(64).toString('base64')}`;
   const pkg = {
     name: '@aikdna/kdna-cli',
-    version: '0.34.0',
+    version: '0.35.0',
     dependencies: { '@aikdna/kdna-core': REQUIRED_CORE_VERSION },
   };
   const lock = {
@@ -450,7 +450,7 @@ test('release readiness requires the formal Core release across manifest, lock, 
   };
   const installedCore = { name: '@aikdna/kdna-core', version: REQUIRED_CORE_VERSION };
   assert.deepEqual(validateReleaseReadiness({ pkg, lock, installedCore }), {
-    cli: '@aikdna/kdna-cli@0.34.0',
+    cli: '@aikdna/kdna-cli@0.35.0',
     core: `@aikdna/kdna-core@${REQUIRED_CORE_VERSION}`,
   });
 
