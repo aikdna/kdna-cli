@@ -85,7 +85,6 @@ test('eval asset executes a complete behavioral observation matrix', () => {
       ASSET,
       `--fixtures=${input.fixtureDir}`,
       `--observations=${input.observationsFile}`,
-      '--trace-id=trace_asset_assay_observations',
       '--as=json',
     ]);
     assert.equal(result.status, 0, `${result.stderr}\n${result.stdout}`);
@@ -95,18 +94,18 @@ test('eval asset executes a complete behavioral observation matrix', () => {
     assert.equal(report.observations_loaded, 84);
     assert.equal(report.overall_verdict, 'pass');
     assert.ok(report.classification.levels.includes('behavior_evaluated_asset'));
-    assert.equal(report.evidence_claim.trace_id, 'trace_asset_assay_observations');
-    assert.equal(report.evidence_claim.classification.not_behavior_evaluated, false);
+    assert.equal(report.evidence_claim, null);
     assert.deepEqual(report.evidence_claim_status, {
-      generated: true,
-      basis: 'caller_supplied_judgment_trace',
+      generated: false,
+      reason:
+        'CLI observation matrices do not prove JudgmentTrace provenance; generate a claim through the official Eval API only after independently validating and binding the trace.',
     });
   } finally {
     fs.rmSync(input.dir, { recursive: true, force: true });
   }
 });
 
-test('eval asset never invents EvidenceClaim identity when trace evidence is absent', () => {
+test('eval asset never trusts a caller-invented trace identity', () => {
   const input = buildAssayInput();
   try {
     const result = runCli([
@@ -115,6 +114,7 @@ test('eval asset never invents EvidenceClaim identity when trace evidence is abs
       ASSET,
       `--fixtures=${input.fixtureDir}`,
       `--observations=${input.observationsFile}`,
+      '--trace-id=trace_caller_invented',
       '--as=json',
     ]);
     assert.equal(result.status, 0, `${result.stderr}\n${result.stdout}`);
@@ -124,7 +124,8 @@ test('eval asset never invents EvidenceClaim identity when trace evidence is abs
     assert.equal(report.evidence_claim, null);
     assert.deepEqual(report.evidence_claim_status, {
       generated: false,
-      reason: 'A real JudgmentTrace ID is required; rerun with --trace-id=<id>.',
+      reason:
+        'CLI observation matrices do not prove JudgmentTrace provenance; generate a claim through the official Eval API only after independently validating and binding the trace.',
     });
   } finally {
     fs.rmSync(input.dir, { recursive: true, force: true });

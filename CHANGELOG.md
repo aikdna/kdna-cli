@@ -12,9 +12,13 @@
   report. Every gate and all underlying evidence remain part of the verdict,
   and unknown gate names are rejected instead of producing an empty passing
   selection.
-- Emit an Asset Assay EvidenceClaim only when the caller supplies a real
-  JudgmentTrace identity through `--trace-id`. Offline observation matrices
-  remain evaluable, but no longer invent trace provenance for their claims.
+- Keep CLI observation matrices claim-free because they cannot independently
+  prove or bind JudgmentTrace provenance. EvidenceClaim generation remains in
+  the official Eval API for callers that have validated the actual trace.
+- Reject externally supplied Cluster trace JSON as promotion evidence because
+  the CLI cannot independently prove its asset, authorization, result, or cost
+  claims. Trust and economics promotion must run through the Eval API inside
+  the trusted evidence producer.
 
 ## 0.35.0 (2026-07-18)
 

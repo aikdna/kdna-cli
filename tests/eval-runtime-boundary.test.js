@@ -34,7 +34,6 @@ const CONTRACTS = Object.freeze({
     'validateFixtureSet',
     'classifyAsset',
     'runAssay',
-    'generateEvidenceClaim',
     'FIXTURE_CATEGORIES',
   ],
   'eval-cluster': ['runClusterAssay'],

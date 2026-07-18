@@ -21,12 +21,13 @@ function cmdEvalCluster(args) {
   if (!target || args.includes('--help') || args.includes('-h')) {
     process.stderr.write(
       'Usage: kdna eval cluster <kdna.cluster.json> [options]\n\n' +
-        'Run Cluster Assay — structural, behavioral, economics, trust, product gates.\n\n' +
+        'Run a diagnostic Cluster Assay. CLI mode keeps trust and economics promotion blocked\n' +
+        'because it cannot prove external provenance; run the Eval API inside the trusted\n' +
+        'evidence producer for full promotion.\n\n' +
         'Options:\n' +
         '  --task=<text>         Task to evaluate against\n' +
         '  --fixtures=<dir>      Directory of cluster assay fixtures\n' +
         '  --comparison-arms=<file> JSON arm results including primary_only and bounded_compose\n' +
-        '  --trace=<file>        Observed Cluster JudgmentTrace for trust and cost gates\n' +
         '  --as=<format>         json|md (default: json)\n' +
         '  --out=<path>          Write output to file\n' +
         '  --gates=<list>        Comma-separated gates to display; all remain required for promotion\n\n' +
@@ -54,7 +55,6 @@ function cmdEvalCluster(args) {
   const task = getFlag('--task') || '';
   const fixturesPath = getFlag('--fixtures');
   const comparisonArmsPath = getFlag('--comparison-arms');
-  const tracePath = getFlag('--trace');
   const as = getFlag('--as') || 'json';
   const outPath = getFlag('--out');
   const gatesFilter = getFlag('--gates');
@@ -95,27 +95,19 @@ function cmdEvalCluster(args) {
     }
   }
 
-  let observedTrace = null;
-  if (tracePath) {
-    observedTrace = readJson(path.resolve(tracePath));
-    if (
-      !observedTrace ||
-      observedTrace.mode !== 'cluster' ||
-      !Array.isArray(observedTrace.assets_loaded)
-    ) {
-      error(
-        'Trace file must contain a Cluster JudgmentTrace with assets_loaded.',
-        EXIT.INPUT_ERROR,
-      );
-    }
+  if (args.some((arg) => arg === '--trace' || arg.startsWith('--trace='))) {
+    error(
+      'External Cluster trace JSON cannot establish promotion provenance. Run the Eval API inside the trusted evidence producer instead.',
+      EXIT.INPUT_ERROR,
+    );
   }
 
   // Run assay
   const result = runClusterAssay({
     manifest,
     plan,
-    assetsLoaded: observedTrace?.assets_loaded,
-    executionCost: observedTrace?.cost,
+    assetsLoaded: undefined,
+    executionCost: undefined,
     fixtures,
     comparisonArms,
   });

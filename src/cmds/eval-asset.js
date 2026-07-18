@@ -79,7 +79,6 @@ async function cmdEvalAsset(args) {
         '  --fixtures=<dir>      Directory containing assay fixture JSON files\n' +
         '  --baselines=<dir>     Directory containing baseline fixture results\n' +
         '  --observations=<file>  JSON observations for every fixture × baseline arm\n' +
-        '  --trace-id=<id>        Real JudgmentTrace ID required to emit EvidenceClaim\n' +
         '  --as=<format>         Output: json|md (default: json)\n' +
         '  --out=<path>          Write output to file\n' +
         '  --profile=<json>      Assay profile JSON (overrides defaults)\n' +
@@ -92,7 +91,6 @@ async function cmdEvalAsset(args) {
   const fixturesPath = getFlag('--fixtures');
   const baselinesPath = getFlag('--baselines');
   const observationsPath = getFlag('--observations') || baselinesPath;
-  const traceId = getFlag('--trace-id');
   const as = getFlag('--as') || 'json';
   const outPath = getFlag('--out');
   const profilePath = getFlag('--profile');
@@ -114,14 +112,8 @@ async function cmdEvalAsset(args) {
   const assetId = manifest.asset_id || manifest.name || path.basename(abs, '.kdna');
   const assetVersion = manifest.version || '0.1.0';
 
-  const {
-    createAssayProfile,
-    validateFixtureSet,
-    classifyAsset,
-    runAssay,
-    generateEvidenceClaim,
-    FIXTURE_CATEGORIES,
-  } = loadKdnaEval('eval-asset');
+  const { createAssayProfile, validateFixtureSet, classifyAsset, runAssay, FIXTURE_CATEGORIES } =
+    loadKdnaEval('eval-asset');
 
   // Load profile
   let profile;
@@ -232,28 +224,17 @@ async function cmdEvalAsset(args) {
       assay_passed: assay.overall_verdict === 'pass',
       comparison_arms_run: comparisonArmsRun,
     });
-    const evidenceClaim = traceId
-      ? generateEvidenceClaim(assay, {
-          traceId,
-          taskFamily: 'asset_assay',
-          runtime: '@aikdna/kdna-cli asset assay observations',
-        })
-      : null;
     const report = {
       ...assay,
       mode: 'behavioral_observations',
       observations_loaded: observations.length,
       classification,
-      evidence_claim: evidenceClaim,
-      evidence_claim_status: evidenceClaim
-        ? {
-            generated: true,
-            basis: 'caller_supplied_judgment_trace',
-          }
-        : {
-            generated: false,
-            reason: 'A real JudgmentTrace ID is required; rerun with --trace-id=<id>.',
-          },
+      evidence_claim: null,
+      evidence_claim_status: {
+        generated: false,
+        reason:
+          'CLI observation matrices do not prove JudgmentTrace provenance; generate a claim through the official Eval API only after independently validating and binding the trace.',
+      },
     };
     output(JSON.stringify(report, null, 2), as, outPath);
     if (assay.overall_verdict !== 'pass') process.exitCode = EXIT.JUDGMENT_QUALITY_FAILED;

@@ -36,7 +36,6 @@ const COMMAND_EXPORTS = Object.freeze({
     validateFixtureSet: 'function',
     classifyAsset: 'function',
     runAssay: 'function',
-    generateEvidenceClaim: 'function',
     FIXTURE_CATEGORIES: 'array',
   }),
   'eval-cluster': Object.freeze({
