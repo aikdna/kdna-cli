@@ -2,29 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { error, EXIT } = require('./_common');
-
-function loadKdnaEval() {
-  try {
-    return require('@aikdna/kdna-eval');
-  } catch (e) {
-    const altPaths = [
-      process.env.KDNA_EVAL_PATH,
-      path.resolve(__dirname, '..', '..', '..', 'kdna', 'packages', 'kdna-eval'),
-    ];
-    for (const p of altPaths) {
-      if (p) {
-        try {
-          return require(p);
-        } catch (_) {}
-      }
-    }
-    process.stderr.write(
-      'Error: @aikdna/kdna-eval is required.\n' +
-        'Install it with: npm install @aikdna/kdna-eval@^0.2.0\n',
-    );
-    process.exit(EXIT.DEPENDENCY_ERROR || 6);
-  }
-}
+const { loadKdnaEval } = require('./_kdna-eval');
 
 function cmdComposeReview(args) {
   const getFlag = (name) => {
@@ -334,7 +312,8 @@ function cmdValidateDecisions(target, args) {
     }
   }
 
-  const { createMultiGateRunner, createConsumptionRunner, createReplayEngine } = loadKdnaEval();
+  const { createMultiGateRunner, createConsumptionRunner, createReplayEngine } =
+    loadKdnaEval('compose-review');
   const consumption = createConsumptionRunner({ policies, budgetProfile: 'interactive' });
 
   const REPLAY_MODES = ['repair', 'holdout', 'fresh', 'candidate-sealed', 'new-sealed'];

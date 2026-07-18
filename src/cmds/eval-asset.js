@@ -8,41 +8,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { error, EXIT } = require('./_common');
-
-function isSupportedEvalVersion(candidate) {
-  try {
-    const pkg = require(
-      candidate === '@aikdna/kdna-eval'
-        ? '@aikdna/kdna-eval/package.json'
-        : path.join(candidate, 'package.json'),
-    );
-    const [major = 0, minor = 0, patch = 0] = String(pkg.version).split('.').map(Number);
-    return major > 0 || minor > 3 || (minor === 3 && patch >= 1);
-  } catch (_) {
-    return false;
-  }
-}
-
-function loadKdnaEval() {
-  const paths = [
-    '@aikdna/kdna-eval',
-    process.env.KDNA_EVAL_PATH,
-    path.resolve(__dirname, '..', '..', '..', 'kdna', 'packages', 'kdna-eval'),
-  ].filter(Boolean);
-  for (const candidate of paths) {
-    if (!isSupportedEvalVersion(candidate)) continue;
-    try {
-      const mod = require(candidate);
-      if (typeof mod.runAssay === 'function' && typeof mod.generateEvidenceClaim === 'function')
-        return mod;
-    } catch (_) {}
-  }
-  process.stderr.write(
-    'Error: @aikdna/kdna-eval >=0.3.1 is required for kdna eval asset.\n' +
-      'Install it with: npm install @aikdna/kdna-eval@^0.3.1\n',
-  );
-  process.exit(EXIT.DEPENDENCY_ERROR || 6);
-}
+const { loadKdnaEval } = require('./_kdna-eval');
 
 function loadManifest(absPath) {
   try {
@@ -146,14 +112,8 @@ async function cmdEvalAsset(args) {
   const assetId = manifest.asset_id || manifest.name || path.basename(abs, '.kdna');
   const assetVersion = manifest.version || '0.1.0';
 
-  const {
-    createAssayProfile,
-    validateFixtureSet,
-    classifyAsset,
-    runAssay,
-    generateEvidenceClaim,
-    FIXTURE_CATEGORIES,
-  } = loadKdnaEval();
+  const { createAssayProfile, validateFixtureSet, classifyAsset, runAssay, FIXTURE_CATEGORIES } =
+    loadKdnaEval('eval-asset');
 
   // Load profile
   let profile;
@@ -264,16 +224,17 @@ async function cmdEvalAsset(args) {
       assay_passed: assay.overall_verdict === 'pass',
       comparison_arms_run: comparisonArmsRun,
     });
-    const evidenceClaim = generateEvidenceClaim(assay, {
-      taskFamily: 'asset_assay',
-      runtime: '@aikdna/kdna-cli asset assay observations',
-    });
     const report = {
       ...assay,
       mode: 'behavioral_observations',
       observations_loaded: observations.length,
       classification,
-      evidence_claim: evidenceClaim,
+      evidence_claim: null,
+      evidence_claim_status: {
+        generated: false,
+        reason:
+          'CLI observation matrices do not prove JudgmentTrace provenance; generate a claim through the official Eval API only after independently validating and binding the trace.',
+      },
     };
     output(JSON.stringify(report, null, 2), as, outPath);
     if (assay.overall_verdict !== 'pass') process.exitCode = EXIT.JUDGMENT_QUALITY_FAILED;

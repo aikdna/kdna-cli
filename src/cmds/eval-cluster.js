@@ -5,51 +5,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { error, EXIT, readJson } = require('./_common');
-
-function isSupportedEvalVersion(candidate) {
-  try {
-    const pkg = require(
-      candidate === '@aikdna/kdna-eval'
-        ? '@aikdna/kdna-eval/package.json'
-        : path.join(candidate, 'package.json'),
-    );
-    const [major = 0, minor = 0, patch = 0] = String(pkg.version).split('.').map(Number);
-    return major > 0 || minor > 3 || (minor === 3 && patch >= 1);
-  } catch (_) {
-    return false;
-  }
-}
-
-function loadKdnaEval() {
-  // Try loading from installed package first, then monorepo path
-  const sources = [
-    { name: 'installed @aikdna/kdna-eval', path: '@aikdna/kdna-eval' },
-    {
-      name: 'monorepo',
-      path: path.resolve(__dirname, '..', '..', '..', 'kdna', 'packages', 'kdna-eval'),
-    },
-  ];
-  for (const src of sources) {
-    if (!isSupportedEvalVersion(src.path)) continue;
-    let mod = null;
-    try {
-      mod = require(src.path);
-      if (typeof mod.runClusterAssay === 'function') return mod;
-    } catch (_) {}
-
-    // A package root can load successfully while omitting the Cluster Assay
-    // export. Subpath fallback must therefore run independently of the root
-    // require outcome.
-    try {
-      const sub = require(src.path + '/cluster-assay');
-      if (typeof sub.runClusterAssay === 'function') return sub;
-    } catch (_) {}
-  }
-  error(
-    '@aikdna/kdna-eval (>=0.3.1) is required for kdna eval cluster. runClusterAssay not found in any loaded module.',
-    EXIT.DEPENDENCY_ERROR || 6,
-  );
-}
+const { loadKdnaEval } = require('./_kdna-eval');
 
 function cmdEvalCluster(args) {
   const getFlag = (name) => {
@@ -65,15 +21,16 @@ function cmdEvalCluster(args) {
   if (!target || args.includes('--help') || args.includes('-h')) {
     process.stderr.write(
       'Usage: kdna eval cluster <kdna.cluster.json> [options]\n\n' +
-        'Run Cluster Assay — structural, behavioral, economics, trust, product gates.\n\n' +
+        'Run a diagnostic Cluster Assay. CLI mode keeps trust and economics promotion blocked\n' +
+        'because it cannot prove external provenance; run the Eval API inside the trusted\n' +
+        'evidence producer for full promotion.\n\n' +
         'Options:\n' +
         '  --task=<text>         Task to evaluate against\n' +
         '  --fixtures=<dir>      Directory of cluster assay fixtures\n' +
         '  --comparison-arms=<file> JSON arm results including primary_only and bounded_compose\n' +
-        '  --trace=<file>        Observed Cluster JudgmentTrace for trust and cost gates\n' +
         '  --as=<format>         json|md (default: json)\n' +
         '  --out=<path>          Write output to file\n' +
-        '  --gates=<list>        Comma-separated gates to run (default: all)\n\n' +
+        '  --gates=<list>        Comma-separated gates to display; all remain required for promotion\n\n' +
         'Gates (all required for promotion):\n' +
         '  structural   — Does the cluster resolve and compose correctly?\n' +
         '  behavioral   — Does the cluster improve over primary-only?\n' +
@@ -98,12 +55,11 @@ function cmdEvalCluster(args) {
   const task = getFlag('--task') || '';
   const fixturesPath = getFlag('--fixtures');
   const comparisonArmsPath = getFlag('--comparison-arms');
-  const tracePath = getFlag('--trace');
   const as = getFlag('--as') || 'json';
   const outPath = getFlag('--out');
   const gatesFilter = getFlag('--gates');
 
-  const { runClusterAssay } = loadKdnaEval();
+  const { runClusterAssay } = loadKdnaEval('eval-cluster');
 
   // Generate plan from cluster-engine
   let plan = null;
@@ -139,50 +95,40 @@ function cmdEvalCluster(args) {
     }
   }
 
-  let observedTrace = null;
-  if (tracePath) {
-    observedTrace = readJson(path.resolve(tracePath));
-    if (
-      !observedTrace ||
-      observedTrace.mode !== 'cluster' ||
-      !Array.isArray(observedTrace.assets_loaded)
-    ) {
-      error(
-        'Trace file must contain a Cluster JudgmentTrace with assets_loaded.',
-        EXIT.INPUT_ERROR,
-      );
-    }
+  if (args.some((arg) => arg === '--trace' || arg.startsWith('--trace='))) {
+    error(
+      'External Cluster trace JSON cannot establish promotion provenance. Run the Eval API inside the trusted evidence producer instead.',
+      EXIT.INPUT_ERROR,
+    );
   }
 
   // Run assay
   const result = runClusterAssay({
     manifest,
     plan,
-    assetsLoaded: observedTrace?.assets_loaded,
-    executionCost: observedTrace?.cost || { tokens_used: 0, model_calls: 0 },
+    assetsLoaded: undefined,
+    executionCost: undefined,
     fixtures,
     comparisonArms,
   });
 
   // Filter gates if requested
   if (gatesFilter) {
-    const filterList = gatesFilter.split(',').map((s) => s.trim());
+    const availableGates = Object.keys(result.gates);
+    const filterList = gatesFilter
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const unknownGates = filterList.filter((gate) => !availableGates.includes(gate));
+    if (filterList.length === 0 || unknownGates.length > 0) {
+      error(
+        `Unknown Cluster assay gate${unknownGates.length === 1 ? '' : 's'}: ${unknownGates.join(', ') || '(empty)'}. Expected one or more of: ${availableGates.join(', ')}.`,
+        EXIT.INPUT_ERROR,
+      );
+    }
     for (const gate of Object.keys(result.gates)) {
       if (!filterList.includes(gate)) delete result.gates[gate];
     }
-    // Recompute verdict
-    const remaining = Object.values(result.gates);
-    result.verdict.overall = remaining.every((g) => g.pass === true) ? 'pass' : 'fail';
-    result.verdict.passed = remaining.filter((g) => g.pass === true).length;
-    result.verdict.blocked = remaining.filter((g) => g.pass === false).length;
-    result.verdict.not_run = remaining.filter((g) => g.pass === null).length;
-    result.verdict.all_passed = remaining.every((g) => g.pass === true);
-    result.verdict.failed_gates = Object.entries(result.gates)
-      .filter(([, gate]) => gate.pass === false)
-      .map(([name]) => name);
-    result.verdict.incomplete_gates = Object.entries(result.gates)
-      .filter(([, gate]) => gate.pass === null)
-      .map(([name]) => name);
   }
 
   // Output

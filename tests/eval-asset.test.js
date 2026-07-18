@@ -31,7 +31,12 @@ function buildAssayInput() {
   const observations = [];
   categories.forEach((category, index) => {
     const fixtureId = `fixture_${String(index).padStart(2, '0')}`;
-    const fixture = { fixture_id: fixtureId, category, task: `Task ${index}`, expected: {} };
+    const fixture = {
+      fixture_id: fixtureId,
+      category,
+      task: `Task ${index}`,
+      expected: { outcome: `Bounded result ${index}` },
+    };
     fs.writeFileSync(path.join(fixtureDir, `${fixtureId}.json`), JSON.stringify(fixture));
     for (const arm of [
       'no_kdna',
@@ -82,14 +87,46 @@ test('eval asset executes a complete behavioral observation matrix', () => {
       `--observations=${input.observationsFile}`,
       '--as=json',
     ]);
-    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.status, 0, `${result.stderr}\n${result.stdout}`);
     const report = JSON.parse(result.stdout);
     assert.equal(report.mode, 'behavioral_observations');
     assert.equal(report.fixture_validation.valid, true);
     assert.equal(report.observations_loaded, 84);
     assert.equal(report.overall_verdict, 'pass');
     assert.ok(report.classification.levels.includes('behavior_evaluated_asset'));
-    assert.equal(report.evidence_claim.classification.not_behavior_evaluated, false);
+    assert.equal(report.evidence_claim, null);
+    assert.deepEqual(report.evidence_claim_status, {
+      generated: false,
+      reason:
+        'CLI observation matrices do not prove JudgmentTrace provenance; generate a claim through the official Eval API only after independently validating and binding the trace.',
+    });
+  } finally {
+    fs.rmSync(input.dir, { recursive: true, force: true });
+  }
+});
+
+test('eval asset never trusts a caller-invented trace identity', () => {
+  const input = buildAssayInput();
+  try {
+    const result = runCli([
+      'eval',
+      'asset',
+      ASSET,
+      `--fixtures=${input.fixtureDir}`,
+      `--observations=${input.observationsFile}`,
+      '--trace-id=trace_caller_invented',
+      '--as=json',
+    ]);
+    assert.equal(result.status, 0, `${result.stderr}\n${result.stdout}`);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.overall_verdict, 'pass');
+    assert.ok(report.classification.levels.includes('behavior_evaluated_asset'));
+    assert.equal(report.evidence_claim, null);
+    assert.deepEqual(report.evidence_claim_status, {
+      generated: false,
+      reason:
+        'CLI observation matrices do not prove JudgmentTrace provenance; generate a claim through the official Eval API only after independently validating and binding the trace.',
+    });
   } finally {
     fs.rmSync(input.dir, { recursive: true, force: true });
   }

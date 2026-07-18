@@ -6,37 +6,10 @@ const path = require('node:path');
 const os = require('node:os');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
-// Prefer the sibling monorepo checkout when present (local dev / workspace CI),
-// otherwise fall back to the npm-installed copy under node_modules.
-let EVAL_PATH;
-try {
-  EVAL_PATH = path.dirname(require.resolve('@aikdna/kdna-eval/package.json'));
-} catch (_) {
-  EVAL_PATH = path.resolve(__dirname, '..', '..', 'kdna', 'packages', 'kdna-eval');
-}
-
-function ensureEvalAvailable() {
-  try {
-    require(EVAL_PATH);
-    return;
-  } catch (e) {
-    if (e.code === 'MODULE_NOT_FOUND' || e.message.includes('Cannot find module')) {
-      throw new Error(
-        `@aikdna/kdna-eval not found at ${EVAL_PATH}. ` +
-          'Ensure it is installed: npm install @aikdna/kdna-eval@^0.2.0 (or run inside the monorepo workspace).',
-      );
-    }
-  }
-}
-
-// Patch require to resolve @aikdna/kdna-eval from the monorepo path.
-// The test sets KDNA_EVAL_PATH env var which eval-consumption.js checks.
-// We run the CLI as a subprocess with the module path exposed.
 
 function runCli(args, opts = {}) {
   const env = {
     ...process.env,
-    NODE_PATH: [EVAL_PATH, process.env.NODE_PATH].filter(Boolean).join(path.delimiter),
     ...(opts.env || {}),
   };
   return spawnSync(process.execPath, [CLI, ...args], {
@@ -49,7 +22,6 @@ function runCli(args, opts = {}) {
 }
 
 test('eval-consumption --help shows usage', () => {
-  ensureEvalAvailable();
   const r = runCli(['eval-consumption', '--help']);
   assert.equal(r.status, 0);
   assert.match(r.stderr, /Usage:/);
@@ -61,14 +33,12 @@ test('eval-consumption --help shows usage', () => {
 });
 
 test('eval-consumption with no args shows usage error', () => {
-  ensureEvalAvailable();
   const r = runCli(['eval-consumption']);
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /Usage:/);
 });
 
 test('eval-consumption --as=json outputs valid JSON', () => {
-  ensureEvalAvailable();
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-eval-cons-'));
   try {
     const r = runCli(['eval-consumption', 'test-asset', '--as=json'], { cwd: tmp });
@@ -89,7 +59,6 @@ test('eval-consumption --as=json outputs valid JSON', () => {
 });
 
 test('eval-consumption --as=markdown outputs human-readable report', () => {
-  ensureEvalAvailable();
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-eval-cons-'));
   try {
     const r = runCli(['eval-consumption', 'test-asset', '--as=markdown'], { cwd: tmp });
@@ -107,7 +76,6 @@ test('eval-consumption --as=markdown outputs human-readable report', () => {
 });
 
 test('eval-consumption with custom gates uses only those gates', () => {
-  ensureEvalAvailable();
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-eval-cons-'));
   try {
     const r = runCli(['eval-consumption', 'test-asset', '--as=json', '--gates=route,cost'], {
@@ -122,7 +90,6 @@ test('eval-consumption with custom gates uses only those gates', () => {
 });
 
 test('eval-consumption with custom modes uses only those modes', () => {
-  ensureEvalAvailable();
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-eval-cons-'));
   try {
     const r = runCli(['eval-consumption', 'test-asset', '--as=json', '--mode=repair,holdout'], {
@@ -138,7 +105,6 @@ test('eval-consumption with custom modes uses only those modes', () => {
 });
 
 test('eval-consumption with --out writes to file', () => {
-  ensureEvalAvailable();
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-eval-cons-'));
   const outFile = path.join(tmp, 'report.json');
   try {
@@ -155,7 +121,6 @@ test('eval-consumption with --out writes to file', () => {
 });
 
 test('eval-consumption with --policy loads policy file', () => {
-  ensureEvalAvailable();
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-eval-cons-'));
   const policyFile = path.join(tmp, 'policy.json');
   try {
@@ -175,7 +140,6 @@ test('eval-consumption with --policy loads policy file', () => {
 });
 
 test('eval-consumption --budget uses correct profile', () => {
-  ensureEvalAvailable();
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-eval-cons-'));
   try {
     const r = runCli(['eval-consumption', 'test-asset', '--as=json', '--budget=code-review'], {
@@ -191,7 +155,6 @@ test('eval-consumption --budget uses correct profile', () => {
 });
 
 test('eval-consumption JSON output has stable schema', () => {
-  ensureEvalAvailable();
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-eval-cons-'));
   try {
     const r = runCli(['eval-consumption', 'test-asset', '--as=json'], { cwd: tmp });
@@ -228,7 +191,6 @@ test('eval-consumption JSON output has stable schema', () => {
 });
 
 test('regression_flags is present in JSON verdict', () => {
-  ensureEvalAvailable();
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-eval-cons-'));
   try {
     const r = runCli(['eval-consumption', 'test-asset', '--as=json'], { cwd: tmp });
@@ -241,7 +203,6 @@ test('regression_flags is present in JSON verdict', () => {
 });
 
 test('regression_flags is an array', () => {
-  ensureEvalAvailable();
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-eval-cons-'));
   try {
     const r = runCli(['eval-consumption', 'test-asset', '--as=json'], { cwd: tmp });
@@ -254,7 +215,6 @@ test('regression_flags is an array', () => {
 });
 
 test('all 6 gates are function gates (no pass: null)', () => {
-  ensureEvalAvailable();
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-eval-cons-'));
   const policyFile = path.join(tmp, 'policy.json');
   fs.writeFileSync(
@@ -295,7 +255,6 @@ test('all 6 gates are function gates (no pass: null)', () => {
 });
 
 test('eval-consumption with --fixtures includes fixtures_loaded', () => {
-  ensureEvalAvailable();
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-eval-cons-'));
   const fixturesDir = path.join(tmp, 'fixtures');
   fs.mkdirSync(fixturesDir, { recursive: true });

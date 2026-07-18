@@ -44,6 +44,7 @@ const UNIT_TEST_FILES = Object.freeze([
   'tests/eval-consumption.test.js',
   'tests/eval-asset.test.js',
   'tests/eval-cluster.test.js',
+  'tests/eval-runtime-boundary.test.js',
   'tests/project.test.js',
   'tests/route.test.js',
   'tests/compose.test.js',

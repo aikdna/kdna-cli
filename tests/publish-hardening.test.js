@@ -13,7 +13,11 @@ const {
   validateCurrentReleaseBinding,
 } = require('../scripts/current-release-binding');
 const { validateReleaseContext } = require('../scripts/release-policy');
-const { REQUIRED_CORE_VERSION, validateReleaseReadiness } = require('../scripts/release-readiness');
+const {
+  REQUIRED_CORE_VERSION,
+  REQUIRED_EVAL_VERSION,
+  validateReleaseReadiness,
+} = require('../scripts/release-readiness');
 const {
   canonicalRegistryUrl,
   resolveTrustedNpmInvocation,
@@ -234,6 +238,7 @@ test('publish workflow has one canonical release-only path and publishes the ver
   assert.match(preflight, /scripts\/check-public-surface\.mjs/);
   assert.match(preflight, /scripts\/check-workflow-authority\.js/);
   assert.match(preflight, /scripts\/check-current-protocol-names\.js/);
+  assert.match(preflight, /scripts\/verify-eval-runtime-package\.js/);
 
   const packageJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
   assert.equal(packageJson.scripts.test, 'node scripts/run-complete-suite.js --complete');
@@ -286,6 +291,7 @@ test('publish workflow has one canonical release-only path and publishes the ver
     'scripts/generate-release-evidence.js',
     'scripts/generate-core-candidate-evidence.js',
     'scripts/verify-pack-policy.js',
+    'scripts/verify-eval-runtime-package.js',
     'scripts/verify-core-candidate-tar.js',
   ]) {
     const source = fs.readFileSync(path.join(ROOT, script), 'utf8');
@@ -426,12 +432,15 @@ test('current release Git binding ignores hostile Git environment redirection', 
   );
 });
 
-test('release readiness requires the formal Core release across manifest, lock, and install', () => {
+test('release readiness requires exact formal Core and Eval releases across manifest, lock, and install', () => {
   const integrity = `sha512-${Buffer.alloc(64).toString('base64')}`;
   const pkg = {
     name: '@aikdna/kdna-cli',
-    version: '0.35.0',
-    dependencies: { '@aikdna/kdna-core': REQUIRED_CORE_VERSION },
+    version: '0.35.1',
+    dependencies: {
+      '@aikdna/kdna-core': REQUIRED_CORE_VERSION,
+      '@aikdna/kdna-eval': REQUIRED_EVAL_VERSION,
+    },
   };
   const lock = {
     lockfileVersion: 3,
@@ -439,19 +448,29 @@ test('release readiness requires the formal Core release across manifest, lock, 
       '': {
         name: pkg.name,
         version: pkg.version,
-        dependencies: { '@aikdna/kdna-core': REQUIRED_CORE_VERSION },
+        dependencies: {
+          '@aikdna/kdna-core': REQUIRED_CORE_VERSION,
+          '@aikdna/kdna-eval': REQUIRED_EVAL_VERSION,
+        },
       },
       'node_modules/@aikdna/kdna-core': {
         version: REQUIRED_CORE_VERSION,
         resolved: canonicalRegistryUrl('@aikdna/kdna-core', REQUIRED_CORE_VERSION),
         integrity,
       },
+      'node_modules/@aikdna/kdna-eval': {
+        version: REQUIRED_EVAL_VERSION,
+        resolved: canonicalRegistryUrl('@aikdna/kdna-eval', REQUIRED_EVAL_VERSION),
+        integrity,
+      },
     },
   };
   const installedCore = { name: '@aikdna/kdna-core', version: REQUIRED_CORE_VERSION };
-  assert.deepEqual(validateReleaseReadiness({ pkg, lock, installedCore }), {
-    cli: '@aikdna/kdna-cli@0.35.0',
+  const installedEval = { name: '@aikdna/kdna-eval', version: REQUIRED_EVAL_VERSION };
+  assert.deepEqual(validateReleaseReadiness({ pkg, lock, installedCore, installedEval }), {
+    cli: '@aikdna/kdna-cli@0.35.1',
     core: `@aikdna/kdna-core@${REQUIRED_CORE_VERSION}`,
+    eval: `@aikdna/kdna-eval@${REQUIRED_EVAL_VERSION}`,
   });
 
   assert.throws(
@@ -460,6 +479,7 @@ test('release readiness requires the formal Core release across manifest, lock, 
         pkg: { ...pkg, dependencies: { '@aikdna/kdna-core': '0.18.0' } },
         lock,
         installedCore,
+        installedEval,
       }),
     /Core dependency must be/,
   );
@@ -475,6 +495,7 @@ test('release readiness requires the formal Core release across manifest, lock, 
           },
         },
         installedCore,
+        installedEval,
       }),
     /locked Core artifact is stale/,
   );
@@ -493,6 +514,7 @@ test('release readiness requires the formal Core release across manifest, lock, 
           },
         },
         installedCore,
+        installedEval,
       }),
     /canonical registry artifact/,
   );
@@ -511,19 +533,64 @@ test('release readiness requires the formal Core release across manifest, lock, 
           },
         },
         installedCore,
+        installedEval,
       }),
     /integrity is missing or invalid/,
+  );
+  assert.throws(
+    () =>
+      validateReleaseReadiness({
+        pkg: {
+          ...pkg,
+          dependencies: { ...pkg.dependencies, '@aikdna/kdna-eval': '0.3.1' },
+        },
+        lock,
+        installedCore,
+        installedEval,
+      }),
+    /Eval dependency must be/,
+  );
+  assert.throws(
+    () =>
+      validateReleaseReadiness({
+        pkg,
+        lock: {
+          ...lock,
+          packages: {
+            ...lock.packages,
+            'node_modules/@aikdna/kdna-eval': {
+              ...lock.packages['node_modules/@aikdna/kdna-eval'],
+              resolved: 'file:tests/fixtures/eval.tgz',
+            },
+          },
+        },
+        installedCore,
+        installedEval,
+      }),
+    /locked Eval must use the canonical registry artifact/,
+  );
+  assert.throws(
+    () =>
+      validateReleaseReadiness({
+        pkg,
+        lock,
+        installedCore,
+        installedEval: { ...installedEval, version: '0.3.1' },
+      }),
+    /installed Eval artifact does not match/,
   );
 
   const currentPackage = require('../package.json');
   const currentLock = require('../package-lock.json');
   const currentInstalledCore = require('@aikdna/kdna-core/package.json');
+  const currentInstalledEval = require('@aikdna/kdna-eval/package.json');
   assert.equal(currentPackage.dependencies['@aikdna/kdna-core'], REQUIRED_CORE_VERSION);
   assert.doesNotThrow(() =>
     validateReleaseReadiness({
       pkg: currentPackage,
       lock: currentLock,
       installedCore: currentInstalledCore,
+      installedEval: currentInstalledEval,
     }),
   );
 });
@@ -687,6 +754,7 @@ test('pack policy requires the current runtime surface and rejects retired or pr
     'src/runtime-contract.js',
     'src/agent-host-capabilities.js',
     'src/agent-host-process.js',
+    'src/cmds/_kdna-eval.js',
     'src/cmds/plan-use.js',
     'src/cmds/use.js',
     'validators/kdna-lint.js',
@@ -704,6 +772,14 @@ test('pack policy requires the current runtime surface and rejects retired or pr
   assert.equal(validatePackedFilePolicy(required), required);
   assert.throws(
     () => validatePackedFilePolicy([...required, { path: 'tests/private.test.js', size: 1 }]),
+    /unexpected packed file/,
+  );
+  assert.throws(
+    () =>
+      validatePackedFilePolicy([
+        ...required,
+        { path: 'tests/helpers/require-kdna-eval-fixture.js', size: 1 },
+      ]),
     /unexpected packed file/,
   );
   for (const hostilePath of [
