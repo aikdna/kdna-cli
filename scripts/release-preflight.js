@@ -16,6 +16,7 @@ const checks = [
   [node, ['node_modules/prettier/bin/prettier.cjs', '--check', '.']],
   [node, ['node_modules/eslint/bin/eslint.js', 'src/', 'validators/', 'tests/']],
   [node, ['scripts/run-complete-suite.js', '--complete']],
+  [node, ['scripts/verify-eval-runtime-package.js']],
   [node, ['scripts/verify-pack-policy.js']],
 ];
 

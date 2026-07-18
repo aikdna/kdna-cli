@@ -8,41 +8,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { error, EXIT } = require('./_common');
-
-function isSupportedEvalVersion(candidate) {
-  try {
-    const pkg = require(
-      candidate === '@aikdna/kdna-eval'
-        ? '@aikdna/kdna-eval/package.json'
-        : path.join(candidate, 'package.json'),
-    );
-    const [major = 0, minor = 0, patch = 0] = String(pkg.version).split('.').map(Number);
-    return major > 0 || minor > 3 || (minor === 3 && patch >= 1);
-  } catch (_) {
-    return false;
-  }
-}
-
-function loadKdnaEval() {
-  const paths = [
-    '@aikdna/kdna-eval',
-    process.env.KDNA_EVAL_PATH,
-    path.resolve(__dirname, '..', '..', '..', 'kdna', 'packages', 'kdna-eval'),
-  ].filter(Boolean);
-  for (const candidate of paths) {
-    if (!isSupportedEvalVersion(candidate)) continue;
-    try {
-      const mod = require(candidate);
-      if (typeof mod.runAssay === 'function' && typeof mod.generateEvidenceClaim === 'function')
-        return mod;
-    } catch (_) {}
-  }
-  process.stderr.write(
-    'Error: @aikdna/kdna-eval >=0.3.1 is required for kdna eval asset.\n' +
-      'Install it with: npm install @aikdna/kdna-eval@^0.3.1\n',
-  );
-  process.exit(EXIT.DEPENDENCY_ERROR || 6);
-}
+const { loadKdnaEval } = require('./_kdna-eval');
 
 function loadManifest(absPath) {
   try {
@@ -153,7 +119,7 @@ async function cmdEvalAsset(args) {
     runAssay,
     generateEvidenceClaim,
     FIXTURE_CATEGORIES,
-  } = loadKdnaEval();
+  } = loadKdnaEval('eval-asset');
 
   // Load profile
   let profile;

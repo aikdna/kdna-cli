@@ -11,6 +11,7 @@ const REQUIRED_PACK_FILES = Object.freeze([
   'src/runtime-contract.js',
   'src/agent-host-capabilities.js',
   'src/agent-host-process.js',
+  'src/cmds/_kdna-eval.js',
   'src/cmds/plan-use.js',
   'src/cmds/use.js',
   'validators/kdna-lint.js',

@@ -5,51 +5,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { error, EXIT, readJson } = require('./_common');
-
-function isSupportedEvalVersion(candidate) {
-  try {
-    const pkg = require(
-      candidate === '@aikdna/kdna-eval'
-        ? '@aikdna/kdna-eval/package.json'
-        : path.join(candidate, 'package.json'),
-    );
-    const [major = 0, minor = 0, patch = 0] = String(pkg.version).split('.').map(Number);
-    return major > 0 || minor > 3 || (minor === 3 && patch >= 1);
-  } catch (_) {
-    return false;
-  }
-}
-
-function loadKdnaEval() {
-  // Try loading from installed package first, then monorepo path
-  const sources = [
-    { name: 'installed @aikdna/kdna-eval', path: '@aikdna/kdna-eval' },
-    {
-      name: 'monorepo',
-      path: path.resolve(__dirname, '..', '..', '..', 'kdna', 'packages', 'kdna-eval'),
-    },
-  ];
-  for (const src of sources) {
-    if (!isSupportedEvalVersion(src.path)) continue;
-    let mod = null;
-    try {
-      mod = require(src.path);
-      if (typeof mod.runClusterAssay === 'function') return mod;
-    } catch (_) {}
-
-    // A package root can load successfully while omitting the Cluster Assay
-    // export. Subpath fallback must therefore run independently of the root
-    // require outcome.
-    try {
-      const sub = require(src.path + '/cluster-assay');
-      if (typeof sub.runClusterAssay === 'function') return sub;
-    } catch (_) {}
-  }
-  error(
-    '@aikdna/kdna-eval (>=0.3.1) is required for kdna eval cluster. runClusterAssay not found in any loaded module.',
-    EXIT.DEPENDENCY_ERROR || 6,
-  );
-}
+const { loadKdnaEval } = require('./_kdna-eval');
 
 function cmdEvalCluster(args) {
   const getFlag = (name) => {
@@ -103,7 +59,7 @@ function cmdEvalCluster(args) {
   const outPath = getFlag('--out');
   const gatesFilter = getFlag('--gates');
 
-  const { runClusterAssay } = loadKdnaEval();
+  const { runClusterAssay } = loadKdnaEval('eval-cluster');
 
   // Generate plan from cluster-engine
   let plan = null;

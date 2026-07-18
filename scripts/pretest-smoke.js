@@ -62,6 +62,33 @@ check('installed kdna-core version exactly matches declared version', () => {
   console.log(`       installed=${installed} declared=${declared}`);
 });
 
+check('installed kdna-eval version exactly matches declared version', () => {
+  const evalPath = require.resolve('@aikdna/kdna-eval/package.json');
+  const installed = require(evalPath).version;
+  const declared = require('../package.json').dependencies['@aikdna/kdna-eval'];
+  if (declared !== '0.3.1') {
+    throw new Error(`declared Eval dependency must be exactly 0.3.1: ${String(declared)}`);
+  }
+  if (installed !== declared) {
+    throw new Error(`exact mismatch: installed ${installed} vs declared ${declared}`);
+  }
+  console.log(`       installed=${installed} declared=${declared}`);
+});
+
+check('all command Eval root API contracts are available', () => {
+  const { loadKdnaEval } = require('../src/cmds/_kdna-eval');
+  for (const command of [
+    'compose',
+    'compose-review',
+    'route',
+    'eval-consumption',
+    'eval-asset',
+    'eval-cluster',
+  ]) {
+    loadKdnaEval(command);
+  }
+});
+
 check('candidate dependency binding is complete and byte-authenticated', () => {
   verifyCandidateBinding(ROOT);
 });

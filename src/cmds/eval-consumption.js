@@ -1,29 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { error, EXIT } = require('./_common');
-
-function loadKdnaEval() {
-  try {
-    return require('@aikdna/kdna-eval');
-  } catch (e) {
-    const altPaths = [
-      process.env.KDNA_EVAL_PATH,
-      path.resolve(__dirname, '..', '..', '..', 'kdna', 'packages', 'kdna-eval'),
-    ];
-    for (const p of altPaths) {
-      if (p) {
-        try {
-          return require(p);
-        } catch (_) {}
-      }
-    }
-    process.stderr.write(
-      'Error: @aikdna/kdna-eval is required for eval-consumption.\n' +
-        'Install it with: npm install @aikdna/kdna-eval@^0.2.0\n',
-    );
-    process.exit(EXIT.DEPENDENCY_ERROR || 6);
-  }
-}
+const { loadKdnaEval } = require('./_kdna-eval');
 
 function cmdEvalConsumption(args) {
   const getFlag = (name) => {
@@ -72,7 +50,8 @@ function cmdEvalConsumption(args) {
     .map((s) => s.trim())
     .filter(Boolean);
 
-  const { createMultiGateRunner, createConsumptionRunner, createReplayEngine } = loadKdnaEval();
+  const kdnaEval = loadKdnaEval('eval-consumption');
+  const { createMultiGateRunner, createConsumptionRunner, createReplayEngine } = kdnaEval;
 
   let policies = null;
   if (policyPath) {
@@ -226,7 +205,7 @@ function cmdEvalConsumption(args) {
     }
   }
   if (!costReport) {
-    const { createCostTracker } = loadKdnaEval();
+    const { createCostTracker } = kdnaEval;
     const t = createCostTracker(budget);
     costReport = t.getCostReport();
   }

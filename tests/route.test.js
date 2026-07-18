@@ -8,19 +8,10 @@ const { loadSchema, validateTrace } = require('../schema/trace-validator');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'minimal');
-// Prefer the sibling monorepo checkout when present (local dev / workspace CI),
-// otherwise fall back to the npm-installed copy under node_modules.
-let EVAL_PATH;
-try {
-  EVAL_PATH = path.dirname(require.resolve('@aikdna/kdna-eval/package.json'));
-} catch (_) {
-  EVAL_PATH = path.resolve(__dirname, '..', '..', 'kdna', 'packages', 'kdna-eval');
-}
 
 function runCli(args, opts = {}) {
   const env = {
     ...process.env,
-    NODE_PATH: [EVAL_PATH, process.env.NODE_PATH].filter(Boolean).join(path.delimiter),
     ...(opts.env || {}),
   };
   return spawnSync(process.execPath, [CLI, ...args], {

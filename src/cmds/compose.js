@@ -2,29 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { error, EXIT } = require('./_common');
-
-function loadKdnaEval() {
-  try {
-    return require('@aikdna/kdna-eval');
-  } catch (e) {
-    const altPaths = [
-      process.env.KDNA_EVAL_PATH,
-      path.resolve(__dirname, '..', '..', '..', 'kdna', 'packages', 'kdna-eval'),
-    ];
-    for (const p of altPaths) {
-      if (p) {
-        try {
-          return require(p);
-        } catch (_) {}
-      }
-    }
-    process.stderr.write(
-      'Error: @aikdna/kdna-eval is required for kdna compose.\n' +
-        'Install it with: npm install @aikdna/kdna-eval@^0.2.0\n',
-    );
-    process.exit(EXIT.DEPENDENCY_ERROR || 6);
-  }
-}
+const { loadKdnaEval } = require('./_kdna-eval');
 
 function loadManifest(absPath) {
   try {
@@ -110,12 +88,13 @@ function cmdCompose(args) {
     }
   }
 
-  const { createConsumptionRunner } = loadKdnaEval();
+  const kdnaEval = loadKdnaEval('compose');
+  const { createConsumptionRunner } = kdnaEval;
   const consumption = createConsumptionRunner({ policies, budgetProfile: budget });
 
   let consumerIndexLoaded = null;
   if (consumerIndexPath) {
-    const { loadConsumerIndex, resolveConsumerIndex } = loadKdnaEval();
+    const { loadConsumerIndex } = kdnaEval;
     const idxResult = loadConsumerIndex(consumerIndexPath);
     if (!idxResult.valid) {
       error(`Invalid consumer index: ${idxResult.errors.join('; ')}`, EXIT.INPUT_ERROR);
@@ -153,7 +132,7 @@ function cmdCompose(args) {
 
   // Check advisors against consumer index trust status
   if (consumerIndexLoaded && advisors.length > 0) {
-    const { resolveConsumerIndex } = loadKdnaEval();
+    const { resolveConsumerIndex } = kdnaEval;
     const trustedAdvisors = [];
     for (const a of advisors) {
       const resolved = resolveConsumerIndex(consumerIndexLoaded, task, a);

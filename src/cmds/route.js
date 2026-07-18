@@ -2,29 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { error, EXIT } = require('./_common');
-
-function loadKdnaEval() {
-  try {
-    return require('@aikdna/kdna-eval');
-  } catch (e) {
-    const altPaths = [
-      process.env.KDNA_EVAL_PATH,
-      path.resolve(__dirname, '..', '..', '..', 'kdna', 'packages', 'kdna-eval'),
-    ];
-    for (const p of altPaths) {
-      if (p) {
-        try {
-          return require(p);
-        } catch (_) {}
-      }
-    }
-    process.stderr.write(
-      'Error: @aikdna/kdna-eval is required for kdna route.\n' +
-        'Install it with: npm install @aikdna/kdna-eval@^0.2.0\n',
-    );
-    process.exit(EXIT.DEPENDENCY_ERROR || 6);
-  }
-}
+const { loadKdnaEval } = require('./_kdna-eval');
 
 function loadManifest(absPath) {
   try {
@@ -101,7 +79,8 @@ function cmdRoute(args) {
     }
   }
 
-  const { createConsumptionRunner, loadRouteCard, applyRouteCard } = loadKdnaEval();
+  const kdnaEval = loadKdnaEval('route');
+  const { createConsumptionRunner, loadRouteCard, applyRouteCard } = kdnaEval;
 
   if (routeCardPath) {
     const cardResult = loadRouteCard(routeCardPath);
@@ -113,7 +92,7 @@ function cmdRoute(args) {
 
   let consumerIndexLoaded = null;
   if (consumerIndexPath) {
-    const { loadConsumerIndex, resolveConsumerIndex } = loadKdnaEval();
+    const { loadConsumerIndex } = kdnaEval;
     const idxResult = loadConsumerIndex(consumerIndexPath);
     if (!idxResult.valid) {
       error(`Invalid consumer index: ${idxResult.errors.join('; ')}`, EXIT.INPUT_ERROR);
@@ -183,7 +162,7 @@ function cmdRoute(args) {
 
   // Check primary domain against consumer index trust status
   if (consumerIndexLoaded && trace.decision.primary.domain_id) {
-    const { resolveConsumerIndex } = loadKdnaEval();
+    const { resolveConsumerIndex } = kdnaEval;
     const resolved = resolveConsumerIndex(
       consumerIndexLoaded,
       task,

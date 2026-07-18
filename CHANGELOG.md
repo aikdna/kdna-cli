@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Bind every Eval-backed command to the exact official `@aikdna/kdna-eval`
+  package identity, version, and command-level root API. Remove environment,
+  adjacent-source, and package-subpath fallbacks so a damaged dependency fails
+  closed with one stable, non-leaking error instead of silently executing a
+  different implementation. Release and smoke gates now verify the exact Eval
+  registry artifact and all six command contracts.
+
 ## 0.35.0 (2026-07-18)
 
 - Add `--password-stdin` to encrypted demo generation and make stdin the
