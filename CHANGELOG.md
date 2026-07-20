@@ -16,6 +16,7 @@
 - Bind the unpublished CLI candidate to KDNA Core source ref `f133909`, while
   keeping release readiness blocked until that dependency has a canonical
   registry artifact.
+- Print the CLI's natural semantic version without a generation-style prefix.
 
 This is an unpublished Development Preview candidate. No existing registry
 version or package bytes are changed.
