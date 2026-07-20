@@ -17,6 +17,8 @@
   keeping release readiness blocked until that dependency has a canonical
   registry artifact.
 - Print the CLI's natural semantic version without a generation-style prefix.
+- Describe current CLI paths as pre-release rather than assigning Beta
+  maturity.
 
 This is an unpublished Development Preview candidate. No existing registry
 version or package bytes are changed.

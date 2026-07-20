@@ -237,7 +237,7 @@ kdna load ./my_domain.kdna --profile=compact --as=json
 
 Some older commands may still appear for existing users and migration tests.
 They are maintained as compatibility surfaces, not as the recommended public
-beta path.
+pre-release path.
 
 New integrations should use the single current KDNA route:
 
@@ -263,8 +263,8 @@ This CLI is a diagnostic control plane. It may display, validate, and transport
 LoadPlan results, but it must not define access modes, entitlement profiles,
 issue codes, crypto profiles, or fail-closed policy independently.
 
-The local packaged `.kdna` beta path is intentionally simple: validate the
-file, inspect the LoadPlan, and load only when the plan says it is loadable.
+The local packaged `.kdna` pre-release path is intentionally simple: validate
+the file, inspect the LoadPlan, and load only when the plan says it is loadable.
 Additional publisher or hosting layers are handled outside this first-run path.
 
 Current local authorization path:
