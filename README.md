@@ -1,3 +1,9 @@
+> **Development snapshot — release reset in progress**
+>
+> This repository is not currently a stable, beta, or production-ready
+> release. Published packages and documentation may describe an earlier
+> development snapshot. A new Development Preview has not been released.
+
 # @aikdna/kdna-cli
 
 [![npm](https://img.shields.io/npm/v/@aikdna/kdna-cli)](https://www.npmjs.com/package/@aikdna/kdna-cli) [![CI](https://github.com/aikdna/kdna-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/aikdna/kdna-cli/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
