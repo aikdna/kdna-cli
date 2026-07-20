@@ -585,13 +585,15 @@ test('release readiness requires exact formal Core and Eval releases across mani
   const currentInstalledCore = require('@aikdna/kdna-core/package.json');
   const currentInstalledEval = require('@aikdna/kdna-eval/package.json');
   assert.equal(currentPackage.dependencies['@aikdna/kdna-core'], REQUIRED_CORE_VERSION);
-  assert.doesNotThrow(() =>
-    validateReleaseReadiness({
-      pkg: currentPackage,
-      lock: currentLock,
-      installedCore: currentInstalledCore,
-      installedEval: currentInstalledEval,
-    }),
+  assert.throws(
+    () =>
+      validateReleaseReadiness({
+        pkg: currentPackage,
+        lock: currentLock,
+        installedCore: currentInstalledCore,
+        installedEval: currentInstalledEval,
+      }),
+    /canonical registry artifact/,
   );
 });
 
