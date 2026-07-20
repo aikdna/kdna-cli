@@ -3,7 +3,6 @@
 
 const core = require('@aikdna/kdna-core');
 
-const IDENTITY_BACKUP_PROFILE = 'kdna.encryption.identity-backup';
 const KDF_PARAMS = {
   [core.PASSWORD_PROTECTED_PROFILE]: {
     algorithm: 'Argon2id',
@@ -24,13 +23,6 @@ const KDF_PARAMS = {
     wireTagSize: 16, // Tag prepended to ciphertext in wire format
     contentEncryption: 'AES-256-GCM',
   },
-  [IDENTITY_BACKUP_PROFILE]: {
-    algorithm: 'PBKDF2-SHA256',
-    iterations: 100000,
-    keyLength: 32, // 256-bit AES key
-    ivLength: 16, // 128-bit random IV
-    encryption: 'AES-256-CBC',
-  },
 };
 
 function validateParameters(profile) {
@@ -42,4 +34,4 @@ function validateParameters(profile) {
   return params;
 }
 
-module.exports = { IDENTITY_BACKUP_PROFILE, KDF_PARAMS, validateParameters };
+module.exports = { KDF_PARAMS, validateParameters };

@@ -10,12 +10,12 @@ const CHECKOUT_SHA = ['9c091bb21b7c1c1d1991b', 'b908d89e4e9dddfe3e0'].join('');
 const SETUP_NODE_SHA = ['249970729cb0ef3589644e', '2896645e5dc5ba9c38'].join('');
 const CODEQL_SHA = ['99df26d4f13ea111d4ec1', 'a7dddef6063f76b97e9'].join('');
 const STALE_SHA = ['1e223db275d687790206a7', 'acac4d1a11bd6fe629'].join('');
-const CORE_COMMIT = ['4c327e494e4cd95d328b2632', 'e7c1de64509c8380'].join('');
+const CORE_COMMIT = ['644269e8971ed14e94e322b5', 'd3bfc85e1ed69bb6'].join('');
 
 const WORKFLOW_AUTHORITIES = Object.freeze([
   Object.freeze({
     path: '.github/workflows/ci.yml',
-    sha256: '39121c3d38f7d9d34a90b8ea30c6d415b27d98b535f3686a438f71d711ef6d9f',
+    sha256: '9cd40a2598c8dacd2e64b3485b7e147a0677ff031cab0ace8388db97b97bb55d',
   }),
   Object.freeze({
     path: '.github/workflows/public-surface.yml',

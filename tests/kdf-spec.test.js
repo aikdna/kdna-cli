@@ -6,12 +6,15 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const core = require('@aikdna/kdna-core');
-const { IDENTITY_BACKUP_PROFILE, KDF_PARAMS, validateParameters } = require('../src/kdf-spec');
+const { KDF_PARAMS, validateParameters } = require('../src/kdf-spec');
 
-test('KDF_PARAMS: all three profiles are defined', () => {
+test('KDF_PARAMS: only current Preview profiles are defined', () => {
   assert.ok(KDF_PARAMS[core.PASSWORD_PROTECTED_PROFILE], 'argon2id profile missing');
   assert.ok(KDF_PARAMS[core.LICENSED_ENTRY_PROFILE], 'hkdf profile missing');
-  assert.ok(KDF_PARAMS[IDENTITY_BACKUP_PROFILE], 'pbkdf2 profile missing');
+  assert.deepEqual(
+    Object.keys(KDF_PARAMS).sort(),
+    [core.PASSWORD_PROTECTED_PROFILE, core.LICENSED_ENTRY_PROFILE].sort(),
+  );
 });
 
 test('KDF_PARAMS: password-protected profile has required fields', () => {
@@ -29,13 +32,6 @@ test('KDF_PARAMS: licensed-entry profile has required fields', () => {
   assert.equal(p.wrapAlgorithm, 'AES-256-KW');
 });
 
-test('KDF_PARAMS: identity-backup profile has required fields', () => {
-  const p = KDF_PARAMS[IDENTITY_BACKUP_PROFILE];
-  assert.equal(p.algorithm, 'PBKDF2-SHA256');
-  assert.equal(p.iterations, 100000);
-  assert.equal(p.encryption, 'AES-256-CBC');
-});
-
 test('validateParameters: returns params for known profile', () => {
   const p = validateParameters(core.PASSWORD_PROTECTED_PROFILE);
   assert.equal(p.algorithm, 'Argon2id');
@@ -51,6 +47,6 @@ test('validateParameters: error message lists valid profiles', () => {
   } catch (e) {
     assert.match(e.message, new RegExp(core.PASSWORD_PROTECTED_PROFILE.replaceAll('.', '\\.')));
     assert.match(e.message, new RegExp(core.LICENSED_ENTRY_PROFILE.replaceAll('.', '\\.')));
-    assert.match(e.message, new RegExp(IDENTITY_BACKUP_PROFILE.replaceAll('.', '\\.')));
+    assert.doesNotMatch(e.message, /identity-backup|PBKDF2|AES-256-CBC/);
   }
 });

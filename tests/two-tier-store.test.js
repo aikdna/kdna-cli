@@ -80,17 +80,17 @@ function buildAsset(tmpRoot, name, version = '0.1.0') {
   return asset;
 }
 
-function buildStringRoutedAsset(tmpRoot) {
-  const source = path.join(tmpRoot, 'src-string-routed');
+function buildRoutedAsset(tmpRoot) {
+  const source = path.join(tmpRoot, 'src-routed');
   fs.cpSync(CURRENT_FIXTURE, source, { recursive: true });
   const manifestPath = path.join(source, 'kdna.json');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  manifest.name = '@aikdna/string_routed';
-  manifest.asset_id = 'kdna:aikdna:string_routed';
-  manifest.title = 'String Routed Judgment';
+  manifest.name = '@aikdna/routed';
+  manifest.asset_id = 'kdna:aikdna:routed';
+  manifest.title = 'Scoped Judgment';
   manifest.version = '0.1.0';
   manifest.judgment_version = '0.1.0';
-  manifest.description = 'String routed judgment test asset.';
+  manifest.description = 'Explicitly scoped judgment test asset.';
   manifest.summary = manifest.description;
   manifest.keywords = ['routing', 'lifecycle'];
   writeJson(manifestPath, manifest);
@@ -99,17 +99,17 @@ function buildStringRoutedAsset(tmpRoot) {
   const payload = cbor.decode(fs.readFileSync(payloadPath));
   payload.core.axioms = [
     {
-      id: 'axiom_string_routed',
-      one_sentence: 'String route fields should still be discoverable.',
-      applies_when: 'review structural routing lifecycle behavior',
-      does_not_apply_when: 'only fix grammar',
+      id: 'axiom_routed',
+      one_sentence: 'Declared applicability boundaries should remain discoverable.',
+      applies_when: ['review structural routing lifecycle behavior'],
+      does_not_apply_when: ['only fix grammar'],
       failure_risk: 'Installed assets may be invisible to agents.',
     },
   ];
   fs.writeFileSync(payloadPath, cbor.encode(payload));
   writeJson(path.join(source, 'checksums.json'), buildChecksums(source));
 
-  const asset = path.join(tmpRoot, 'string-routed.kdna');
+  const asset = path.join(tmpRoot, 'routed.kdna');
   pack(source, asset);
   return asset;
 }
@@ -258,9 +258,9 @@ test('kdna plan-load accepts an installed current asset name', () => {
   assert.equal(plan.can_load_now, true);
 });
 
-test('agent discovery normalizes string routing fields from installed assets', () => {
+test('agent discovery preserves schema-valid routing fields from installed assets', () => {
   const { proj, env, root } = makeEnv();
-  const asset = buildStringRoutedAsset(root);
+  const asset = buildRoutedAsset(root);
 
   const installed = run(['install', asset, '--yes', '--local'], { env, cwd: proj });
   assert.ok(installed.ok, `kdna install failed: ${installed.stderr}\n${installed.stdout}`);
@@ -278,10 +278,10 @@ test('agent discovery normalizes string routing fields from installed assets', (
   assert.ok(match.ok, `match failed: ${match.stderr}`);
   const matched = JSON.parse(match.stdout);
   assert.equal(matched.no_strong_matches, false);
-  assert.equal(matched.hints[0].name, '@aikdna/string_routed');
+  assert.equal(matched.hints[0].name, '@aikdna/routed');
   assert.ok(
     matched.hints[0].top_signals.length > 0,
-    'string applies_when should produce hint signals',
+    'declared applies_when should produce hint signals',
   );
 });
 
