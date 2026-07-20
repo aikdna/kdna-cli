@@ -10,9 +10,9 @@
 
 ## Reporting a Vulnerability
 
-KDNA CLI is the runtime control plane for domain judgment. The primary
-security surface is signature verification, identity key management,
-and registry trust.
+KDNA CLI is the runtime control plane for domain judgment. Its primary
+security surface is container integrity, authorization and decryption,
+identity key management, and registry trust.
 
 If you discover a security vulnerability:
 
@@ -25,10 +25,9 @@ We will acknowledge within 5 business days and provide a timeline for a fix.
 
 ## Scope
 
-- `kdna verify --trust`: Ed25519 signature verification
-- `kdna identity init/export/import`: key generation and backup encryption
+- `kdna identity init/show`: identity key generation and public-key inspection
 - `kdna install`: registry trust chain and SHA-256 verification
-- `kdna publish`: signing and key material handling
+- `kdna publish`: immutable artifact and digest handling
 - `kdna license activate/sync/verify/show`: license-key and entitlement
   handling, including redaction of activation errors and sync traces;
   account/device private keys, issuer pins, and grants must remain in an
@@ -39,8 +38,12 @@ We will acknowledge within 5 business days and provide a timeline for a fix.
   avoidance of plaintext payload exposure
 - Password-protected `demo`, `protect`, `unlock`, and `load` paths: pass
   passwords over standard input with `--password-stdin` (or use the secure
-  interactive prompt where supported). The legacy `--password <value>` form is
-  accepted only for compatibility and exposes the secret in process arguments.
+  interactive prompt where supported). Passwords in process arguments are
+  rejected.
+
+Asset signatures and private-key backup/import are outside the current Preview
+contract. Registry signatures, signed licenses and grants, and Human Lock
+provenance remain separate supported security contracts.
 
 ## Out of Scope
 

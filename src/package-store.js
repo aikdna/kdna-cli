@@ -333,7 +333,6 @@ function recoverReceiptEntry(tier, scope, ident, version, versionDir) {
       content_digest: computedContentDigest,
       judgment_version: receipt.judgment_version || manifest.judgment_version || null,
       access: receipt.access || manifest.access || 'public',
-      signature: receipt.signature || manifest.signature || null,
       installed_at: receipt.installed_at || null,
       source: receipt.source || { type: 'recovered-receipt' },
     };
@@ -734,7 +733,6 @@ function installAssetUnlocked({ sourcePath, name, version, source = {}, local = 
     package_version: finalVersion,
     judgment_version: manifest.judgment_version || null,
     access: manifest.access || 'public',
-    signature: manifest.signature || null,
     installed_at: installedAt,
     source,
   };
@@ -749,7 +747,6 @@ function installAssetUnlocked({ sourcePath, name, version, source = {}, local = 
     content_digest: sourceContentDigest,
     judgment_version: manifest.judgment_version || null,
     access: manifest.access || 'public',
-    signature: manifest.signature || null,
     installed_at: installedAt,
     source,
   };

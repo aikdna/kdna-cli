@@ -8,7 +8,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { error, EXIT, readPasswordArgv, setQuiet, setExitCodeOnly } = require('./cmds/_common');
+const { error, EXIT, rejectPasswordArgv, setQuiet, setExitCodeOnly } = require('./cmds/_common');
 const { cmdDemo: cmdDemoMinimal } = require('./cmds/demo');
 const {
   runAntiMonolithicCheck,
@@ -26,14 +26,6 @@ const {
   cmdLicenseVerify,
 } = require('./cmds/license');
 const { cmdIdentityInit, cmdIdentityShow } = require('./cmds/identity');
-const {
-  cmdSign,
-  cmdVerify,
-  cmdRevoke,
-  cmdRevocation,
-  cmdIdentityExport,
-  cmdIdentityImport,
-} = require('./identity');
 const { cmdDoctor } = require('./cmds/doctor');
 const { cmdTrace, cmdHistory } = require('./cmds/trace');
 const { cmdCluster } = require('./cmds/cluster');
@@ -173,8 +165,6 @@ function showHelp() {
                                      --namespace=<component-id>
                                      --password-stdin        Read a protected
                                        asset password from stdin
-                                     --password <value>     Legacy; exposes the
-                                       password in process arguments
                                      --remote-server <url>   Use a visible-ASCII
                                        HTTP(S) server base URL or exact /project
                                        endpoint with kdna-remote-server for
@@ -186,13 +176,12 @@ function showHelp() {
                                        (default: review)
                                       --context "..."         Context
                                         for the projection
-  capsule-verify <capsule.json>        Verify a Capsule JSON file's trust chain
+  capsule-verify <capsule.json>        Verify Capsule structure and digest evidence
                                        --json: machine-readable output
   pack      <dev-source> <out>       Pack into .kdna (--force to overwrite)
   unpack    <file.kdna> <out>        Extract .kdna into an editing/debug view
   demo      <minimal|judgment> <dir>  Create a current KDNA demo source
                                       --password-stdin creates an encrypted demo
-                                      --password <value> is legacy and insecure
   lint      <source-dir>             Anti-Monolithic Domain check (RFC-0013 §4)
                                       --strict: upgrade warnings to errors
                                       --json: machine-readable output
@@ -282,24 +271,6 @@ Auth & Identity:
   identity init                      Generate Ed25519 identity keypair
   identity show                      Display identity fingerprint/paths
                                      (PEM, hex, base64)
-  sign      <asset>                  Detached Ed25519 signature over the
-                                     asset digest (kdna.json + payload.kdnab
-                                     + checksums.json). Writes <asset>.ed25519.sig
-  verify    <asset>                  Verify a signature. With --key, checks
-                                     cryptographically. Without --key, prints
-                                     the signer's public key + 'no key,
-                                     cannot determine trust' (Story 19).
-                                     Exit codes: 0 valid, 1 invalid, 2 no key,
-                                     3 error, 4 revoked (Story 20)
-  revoke    <asset>                  Author revokes their own signature
-                                     (Story 20). Writes
-                                     <asset>.signatures/revocation.ed25519.json
-                                     signed by the same key that signed the asset
-                                     --reason "..." optional
-                                     --revocation <path> override output path
-                                     --force overwrite an existing revocation
-  revocation status <asset>          Show the current revocation record
-                                     (if any) for an asset
 Diagnostics:
   doctor   [--agents] [--domains]    System health check
   trace    [--json] [--clear]        Observability trace logs
@@ -308,15 +279,12 @@ Diagnostics:
   cluster  <path>                    Validate a cluster manifest
   protect  <file> --out <file>       Encrypt a .kdna asset with a password
            [--password-stdin]
-           [--password <pw>]         Legacy; exposes the password in argv
            [--entries payload.kdnab]
   protect  unlock <file>             Decrypt a protected .kdna
            [--password-stdin]
-           [--password <pw>]         Legacy; exposes the password in argv
            [--profile compact|index|full]
   protect  recover <file>            Recover a .kdna using a recovery code
            --out <file> --code-stdin [--password-stdin]
-           [--password <new-password>] Legacy; exposes the password in argv
   available                            List available installed domains
   match     "<task>"                  Find the best-matching domain for a task
   install   <name|@scope/name|file>   Install a .kdna asset from local/registry
@@ -344,7 +312,7 @@ Asset & Domain Operations:
   domain   card <path>                Render a domain summary card
   governance <proposal|review|...>   Human-governed self-improvement ops
   legacy   <preview|project|eval>    Legacy domain migration commands
-  quality  <compare|diff|search>      Cross-version quality analysis
+  quality  <diff|search>              Asset version diff and local search
   registry <list|refresh>            Registry operations (registry is out of scope
                                      for KDNA Core; refresh is informational only)
   setup                                First-time setup wizard
@@ -448,7 +416,7 @@ switch (cmd) {
       const assetTarget = args.filter((a) => !a.startsWith('--'))[1];
       if (!assetTarget)
         error(
-          'Usage: kdna plan-load <path> [--json] [--has-password] [--entitlement-status <status>]\nLegacy: --password <value> remains accepted but exposes the secret in argv; use --has-password for planning.',
+          'Usage: kdna plan-load <path> [--json] [--has-password] [--entitlement-status <status>]',
           EXIT.INPUT_ERROR,
         );
       const core = require('@aikdna/kdna-core');
@@ -492,18 +460,13 @@ switch (cmd) {
           EXIT.INPUT_ERROR,
         );
       }
-      // --password <value> is the credential-presence signal for plan-load.
-      // The LoadPlan does NOT verify the password (only `kdna load` does that),
-      // but presence of --password makes has_password_input: true and lets
-      // downstream callers skip the "enter_password" step.
-      const planLoadPassword = readPasswordArgv(args);
+      rejectPasswordArgv(args);
       const planManifest = readManifestForPath(abs);
       let externalSession = null;
       try {
         externalSession = loadExternalAuthorization(abs, planManifest || {});
         const plan = core.planLoad(planTarget, {
-          hasPassword: !!planLoadPassword || args.includes('--has-password'),
-          password: planLoadPassword || undefined,
+          hasPassword: args.includes('--has-password'),
           entitlement:
             externalSession?.entitlement ||
             (entitlementStatus ? { status: entitlementStatus } : undefined),
@@ -694,7 +657,7 @@ switch (cmd) {
     const target = args.filter((a) => !a.startsWith('--'))[1];
     if (!target)
       error(
-        'Usage: kdna load <file.kdna> [--profile=<index|compact|scenario|full>] [--as=<json|prompt|raw>] [--namespace=<component-id>] [--password-stdin]\nLegacy: --password <value> remains accepted but exposes the secret in argv.',
+        'Usage: kdna load <file.kdna> [--profile=<index|compact|scenario|full>] [--as=<json|prompt|raw>] [--namespace=<component-id>] [--password-stdin]',
         EXIT.INPUT_ERROR,
       );
     const core = require('@aikdna/kdna-core');
@@ -722,13 +685,8 @@ switch (cmd) {
     // Only the component whose rag_namespace contains <id> is returned.
     // Useful for querying one component of a Bundle without loading all content.
     const namespaceFilter = getFlag('--namespace') || null;
-    // BUG-16 (2026-06-27): kdna load previously only accepted
-    // --password=<value>, forcing users to either type the password
-    // inline (shell history risk) or pipe nothing. Match the protect
-    // and plan-load paths: --password-stdin reads from stdin; if both
-    // are present, --password-stdin wins (explicit intent).
+    rejectPasswordArgv(args);
     const useStdin = args.includes('--password-stdin');
-    const argvPassword = readPasswordArgv(args);
     let password;
     if (useStdin) {
       // Bug fix: refuse up front on a TTY rather than calling
@@ -743,11 +701,6 @@ switch (cmd) {
       }
       const stdinPw = fs.readFileSync(0, 'utf8').trim();
       password = stdinPw.length > 0 ? stdinPw : undefined;
-    } else if (process.env.KDNA_PASSWORD) {
-      password = process.env.KDNA_PASSWORD;
-    } else {
-      password =
-        typeof argvPassword === 'string' && argvPassword.length > 0 ? argvPassword : undefined;
     }
     if (args.includes('--has-password')) {
       error(
@@ -1031,47 +984,14 @@ switch (cmd) {
       cmdIdentityShow(args.includes('--json'));
       break;
     }
-    if (sub === 'export') {
-      const outIdx = args.indexOf('--out');
-      cmdIdentityExport(outIdx >= 0 ? args[outIdx + 1] : null);
-      break;
-    }
-    if (sub === 'import') {
-      const target = args[2];
-      if (!target) error('Usage: kdna identity import <file>', EXIT.INPUT_ERROR);
-      cmdIdentityImport(target);
-      break;
-    }
     error(
-      `Usage: kdna identity <init|show|export|import>\n` +
+      `Usage: kdna identity <init|show>\n` +
         `  kdna identity init\n` +
-        `  kdna identity show [--json]\n` +
-        `  kdna identity export [--out <file>]\n` +
-        `  kdna identity import <file>`,
+        `  kdna identity show [--json]`,
       EXIT.INPUT_ERROR,
     );
   }
   // eslint-disable-next-line no-fallthrough
-  case 'sign': {
-    cmdSign(args.slice(1));
-    break;
-  }
-
-  case 'verify': {
-    cmdVerify(args.slice(1));
-    break;
-  }
-
-  case 'revoke': {
-    cmdRevoke(args.slice(1));
-    break;
-  }
-
-  case 'revocation': {
-    cmdRevocation(args.slice(1));
-    break;
-  }
-
   case 'doctor': {
     cmdDoctor(args.slice(1));
     break;
@@ -1212,8 +1132,11 @@ switch (cmd) {
   case 'quality': {
     const sub = args[1];
     if (sub === 'compare') {
-      quality.cmdCompare(args.slice(2));
-      break;
+      error(
+        'kdna quality compare is outside the current Preview. ' +
+          'Asset-level behavioral evaluation belongs to a named evaluator, not the Runtime CLI.',
+        EXIT.INPUT_ERROR,
+      );
     }
     if (sub === 'diff') {
       quality.cmdDiff(args.slice(2));
@@ -1239,7 +1162,7 @@ switch (cmd) {
       quality.cmdPostvalidate(args.slice(2));
       break;
     }
-    error('Usage: kdna quality <compare|diff|search|available|match|select|postvalidate>');
+    error('Usage: kdna quality <diff|search|available|match|select|postvalidate>');
     break;
   }
 
@@ -1373,7 +1296,7 @@ switch (cmd) {
     const capsuleFile = args.slice(1).find((a) => !a.startsWith('--')) || '';
     if (!capsuleFile)
       error(
-        'Usage: kdna capsule-verify <capsule.json> [--asset <file.kdna>] [--key <pubkey>] [--json]',
+        'Usage: kdna capsule-verify <capsule.json> [--asset <file.kdna>] [--json]',
         EXIT.INPUT_ERROR,
       );
     const getFlag = (name) => {
@@ -1383,9 +1306,11 @@ switch (cmd) {
       return idx >= 0 ? args[idx + 1] : null;
     };
     const assetPath = getFlag('--asset') || null;
-    const publicKey = getFlag('--key') || null;
+    if (getFlag('--key')) {
+      error('Asset signatures are outside the current Preview contract.', EXIT.INPUT_ERROR);
+    }
     const { verifyCapsule } = require('./capsule-verify');
-    const result = verifyCapsule(capsuleFile, { assetPath, publicKey });
+    const result = verifyCapsule(capsuleFile, { assetPath });
     if (args.includes('--json')) {
       console.log(JSON.stringify(result, null, 2));
     } else {

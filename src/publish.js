@@ -503,123 +503,7 @@ function cmdPublishCheck(domainPath, args = []) {
 // Registry publish pipeline for existing .kdna assets.
 // ═══════════════════════════════════════════════════════════════════════
 
-const crypto = require('crypto');
 const { execFileSync } = require('child_process');
-
-/**
- * Canonical signing payload: sorted (filename, sha256) pairs of all published
- * content entries inside the .kdna ZIP, joined as `name:hex\n`.
- *
- * Excludes the `signature` field from kdna.json itself (computed by removing it
- * before hashing). Digest self-reference fields are also excluded. All other files included as-is.
- */
-function canonicalPayload(srcDir, opts = {}) {
-  const files = listPublishEntries(srcDir).sort();
-  const parts = [];
-  for (const f of files) {
-    const full = f === 'mimetype' ? null : path.join(srcDir, f);
-    let buf;
-    if (f === 'mimetype') {
-      buf = Buffer.from('application/vnd.kdna.asset');
-    } else if (f.endsWith('.json')) {
-      const obj = JSON.parse(fs.readFileSync(full, 'utf8'));
-      const value = f === 'kdna.json' ? manifestForSigning(obj, opts) : obj;
-      buf = Buffer.from(stableStringify(value));
-    } else {
-      buf = fs.readFileSync(full);
-    }
-    const hash = crypto.createHash('sha256').update(buf).digest('hex');
-    parts.push(`${f}:${hash}`);
-  }
-  return parts.join('\n');
-}
-
-function manifestForSigning(manifest, opts = {}) {
-  // Mirrors packages/kdna-core/src/asset-reader.js#manifestForSignature /
-  // manifestForDigest. The two must agree on every field they strip,
-  // otherwise the signing path and the digest path will hash different
-  // representations of the same manifest and verifiers will report a
-  // mismatch on otherwise-valid assets.
-  //
-  // Bug: prior version omitted the recursive `authoring.content_digest`
-  // strip that both kdna-core and the studio-cli manifestForSigning
-  // perform. A manifest with that field produced a different signing
-  // payload here than anywhere else in the ecosystem.
-  const copy = { ...(manifest || {}) };
-  delete copy.signature;
-  delete copy.asset_digest;
-  delete copy.container_sha256;
-  // Bug (#67): the previous `includeContentDigest` flag was the
-  // semantic inverse of kdna-core's `stripDigestFields` option. Same
-  // default value (omit the flag) produced the same behaviour, but a
-  // caller that read the docs and set `includeContentDigest: true`
-  // expecting "include" would actually be telling the signing path to
-  // skip the strip — the opposite of what the name suggested. The
-  // kdna-core convention (and the convention in
-  // packages/kdna-core/src/asset-reader.js#manifestForSignature) is
-  // `stripDigestFields: true`, so the fix accepts that name and
-  // keeps `includeContentDigest` as a deprecated alias for the old
-  // inverse behaviour.
-  const stripDigestFields = opts.stripDigestFields !== false && opts.includeContentDigest !== true;
-  if (stripDigestFields) delete copy.content_digest;
-  delete copy._source;
-  if (copy.authoring && typeof copy.authoring === 'object') {
-    const auth = { ...copy.authoring };
-    delete auth.content_digest;
-    copy.authoring = auth;
-  }
-  return copy;
-}
-
-function stableStringify(value) {
-  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
-  if (value && typeof value === 'object') {
-    return `{${Object.keys(value)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
-      .join(',')}}`;
-  }
-  return JSON.stringify(value);
-}
-
-function listPublishEntries(domainDir) {
-  const entries = ['mimetype'];
-  const skipDirs = new Set(['.git', 'node_modules', 'dist', 'reports']);
-  // Exclusions must match packages/kdna-core/src/asset-reader.js#buildContentDigest
-  // — see docs/CANONICALIZATION.md. If publish.js signs a different set of
-  // entries than the verifier digests, every signature will appear to fail.
-  function walk(dir, prefix = '') {
-    for (const name of fs.readdirSync(dir).sort()) {
-      if (name === 'mimetype') continue;
-      if (name === '.DS_Store' || name === 'signature.json' || name === 'build-receipt.json')
-        continue;
-      const abs = path.join(dir, name);
-      const rel = prefix ? `${prefix}/${name}` : name;
-      const stat = fs.statSync(abs);
-      if (stat.isDirectory()) {
-        if (!skipDirs.has(name)) walk(abs, rel);
-        continue;
-      }
-      if (
-        rel.endsWith('.json') ||
-        rel === 'README.md' ||
-        rel === 'LICENSE' ||
-        rel.startsWith('evals/') ||
-        rel.startsWith('examples/')
-      ) {
-        entries.push(rel);
-      }
-    }
-  }
-  walk(domainDir);
-  return entries;
-}
-
-function publicKeyToScopeFormat(publicKeyPem) {
-  // The trust_pubkey in registry is stored as "ed25519:<sha256-of-PEM-hex>"
-  // because Ed25519 PEM is multi-line; the scope key is a stable fingerprint.
-  return 'ed25519:' + crypto.createHash('sha256').update(publicKeyPem).digest('hex');
-}
 
 /**
  * kdna publish <file.kdna> — Publish an existing Studio-compiled asset.
@@ -747,7 +631,5 @@ module.exports = {
   cmdPublishCheck,
   cmdPublish,
   checkHumanLock,
-  canonicalPayload,
-  publicKeyToScopeFormat,
   validateAuthoringProvenance,
 };

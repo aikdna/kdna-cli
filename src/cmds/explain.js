@@ -110,9 +110,9 @@ function cmdExplain(args) {
   console.log('');
 
   console.log('── Quick Start ──');
-  console.log(`  kdna verify ${target} --judgment`);
-  console.log(`  kdna compare ${target} --input "<your task>"`);
-  console.log(`  kdna trace --domain ${target.slice(0, 40)}`);
+  console.log(`  kdna validate ${target}`);
+  console.log(`  kdna plan-load ${target}`);
+  console.log(`  kdna load ${target} --profile=compact --as=json`);
   console.log('');
 }
 

@@ -8,7 +8,7 @@ KDNA makes judgment portable across models and runtimes. This repository
 implements the inspect, validate, authorization, loading, projection, and
 runtime-control part of the open protocol.
 
-KDNA CLI inspects, validates, packs, unpacks, loads, signs, and manages `.kdna` files. It is
+KDNA CLI inspects, validates, packs, unpacks, loads, and manages `.kdna` files. It is
 the consumer/runtime side of the official KDNA toolchain. Formal authoring is
 handled by KDNA Studio CLI and Studio Core.
 
@@ -184,16 +184,16 @@ or digest. `--allow-unverified` is an explicit development-only override; JSON
 output includes the failed verification state so automation cannot confuse it
 with a verified install.
 
-## Identity, Signing & Revocation
+## Identity
 
-| Command                                 | Purpose                              |
-| --------------------------------------- | ------------------------------------ |
-| `kdna identity init [--name <n>]`       | Create Ed25519 signing key           |
-| `kdna identity show`                    | Show public key (PEM / hex / base64) |
-| `kdna sign <file.kdna>`                 | Sign an asset with your identity key |
-| `kdna verify <file.kdna> [--key <pub>]` | Verify a signature                   |
-| `kdna revoke <sig.kdsig> [--reason]`    | Issue a signed revocation record     |
-| `kdna revocation-status <sig.kdsig>`    | Check revocation status              |
+| Command                           | Purpose                              |
+| --------------------------------- | ------------------------------------ |
+| `kdna identity init [--name <n>]` | Create an Ed25519 identity key       |
+| `kdna identity show`              | Show public key (PEM / hex / base64) |
+
+Asset signatures are outside the current Preview contract. The CLI therefore
+does not expose asset `sign`, `verify`, or `revoke` commands. Registry, license,
+grant, and Human Lock signatures are separate contracts.
 
 ## Agent Loader Commands
 
@@ -277,8 +277,9 @@ kdna load ./asset.kdna --profile=compact --as=json
 ```
 
 > ⚠️ `--has-password` is a **plan-load** diagnostic only. It tells the
-> planner "I would have a password if I had to provide one" so it can
-> skip the `needs_password` gate. It does **not** decrypt. To actually
+> planner only that a password input would be available. Because the value is
+> not verified at planning time, the plan remains `needs_password` with
+> `can_load_now: false`. To actually
 > load a protected asset, pipe the password to `kdna load --password-stdin`.
 > For example:
 >
@@ -287,11 +288,9 @@ kdna load ./asset.kdna --profile=compact --as=json
 >   --password-stdin --profile=compact --as=json
 > ```
 >
-> The legacy `--password <value>` form remains accepted for compatibility,
-> but it exposes the secret through process arguments and may also persist in
-> shell history. Do not use it in new integrations. See
-> [`docs/asset-authorization.md`](docs/asset-authorization.md) for the
-> full distinction and end-to-end examples.
+> Passwords in process arguments are rejected. See
+> [`docs/asset-authorization.md`](docs/asset-authorization.md) for the secure
+> input contract and end-to-end examples.
 
 For an RFC-0019 account/device asset, an `active` status flag is not enough.
 The preferred flow is:

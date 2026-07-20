@@ -33,7 +33,6 @@ const {
   sha256File,
   readContainer,
   readContainerJson,
-  verifyAsset,
   assertInstalledIntegrity,
 } = require('./package-store');
 
@@ -225,52 +224,6 @@ function downloadFile(url, dest) {
 
 // ─── Signature verification ────────────────────────────────────────────
 
-function verifySignature({ assetPath, scope, entry, lenient = true }) {
-  const manifest = readContainerJson(assetPath, 'kdna.json');
-  if (!manifest) {
-    if (lenient) {
-      console.warn('  ⚠ No kdna.json — cannot verify signature.');
-      return;
-    }
-    error('No kdna.json in package — cannot verify signature.', EXIT.TRUST_FAILED);
-  }
-
-  const trustKey = scope.trust_pubkey;
-  if (!entry.signature || !manifest.signature) {
-    error(`${entry.name}: registry and .kdna manifest signatures are required.`, EXIT.TRUST_FAILED);
-  }
-
-  // Author pubkey fingerprint must match scope trust_pubkey
-  if (manifest.author?.pubkey !== trustKey) {
-    error(
-      `${entry.name}: author.pubkey does not match scope trust key. Refusing to install.`,
-      EXIT.TRUST_FAILED,
-    );
-  }
-
-  // Full Ed25519 verify (requires public_key_pem embedded in the package)
-  if (!manifest.author?.public_key_pem) {
-    error(
-      `${entry.name}: manifest author.public_key_pem is required for Ed25519 verification.`,
-      EXIT.TRUST_FAILED,
-    );
-  }
-
-  const result = verifyAsset(assetPath, { requireSignature: true });
-  for (const e of result.errors || []) {
-    if (e.includes('signature') || e.includes('public_key') || e.includes('fingerprint')) {
-      error(`${entry.name}: ${e}. Refusing to install.`, EXIT.TRUST_FAILED);
-    }
-  }
-  if (!result.signature_valid) {
-    error(
-      `${entry.name}: Ed25519 signature INVALID. Package may be tampered. Refusing.`,
-      EXIT.TRUST_FAILED,
-    );
-  }
-  console.log('  ✓ Signature OK (Ed25519 verified)');
-}
-
 // ─── Status confirmation (interactive) ─────────────────────────────────
 
 function confirmStatus(entry, yes) {
@@ -306,7 +259,9 @@ function cmdInstallExtended(input, args = []) {
 
   const yes = args.includes('--yes');
   const jsonMode = args.includes('--json');
-  const trusted = args.includes('--trusted');
+  if (args.includes('--trusted')) {
+    error('Asset signatures are outside the current Preview contract.', EXIT.INPUT_ERROR);
+  }
   const allowUnverified = args.includes('--allow-unverified');
   const local = args.includes('--local');
   const source = parseSource(input);
@@ -315,7 +270,7 @@ function cmdInstallExtended(input, args = []) {
     case 'registry':
       return installFromRegistry(source.parsed, yes, jsonMode, local);
     case 'local-file':
-      return installFromLocalFile(source.path, yes, jsonMode, trusted, local, allowUnverified);
+      return installFromLocalFile(source.path, yes, jsonMode, local, allowUnverified);
   }
 }
 
@@ -363,9 +318,9 @@ function assessLocalFormat(assetPath) {
 
 function installFromRegistry(parsed, yes, jsonMode = false, local = false) {
   const resolver = new RegistryResolver({ allowNetwork: true });
-  let scope, entry;
+  let entry;
   try {
-    ({ scope, entry } = resolver.resolve(parsed.reference || parsed.full));
+    ({ entry } = resolver.resolve(parsed.reference || parsed.full));
   } catch (e) {
     error(e.message, EXIT.REGISTRY_ERROR);
   }
@@ -409,10 +364,10 @@ function installFromRegistry(parsed, yes, jsonMode = false, local = false) {
     process.exit(0);
   }
 
-  installSingleFromUrl({ entry, scope }, jsonMode, local);
+  installSingleFromUrl({ entry }, jsonMode, local);
 }
 
-function installSingleFromUrl({ entry, scope }, jsonMode = false, local = false) {
+function installSingleFromUrl({ entry }, jsonMode = false, local = false) {
   const ident = entry.name.split('/')[1];
   const tmpDir = path.join(USER_KDNA_DIR, 'cache', 'downloads');
   const tmpFile = path.join(tmpDir, `.${ident}-${Date.now()}.kdna.tmp`);
@@ -441,8 +396,6 @@ function installSingleFromUrl({ entry, scope }, jsonMode = false, local = false)
     );
   }
   if (!jsonMode) console.log(`  ✓ asset digest verified`);
-
-  verifySignature({ assetPath: tmpFile, scope, entry, lenient: true });
 
   auditLog('install', { name: entry.name, version: entry.version, source: 'registry' });
   const installed = installAsset({
@@ -496,7 +449,7 @@ function installCluster(clusterEntry, resolver, _yes, jsonMode = false) {
         continue;
       }
       if (!jsonMode) console.log('');
-      installSingleFromUrl({ entry: resolved.entry, scope: resolved.scope }, jsonMode);
+      installSingleFromUrl({ entry: resolved.entry }, jsonMode);
     } catch (e) {
       if (!jsonMode) console.warn(`  ⚠ ${sub}: ${e.message.split('\n')[0]}`);
     }
@@ -522,7 +475,6 @@ function installFromLocalFile(
   filePath,
   yes,
   jsonMode = false,
-  trusted = false,
   local = false,
   allowUnverified = false,
 ) {
@@ -539,41 +491,6 @@ function installFromLocalFile(
   // ── Local install verification ──────────────────────────────
   const trustLevel = assessLocalFormat(abs);
 
-  // Try signature verification if present
-  if (manifest.signature) {
-    try {
-      const sigResult = verifyAsset(abs, { requireSignature: true });
-      if (sigResult.signature_valid) {
-        trustLevel.label = 'local_signature_verified';
-        trustLevel.issues = [];
-      } else {
-        trustLevel.label = 'local_unverified';
-        trustLevel.issues.push('signature present but failed verification');
-      }
-    } catch {
-      trustLevel.label = 'local_unverified';
-      trustLevel.issues.push('signature verification failed');
-    }
-  }
-
-  // Legacy --trusted mode: signature/provenance evidence must be present and verified.
-  if (trusted && trustLevel.issues.length > 0) {
-    const reasons = trustLevel.issues.map((i) => `  - ${i}`).join('\n');
-    error(
-      `Signature/provenance verification failed for local .kdna asset:\n${reasons}\n\n` +
-        'Fix the asset, or use --allow-unverified only for an explicit development workflow.',
-      EXIT.TRUST_FAILED,
-    );
-  }
-  // Signature is required for legacy --trusted mode.
-  if (trusted && !manifest.signature) {
-    error(
-      '--trusted requires a signed .kdna asset. This asset has no signature.\n' +
-        'Use Studio compile/export with --sign, or install without --trusted.',
-      EXIT.TRUST_FAILED,
-    );
-  }
-
   if (trustLevel.issues.length > 0 && !allowUnverified) {
     const reasons = trustLevel.issues.map((issue) => `  - ${issue}`).join('\n');
     error(
@@ -584,9 +501,7 @@ function installFromLocalFile(
   }
 
   if (!jsonMode) {
-    if (trustLevel.label === 'local_signature_verified') {
-      console.log(`  Verification: ${trustLevel.label}`);
-    } else if (trustLevel.issues.length === 0) {
+    if (trustLevel.issues.length === 0) {
       console.log(`  Verification: ${trustLevel.label}`);
     } else {
       console.warn(`  Verification: ${trustLevel.label} — ${trustLevel.issues.join('; ')}`);
@@ -765,8 +680,6 @@ function cmdInfo(input, jsonMode = false) {
       status: manifest?.status || '?',
       license: manifest?.license?.type || '?',
       author: manifest?.author?.name || '?',
-      pubkey: manifest?.author?.pubkey || null,
-      has_pem: !!manifest?.author?.public_key_pem,
       source_url: source.asset_url || null,
       asset_digest: installed.asset_digest || source.asset_digest || null,
       content_digest: installed.content_digest || null,
@@ -801,15 +714,7 @@ function cmdInfo(input, jsonMode = false) {
 
   // ─── Identity & trust ──────────────────────────────────────────
   console.log('');
-  console.log('  ── Identity & trust ──');
-  if (manifest?.author?.pubkey) {
-    console.log(`  Author pubkey:     ${manifest.author.pubkey.slice(0, 28)}…`);
-  }
-  if (manifest?.author?.public_key_pem) {
-    console.log(`  Embedded PEM:      yes (full Ed25519 verify available)`);
-  } else {
-    console.log(`  Embedded PEM:      no`);
-  }
+  console.log('  ── Integrity & source ──');
   if (source.asset_url) {
     console.log(`  Source URL:        ${source.asset_url}`);
   }
@@ -865,7 +770,7 @@ function cmdInfo(input, jsonMode = false) {
   console.log(`  Files: ${present.length}/${expected.length} (${present.join(', ') || 'none'})`);
 
   console.log('');
-  console.log(`  Run 'kdna verify ${parsed.full}' for full structure/trust/judgment scoring.`);
+  console.log(`  Run 'kdna validate ${installed.asset_path}' for current format validation.`);
 }
 
 // ─── Update ─────────────────────────────────────────────────────────────

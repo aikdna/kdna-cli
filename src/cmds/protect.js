@@ -36,15 +36,14 @@ function parseEntriesFlag(flag) {
 function cmdProtect(args) {
   if (args.includes('--help') || args.includes('-h')) {
     console.log(
-      'Usage: kdna protect <file.kdna> --out <file.kdna> [--password-stdin] [--password <pw>] [--entries payload.kdnab]\n' +
+      'Usage: kdna protect <file.kdna> --out <file.kdna> [--password-stdin] [--entries payload.kdnab]\n' +
         '\n' +
         'Encrypt a .kdna asset with a password.\n' +
         '\n' +
         'Arguments:\n' +
         '  <file.kdna>                       Input .kdna asset to protect\n' +
         '  --out <file.kdna>                 Required. Output path for protected asset\n' +
-        '  --password <pw>                   Password (insecure — visible in shell history)\n' +
-        '  --password-stdin                  Read password from stdin (preferred)\n' +
+        '  --password-stdin                  Read password from stdin\n' +
         '  --entries payload.kdnab           Entry to encrypt (the only supported target)\n' +
         '\n' +
         'Examples:\n' +
@@ -57,7 +56,7 @@ function cmdProtect(args) {
   const file = args[0];
   if (!file)
     error(
-      'Usage: kdna protect <file.kdna> --out <file.kdna> [--password-stdin] [--password <pw>] [--entries payload.kdnab]\nRun: kdna help protect',
+      'Usage: kdna protect <file.kdna> --out <file.kdna> [--password-stdin] [--entries payload.kdnab]\nRun: kdna help protect',
       EXIT.INPUT_ERROR,
     );
 
@@ -73,8 +72,7 @@ function cmdProtect(args) {
 
   if (!fs.existsSync(file)) error(`File not found: ${file}`, EXIT.INPUT_ERROR);
 
-  // Resolve the password via the shared helper (--password-stdin,
-  // KDNA_PASSWORD, --password, interactive prompt — in that order).
+  // Resolve the password via stdin or the secure interactive prompt.
   // Bug (#60): this block used to be duplicated in cmdUnlock below;
   // the two paths could drift independently. The helper makes them
   // share a single implementation.
@@ -95,6 +93,11 @@ function cmdProtect(args) {
   const newManifest = {
     ...manifest,
     access: 'licensed',
+    entitlement: {
+      profile: 'password',
+      offline: true,
+      revocable: false,
+    },
     payload: { ...manifest.payload, encrypted: true },
     encryption: {
       profile: PASSWORD_PROTECTED_PROFILE,
@@ -170,7 +173,7 @@ function cmdProtect(args) {
 function cmdUnlock(args) {
   if (args.includes('--help') || args.includes('-h')) {
     console.log(
-      'Usage: kdna protect unlock <file.kdna> [--password-stdin] [--password <pw>] [--out <file.kdna>] [--profile compact|index|full]\n' +
+      'Usage: kdna protect unlock <file.kdna> [--password-stdin] [--out <file.kdna>] [--profile compact|index|full]\n' +
         '\n' +
         'Decrypt a protected .kdna asset. With --out, write the decrypted asset\n' +
         'to a new file (the original stays encrypted on disk). Without --out,\n' +
@@ -178,8 +181,7 @@ function cmdUnlock(args) {
         '\n' +
         'Arguments:\n' +
         '  <file.kdna>             Protected .kdna asset\n' +
-        '  --password <pw>         Password (insecure)\n' +
-        '  --password-stdin        Read password from stdin (preferred for automation)\n' +
+        '  --password-stdin        Read password from stdin for automation\n' +
         '  --out <file.kdna>        Write decrypted asset to this path\n' +
         '  --profile <name>        compact | index | full (default: compact)\n' +
         '\n' +
@@ -193,7 +195,7 @@ function cmdUnlock(args) {
   const file = args[0];
   if (!file)
     error(
-      'Usage: kdna protect unlock <file.kdna> [--password-stdin] [--password <pw>] [--out <file.kdna>] [--profile compact|index|full]\nRun: kdna help protect',
+      'Usage: kdna protect unlock <file.kdna> [--password-stdin] [--out <file.kdna>] [--profile compact|index|full]\nRun: kdna help protect',
       EXIT.INPUT_ERROR,
     );
 
@@ -206,8 +208,7 @@ function cmdUnlock(args) {
 
   if (!fs.existsSync(file)) error(`File not found: ${file}`, EXIT.INPUT_ERROR);
 
-  // Resolve the password via the shared helper (--password-stdin,
-  // KDNA_PASSWORD, --password, interactive prompt — in that order).
+  // Resolve the password via stdin or the secure interactive prompt.
   // Bug (#60): this block used to be a verbatim copy of the
   // cmdProtect block above. The helper makes the two paths share a
   // single implementation so they can never drift.
@@ -331,7 +332,7 @@ function cmdRecover(args) {
   const file = args[0];
   if (!file)
     error(
-      'Usage: kdna recover <file.kdna> --out <file.kdna> [--code-stdin] [--password-stdin] [--password <new-password>]',
+      'Usage: kdna recover <file.kdna> --out <file.kdna> [--code-stdin] [--password-stdin]',
       EXIT.INPUT_ERROR,
     );
 
@@ -341,8 +342,23 @@ function cmdRecover(args) {
 
   if (!fs.existsSync(file)) error(`File not found: ${file}`, EXIT.INPUT_ERROR);
 
+  const codeFromStdin = args.includes('--code-stdin');
+  const passwordFromStdin = args.includes('--password-stdin');
   let recoveryCode;
-  if (args.includes('--code-stdin')) {
+  let newPassword;
+  if (codeFromStdin && passwordFromStdin) {
+    if (process.stdin.isTTY) {
+      error(
+        '--code-stdin and --password-stdin require two newline-delimited values on stdin.',
+        EXIT.INPUT_ERROR,
+      );
+    }
+    const [codeLine = '', passwordLine = ''] = fs.readFileSync(0, 'utf8').split(/\r?\n/);
+    recoveryCode = codeLine.trim();
+    newPassword = passwordLine.trim();
+    if (!recoveryCode) error('No recovery code provided on stdin.', EXIT.INPUT_ERROR);
+    if (!newPassword) error('No new password provided on stdin.', EXIT.INPUT_ERROR);
+  } else if (codeFromStdin) {
     // Same TTY-hang guard as --password-stdin: refuse up front rather
     // than blocking on stdin in an interactive session.
     if (process.stdin.isTTY) {
@@ -360,7 +376,9 @@ function cmdRecover(args) {
     if (!recoveryCode) error('Recovery code is required.', EXIT.INPUT_ERROR);
   }
 
-  const newPassword = resolvePassword(args, { prompt: 'New password: ' });
+  if (newPassword === undefined) {
+    newPassword = resolvePassword(args, { prompt: 'New password: ' });
+  }
   if (!newPassword) error('New password is required.', EXIT.INPUT_ERROR);
 
   const reader = createKdnaAssetReader();

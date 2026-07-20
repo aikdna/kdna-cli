@@ -97,7 +97,17 @@ function writeBundleFile(tmp, components, extra = {}, filename = 'bundle.json') 
 
 const termPayload = (term, definition) =>
   currentJudgmentPayload({
-    core: { highest_question: 'Q?', axioms: [], stances: [], boundaries: [] },
+    core: {
+      highest_question: 'Q?',
+      axioms: [
+        {
+          id: `ax_scope_${Buffer.from(definition).toString('hex').slice(0, 24)}`,
+          one_sentence: 'Keep the test scope explicit.',
+        },
+      ],
+      stances: [],
+      boundaries: [],
+    },
     patterns: [{ type: 'term', id: `t_${term}`, term, definition }],
     scenarios: [],
     cases: [],

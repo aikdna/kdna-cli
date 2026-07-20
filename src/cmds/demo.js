@@ -1,6 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const { resolvePassword } = require('./_common');
+const { rejectPasswordArgv, resolvePassword } = require('./_common');
 
 const DEMOS = {
   minimal: {
@@ -14,6 +14,7 @@ const DEMOS = {
 };
 
 function cmdDemo(args) {
+  rejectPasswordArgv(args);
   const force = args.includes('--force');
   const sub = args.filter((a) => !a.startsWith('--'))[0];
 
@@ -21,19 +22,18 @@ function cmdDemo(args) {
   if (!demo) {
     const names = Object.keys(DEMOS).join('|');
     console.error(
-      `Usage: kdna demo <${names}> <output-dir> [--force] [--password-stdin] [--password <pw>]`,
+      `Usage: kdna demo <${names}> <output-dir> [--force] [--password-stdin]`,
     );
     console.error('  minimal   — minimal schema-shape demo (protocol debugging)');
-    console.error('  judgment  — real judgment-content demo (recommended first-run)');
+    console.error('  judgment  — real judgment-content first-run example');
     console.error('  --password-stdin — create an encrypted licensed asset (preferred)');
-    console.error('  --password <pw> — legacy compatibility; exposes the password in argv');
     process.exit(2);
   }
 
   const dest = args.filter((a) => !a.startsWith('--'))[1];
   if (!dest) {
     console.error(
-      `Usage: kdna demo ${sub} <output-dir> [--force] [--password-stdin] [--password <pw>]`,
+      `Usage: kdna demo ${sub} <output-dir> [--force] [--password-stdin]`,
     );
     process.exit(2);
   }
@@ -66,13 +66,8 @@ function cmdDemo(args) {
     }
   }
 
-  // Encrypt only when a password input mode is explicitly selected. The stdin
-  // mode keeps the password out of process arguments; --password is retained
-  // solely for compatibility and emits the shared security warning.
-  const passwordRequested =
-    args.includes('--password-stdin') ||
-    args.includes('--password') ||
-    args.some((arg) => arg.startsWith('--password='));
+  // Encrypt only when the secure stdin input mode is explicitly selected.
+  const passwordRequested = args.includes('--password-stdin');
   if (passwordRequested) {
     const password = resolvePassword(args);
     if (!password) {

@@ -25,15 +25,13 @@ function cmdProject() {
 }
 
 function cmdEval() {
-  // Removed in v0.9 — overlapped with kdna compare without adding
-  // distinct value, and the agent-facing match/load commands cover
-  // the discovery path.
+  // Removed in v0.9. Evaluation is not a Runtime CLI validity gate.
   error(
     'kdna eval was removed in v0.9.\n' +
-      'To compare with/without KDNA reasoning, use:\n' +
-      '  kdna compare <name|file.kdna> --input "<task>"\n' +
-      'To inspect a domain, use:\n' +
-      '  kdna info <name>',
+      'To inspect and exercise an asset, use:\n' +
+      '  kdna validate <file.kdna>\n' +
+      '  kdna plan-load <file.kdna>\n' +
+      '  kdna load <file.kdna> --profile=compact --as=json',
   );
 }
 
@@ -60,15 +58,10 @@ function cmdExport() {
 }
 
 function cmdDemo() {
-  // Removed in v0.9 — internal demo, not a user feature. To see
-  // before/after on a real input, use:
-  //   kdna compare <name|file.kdna> --input "<task>"   (requires LLM API key)
   error(
     'kdna demo was removed in v0.9.\n' +
-      'To see KDNA before/after on a real input, use:\n' +
-      '  kdna compare @aikdna/writing --input "<your task>"\n' +
-      '(requires ANTHROPIC_API_KEY, OPENAI_API_KEY, or an OpenAI-compatible\n' +
-      'endpoint in ~/.kdna/config.json)',
+      'To create a current local example, use:\n' +
+      '  kdna demo judgment <output-dir>',
   );
 }
 

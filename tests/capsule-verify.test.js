@@ -54,6 +54,33 @@ test('capsule verification fails closed for a mismatched entry-set digest', () =
   }
 });
 
+test('capsule verification rejects asset-signature states and key requests', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-capsule-signature-boundary-'));
+  try {
+    const { assetPath, capsule } = makeAsset(tmp);
+    capsule.signature = { state: 'verified', issuer: 'legacy-key' };
+    capsule.trace.signature_state = 'verified';
+    const capsulePath = writeCapsule(tmp, capsule);
+
+    const unsupportedState = verifyCapsule(capsulePath, { assetPath });
+    assert.equal(unsupportedState.valid, false);
+    assert.ok(unsupportedState.errors.some((message) => message.includes('asset-signature')));
+
+    const unsupportedKey = verifyCapsule(capsulePath, {
+      assetPath,
+      publicKey: path.join(tmp, 'legacy.pub'),
+    });
+    assert.equal(unsupportedKey.valid, false);
+    assert.ok(
+      unsupportedKey.errors.some((message) =>
+        message.includes('outside the current Preview contract'),
+      ),
+    );
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('capsule verification fails cleanly for a corrupt container without temp extraction', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-capsule-corrupt-'));
   try {

@@ -111,7 +111,12 @@ test('domain pack converts authoring JSON through current Core without mutating 
         purpose: 'Should this decision proceed?',
         created: '2026-01-01',
       },
-      axioms: [],
+      axioms: [
+        {
+          id: 'ax_domain_smoke',
+          one_sentence: 'Proceed only inside the declared domain-smoke scope.',
+        },
+      ],
       boundaries: [],
     }),
   );

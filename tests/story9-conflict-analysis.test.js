@@ -309,7 +309,12 @@ test('Story 9 CLI: bundle with term conflict → ERROR, bundle_valid=false, exit
       const payload = {
         profile: 'kdna.payload.judgment',
         profile_version: '0.1.0',
-        core: { highest_question: 'Test?', axioms: [], stances: [], boundaries: [] },
+        core: {
+          highest_question: 'Test?',
+          axioms: [{ id: 'ax_scope', one_sentence: 'Keep the test scope explicit.' }],
+          stances: [],
+          boundaries: [],
+        },
         patterns: [{ type: 'term', id: 'term_clarity', term: 'clarity', definition }],
         scenarios: [],
         cases: [],

@@ -1,5 +1,4 @@
-// KDNA Capsule Verification — trust chain validation for agent consumption
-// Ensures agents receive verified, tamper-proof context capsules.
+// KDNA Capsule Verification — structure and digest validation for consumption.
 
 const fs = require('fs');
 
@@ -30,16 +29,9 @@ function verifyCapsule(capsulePath, options = {}) {
   if (!capsule.digests?.runtime_entry_set?.value) errors.push('Missing Runtime entry-set digest');
   if (!capsule.signature) errors.push('Missing signature block');
 
-  // 2. Honest signature state check (not self-claimed "verified")
-  if (capsule.signature) {
-    const sigState = capsule.signature.state || 'absent';
-    if (sigState === 'absent') {
-      warnings.push('Capsule is unsigned — signature state is absent');
-    } else if (sigState === 'not_checked') {
-      warnings.push('Capsule has a declared issuer but signature was not verified during load');
-    } else if (sigState === 'verified') {
-      warnings.push('Capsule claims verified signature — external verification available');
-    }
+  // 2. Current Preview has no asset-signature contract.
+  if (capsule.signature && capsule.signature.state !== 'absent') {
+    errors.push('Unsupported asset-signature state in Runtime Capsule');
   }
 
   // 3. A/C/E digest verification (when assetPath is provided)
@@ -67,23 +59,8 @@ function verifyCapsule(capsulePath, options = {}) {
     warnings.push(`Asset path not found: ${assetPath}. Cannot verify digest.`);
   }
 
-  // 4. Cryptographic signature verification (when assetPath and key provided)
-  if (assetPath && fs.existsSync(assetPath) && options.publicKey) {
-    try {
-      const core = require('@aikdna/kdna-core');
-      const result = core.verifySignatureSync(assetPath, {
-        publicKey: options.publicKey,
-      });
-      if (!result || result.signature_valid !== true) {
-        errors.push(
-          `Asset signature verification failed: ${result?.errors?.join('; ') || 'unknown failure'}`,
-        );
-      } else {
-        warnings.push('Asset signature cryptographically verified');
-      }
-    } catch (e) {
-      errors.push(`Failed to run cryptographic verification: ${e.message}`);
-    }
+  if (options.publicKey) {
+    errors.push('Asset signatures are outside the current Preview contract');
   }
 
   // 5. Trace metadata
@@ -93,9 +70,9 @@ function verifyCapsule(capsulePath, options = {}) {
     else if (!capsule.trace.schema_valid)
       warnings.push('Schema validation was not performed during load');
 
-    if (!capsule.trace.signature_state) warnings.push('Signature state not reported');
-    else if (capsule.trace.signature_state === 'not_checked')
-      warnings.push('Asset signature was not verified during load');
+    if (capsule.trace.signature_state !== 'absent') {
+      errors.push('Runtime Capsule trace contains an unsupported asset-signature state');
+    }
 
     if (!capsule.trace.loaded_at) warnings.push('Missing load timestamp');
   }

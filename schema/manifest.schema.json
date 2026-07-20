@@ -214,19 +214,8 @@
         }
       }
     },
-    "signatures": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["role", "path", "algorithm"],
-        "properties": {
-          "role": { "type": "string" },
-          "path": { "type": "string" },
-          "algorithm": { "type": "string" },
-          "key_id": { "type": "string" }
-        }
-      }
-    },
+    "signature": false,
+    "signatures": false,
     "dependencies": {
       "type": "object",
       "additionalProperties": {

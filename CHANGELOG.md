@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.36.0 (2026-07-20)
+
+- Remove Preview asset-signature, detached-signature, and local identity-backup
+  command routes instead of carrying three incompatible cryptographic
+  contracts or unauthenticated AES-CBC recovery data.
+- Accept password and passphrase secrets only through stdin-backed inputs;
+  secret values in argv or environment variables fail closed.
+- Make `doctor --domains` inspect, verify, and plan every indexed asset through
+  Core, and return an unhealthy exit status when an installed asset is invalid
+  or cannot be read.
+- Withdraw the legacy behavior-comparison command surface from Preview. The
+  Runtime path remains `inspect → validate → plan-load → load`; external
+  outcome studies are not project release gates.
+
+This is an unpublished Development Preview candidate. No existing registry
+version or package bytes are changed.
+
 ## 0.35.1 (2026-07-19)
 
 - Bind every Eval-backed command to the exact official `@aikdna/kdna-eval`

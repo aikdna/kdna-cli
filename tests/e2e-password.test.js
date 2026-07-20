@@ -12,7 +12,7 @@
  *   3. load --password-stdin with wrong input   → exits 1 with clear error
  *   4. load --password-stdin with empty input   → exits 1
  *   5. plan-load --has-password  → works for planning, never leaks plaintext
- *   6. legacy argv input remains accepted but emits an explicit warning
+ *   6. password input in argv is rejected
  */
 
 const { test } = require('node:test');
@@ -137,14 +137,11 @@ test('e2e-password scenario 4: empty password stdin exits 1', () => {
 // ── Scenario 5: plan-load --has-password is allowed but does not leak ─────
 test('e2e-password scenario 5: plan-load --has-password works without leaking plaintext', () => {
   const r = run(['plan-load', kdnaFile, '--has-password', '--json']);
-  // plan-load --has-password should succeed (presence signal only)
-  assert.equal(r.status, 0, `plan-load --has-password failed: ${r.stderr}`);
-  // The output should report the access state as "licensed" or "needs_password"
-  assert.match(
-    r.stdout,
-    /needs_password|licensed|access/i,
-    `plan-load output should mention access state. Got: ${r.stdout}`,
-  );
+  assert.equal(r.status, 3, `plan-load should remain blocked until verification: ${r.stderr}`);
+  const plan = JSON.parse(r.stdout);
+  assert.equal(plan.state, 'needs_password');
+  assert.equal(plan.can_load_now, false);
+  assert.ok(plan.issues.some((issue) => issue.code === 'KDNA_AUTH_PASSWORD_UNVERIFIED'));
   // CRITICAL: must NOT contain actual judgment content
   assert.doesNotMatch(
     r.stdout,
@@ -153,9 +150,7 @@ test('e2e-password scenario 5: plan-load --has-password works without leaking pl
   );
 });
 
-test('e2e-password scenario 6: legacy argv input warns while remaining compatible', () => {
-  // Construct the legacy flag so this compatibility test cannot itself become
-  // a copy-pasteable password-bearing command example.
+test('e2e-password scenario 6: password input in argv is rejected', () => {
   const legacyFlag = ['--pass', 'word'].join('');
   const r = run([
     'load',
@@ -165,6 +160,6 @@ test('e2e-password scenario 6: legacy argv input warns while remaining compatibl
     '--profile=compact',
     '--as=prompt',
   ]);
-  assert.equal(r.status, 0, `legacy password input should remain compatible: ${r.stderr}`);
-  assert.match(r.stderr, /process arguments|shell history/i);
+  assert.notEqual(r.status, 0, 'password input in argv must be rejected');
+  assert.match(r.stderr, /not supported|process arguments|password-stdin/i);
 });

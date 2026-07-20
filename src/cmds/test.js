@@ -85,11 +85,8 @@ function cmdTestRun(args = []) {
     human_notes: null,
   };
 
-  /**
-   * Note: Full LLM-based compare can be run separately via:
-   *   kdna compare <domain> --input "<text>"
-   * Test run records the structure for human grading.
-   */
+  // This command records an issuer-scoped test structure for human grading.
+  // It does not create a Core validity or project-level improvement claim.
 
   // Save result
   if (saveDir) {

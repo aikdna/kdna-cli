@@ -1011,18 +1011,7 @@ function checkTrust(domainName) {
     );
   }
 
-  // 3. Signature check
-  const signature = manifest.signature;
-  const isPlaceholder = !signature || signature === '' || signature.includes('placeholder');
-  if (planAccess === 'licensed' || planAccess === 'runtime') {
-    if (isPlaceholder) {
-      failures.push('commercial domain has no valid signature');
-    }
-  } else if (isPlaceholder) {
-    warnings.push('domain is unsigned — trust depends on source');
-  }
-
-  // 4. KDNA container format check
+  // 3. KDNA container format check
   const formatVersion = manifest.format_version || 'unknown';
   const supportedVersions = ['0.1.0'];
   if (!supportedVersions.includes(formatVersion)) {
@@ -1031,7 +1020,7 @@ function checkTrust(domainName) {
     );
   }
 
-  // 5. License validity (commercial domains)
+  // 4. License validity (commercial domains)
   if (planAccess === 'licensed' || planAccess === 'runtime') {
     const licenseCheck = licenseDecryptOptionsForManifest({ ...manifest, name: domainName });
     if (!licenseCheck.ok) {
@@ -1043,7 +1032,7 @@ function checkTrust(domainName) {
     }
   }
 
-  // 6. Human Lock check (judgment-class cards)
+  // 5. Human Lock check (judgment-class cards)
   const axioms = core.axioms || [];
   const hasJudgmentCards = axioms.length > 0;
   if (hasJudgmentCards) {
@@ -1064,7 +1053,6 @@ function checkTrust(domainName) {
     failures,
     warnings,
     formatVersion,
-    signatureValid: !isPlaceholder,
   };
 }
 

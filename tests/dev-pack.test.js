@@ -48,7 +48,12 @@ test('dev-pack: packs current source without requiring a Human Lock', () => {
         path2.join(src, 'KDNA_Core.json'),
         JSON.stringify({
           meta: { domain: 'test', version: '0.0.1', purpose: 'test' },
-          axioms: [],
+          axioms: [
+            {
+              id: 'ax_test_boundary',
+              one_sentence: 'Keep the declared test boundary explicit.',
+            },
+          ],
           ontology: [],
           stances: [],
         }),
