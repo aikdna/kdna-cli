@@ -188,3 +188,30 @@ test('backend selection: defaults to an encrypted system backend when available'
     assert.ok(['secret-service', 'pass', 'file'].includes(ss._internals.backend));
   }
 });
+
+test('macOS keychain backend writes secrets through the stdin helper, never argv', async (t) => {
+  if (os.platform() !== 'darwin') {
+    t.skip('macOS-only integration test');
+    return;
+  }
+  process.env.KDNA_SECRET_STORE_BACKEND = 'keychain';
+  const ss = freshSecretStore();
+  const name = `helper-test-${process.pid}`;
+  const value = 'secret-via-stdin-helper-printable-abc123';
+  try {
+    await ss.set(name, value);
+    const { execFileSync } = require('node:child_process');
+    const out = execFileSync(
+      'security',
+      ['find-generic-password', '-a', name, '-s', 'aikdna-kdna', '-w'],
+      { encoding: 'utf8' },
+    );
+    assert.equal(out.trimEnd(), value);
+    assert.equal(await ss.get(name), value);
+    assert.equal(typeof ss._internals.keychainHelperAvailable === 'function'
+      ? ss._internals.keychainHelperAvailable()
+      : 'helper-api-missing', true);
+  } finally {
+    await ss.delete(name);
+  }
+});
