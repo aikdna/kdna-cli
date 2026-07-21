@@ -1,7 +1,7 @@
 /**
  * kdna diff <name>@<ver1> <name>@<ver2> — Judgment-level diff between versions.
  *
- * Downloads two .kdna dev packages from the registry, extracts to temp dirs,
+ * Downloads two .kdna packages from the registry, extracts to temp dirs,
  * compares axioms / misunderstandings / banned_terms / stances / boundary,
  * and surfaces what would change for an agent loading the new version.
  *

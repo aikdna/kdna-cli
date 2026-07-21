@@ -20,7 +20,7 @@
  *     Read the domain's judgment and emit context suitable for agent
  *     system-prompt injection (axioms one-liners + stances +
  *     banned-terms + misunderstandings + self-checks).
- *     For raw inspection use: kdna dev decode <file.kdna> --reveal
+  *     For raw inspection use: kdna load <file.kdna> --as=raw
  *
  * These commands are the supported interface between the kdna-loader
  * skill and the KDNA file format. The skill should not read KDNA

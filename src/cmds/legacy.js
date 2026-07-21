@@ -53,7 +53,7 @@ function cmdExport() {
   // Removed in v0.9 — was an alias for the old top-level pack command.
   error(
     'kdna export was removed in v0.9 (it was an alias for pack).\n' +
-      'Use: kdna dev pack <source-dir> [--output <dir>]',
+      'Use: kdna pack <source-dir> <output.kdna>',
   );
 }
 

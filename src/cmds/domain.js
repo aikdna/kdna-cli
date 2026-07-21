@@ -203,7 +203,7 @@ function cmdValidate(dir, schemaOnly, jsonMode = false) {
 /**
  * Anti-Monolithic Domain lint entry point.
  *
- * Runs schema validation (same as `kdna dev validate`) and then runs
+ * Runs schema validation (same as `kdna validate`) and then runs
  * the Anti-Monolithic Domain Principle check (RFC-0013 §4 / SPEC §1.6)
  * on top. The Anti-Monolithic check produces warnings by default and
  * errors under `--strict`.
@@ -314,7 +314,7 @@ function cmdPack(dir, outputDir) {
   if (!core) error('KDNA_Core.json not found or invalid');
   if (!pat) error('KDNA_Patterns.json not found or invalid');
 
-  console.warn('Warning: kdna dev pack creates a dev-only .kdna bundle.');
+  console.warn('Warning: kdna domain pack creates a dev-only .kdna bundle.');
   console.warn('Use KDNA Studio compile/export for release-grade authoring evidence.');
   console.warn('Human Lock is optional provenance and is not required for format validity.');
 
@@ -540,7 +540,7 @@ function cmdInspect(dir, jsonMode = false, locale = null, options = {}) {
 
   if (stat.isDirectory() && !options.allowDirectory) {
     error(
-      'Directory inspection is a dev-only operation. Use: kdna dev inspect <source-dir>',
+      'Directory inspection is a dev-only operation. Use: kdna domain inspect <source-dir>',
       EXIT.INPUT_ERROR,
     );
   }
@@ -745,7 +745,7 @@ function cmdCard(dir, jsonMode = false, locale = null, options = {}) {
 
   if (stat.isDirectory() && !options.allowDirectory) {
     error(
-      'Directory card inspection is a dev-only operation. Use: kdna dev card <source-dir>',
+      'Directory card inspection is a dev-only operation. Use: kdna domain card <source-dir>',
       EXIT.INPUT_ERROR,
     );
   }

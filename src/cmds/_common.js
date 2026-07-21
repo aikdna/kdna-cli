@@ -60,11 +60,11 @@ Usage:
   kdna load <file.kdna> [--as=prompt|json|raw]   Load only when LoadPlan allows it
 
   --- Dev source utilities (creator/debug path) ---
-  kdna dev validate <path>      Validate a dev source directory
-  kdna dev pack <path>          Build a dev-only diagnostic .kdna bundle
-  kdna dev unpack <path>        Unpack .kdna into a dev source directory
-  kdna dev inspect <path>       Inspect a dev source directory
-  kdna dev card <path>          Display KDNA Card from a dev source directory
+  kdna validate <path>          Validate a .kdna asset or dev source directory
+  kdna pack <source-dir> <out>  Pack a dev source directory into .kdna
+  kdna unpack <file.kdna> <dir> Unpack .kdna into a dev source directory
+  kdna inspect <path>           Inspect a .kdna asset or dev source directory
+  kdna domain card <path>       Display KDNA Card from a dev source directory
   kdna version bump <patch|minor|major> [path]   Bump domain version
   kdna cluster lint <path>      Validate a cluster manifest
 

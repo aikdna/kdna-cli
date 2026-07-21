@@ -174,7 +174,7 @@ function parseSource(input) {
     if (fs.statSync(resolved).isDirectory()) {
       error(
         `Directory install is not supported. KDNA installs .kdna assets only.\n` +
-          `Use: kdna dev pack ${resolved} --output <dir>, then kdna install <file.kdna>`,
+          `Use: kdna pack ${resolved} <output.kdna>, then kdna install <file.kdna>`,
         EXIT.INPUT_ERROR,
       );
     }
