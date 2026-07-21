@@ -25,10 +25,11 @@ authoring process, but neither is a format-validity or loading requirement.
 
 ## Evidence questions
 
-- Which real decisions should this judgment improve?
+- Which real decisions should this judgment govern or influence?
 - Which neighboring decisions are explicitly outside its scope?
 - Which cases would falsify or weaken an axiom?
 - Which failure risks appear when the asset is loaded on the wrong task?
 
-The files under `evals/` are author-declared cases, not proof that semantic
-consumption or judgment fidelity occurred at Runtime.
+The files under `evals/` are optional, author-declared review cases. They are
+not proof of semantic consumption, intrinsic quality, universal correctness,
+or judgment fidelity at Runtime.

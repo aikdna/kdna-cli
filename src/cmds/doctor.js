@@ -23,7 +23,10 @@ const AGENTS = [
   },
 ];
 
-const CURRENT_SKILL_MARKER = 'kdna available';
+// The supported adapter contract starts from one exact user-approved asset.
+// Do not use a discovery command as the version marker: that would make the
+// old global-store behavior appear current merely because it is documented.
+const CURRENT_SKILL_MARKER = 'Do not discover, install, auto-select, or silently apply assets.';
 function checkAgentSkill(agent) {
   const skillPath = path.join(agent.dir, agent.skillsDir, 'kdna-loader', 'SKILL.md');
   if (!fs.existsSync(skillPath)) return { installed: false, version: null, path: skillPath };
