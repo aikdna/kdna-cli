@@ -301,18 +301,16 @@ test('kdna diff with no args explains usage', () => {
   assert.match(r.stderr, /Usage/);
 });
 
-// ─── kdna compare ──────────────────────────────────────────────────────
+// ─── withdrawn project-level compare ──────────────────────────────────
 
-test('kdna compare without --input explains usage', () => {
+test('kdna compare is not a top-level Preview command', () => {
   const r = run(['compare', '@aikdna/writing']);
   assert.ok(!r.ok);
-  assert.match(r.stderr, /--input/);
+  assert.match(r.stderr, /Unknown command: compare/);
 });
 
-test('kdna compare without API key explains how to configure', () => {
-  const r = run(['compare', '@aikdna/writing', '--input', 'test'], {
-    env: { ANTHROPIC_API_KEY: '', OPENAI_API_KEY: '', SILICONFLOW_API_KEY: '' },
-  });
-  // exits non-zero; output explains config
-  assert.ok(!r.ok || /API key not found/.test(r.stdout + r.stderr));
+test('kdna quality compare is explicitly outside the Preview', () => {
+  const r = run(['quality', 'compare', '@aikdna/writing', '--input', 'test']);
+  assert.ok(!r.ok);
+  assert.match(r.stderr, /outside the current Preview/);
 });

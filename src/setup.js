@@ -113,7 +113,7 @@ function cmdSetup(args = []) {
 
   // 1. CLI version
   const pkg = require(path.join(__dirname, '..', 'package.json'));
-  log(`KDNA CLI v${pkg.version}`);
+  log(`KDNA CLI ${pkg.version}`);
 
   // 2. KDNA data root — .kdna asset store
   ensureDir(PATHS.root);

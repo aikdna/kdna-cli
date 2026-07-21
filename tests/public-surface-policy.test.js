@@ -10,7 +10,7 @@ const { trustedGitEnvironment } = require('../scripts/trusted-git');
 
 const ROOT = path.resolve(__dirname, '..');
 
-const EVIDENCE_PATH = 'tests/fixtures/core-0.20-candidate-evidence.json';
+const EVIDENCE_PATH = 'tests/fixtures/core-0.21-candidate-evidence.json';
 const BINDING_PATH = 'tests/fixtures/runtime-candidates/binding.json';
 const SHA = 'a'.repeat(40);
 const OTHER_SHA = 'b'.repeat(40);
@@ -170,7 +170,7 @@ test('password argv policy distinguishes executable examples from safe syntax an
   assert.equal(isPasswordArgvExample(`$ kdna protect asset.kdna ${legacyFlag} secret`), true);
   assert.equal(isPasswordArgvExample(`npx kdna load asset.kdna ${legacyFlag}=secret`), true);
   assert.equal(isPasswordArgvExample(`  kdna load asset.kdna ${legacyFlag}-stdin`), false);
-  assert.equal(isPasswordArgvExample(`Usage: kdna load asset.kdna [${legacyFlag} <value>]`), false);
+  assert.equal(isPasswordArgvExample(`Usage: kdna load asset.kdna [${legacyFlag} <value>]`), true);
 });
 
 test('public-surface scan rejects password-bearing argv examples under hostile Git env', (t) => {

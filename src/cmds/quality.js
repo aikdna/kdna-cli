@@ -1,34 +1,5 @@
 const { error, EXIT } = require('./_common');
 
-function cmdCompare(args) {
-  const { cmdCompare } = require('../compare');
-  const jsonMode = args.includes('--json');
-  const target = args.filter((a) => !a.startsWith('--'))[1];
-  if (!target || !args.includes('--input')) {
-    error(
-      'Usage:\n' +
-        '  kdna compare <name|file.kdna> --input "<text>" [--json]\n' +
-        '\n' +
-        'Runs your input through the LLM twice (with/without KDNA loaded),\n' +
-        'then diffs the reasoning trajectory. Requires ANTHROPIC_API_KEY or\n' +
-        'OPENAI_API_KEY in the environment.',
-      EXIT.INPUT_ERROR,
-    );
-  }
-  (async () => {
-    try {
-      await cmdCompare(target, args);
-    } catch (e) {
-      if (jsonMode) {
-        console.log(JSON.stringify({ error: e.message }));
-        process.exit(EXIT.PROVIDER_ERROR);
-      }
-      console.error(`Error: ${e.message}`);
-      process.exit(EXIT.VALIDATION_FAILED);
-    }
-  })();
-}
-
 function cmdDiff(args) {
   const { cmdDiff } = require('../diff');
   const jsonMode = args.includes('--json');
@@ -109,7 +80,6 @@ function cmdRoute(args) {
 }
 
 module.exports = {
-  cmdCompare,
   cmdDiff,
   cmdSearch,
   cmdAvailable,

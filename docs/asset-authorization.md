@@ -1,9 +1,9 @@
 # KDNA Asset Authorization — CLI User Guide
 
-This document explains how `kdna` CLI handles protected (password-locked)
-`.kdna` assets. It is the user-facing companion to the technical RFC
-0009 (Password-Protected KDNA Assets) and the current LoadPlan API
-reference.
+This document explains how `kdna` CLI handles password-entitled `.kdna`
+assets. The current Schema, encryption profiles, conformance fixtures, and
+LoadPlan API are authoritative; historical RFC-0009's `access: "protected"`
+value is superseded.
 
 ## Two flags, two different intents
 
@@ -11,7 +11,7 @@ There are two flags that look similar but mean very different things:
 
 | Flag               | Command          | Meaning                          | Use case                                                                           |
 | ------------------ | ---------------- | -------------------------------- | ---------------------------------------------------------------------------------- |
-| `--has-password`   | `kdna plan-load` | Diagnostic **presence signal**   | "I have a password somewhere; skip the `needs_password` gate so I can plan ahead." |
+| `--has-password`   | `kdna plan-load` | Diagnostic **presence signal**   | "I have a password available; report that fact without claiming it was verified." |
 | `--password-stdin` | `kdna load`      | **Real** password for decryption | Read the password from standard input, then decrypt the protected entry.           |
 
 The plan-load stage decides _whether_ the asset can be loaded. The load
@@ -20,25 +20,25 @@ stage actually _does_ the loading (and decryption).
 ### Why this split?
 
 `plan-load` is intended to be a **dry-run**: tell me what would happen
-if I tried to load this asset, without actually loading it. Real-world
-callers want to render UI ("This asset is password-protected — please
-enter your password") or to skip UI for automation ("yes I know the
-password, just plan ahead"). For those callers, passing
-`--has-password=true` lets them get `state: ready, can_load_now: true`
-without supplying the password yet.
+if I tried to load this asset, without actually loading it. Real-world callers
+want to render UI ("This asset is password-protected — please enter your
+password") while truthfully distinguishing a presence signal from verified
+credentials. Passing `--has-password` therefore remains
+`state: needs_password, can_load_now: false` until `load` verifies the real
+password.
 
 `load`, on the other hand, **does** the decryption. There is no
 scenario where it makes sense to call `load` without actually
 decrypting. If you don't have a password, you don't have a key, and
 the load should fail.
 
-As of v0.28, `kdna load` **rejects** `--has-password` with a clear
-error. Pipe the real password with `--password-stdin` to decrypt it.
+The corrective Preview candidate makes this distinction fail closed:
+`kdna load` rejects `--has-password`, while `plan-load --has-password` never
+claims the unverified value is ready. Pipe the real password with
+`--password-stdin` to decrypt it.
 
-The legacy `--password <value>` form remains accepted for compatibility. It
-places the secret in the process argument list, where it may be visible in
-process listings or shell history, so the CLI emits a warning and new
-integrations must not use it.
+Passwords in process arguments are rejected. Use stdin or the secure
+interactive prompt where supported.
 
 ## End-to-end example
 
@@ -52,18 +52,18 @@ $ kdna plan-load ./my-protected.kdna
   ...
 }
 
-# 2a. Dry-run: I know I have a password, plan as if it were supplied
+# 2a. Dry-run: report that a password is available, without claiming verification
 $ kdna plan-load ./my-protected.kdna --has-password
 {
-  "state": "ready",
-  "required_action": "load",
-  "can_load_now": true,
+  "state": "needs_password",
+  "required_action": "enter_password",
+  "can_load_now": false,
   ...
   "issues": [
     {
-      "code": "KDNA_AUTH_PASSWORD_DIAGNOSTIC",
-      "severity": "info",
-      "message": "hasPassword is a diagnostic credential-presence signal only; it does not verify the password."
+      "code": "KDNA_AUTH_PASSWORD_UNVERIFIED",
+      "severity": "blocking",
+      "message": "A password input is present but has not been verified."
     }
   ]
 }
@@ -79,12 +79,12 @@ KDNA Judgment Asset: my-protected
 
 # 4. Wrong password: clear error
 $ printf '%s' "$WRONG_PASSWORD" | kdna load ./my-protected.kdna --password-stdin --profile=compact --as=prompt
-Error: LoadPlan denied loading: state=needs_password required_action=enter_password
+Error: password verification or decryption failed
 ```
 
 ## Why the CLI rejects `--has-password` in `load`
 
-Before v0.28, `kdna load` accepted `--has-password` and silently
+Earlier implementations accepted `--has-password` in `load` and silently
 bypassed real password verification. A caller who possessed a stolen
 `.kdna` file could read its plaintext by simply passing
 `--has-password` to `load` — they did not need the actual password.

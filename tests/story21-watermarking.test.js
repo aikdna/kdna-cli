@@ -77,13 +77,9 @@ function makeFixture(tmpDir, access = 'public') {
     updated_at: '2026-06-28T00:00:00.000Z',
     creator: { name: 'Test', id: 'test' },
     access,
-    // Note: no `entitlement` block is set. With no
-    // entitlement_profile, the planLoad path falls through
-    // to the "active entitlement → can_load_now = true" branch
-    // in the current Core planning route when the consumer
-    // passes --entitlement-status. Setting a profile here
-    // (e.g. 'account') would route the plan into a
-    // "needs_account" path that ignores --entitlement-status.
+    ...(access === 'licensed' && {
+      entitlement: { profile: 'local_receipt', offline: true, revocable: true },
+    }),
   });
   const payload = currentJudgmentPayload({
     core: {
@@ -268,10 +264,8 @@ test('Story 21 load: JSON output includes watermark for licensed asset', () => {
   const env = { KDNA_IDENTITY_DIR: path.join(tmp, 'keys') };
   try {
     const dir = makeFixture(tmp, 'licensed');
-    // Pass --entitlement-status so the plan reaches the
-    // can_load_now=true branch. The fixture's manifest omits
-    // the `entitlement` block, so this hits the "active status
-    // → can load" fallthrough at the bottom of planLoad.
+    // Pass the explicit local-receipt entitlement status so the plan reaches
+    // the can_load_now=true branch without fabricating an authorization mode.
     const r = run(['load', dir, '--as=json', '--entitlement-status', 'active'], { env });
     assert.equal(r.status, 0, `load failed: ${r.stderr}`);
     const out = JSON.parse(r.stdout);

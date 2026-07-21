@@ -14,7 +14,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import trustedGit from './trusted-git.js';
 import {
-  allowPasswordArgvSyntax,
   allowFormalReleaseHash,
   isRulePathExcluded,
   PASSWORD_ARGV_EXAMPLE_PATTERN,
@@ -85,7 +84,6 @@ const rules = [
   {
     name: 'password-in-argv-example',
     pattern: PASSWORD_ARGV_EXAMPLE_PATTERN,
-    allowMatch: allowPasswordArgvSyntax,
     hint: 'Pipe the password with --password-stdin; do not publish executable examples that put secrets in argv.',
   },
 ];

@@ -3,7 +3,7 @@
  *
  *   kdna badge compute <domain> [--json]
  *   kdna registry audit --scope <scope> [--json]
- *   kdna dev pack <domain>
+ *   kdna domain pack <domain>
  */
 
 const fs = require('fs');
@@ -159,7 +159,7 @@ function cmdRegistryAudit(args = []) {
   if (yanked.length) audit.issues.push(`${yanked.length} yanked domain(s)`);
   if (deprecated.length) audit.issues.push(`${deprecated.length} deprecated domain(s)`);
   if (noPackage.length)
-    audit.issues.push(`${noPackage.length} domain(s) without .kdna dev package`);
+    audit.issues.push(`${noPackage.length} domain(s) without .kdna package`);
   if (noSignature.length) audit.issues.push(`${noSignature.length} domain(s) without signature`);
 
   audit.healthy = audit.issues.length === 0;
@@ -209,7 +209,7 @@ function cmdPackage(domainPath, args = []) {
   }
 
   const manifest = readJson(path.join(abs, 'kdna.json'));
-  if (!manifest) error(`No kdna.json found in ${abs}. Run: kdna dev pack`, EXIT.INPUT_ERROR);
+  if (!manifest) error(`No kdna.json found in ${abs}. Run: kdna domain pack`, EXIT.INPUT_ERROR);
 
   const domainName = manifest.name?.split('/')?.[1] || path.basename(abs);
   const outFile = path.join(abs, 'dist', `${domainName}-${manifest.version || '0.1.0'}.kdna`);

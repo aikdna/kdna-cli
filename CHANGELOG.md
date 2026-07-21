@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.36.0 (2026-07-20)
+
+- Remove Preview asset-signature, detached-signature, and local identity-backup
+  command routes instead of carrying three incompatible cryptographic
+  contracts or unauthenticated AES-CBC recovery data.
+- Accept password and passphrase secrets only through stdin-backed inputs;
+  secret values in argv or environment variables fail closed.
+- Make `doctor --domains` inspect, verify, and plan every indexed asset through
+  Core, and return an unhealthy exit status when an installed asset is invalid
+  or cannot be read.
+- Withdraw the legacy behavior-comparison command surface from Preview. The
+  Runtime path remains `inspect → validate → plan-load → load`; external
+  outcome studies are not project release gates.
+- Bind the unpublished CLI candidate to KDNA Core source ref `3676ab0`, while
+  keeping release readiness blocked until that dependency has a canonical
+  registry artifact.
+- Print the CLI's natural semantic version without a generation-style prefix.
+- Describe current CLI paths as pre-release rather than assigning Beta
+  maturity.
+
+This is an unpublished Development Preview candidate. No existing registry
+version or package bytes are changed.
+
 ## 0.35.1 (2026-07-19)
 
 - Bind every Eval-backed command to the exact official `@aikdna/kdna-eval`

@@ -49,6 +49,7 @@ const {
 const ROOT = path.resolve(__dirname, '..');
 const CORE = '@aikdna/kdna-core';
 const EVAL = '@aikdna/kdna-eval';
+const CORE_VERSION = require('../package.json').dependencies[CORE];
 
 function copyFixtureRoot(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-cli-binding-'));
@@ -89,7 +90,7 @@ function writeInstalledPackage(root, installPath, name, version) {
 }
 
 function createCanonicalInstalledGraph(root) {
-  writeInstalledPackage(root, CORE, CORE, '0.20.0');
+  writeInstalledPackage(root, CORE, CORE, CORE_VERSION);
   writeInstalledPackage(root, EVAL, EVAL, '0.3.2');
 }
 
@@ -126,7 +127,7 @@ function createCoreSourceFixture(t) {
   fs.writeFileSync(path.join(repository, '.gitignore'), 'ignored/\n');
   fs.writeFileSync(
     path.join(packageRoot, 'package.json'),
-    `${JSON.stringify({ name: CORE, version: '0.20.0' }, null, 2)}\n`,
+    `${JSON.stringify({ name: CORE, version: CORE_VERSION }, null, 2)}\n`,
   );
   fs.writeFileSync(path.join(packageRoot, 'index.js'), "'use strict';\n");
   git(repository, ['add', '--all']);
@@ -201,30 +202,33 @@ test('trusted Git uses a Git-compatible null config device and still scrubs ever
   }
 });
 
-test('default install binds one exact Core registry artifact while published Eval stays canonical', () => {
+test('default install binds one exact Core candidate while published Eval stays canonical', () => {
   const pkg = require('../package.json');
   const lock = require('../package-lock.json');
   const binding = verifyCandidateBinding(ROOT);
-  assert.equal(pkg.dependencies[CORE], '0.20.0');
-  assert.equal(lock.packages[''].dependencies[CORE], '0.20.0');
-  assert.equal(lock.packages[`node_modules/${CORE}`].version, '0.20.0');
+  assert.equal(pkg.dependencies[CORE], CORE_VERSION);
+  assert.equal(lock.packages[''].dependencies[CORE], CORE_VERSION);
+  assert.equal(lock.packages[`node_modules/${CORE}`].version, CORE_VERSION);
   assert.equal(
     lock.packages[`node_modules/${CORE}`].resolved,
-    canonicalRegistryUrl(CORE, binding.packages[0].version),
+    `file:${binding.packages[0].artifact}`,
   );
   assert.equal(
     lock.packages[`node_modules/${EVAL}`].resolved,
     canonicalRegistryUrl(EVAL, pkg.dependencies[EVAL]),
   );
-  assert.equal(require('@aikdna/kdna-core/package.json').version, '0.20.0');
+  assert.equal(require('@aikdna/kdna-core/package.json').version, CORE_VERSION);
   assert.deepEqual(verifyInstalledAikdnaGraph(ROOT), {
-    [CORE]: '0.20.0',
+    [CORE]: CORE_VERSION,
     [EVAL]: '0.3.2',
   });
 });
 
-test('registry release gate accepts the real published Core 0.20.0', () => {
-  assert.doesNotThrow(() => assertRegistryReleaseReady(ROOT, strictRegistryLookup));
+test('registry release gate rejects an unpublished Core candidate', () => {
+  assert.throws(
+    () => assertRegistryReleaseReady(ROOT, strictRegistryLookup),
+    /still candidate-bound/,
+  );
 });
 
 test('registry release gate checks exact package identity, version, and integrity', (t) => {
@@ -1162,7 +1166,7 @@ test('installed graph rejects alias copies, nested copies, symlinks, extras, and
     const root = copyFixtureRoot(t);
     createCanonicalInstalledGraph(root);
     assert.deepEqual(verifyInstalledAikdnaGraph(root), {
-      [CORE]: '0.20.0',
+      [CORE]: CORE_VERSION,
       [EVAL]: '0.3.2',
     });
   });

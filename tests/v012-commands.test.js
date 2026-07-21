@@ -11,6 +11,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
 const { machineFingerprint } = require('../src/cmds/license');
+const { assetDigest, contentDigest } = require('../src/package-store');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 
@@ -127,7 +128,55 @@ test('kdna doctor --json reports healthy', () => {
   assert.ok('failures' in parsed);
 });
 
-test('kdna doctor --domains reports installed .kdna assets', () => {
+test('kdna doctor --domains reports a formally validated installed asset as ready', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-doctor-valid-home-'));
+  const kdnaHome = path.join(home, '.kdna');
+  const assetPath = path.join(home, 'deployment-review.kdna');
+  const receiptPath = path.join(kdnaHome, 'deployment-review.receipt.json');
+  require('@aikdna/kdna-core').pack(path.resolve(__dirname, '..', 'fixtures', 'minimal'), assetPath);
+  fs.mkdirSync(kdnaHome, { recursive: true });
+  const entry = {
+    name: '@aikdna/deployment-review',
+    version: '1.0.0',
+    asset_path: assetPath,
+    receipt_path: receiptPath,
+    asset_digest: assetDigest(assetPath),
+    content_digest: contentDigest(assetPath),
+  };
+  fs.writeFileSync(
+    receiptPath,
+    JSON.stringify({
+      name: entry.name,
+      package_version: entry.version,
+      asset_path: entry.asset_path,
+      asset_digest: entry.asset_digest,
+      content_digest: entry.content_digest,
+    }),
+  );
+  fs.writeFileSync(
+    path.join(kdnaHome, 'index.json'),
+    JSON.stringify({
+      version: 3,
+      packages: {
+        '@aikdna/deployment-review': entry,
+      },
+    }),
+  );
+
+  const r = run(['doctor', '--domains', '--json'], {
+    env: { HOME: home, KDNA_HOME: kdnaHome },
+  });
+  assert.ok(r.ok, `doctor --domains failed: ${r.stderr || r.stdout}`);
+
+  const parsed = JSON.parse(r.stdout);
+  const installed = parsed.checks.find((check) => check.name === 'Installed assets');
+  assert.equal(installed.status, 'ok');
+  assert.equal(installed.detail, '1 .kdna asset installed; 1 ready, 0 need action, 0 invalid');
+  assert.equal(installed.assets[0].state, 'ready');
+  assert.equal(installed.assets[0].canLoadNow, true);
+});
+
+test('kdna doctor --domains fails when an indexed file is not a loadable asset', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-doctor-home-'));
   const kdnaHome = path.join(home, '.kdna');
   const assetPath = path.join(
@@ -148,11 +197,15 @@ test('kdna doctor --domains reports installed .kdna assets', () => {
   const r = run(['doctor', '--domains', '--json'], {
     env: { HOME: home, KDNA_HOME: kdnaHome },
   });
-  assert.ok(r.ok, `doctor --domains failed: ${r.stderr || r.stdout}`);
+  assert.equal(r.ok, false, 'doctor must not report an invalid installed file as healthy');
+  assert.equal(r.code, 1);
 
   const parsed = JSON.parse(r.stdout);
   const installed = parsed.checks.find((check) => check.name === 'Installed assets');
-  assert.equal(installed.detail, '1 .kdna asset installed');
+  assert.equal(installed.status, 'fail');
+  assert.equal(installed.detail, '1 .kdna asset installed; 0 ready, 0 need action, 1 invalid');
+  assert.equal(installed.assets[0].state, 'invalid');
+  assert.equal(parsed.healthy, false);
 });
 
 // ─── kdna trace ────────────────────────────────────────────────────────
@@ -446,18 +499,18 @@ test('kdna license without subcommand shows usage', () => {
   assert.match(r.stderr, /Usage/);
 });
 
-// ─── kdna compare report ───────────────────────────────────────────────
+// ─── withdrawn compare report surface ─────────────────────────────────
 
-test('kdna compare --report-md requires --input', () => {
+test('kdna compare --report-md remains unavailable', () => {
   const r = run(['compare', '@aikdna/writing', '--report-md']);
   assert.ok(!r.ok);
-  assert.match(r.stderr, /--input/);
+  assert.match(r.stderr, /Unknown command: compare/);
 });
 
-test('kdna compare --report-json requires --input', () => {
+test('kdna compare --report-json remains unavailable', () => {
   const r = run(['compare', '@aikdna/writing', '--report-json']);
   assert.ok(!r.ok);
-  assert.match(r.stderr, /--input/);
+  assert.match(r.stderr, /Unknown command: compare/);
 });
 
 // ─── Cleanup ───────────────────────────────────────────────────────────

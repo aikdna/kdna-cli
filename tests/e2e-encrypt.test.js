@@ -171,10 +171,11 @@ test('plan-load encrypted asset without password shows needs_password', () => {
   assert.equal(out.can_load_now, false);
 });
 
-test('plan-load encrypted asset with --has-password shows ready', () => {
+test('plan-load encrypted asset with --has-password remains unverified', () => {
   const r = runCli(['plan-load', kdnaFile, '--has-password']);
-  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.status, 3, r.stderr);
   const out = JSON.parse(r.stdout);
-  assert.equal(out.state, 'ready');
-  assert.equal(out.can_load_now, true);
+  assert.equal(out.state, 'needs_password');
+  assert.equal(out.can_load_now, false);
+  assert.ok(out.issues.some((issue) => issue.code === 'KDNA_AUTH_PASSWORD_UNVERIFIED'));
 });

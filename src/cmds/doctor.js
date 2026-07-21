@@ -2,8 +2,13 @@ const fs = require('fs');
 const path = require('path');
 const { EXIT } = require('./_common');
 const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
-const PATHS = require('../paths');
-const { listInstalled } = require('../package-store');
+const core = require('@aikdna/kdna-core');
+const {
+  installedIntegrity,
+  listInstalled,
+  resolveAsset,
+  verifyAsset,
+} = require('../package-store');
 const BUNDLED_SKILL_VERSION = require('../../package.json').version;
 
 const AGENTS = [
@@ -18,7 +23,10 @@ const AGENTS = [
   },
 ];
 
-const CURRENT_SKILL_MARKER = 'kdna available';
+// The supported adapter contract starts from one exact user-approved asset.
+// Do not use a discovery command as the version marker: that would make the
+// old global-store behavior appear current merely because it is documented.
+const CURRENT_SKILL_MARKER = 'Do not discover, install, auto-select, or silently apply assets.';
 function checkAgentSkill(agent) {
   const skillPath = path.join(agent.dir, agent.skillsDir, 'kdna-loader', 'SKILL.md');
   if (!fs.existsSync(skillPath)) return { installed: false, version: null, path: skillPath };
@@ -33,6 +41,58 @@ function checkAgentSkill(agent) {
     };
   } catch {
     return { installed: false, version: null, path: skillPath };
+  }
+}
+
+function diagnoseInstalledAsset(entry) {
+  const reference = `${entry.full || entry.name}@${entry.version || 'unknown'}`;
+  const base = {
+    asset: reference,
+    state: 'invalid',
+    canLoadNow: false,
+    issueCodes: [],
+  };
+
+  const integrity = installedIntegrity(entry);
+  if (!integrity.valid) {
+    return {
+      ...base,
+      issueCodes: ['KDNA_INSTALLED_INTEGRITY_INVALID'],
+      issueCount: integrity.problems.length,
+    };
+  }
+
+  try {
+    core.inspect(entry.asset_path);
+    const validation = verifyAsset(entry.asset_path);
+    if (validation?.ok !== true) {
+      return {
+        ...base,
+        issueCodes: ['KDNA_ASSET_VALIDATION_FAILED'],
+        issueCount: Array.isArray(validation?.errors) ? validation.errors.length : 1,
+      };
+    }
+
+    const plan = core.planLoad(entry.asset_path, {
+      resolveAsset: (name) => resolveAsset(name)?.asset_path || null,
+    });
+    const issueCodes = Array.isArray(plan?.issues)
+      ? plan.issues.map((issue) => issue?.code).filter(Boolean)
+      : [];
+    const valid = plan?.checks?.overall_valid === true && plan?.state !== 'invalid';
+    return {
+      ...base,
+      state: valid ? plan.state : 'invalid',
+      canLoadNow: valid && plan.can_load_now === true,
+      issueCodes: valid ? issueCodes : ['KDNA_LOAD_PLAN_INVALID', ...issueCodes],
+      issueCount: valid ? issueCodes.length : Math.max(1, issueCodes.length),
+    };
+  } catch {
+    return {
+      ...base,
+      issueCodes: ['KDNA_ASSET_DIAGNOSTIC_FAILED'],
+      issueCount: 1,
+    };
   }
 }
 
@@ -71,23 +131,24 @@ function cmdDoctor(args) {
       checks.push({ name: 'KDNA data directory', status: 'warn', detail: '~/.kdna/ not found' });
     }
 
-    // 4. ~/.kdna/packages/ exists and has .kdna assets
-    if (fs.existsSync(PATHS.packages)) {
-      const domains = listInstalled().length;
-      checks.push({
-        name: 'Installed assets',
-        status: domains > 0 ? 'ok' : 'info',
-        detail:
-          `${domains} .kdna asset${domains !== 1 ? 's' : ''} installed` +
-          (domains === 0 ? ' (run: kdna install <asset> to get started)' : ''),
-      });
-    } else {
-      checks.push({
-        name: 'Package asset store',
-        status: 'warn',
-        detail: '~/.kdna/packages/ not found',
-      });
-    }
+    // 4. Audit the authoritative index even when an asset lives outside the
+    // conventional packages directory. An index entry is a runtime claim and
+    // must never disappear from Doctor merely because that directory is absent.
+    const installed = listInstalled();
+    const assets = installed.map(diagnoseInstalledAsset);
+    const domains = assets.length;
+    const ready = assets.filter((asset) => asset.canLoadNow).length;
+    const invalid = assets.filter((asset) => asset.state === 'invalid').length;
+    const needsAction = domains - ready - invalid;
+    checks.push({
+      name: 'Installed assets',
+      status: invalid > 0 ? 'fail' : needsAction > 0 ? 'warn' : domains > 0 ? 'ok' : 'info',
+      detail:
+        `${domains} .kdna asset${domains !== 1 ? 's' : ''} installed; ` +
+        `${ready} ready, ${needsAction} need action, ${invalid} invalid` +
+        (domains === 0 ? ' (run: kdna install <asset> to get started)' : ''),
+      assets,
+    });
   }
 
   if (!domainsOnly) {
@@ -202,6 +263,7 @@ function cmdDoctor(args) {
         name: c.name,
         status: c.status,
         detail: c.detail,
+        ...(c.assets && { assets: c.assets }),
         ...(c.agent && {
           agent: c.agent,
           skillInstalled: c.skillInstalled,

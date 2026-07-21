@@ -38,7 +38,6 @@ const UNIT_TEST_FILES = Object.freeze([
   'tests/story12-asset-inheritance.test.js',
   'tests/story13-trust-deprecation.test.js',
   'tests/story19-sign-verify-identity.test.js',
-  'tests/story20-revocation.test.js',
   'tests/story21-watermarking.test.js',
   'tests/critical-2-remote-mode-client.test.js',
   'tests/eval-consumption.test.js',

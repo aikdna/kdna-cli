@@ -566,7 +566,7 @@ function cmdStudioCompile(projectPath, args = []) {
 
   console.log('');
   console.log('Next:');
-  console.log(`  kdna dev validate ${outDir}`);
+  console.log(`  kdna validate ${outDir}`);
 }
 
 function loadCards(project, projectDir, cardType) {

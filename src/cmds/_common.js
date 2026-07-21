@@ -60,11 +60,11 @@ Usage:
   kdna load <file.kdna> [--as=prompt|json|raw]   Load only when LoadPlan allows it
 
   --- Dev source utilities (creator/debug path) ---
-  kdna dev validate <path>      Validate a dev source directory
-  kdna dev pack <path>          Build a dev-only diagnostic .kdna bundle
-  kdna dev unpack <path>        Unpack .kdna into a dev source directory
-  kdna dev inspect <path>       Inspect a dev source directory
-  kdna dev card <path>          Display KDNA Card from a dev source directory
+  kdna validate <path>          Validate a .kdna asset or dev source directory
+  kdna pack <source-dir> <out>  Pack a dev source directory into .kdna
+  kdna unpack <file.kdna> <dir> Unpack .kdna into a dev source directory
+  kdna inspect <path>           Inspect a .kdna asset or dev source directory
+  kdna domain card <path>       Display KDNA Card from a dev source directory
   kdna version bump <patch|minor|major> [path]   Bump domain version
   kdna cluster lint <path>      Validate a cluster manifest
 
@@ -196,24 +196,17 @@ function promptPassword(question) {
   return password;
 }
 
-const PASSWORD_ARGV_WARNING =
-  'Warning: --password places a secret in process arguments, where it may be visible in shell history or process listings. Prefer --password-stdin (or an interactive prompt where supported).';
-
-function passwordArgvValue(args) {
-  const equalsArg = args.find((arg) => arg.startsWith('--password='));
-  if (equalsArg) return equalsArg.slice('--password='.length);
-  const index = args.indexOf('--password');
-  if (index < 0 || !args[index + 1] || args[index + 1].startsWith('--')) return null;
-  return args[index + 1];
+function rejectPasswordArgv(args) {
+  if (args.includes('--password') || args.some((arg) => arg.startsWith('--password='))) {
+    error(
+      '--password is not supported because it exposes secrets in process arguments. ' +
+        'Use --password-stdin or the secure interactive prompt.',
+      EXIT.INPUT_ERROR,
+    );
+  }
 }
 
-function readPasswordArgv(args) {
-  const value = passwordArgvValue(args);
-  if (value !== null) warn(PASSWORD_ARGV_WARNING);
-  return value;
-}
-
-// Resolve a password from CLI flags, environment, or stdin.
+// Resolve a password from stdin or an interactive prompt.
 //
 // Bug (#60): prior version of protect.js had this same block
 // duplicated verbatim in cmdProtect and cmdUnlock. The fix extracts it
@@ -221,16 +214,12 @@ function readPasswordArgv(args) {
 //
 // Sources (in priority order):
 //   1. --password-stdin (with TTY-hang guard, refuses up front on a TTY)
-//   2. KDNA_PASSWORD env var
-//   3. --password <value> (legacy / insecure; always prints a warning)
-//   4. promptPassword() interactive fallback
+//   2. promptPassword() interactive fallback
 //
 // Throws via the project's `error` helper (process.exit on the
 // configured EXIT code) if stdin fails or no password is obtainable.
 function resolvePassword(args, { prompt = 'Password: ' } = {}) {
-  // Warn even when stdin or the environment takes precedence: merely placing
-  // the secret in argv has already exposed it to process listings/history.
-  const argvPassword = readPasswordArgv(args);
+  rejectPasswordArgv(args);
   if (args.includes('--password-stdin')) {
     if (process.stdin.isTTY) {
       error(
@@ -246,8 +235,6 @@ function resolvePassword(args, { prompt = 'Password: ' } = {}) {
       error(`Could not read password from stdin: ${e.message}`, EXIT.INPUT_ERROR);
     }
   }
-  if (process.env.KDNA_PASSWORD) return process.env.KDNA_PASSWORD;
-  if (argvPassword !== null) return argvPassword;
   return promptPassword(prompt);
 }
 
@@ -268,9 +255,7 @@ module.exports = {
   selfCheckText,
   isYesNoSelfCheck,
   loadRegistry,
-  PASSWORD_ARGV_WARNING,
-  passwordArgvValue,
-  readPasswordArgv,
+  rejectPasswordArgv,
   promptPassword,
   resolvePassword,
 };

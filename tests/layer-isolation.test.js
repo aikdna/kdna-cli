@@ -117,12 +117,6 @@ const ALLOWLIST = [
     line: 90,
     reason: 'shared `recommendedVersionBump` export — semver calculation',
   },
-  // cmds/demo.js — tool-usage recommendation
-  {
-    file: 'src/cmds/demo.js',
-    line: 27,
-    reason: 'tool-usage message: "(recommended first-run)" — which demo to run first',
-  },
   // cmds/changelog.js — shared semver calculation and output
   {
     file: 'src/cmds/changelog.js',
