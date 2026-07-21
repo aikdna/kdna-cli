@@ -2,7 +2,7 @@
   "provenance": {
     "contract_id": "kdna.golden-single-asset",
     "core_repository": "https://github.com/aikdna/kdna",
-    "core_commit": "f133909",
+    "core_commit": "3676ab0",
     "core_fixture_path": "packages/kdna-core/test/fixtures/golden-single-asset.json",
     "dynamic_field_normalization": {
       "trace.loaded_at": "<runtime-generated-iso8601>",
