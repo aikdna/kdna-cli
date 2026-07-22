@@ -4,8 +4,10 @@
 
 - Write macOS Keychain secrets through a compile-once Swift helper that
   receives values over stdin instead of the `security -w` argv path, removing
-  the brief process-list exposure; an explicit documented fallback remains
-  when the Xcode Command Line Tools are unavailable.
+  the brief process-list exposure; route reads and deletes through the same
+  helper so keychain ACL prompts cannot block headless runs; an explicit
+  documented fallback remains when the Xcode Command Line Tools are
+  unavailable.
 
 ## 0.36.0 (2026-07-20)
 

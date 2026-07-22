@@ -3,18 +3,20 @@
  *
  * A cross-platform secret storage abstraction. Backends:
  *
- *   - 'keychain' (default on macOS): uses the macOS Keychain. Writes go
- *     through a small Swift helper (compiled once on first use into
- *     ~/.kdna/bin, requiring the Xcode Command Line Tools) that receives
- *     the secret over stdin, so values never appear in process argv. If
- *     the compiler is unavailable the backend falls back to the
- *     `security` CLI, whose `-w` flag briefly exposes the value in the
- *     local process list. Reads/deletes use the `security` CLI and never
- *     place secret values in argv. Note the CLI renders stored values
- *     containing non-printable bytes as hex on read; secrets stored by
- *     this backend are expected to be printable (PEM keys, JSON grants).
- *     Items are stored as generic-password
- *     entries under the `service` 'aikdna-kdna'.
+ *   - 'keychain' (default on macOS): uses the macOS Keychain. All writes,
+ *     reads, and deletes go through a small Swift helper (compiled once per
+ *     source revision into ~/.kdna/bin, requiring the Xcode Command Line
+ *     Tools) that receives secrets over stdin, so values never appear in
+ *     process argv. Routing every operation through one helper binary also
+ *     keeps keychain ACL prompts away: items created by the helper are read
+ *     back by the same helper, not by the `security` CLI (a different
+ *     signing identity whose access would trigger a GUI prompt). If the
+ *     compiler is unavailable the backend falls back to the `security` CLI,
+ *     whose `-w` flag briefly exposes values in the local process list.
+ *     Note the CLI renders stored values containing non-printable bytes as
+ *     hex on read; secrets stored by this backend are expected to be
+ *     printable (PEM keys, JSON grants). Items are stored as
+ *     generic-password entries under the `service` 'aikdna-kdna'.
  *
  *   - 'secret-service' (preferred on Linux desktops): uses libsecret's
  *     `secret-tool` and the active desktop keyring.
@@ -114,37 +116,67 @@ function keychainAvailable() {
   }
 }
 
-const KEYCHAIN_HELPER_PATH = path.join(PATHS.root, 'bin', 'kdna-keychain-helper');
-
 const KEYCHAIN_HELPER_SOURCE = `import Foundation
 import Security
 
 let args = CommandLine.arguments
-guard args.count == 3 else {
-    fputs("usage: kdna-keychain-helper <service> <account>\\n", stderr)
+guard args.count >= 3 else {
+    fputs("usage: helper <set|get|delete> <service> [account]\\n", stderr)
     exit(2)
 }
-let service = args[1]
-let account = args[2]
-let secret = FileHandle.standardInput.readDataToEndOfFile()
-guard !secret.isEmpty else {
-    fputs("secret must not be empty\\n", stderr)
-    exit(2)
+let verb = args[1]
+let service = args[2]
+let account = args.count > 3 ? args[3] : ""
+
+func baseQuery() -> [CFString: Any] {
+    [
+        kSecClass: kSecClassGenericPassword,
+        kSecAttrService: service,
+        kSecAttrAccount: account,
+    ]
 }
-let query: [CFString: Any] = [
-    kSecClass: kSecClassGenericPassword,
-    kSecAttrService: service,
-    kSecAttrAccount: account,
-]
-SecItemDelete(query as CFDictionary)
-var attributes = query
-attributes[kSecValueData] = secret
-let status = SecItemAdd(attributes as CFDictionary, nil)
-guard status == errSecSuccess else {
-    fputs("SecItemAdd failed: \\(status)\\n", stderr)
-    exit(1)
+
+switch verb {
+case "set":
+    let secret = FileHandle.standardInput.readDataToEndOfFile()
+    guard !secret.isEmpty else { fputs("secret must not be empty\\n", stderr); exit(2) }
+    SecItemDelete(baseQuery() as CFDictionary)
+    var attributes = baseQuery()
+    attributes[kSecValueData] = secret
+    let status = SecItemAdd(attributes as CFDictionary, nil)
+    guard status == errSecSuccess else { fputs("SecItemAdd failed: \\(status)\\n", stderr); exit(1) }
+case "get":
+    var query = baseQuery()
+    query[kSecReturnData] = true
+    query[kSecMatchLimit] = kSecMatchLimitOne
+    var result: CFTypeRef?
+    let status = SecItemCopyMatching(query as CFDictionary, &result)
+    if status == errSecItemNotFound { exit(44) }
+    guard status == errSecSuccess, let data = result as? Data else {
+        fputs("SecItemCopyMatching failed: \\(status)\\n", stderr)
+        exit(1)
+    }
+    FileHandle.standardOutput.write(data)
+case "delete":
+    let status = SecItemDelete(baseQuery() as CFDictionary)
+    if status == errSecItemNotFound { exit(44) }
+    guard status == errSecSuccess else { fputs("SecItemDelete failed: \\(status)\\n", stderr); exit(1) }
+default:
+    fputs("unknown verb\\n", stderr)
+    exit(2)
 }
 `;
+
+const KEYCHAIN_HELPER_ID = require('node:crypto')
+  .createHash('sha256')
+  .update(KEYCHAIN_HELPER_SOURCE)
+  .digest('hex')
+  .slice(0, 12);
+const KEYCHAIN_HELPER_PATH = path.join(
+  PATHS.root,
+  'bin',
+  `kdna-keychain-helper-${KEYCHAIN_HELPER_ID}`,
+);
 
 let keychainHelperState;
 
@@ -186,7 +218,7 @@ function keychainHelperAvailable() {
 
 function keychainSet(name, value) {
   if (keychainHelperAvailable()) {
-    execFileSync(KEYCHAIN_HELPER_PATH, [SERVICE_NAME, name], {
+    execFileSync(KEYCHAIN_HELPER_PATH, ['set', SERVICE_NAME, name], {
       input: value,
       stdio: ['pipe', 'ignore', 'pipe'],
     });
@@ -201,6 +233,52 @@ function keychainSet(name, value) {
     ['add-generic-password', '-a', name, '-s', SERVICE_NAME, '-w', value, '-U'],
     { stdio: ['ignore', 'ignore', 'pipe'] },
   );
+}
+
+function keychainGet(name) {
+  if (keychainHelperAvailable()) {
+    try {
+      return execFileSync(KEYCHAIN_HELPER_PATH, ['get', SERVICE_NAME, name], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+    } catch (e) {
+      if (e.status === 44) return null;
+      throw new SecretStoreError('PERMISSION_DENIED', e.stderr || e.message);
+    }
+  }
+  try {
+    return execFileSync(
+      'security',
+      ['find-generic-password', '-s', SERVICE_NAME, '-a', name, '-w'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+    ).trimEnd();
+  } catch (e) {
+    if (e.status === 44 || /SecKeychainSearchCopyMatch/.test(e.stderr || '')) return null;
+    throw new SecretStoreError('PERMISSION_DENIED', e.stderr || e.message);
+  }
+}
+
+function keychainDelete(name) {
+  if (keychainHelperAvailable()) {
+    try {
+      execFileSync(KEYCHAIN_HELPER_PATH, ['delete', SERVICE_NAME, name], {
+        stdio: ['ignore', 'ignore', 'pipe'],
+      });
+      return;
+    } catch (e) {
+      if (e.status === 44) return;
+      throw new SecretStoreError('PERMISSION_DENIED', e.stderr || e.message);
+    }
+  }
+  try {
+    execFileSync('security', ['delete-generic-password', '-a', name, '-s', SERVICE_NAME], {
+      stdio: ['ignore', 'ignore', 'pipe'],
+    });
+  } catch (e) {
+    if (e.status !== 44)
+      throw new SecretStoreError('PERMISSION_DENIED', e.stderr || e.message);
+  }
 }
 
 function ensureFileBackendDir() {
@@ -310,20 +388,7 @@ const backends = {
           'macOS Keychain backend requested but `security` CLI not available',
         );
       }
-      try {
-        const out = execFileSync(
-          'security',
-          ['find-generic-password', '-s', SERVICE_NAME, '-a', name, '-w'],
-          { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
-        );
-        return out.trimEnd();
-      } catch (e) {
-        // security exits with code 44 when item not found
-        if (e.status === 44 || /SecKeychainSearchCopyMatch/.test(e.stderr || '')) {
-          return null;
-        }
-        throw new SecretStoreError('PERMISSION_DENIED', e.stderr || e.message);
-      }
+      return keychainGet(name);
     },
     async set(name, value) {
       if (!keychainAvailable()) {
@@ -335,14 +400,7 @@ const backends = {
       if (!keychainAvailable()) {
         throw new SecretStoreError('BACKEND_UNAVAILABLE', 'macOS Keychain not available');
       }
-      try {
-        execFileSync('security', ['delete-generic-password', '-a', name, '-s', SERVICE_NAME], {
-          stdio: ['ignore', 'ignore', 'pipe'],
-        });
-      } catch (e) {
-        if (e.status === 44) return; // not found → idempotent delete
-        throw new SecretStoreError('PERMISSION_DENIED', e.stderr || e.message);
-      }
+      keychainDelete(name);
     },
     async list() {
       // The `security` CLI doesn't have a clean "list items in a
@@ -507,29 +565,13 @@ function syncBackend() {
       get(name) {
         if (!keychainAvailable())
           throw new SecretStoreError('BACKEND_UNAVAILABLE', 'macOS Keychain not available');
-        try {
-          return execFileSync(
-            'security',
-            ['find-generic-password', '-s', SERVICE_NAME, '-a', name, '-w'],
-            { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
-          ).trimEnd();
-        } catch (e) {
-          if (e.status === 44 || /SecKeychainSearchCopyMatch/.test(e.stderr || '')) return null;
-          throw new SecretStoreError('PERMISSION_DENIED', e.stderr || e.message);
-        }
+        return keychainGet(name);
       },
       set(name, value) {
         keychainSet(name, value);
       },
       delete(name) {
-        try {
-          execFileSync('security', ['delete-generic-password', '-a', name, '-s', SERVICE_NAME], {
-            stdio: ['ignore', 'ignore', 'pipe'],
-          });
-        } catch (e) {
-          if (e.status !== 44)
-            throw new SecretStoreError('PERMISSION_DENIED', e.stderr || e.message);
-        }
+        keychainDelete(name);
       },
     };
   }
