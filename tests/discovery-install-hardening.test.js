@@ -840,7 +840,7 @@ test('registry fetch path: custom scope registries are pinned and downgrades blo
 
 const HOSTILE_ORIGIN = 'https://hostile.invalid';
 const HOSTILE_TOKEN = 'TOP_SECRET_TOKEN';
-const HOSTILE_LOCAL_PATH = '/Users/attacker/private/secret-target.kdna';
+const HOSTILE_LOCAL_PATH = '/tmp/forged-local-target.kdna';
 const HOSTILE_SERVER_BODY = 'FORGED-SERVER-RESPONSE-BODY';
 
 // A PATH shim for `curl` whose stderr is maximally hostile: it embeds the
