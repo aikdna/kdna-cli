@@ -671,7 +671,7 @@ test('kdna install download path: HTTPS->HTTPS redirect installs, downgrade redi
     // full URL, and the local temp path are all forbidden in CLI output.
     const downgradedOutput = downgraded.stdout + downgraded.stderr;
     assert.ok(!downgradedOutput.includes('Protocol "http" not supported'), downgradedOutput);
-    assert.ok(!downgradedOutput.includes(DOWNGRADE_HTTP_ORIGIN), downgradedOutput);
+    assert.ok(!downgradedOutput.includes(DOWNGRADE_HTTP_ORIGIN_HOST), downgradedOutput);
     assert.ok(!downgradedOutput.includes('.kdna.tmp'), downgradedOutput);
 
     // Credentialed URL: refused before curl runs, and the error must not
@@ -755,7 +755,7 @@ test('registry fetch path: canonical registry, signature fetch, and redirect dow
           (err) => {
             assert.match(err.message, /^DOWNLOAD_PROTOCOL_BLOCKED \(curl exit 1\)$/, err.message);
             assert.ok(!err.message.includes('Protocol "http" not supported'), err.message);
-            assert.ok(!err.message.includes(DOWNGRADE_HTTP_ORIGIN), err.message);
+            assert.ok(!err.message.includes(DOWNGRADE_HTTP_ORIGIN_HOST), err.message);
             return true;
           },
         );
@@ -839,6 +839,10 @@ test('registry fetch path: custom scope registries are pinned and downgrades blo
 // server response bytes.
 
 const HOSTILE_ORIGIN = 'https://hostile.invalid';
+// Host-only forms for absence assertions: checking a bare host substring is
+// equivalent for these leak tests and avoids full-URL substring matching.
+const FIXTURE_ORIGIN_HOST = new URL(FIXTURE_ORIGIN).host;
+const DOWNGRADE_HTTP_ORIGIN_HOST = new URL(DOWNGRADE_HTTP_ORIGIN).host;
 const HOSTILE_TOKEN = 'TOP_SECRET_TOKEN';
 const HOSTILE_LOCAL_PATH = '/tmp/forged-local-target.kdna';
 const HOSTILE_SERVER_BODY = 'FORGED-SERVER-RESPONSE-BODY';
@@ -958,7 +962,7 @@ test('install path: query-token and fragment asset URLs are refused before curl 
       assert.equal(result.ok, false, label);
       assert.match(result.stderr, /DOWNLOAD_URL_REFUSED/, label);
       assertSterileDownloadError(result.stdout + result.stderr);
-      assert.ok(!(result.stdout + result.stderr).includes(FIXTURE_ORIGIN), label);
+      assert.ok(!(result.stdout + result.stderr).includes(FIXTURE_ORIGIN_HOST), label);
     }
     assert.equal(
       fs.existsSync(logFile),
@@ -983,7 +987,7 @@ test('archive path: query-token and fragment URLs are refused before curl runs',
           assert.match(err.message, /DOWNLOAD_URL_REFUSED/);
           assert.match(err.message, needle);
           assertSterileDownloadError(err.message);
-          assert.ok(!err.message.includes(FIXTURE_ORIGIN), err.message);
+          assert.ok(!err.message.includes(FIXTURE_ORIGIN_HOST), err.message);
           return true;
         },
       );
@@ -1009,7 +1013,7 @@ test('registry endpoints with query strings or fragments are refused before curl
             (err) => {
               assert.match(err.message, /DOWNLOAD_URL_REFUSED/);
               assertSterileDownloadError(err.message);
-              assert.ok(!err.message.includes(FIXTURE_ORIGIN), err.message);
+              assert.ok(!err.message.includes(FIXTURE_ORIGIN_HOST), err.message);
               return true;
             },
             registryUrl,
