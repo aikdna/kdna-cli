@@ -22,7 +22,7 @@ const os = require('node:os');
 const crypto = require('node:crypto');
 const { buildChecksums, pack } = require('@aikdna/kdna-core');
 
-const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
+const CLI = path.resolve(__dirname, 'helpers', 'invoke-internal-command.js');
 const CURRENT_FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'minimal');
 const { assertHttpsDownloadUrl } = require('../src/cmds/_common');
 const { DownloadError, describeDownloadFailure } = require('../src/https-download');

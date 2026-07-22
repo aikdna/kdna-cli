@@ -24,7 +24,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const core = require('@aikdna/kdna-core');
 
-const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
+const CLI = path.resolve(__dirname, 'helpers', 'invoke-internal-command.js');
 const CURRENT_FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'minimal');
 
 function run(args, opts = {}) {

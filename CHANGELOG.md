@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- Add the file-first workspace attachment reference implementation. The CLI
+  now snapshots one explicitly approved regular `.kdna` file by exact SHA-256
+  under `<workspace>/.kdna/assets/`, writes the closed
+  `.kdna/attachments.json` record with private permissions and atomic locking,
+  and exposes `attach`, `attachments`, `resolve`, `disable`, `enable`,
+  `switch`, `rollback`, and attachment-only `remove`. Resolution is
+  deterministic and content-free: it validates every enabled snapshot and
+  returns one closed `load` / `ask` / `skip` / `block` decision without
+  projecting judgment content. Parent and child records are never merged,
+  snapshots never update from network or Store state, and removal retains the
+  immutable bytes.
+- Remove `available`, `match`, Store `install`, package `remove`, `update`,
+  package `list`, `registry`, and `setup` from the default help and dispatcher.
+  `inspect`, `validate`, `plan-load`, and `load` now accept explicit local paths
+  and do not resolve global package names. The underlying historical modules
+  keep direct regression coverage but are not aliases or attachment authority.
+
 - Apply one fail-closed transport policy to every packaged CLI path that sends
   task, context, license, activation credential, account/device authorization,
   provider token, or judgment material. Remote projection, legacy Activation,

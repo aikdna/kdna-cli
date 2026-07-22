@@ -19,6 +19,7 @@ const UNIT_TEST_FILES = Object.freeze([
   'tests/versioned-asset-lifecycle.test.js',
   'tests/layer-isolation.test.js',
   'tests/current-global-cli.test.js',
+  'tests/workspace-attachments.test.js',
   'tests/demo.test.js',
   'tests/e2e-encrypt.test.js',
   'tests/e2e-password.test.js',
