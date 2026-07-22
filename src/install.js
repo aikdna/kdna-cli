@@ -23,7 +23,7 @@ const {
   parseName,
   compareExactVersions,
 } = require('./registry');
-const { EXIT, error } = require('./cmds/_common');
+const { EXIT, error, assertHttpsDownloadUrl } = require('./cmds/_common');
 const PATHS = require('./paths');
 const {
   installAsset,
@@ -196,7 +196,20 @@ function parseSource(input) {
 
 // ─── Download helpers ──────────────────────────────────────────────────
 
+function printActiveVersionKeptHint(installed, full, jsonMode) {
+  if (jsonMode || !installed?.active_version_kept) return;
+  const kept = installed.active_version_kept;
+  console.log(`  Active version unchanged: ${full} stays on ${kept}.`);
+  console.log(
+    `  To switch: kdna remove ${full}@${kept} (the newest remaining version becomes active),`,
+  );
+  console.log(`  or pin a version explicitly where one is accepted: ${full}@<version>.`);
+}
+
 function downloadFile(url, dest) {
+  // HTTPS-only: registry metadata must never redirect the installer to
+  // file:/ftp:/javascript: URLs. Digest verification below still applies.
+  assertHttpsDownloadUrl(url);
   ensureDir(path.dirname(dest));
   let lastErr;
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -377,8 +390,8 @@ function installSingleFromUrl({ entry }, jsonMode = false, local = false) {
   ensureDir(tmpDir);
   try {
     downloadFile(assetUrl, tmpFile);
-  } catch {
-    error(`Failed to download ${assetUrl}`, EXIT.REGISTRY_ERROR);
+  } catch (downloadError) {
+    error(`Failed to download ${assetUrl}: ${downloadError.message}`, EXIT.REGISTRY_ERROR);
   }
 
   // asset digest check
@@ -430,6 +443,7 @@ function installSingleFromUrl({ entry }, jsonMode = false, local = false) {
   } else {
     console.log(`✓ Installed ${entry.name}@${entry.version}`);
     console.log(`  Asset: ${installed.asset_path}`);
+    printActiveVersionKeptHint(installed, entry.name, jsonMode);
   }
 }
 
@@ -544,6 +558,7 @@ function installFromLocalFile(
   } else {
     console.log(`✓ Installed ${declared} from local .kdna asset`);
     console.log(`  Asset: ${installed.asset_path}`);
+    printActiveVersionKeptHint(installed, declared, jsonMode);
   }
 }
 
@@ -564,9 +579,8 @@ function cmdRemove(input) {
 // ─── List ───────────────────────────────────────────────────────────────
 
 // Human-facing list of installed KDNA packages. Distinct from
-// `kdna available` (which is agent-facing and includes applies_when
-// / does_not_apply_when for matching). This command answers the
-// "what is installed on this machine" question.
+// `kdna available` (which is agent-facing discovery metadata).
+// This command answers the "what is installed on this machine" question.
 function cmdList(args = []) {
   const jsonMode = args.includes('--json');
   const installed = listInstalled({ allVersions: true });

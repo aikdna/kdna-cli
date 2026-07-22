@@ -258,7 +258,7 @@ test('kdna plan-load accepts an installed current asset name', () => {
   assert.equal(plan.can_load_now, true);
 });
 
-test('agent discovery preserves schema-valid routing fields from installed assets', () => {
+test('agent discovery is metadata-only and never projects payload content', () => {
   const { proj, env, root } = makeEnv();
   const asset = buildRoutedAsset(root);
 
@@ -267,10 +267,28 @@ test('agent discovery preserves schema-valid routing fields from installed asset
 
   const available = run(['available', '--json'], { env, cwd: proj });
   assert.ok(available.ok, `available failed: ${available.stderr}`);
+  // Discovery must not leak judgment payload content (axiom text,
+  // applies_when declarations) — that requires an explicit `kdna load`.
+  assert.ok(
+    !available.stdout.includes('Declared applicability boundaries'),
+    'available output must not contain axiom payload text',
+  );
+  assert.ok(
+    !available.stdout.includes('review structural routing lifecycle behavior'),
+    'available output must not contain applies_when payload text',
+  );
   const domains = JSON.parse(available.stdout);
-  assert.deepEqual(domains[0].applies_when, ['review structural routing lifecycle behavior']);
-  assert.deepEqual(domains[0].does_not_apply_when, ['only fix grammar']);
+  assert.equal(domains[0].name, '@aikdna/routed');
+  assert.equal(domains[0].loaded, false, 'discovery records that no load was performed');
+  assert.equal(domains[0].loadable, true);
+  assert.equal(domains[0].load_state, 'ready');
+  assert.equal('applies_when' in domains[0], false);
+  assert.equal('does_not_apply_when' in domains[0], false);
+  assert.equal('failure_risks' in domains[0], false);
+  assert.deepEqual(domains[0].keywords, ['routing', 'lifecycle']);
 
+  // `kdna match` is also discovery: hints come from manifest metadata
+  // (description / keywords), not from loaded axiom applicability.
   const match = run(['match', 'review structural routing lifecycle behavior', '--json'], {
     env,
     cwd: proj,
@@ -280,8 +298,8 @@ test('agent discovery preserves schema-valid routing fields from installed asset
   assert.equal(matched.no_strong_matches, false);
   assert.equal(matched.hints[0].name, '@aikdna/routed');
   assert.ok(
-    matched.hints[0].top_signals.length > 0,
-    'declared applies_when should produce hint signals',
+    matched.hints[0].domain_relevance >= 2,
+    'declared keywords should produce a domain-relevance hint',
   );
 });
 

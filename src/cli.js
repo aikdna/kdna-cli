@@ -285,7 +285,8 @@ Diagnostics:
            [--profile compact|index|full]
   protect  recover <file>            Recover a .kdna using a recovery code
            --out <file> --code-stdin [--password-stdin]
-  available                            List available installed domains
+  available                            List installed domains (discovery metadata
+                                      only — no content is loaded)
   match     "<task>"                  Find the best-matching domain for a task
   install   <name|@scope/name|file>   Install a .kdna asset from local/registry
                                       --allow-unverified permits an invalid local
@@ -1286,9 +1287,8 @@ switch (cmd) {
   }
   case 'list': {
     // kdna list [--json] — show installed packages. Distinct from
-    // `kdna available` (which is agent-facing and includes
-    // applies_when / does_not_apply_when for matching). This is the
-    // human-facing list of what is installed on this machine.
+    // `kdna available` (which is agent-facing discovery metadata).
+    // This is the human-facing list of what is installed on this machine.
     cmdList(args.slice(1));
     break;
   }

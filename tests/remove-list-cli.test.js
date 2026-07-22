@@ -10,8 +10,8 @@
  *
  * `kdna list` is the human-facing list of what is installed on the
  * local machine. `kdna available` (a separate command) is the
- * agent-facing list with applies_when / does_not_apply_when for
- * matching. They are different commands serving different needs.
+ * agent-facing discovery list (metadata only — no content is loaded).
+ * They are different commands serving different needs.
  *
  * Run: node --test tests/remove-list-cli.test.js
  */

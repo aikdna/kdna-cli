@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- Make `kdna available` (and `kdna match`) discovery-only: the commands now
+  enumerate installed candidates and emit manifest metadata plus LoadPlan
+  diagnostics (`load_state`, `issues`) without calling `loadAuthorized` or
+  projecting any judgment payload. Axiom-level applicability
+  (`applies_when` / `does_not_apply_when` / `failure_risks`) is payload
+  content and is only available after an explicit `kdna load`; each
+  discovery entry carries `loaded: false` and the human output states that
+  no content was loaded.
+- Stop `kdna install` from moving an existing `active_version`. Installing
+  an additional or already-present version now keeps the currently active
+  version and prints how to switch explicitly; the active version is only
+  set when a package has none yet.
+- Restrict every curl download path (`kdna install` registry downloads and
+  the safe-archive fetch used by `diff` / `changelog`) to `https:` URLs.
+  `file:`, `ftp:`, `javascript:`, plain `http:`, and malformed URLs are
+  refused with an explicit error before any fetch; digest verification of
+  the downloaded bytes is unchanged.
 - Write macOS Keychain secrets through a compile-once Swift helper that
   receives values over stdin instead of the `security -w` argv path, removing
   the brief process-list exposure; route reads and deletes through the same

@@ -69,7 +69,8 @@ Usage:
   kdna cluster lint <path>      Validate a cluster manifest
 
   --- Agent-facing (called by the kdna-loader skill) ---
-  kdna available [--json]       List locally available assets
+  kdna available [--json]       List locally available assets (discovery
+                                metadata only; no content is loaded)
   kdna match "<task>" [--json]  Hint signals for local assets
 
   --- Other ---
@@ -119,6 +120,31 @@ function selfCheckText(item) {
   if (typeof item === 'string') return item;
   if (item && typeof item === 'object' && typeof item.question === 'string') return item.question;
   return '';
+}
+
+/**
+ * Downloads over the CLI's curl paths are HTTPS-only. Registry metadata is
+ * not a trust boundary for the URL scheme: a poisoned or redirected entry
+ * must never turn `kdna install` / archive downloads into a file:// read or
+ * a javascript:/ftp: fetch. Digest verification still runs on the downloaded
+ * bytes; this guard only constrains how bytes are fetched.
+ */
+function assertHttpsDownloadUrl(url) {
+  if (typeof url !== 'string' || !url) {
+    throw new Error('refusing to download: asset URL is missing');
+  }
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`refusing to download: invalid asset URL: ${url}`);
+  }
+  if (parsed.protocol !== 'https:') {
+    throw new Error(
+      `refusing to download: only https: URLs are allowed (got ${parsed.protocol || 'unknown scheme'})`,
+    );
+  }
+  return parsed;
 }
 
 function isYesNoSelfCheck(item) {
@@ -254,6 +280,7 @@ module.exports = {
   writeJson,
   selfCheckText,
   isYesNoSelfCheck,
+  assertHttpsDownloadUrl,
   loadRegistry,
   rejectPasswordArgv,
   promptPassword,

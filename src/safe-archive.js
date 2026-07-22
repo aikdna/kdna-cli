@@ -8,6 +8,7 @@ const { execFileSync } = require('node:child_process');
 const { TextDecoder } = require('node:util');
 const zlib = require('node:zlib');
 const { nameFromAssetId } = require('./registry');
+const { assertHttpsDownloadUrl } = require('./cmds/_common');
 
 const EOCD_SIGNATURE = 0x06054b50;
 const CENTRAL_SIGNATURE = 0x02014b50;
@@ -468,6 +469,7 @@ function extractKdnaArchive(archivePath, destination, options = {}) {
 }
 
 function curlDownload(url, outputPath) {
+  assertHttpsDownloadUrl(url);
   execFileSync('curl', ['-fsSL', '--retry', '2', '-o', outputPath, url], {
     timeout: 60000,
     stdio: 'pipe',
@@ -475,6 +477,10 @@ function curlDownload(url, outputPath) {
 }
 
 function downloadAndExtractKdna(url, destination, options = {}) {
+  // HTTPS-only, enforced before any downloader (including injected ones)
+  // runs: the archive fetch path must never resolve file:/ftp:/javascript:
+  // URLs. Digest/signature verification of the bytes is unchanged.
+  assertHttpsDownloadUrl(url);
   const downloadFile = options.downloadFile || curlDownload;
   const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-download-'));
   const archivePath = path.join(temporaryDirectory, 'asset.kdna');
