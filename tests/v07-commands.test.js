@@ -235,7 +235,8 @@ test(
     assert.ok(parsed.length > 0, 'should have at least one domain');
     const writing = parsed.find((d) => d.name === '@aikdna/writing');
     assert.ok(writing, 'writing should be in the list');
-    assert.ok(Array.isArray(writing.applies_when), 'should expose applies_when');
+    assert.equal(writing.loaded, false, 'discovery must not perform a load');
+    assert.equal('applies_when' in writing, false, 'applicability is payload content');
   },
 );
 

@@ -6,7 +6,6 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { pathToFileURL } = require('node:url');
 const zlib = require('node:zlib');
 const core = require('@aikdna/kdna-core');
 const cbor = require('cbor-x');
@@ -255,17 +254,62 @@ function registryEntry(name, version, archive, options = {}) {
     version,
     status: 'experimental',
     access: 'open',
-    asset_url: pathToFileURL(archive).href,
+    // Downloads are HTTPS-only. Fixtures are served through the curl shim
+    // below, which maps this host back to the local archive bytes.
+    asset_url: `${FIXTURE_DOWNLOAD_ORIGIN}/${path.basename(archive)}`,
     asset_digest: options.assetDigest || assetDigest(archive),
     signature: 'ed25519:test',
     release_status: 'published_signed',
   };
 }
 
+const FIXTURE_DOWNLOAD_ORIGIN = 'https://fixture.invalid';
+
+// A PATH shim for `curl`: the CLI's download path only accepts https: URLs,
+// so end-to-end tests route https://fixture.invalid/<name> requests to the
+// local fixture directory named by KDNA_ARCHIVE_FIXTURE_DIR. Any other URL
+// fails the way a network error would.
+let curlShimDirectory = null;
+function curlShimDir() {
+  if (curlShimDirectory) return curlShimDirectory;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-curl-shim-'));
+  const script = `#!/bin/sh
+out=""
+url=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "-o" ]; then out="$arg"; fi
+  prev="$arg"
+  url="$arg"
+done
+case "$url" in
+  ${FIXTURE_DOWNLOAD_ORIGIN}/*)
+    name="\${url##*/}"
+    src="$KDNA_ARCHIVE_FIXTURE_DIR/$name"
+    if [ -f "$src" ]; then
+      /bin/cp "$src" "$out"
+      exit $?
+    fi
+    ;;
+esac
+echo "curl shim: cannot fetch $url" >&2
+exit 22
+`;
+  fs.writeFileSync(path.join(dir, 'curl'), script, { mode: 0o755 });
+  curlShimDirectory = dir;
+  return dir;
+}
+
 function runCli(args, env) {
+  const needsShim = env && env.KDNA_ARCHIVE_FIXTURE_DIR;
   return spawnSync(process.execPath, [cli, ...args], {
     encoding: 'utf8',
-    env: { ...process.env, ...env, KDNA_REGISTRY_URL: '' },
+    env: {
+      ...process.env,
+      ...env,
+      KDNA_REGISTRY_URL: '',
+      ...(needsShim ? { PATH: `${curlShimDir()}:${process.env.PATH}` } : {}),
+    },
   });
 }
 
@@ -578,11 +622,12 @@ test('registry downloads bind bytes, manifest identity, and manifest version bef
           {
             name,
             version: '1.0.0',
-            asset_url: pathToFileURL(sameUrl).href,
+            asset_url: 'https://invalid.example/same-url.kdna',
             asset_digest: originalDigest,
           },
           '1.0.0',
           path.join(tmp, 'same-url-out'),
+          { downloadFile: copyDownloader(sameUrl) },
         ),
       /do not match registry asset_digest/,
     );
@@ -598,11 +643,12 @@ test('registry downloads bind bytes, manifest identity, and manifest version bef
           {
             name,
             version: '1.0.0',
-            asset_url: pathToFileURL(valid).href,
+            asset_url: 'https://invalid.example/valid-binding.kdna',
             asset_digest: `sha256:${'0'.repeat(64)}`,
           },
           '1.0.0',
           path.join(tmp, 'fake-digest-out'),
+          { downloadFile: copyDownloader(valid) },
         ),
       /do not match registry asset_digest/,
     );
@@ -619,11 +665,12 @@ test('registry downloads bind bytes, manifest identity, and manifest version bef
           {
             name,
             version: '1.0.0',
-            asset_url: pathToFileURL(wrongIdentity).href,
+            asset_url: 'https://invalid.example/wrong-identity.kdna',
             asset_digest: assetDigest(wrongIdentity),
           },
           '1.0.0',
           path.join(tmp, 'wrong-identity-out'),
+          { downloadFile: copyDownloader(wrongIdentity) },
         ),
       /identity does not match registry entry/,
     );
@@ -640,11 +687,12 @@ test('registry downloads bind bytes, manifest identity, and manifest version bef
           {
             name,
             version: '1.0.0',
-            asset_url: pathToFileURL(wrongVersion).href,
+            asset_url: 'https://invalid.example/wrong-version.kdna',
             asset_digest: assetDigest(wrongVersion),
           },
           '1.0.0',
           path.join(tmp, 'wrong-version-out'),
+          { downloadFile: copyDownloader(wrongVersion) },
         ),
       /version does not match registry entry/,
     );
@@ -807,7 +855,7 @@ test('diff and changelog read real semantic changes from two exact runtime paylo
     ]);
     const commandTmp = path.join(tmp, 'command-tmp');
     fs.mkdirSync(commandTmp);
-    const env = { HOME: home, TMPDIR: commandTmp };
+    const env = { HOME: home, TMPDIR: commandTmp, KDNA_ARCHIVE_FIXTURE_DIR: tmp };
 
     const diff = runCli(['quality', 'diff', `${name}@1.0.0`, `${name}@2.0.0`, '--json'], env);
     assert.equal(diff.status, 0, diff.stderr);
@@ -889,7 +937,7 @@ test('diff canonicalizes bare registry names but still rejects mismatched identi
     ]);
     const commandTmp = path.join(tmp, 'command-tmp');
     fs.mkdirSync(commandTmp);
-    const env = { HOME: home, TMPDIR: commandTmp };
+    const env = { HOME: home, TMPDIR: commandTmp, KDNA_ARCHIVE_FIXTURE_DIR: tmp };
 
     const wrongAsset = runCli(
       ['quality', 'diff', 'bare-identity@1.0.0', 'bare-identity@2.0.0', '--json'],
@@ -931,6 +979,7 @@ test('single-argument diff uses the verified installed asset without resolving i
       KDNA_HOME: path.join(home, '.kdna'),
       KDNA_PROJECT_ROOT: project,
       TMPDIR: commandTmp,
+      KDNA_ARCHIVE_FIXTURE_DIR: tmp,
     };
 
     const install = runCli(['install', oldArchive, '--yes', '--json', '--allow-unverified'], env);
@@ -1043,7 +1092,7 @@ test('changelog counts ontology and banned-term changes and reserves no-change f
     ]);
     const commandTmp = path.join(tmp, 'command-tmp');
     fs.mkdirSync(commandTmp);
-    const env = { HOME: home, TMPDIR: commandTmp };
+    const env = { HOME: home, TMPDIR: commandTmp, KDNA_ARCHIVE_FIXTURE_DIR: tmp };
 
     const changed = runCli(['changelog', name, '--from', '1.0.0', '--to', '2.0.0', '--json'], env);
     assert.equal(changed.status, 0, changed.stderr);
@@ -1115,7 +1164,11 @@ test('diff and changelog report download failures as provider errors and clean t
     ]) {
       const commandTmp = path.join(tmp, `${label}-tmp`);
       fs.mkdirSync(commandTmp);
-      const result = runCli(args, { HOME: home, TMPDIR: commandTmp });
+      const result = runCli(args, {
+        HOME: home,
+        TMPDIR: commandTmp,
+        KDNA_ARCHIVE_FIXTURE_DIR: tmp,
+      });
       assert.equal(result.status, 6, `${label}: ${result.stderr}`);
       assert.match(result.stderr, /Failed to download @aikdna\/archive-history@2\.0\.0/);
       assert.deepEqual(fs.readdirSync(commandTmp), [], label);

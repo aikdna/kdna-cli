@@ -704,11 +704,17 @@ function installAssetUnlocked({ sourcePath, name, version, source = {}, local = 
       );
     }
     assertInstalledIntegrity(existingVersion, `${parsed.full}@${finalVersion}`);
+    // Installing an already-present version must not move the active
+    // version. Activation is a separate, explicit event.
+    const preservedActive = existing?.active_version || null;
     index.packages[parsed.full] = normalizePackageRecord(parsed.full, {
-      active_version: finalVersion,
+      active_version: preservedActive || finalVersion,
       versions: existing.versions,
     });
     writeIndexForUnlocked(tier, index);
+    if (preservedActive && preservedActive !== finalVersion) {
+      existingVersion.active_version_kept = preservedActive;
+    }
     return existingVersion;
   }
 
@@ -774,11 +780,18 @@ function installAssetUnlocked({ sourcePath, name, version, source = {}, local = 
     fs.renameSync(stagingDir, destDir);
 
     const versions = { ...(existing?.versions || {}), [finalVersion]: entry };
+    // A package that already has an active version keeps it: install adds
+    // the new version alongside, it does not silently switch what consumers
+    // resolve. The active version is only set when none exists yet.
+    const preservedActive = existing?.active_version || null;
     index.packages[parsed.full] = normalizePackageRecord(parsed.full, {
-      active_version: finalVersion,
+      active_version: preservedActive || finalVersion,
       versions,
     });
     writeIndexForUnlocked(tier, index);
+    if (preservedActive && preservedActive !== finalVersion) {
+      entry.active_version_kept = preservedActive;
+    }
     return entry;
   } catch (error) {
     fs.rmSync(stagingDir, { recursive: true, force: true });

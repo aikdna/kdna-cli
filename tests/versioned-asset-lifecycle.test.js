@@ -658,7 +658,9 @@ test('stale index writers merge committed versions and preserve the active versi
 
   const persisted = JSON.parse(fs.readFileSync(path.join(kdnaHome, 'index.json'), 'utf8'));
   assert.deepEqual(Object.keys(persisted.packages[NAME].versions).sort(), ['1.0.0', '1.1.0']);
-  assert.equal(persisted.packages[NAME].active_version, '1.1.0');
+  // Install no longer moves the active version: 1.0.0 stays active, and a
+  // stale writer must not clobber that committed value either.
+  assert.equal(persisted.packages[NAME].active_version, '1.0.0');
 });
 
 test('concurrent different-version installs serialize without losing either index entry', async () => {

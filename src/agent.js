@@ -2,11 +2,13 @@
  * Agent-facing commands — what the kdna-loader skill calls.
  *
  *   kdna available --json
- *     List installed domains, lean JSON, including applies_when fields
- *     and yanked status. Excludes yanked. ~200 bytes per domain.
- *     The agent uses this as its primary discovery source and decides
- *     which domain (if any) fits the task by reading the applies_when
- *     and does_not_apply_when fields against the task in its own words.
+ *     List installed domains, lean JSON discovery metadata: identity,
+ *     version, status, manifest description/keywords, and LoadPlan
+ *     diagnostics (load_state / issues). Excludes yanked.
+ *     Discovery is metadata-only: no content is loaded and no Runtime
+ *     Capsule projection is produced. Load is a separate, explicit event
+ *     (`kdna load <name>`) — the agent decides fit from discovery
+ *     metadata and its own language understanding, then loads.
  *
  *   kdna match "<task>" [--json]
  *     Auxiliary signal — does NOT decide which domain to use. Returns:
@@ -20,7 +22,7 @@
  *     Read the domain's judgment and emit context suitable for agent
  *     system-prompt injection (axioms one-liners + stances +
  *     banned-terms + misunderstandings + self-checks).
-  *     For raw inspection use: kdna load <file.kdna> --as=raw
+ *     For raw inspection use: kdna load <file.kdna> --as=raw
  *
  * These commands are the supported interface between the kdna-loader
  * skill and the KDNA file format. The skill should not read KDNA
@@ -38,7 +40,7 @@ const {
   resolveAsset,
 } = require('./package-store');
 const { licenseDecryptOptionsForManifest } = require('./cmds/license');
-const { loadAuthorized, planLoad } = require('@aikdna/kdna-core');
+const { planLoad } = require('@aikdna/kdna-core');
 const { loadExternalAuthorization } = require('./external-entitlement');
 
 function detectAgent() {
@@ -56,13 +58,6 @@ function assetLabel(asset, fallback) {
   return asset.name || asset.parsed?.full || fallback;
 }
 
-function stringList(value) {
-  if (Array.isArray(value))
-    return value.filter((item) => item !== undefined && item !== null && item !== '');
-  if (typeof value === 'string' && value.trim()) return [value.trim()];
-  return [];
-}
-
 function traceAssetFields(asset, manifest = {}, license = null) {
   const fields = {
     asset_path: asset.asset_path,
@@ -76,6 +71,15 @@ function traceAssetFields(asset, manifest = {}, license = null) {
   return fields;
 }
 
+/**
+ * Discovery-time asset probe.
+ *
+ * Existence, authorization, applicability, and loading are separate events.
+ * Discovery enumerates candidates and builds a LoadPlan (planLoad) — planLoad
+ * inspects container metadata only and never decrypts or projects judgment
+ * content. Nothing here may call loadAuthorized or any other path that emits
+ * a Runtime Capsule; loading happens only through an explicit `kdna load`.
+ */
 function readDiscoveryAsset(entry) {
   let manifest = {};
   let externalSession = null;
@@ -85,7 +89,6 @@ function readDiscoveryAsset(entry) {
   } catch (error) {
     return {
       manifest,
-      core: {},
       loadable: false,
       plan: { state: 'invalid', issues: [{ code: 'KDNA_FORMAT_INVALID', message: error.message }] },
     };
@@ -94,30 +97,19 @@ function readDiscoveryAsset(entry) {
   try {
     externalSession = loadExternalAuthorization(entry.asset_path, manifest);
     plan = planLoad(entry.asset_path, { entitlement: externalSession?.entitlement });
-    if (plan.can_load_now !== true) {
-      return { manifest, core: {}, loadable: false, plan };
-    }
-    const capsule = loadAuthorized(entry.asset_path, {
-      profile: 'compact',
-      as: 'json',
-      entitlement: externalSession?.entitlement,
-      decryptEntry: externalSession?.decryptEntry,
-    });
     return {
       manifest,
-      core: { axioms: Array.isArray(capsule.context?.axioms) ? capsule.context.axioms : [] },
-      loadable: true,
+      loadable: plan.can_load_now === true,
       plan,
     };
   } catch (error) {
     return {
       manifest,
-      core: {},
       loadable: false,
       plan: {
         ...(plan || {}),
         state: 'invalid',
-        issues: [{ code: error.code || 'KDNA_LOAD_FAILED', message: error.message }],
+        issues: [{ code: error.code || 'KDNA_PLAN_FAILED', message: error.message }],
       },
     };
   } finally {
@@ -133,21 +125,12 @@ function cmdAvailable(args = []) {
 
   const out = [];
   for (const e of installed) {
-    const { manifest = {}, core = {}, loadable, plan } = readDiscoveryAsset(e);
+    const { manifest = {}, loadable, plan } = readDiscoveryAsset(e);
     if (manifest.yanked === true) continue;
 
-    // Pull applies_when across all axioms (this is what the agent needs
-    // for fit-check). Collapsing per-axiom into one set makes the agent's
-    // matching decision much cheaper.
-    const applies_when = [];
-    const does_not_apply_when = [];
-    const failure_risks = [];
-    for (const a of core.axioms || []) {
-      applies_when.push(...stringList(a.applies_when));
-      does_not_apply_when.push(...stringList(a.does_not_apply_when));
-      if (a.failure_risk) failure_risks.push(a.failure_risk);
-    }
-
+    // Discovery metadata only. Judgment content (axioms, applies_when, …)
+    // is part of the payload and is projected exclusively by `kdna load`;
+    // `loaded: false` records that this listing did not perform a load.
     out.push({
       name: manifest.name || e.full,
       version: manifest.version || null,
@@ -156,9 +139,7 @@ function cmdAvailable(args = []) {
       description: manifest.description || '',
       core_insight: manifest.core_insight || '',
       keywords: manifest.keywords || [],
-      applies_when,
-      does_not_apply_when,
-      failure_risks,
+      loaded: false,
       loadable,
       load_state: plan.state || null,
       issues: (plan.issues || []).map((issue) => issue.code).filter(Boolean),
@@ -181,13 +162,16 @@ function cmdAvailable(args = []) {
     console.log('');
     console.log(`  ${d.name}  v${d.version || '?'}  [${d.status}]`);
     if (d.description) console.log(`    ${d.description}`);
-    if (d.applies_when.length) {
-      console.log(`    applies when: ${d.applies_when.length} situations declared`);
-    }
-    if (d.does_not_apply_when.length) {
-      console.log(`    does NOT apply when: ${d.does_not_apply_when.length} situations declared`);
+    if (d.keywords.length) console.log(`    keywords: ${d.keywords.join(', ')}`);
+    if (!d.loadable) {
+      console.log(
+        `    not loadable now: ${d.load_state || 'invalid'} (${d.issues.join(', ') || 'no diagnostics'})`,
+      );
     }
   }
+  console.log('');
+  console.log('Discovery only — no content was loaded.');
+  console.log('Load a domain explicitly with: kdna load <name>');
 }
 
 // ─── kdna match ────────────────────────────────────────────────────────
@@ -210,10 +194,8 @@ function overlapScore(taskTokens, declaredText) {
   return { hits, coverage };
 }
 
-// Minimum signal strength to report a hint (avoid noise from single-word matches)
-const MIN_HITS = 2;
-const MIN_COVERAGE = 0.15;
-
+// Minimum domain-level relevance to report a hint (avoid noise from
+// single-word matches). A hint needs domainRelevance >= 2.
 function domainRelevanceScore(taskTokens, domain) {
   let score = 0;
   const sources = [
@@ -244,7 +226,7 @@ function cmdMatch(taskText, args = []) {
   const hints = [];
 
   for (const e of installed) {
-    const { manifest = {}, core = {}, loadable, plan } = readDiscoveryAsset(e);
+    const { manifest = {}, loadable, plan } = readDiscoveryAsset(e);
     if (!loadable) {
       dropped.push({
         name: manifest.name || e.full,
@@ -258,53 +240,19 @@ function cmdMatch(taskText, args = []) {
       continue;
     }
 
-    // does_not_apply_when disqualification (HARD signal)
-    let disqualified = null;
-    for (const a of core.axioms || []) {
-      for (const d of stringList(a.does_not_apply_when)) {
-        const score = overlapScore(taskTokens, d);
-        if (score.hits >= 2) {
-          disqualified = { axiom: a.id, text: d };
-          break;
-        }
-      }
-      if (disqualified) break;
-    }
-    if (disqualified) {
-      dropped.push({
-        name: manifest.name || e.full,
-        reason: `does_not_apply_when matched on ${disqualified.axiom}`,
-        evidence: disqualified.text.slice(0, 120),
-      });
-      continue;
-    }
-
-    // applies_when hint signals (WEAK — for context only, not a decision)
-    const signals = [];
-    for (const a of core.axioms || []) {
-      for (const ap of stringList(a.applies_when)) {
-        const score = overlapScore(taskTokens, ap);
-        if (score.hits >= MIN_HITS || score.coverage >= MIN_COVERAGE) {
-          signals.push({
-            source: `${a.id}.applies_when`,
-            hits: score.hits,
-            coverage: score.coverage,
-            text: ap.slice(0, 120),
-          });
-        }
-      }
-    }
-
-    // Domain-level relevance: check description, core_insight, keywords
+    // Domain-level relevance: check description, core_insight, keywords.
+    // Axiom-level applicability (applies_when / does_not_apply_when) is
+    // judgment payload content and is only available after an explicit
+    // `kdna load` — discovery never loads.
     const domainRelevance = domainRelevanceScore(taskTokens, manifest);
 
-    if (signals.length || domainRelevance >= 2) {
+    if (domainRelevance >= 2) {
       hints.push({
         name: manifest.name || e.full,
         description: manifest.description || '',
         status: manifest.status || 'experimental',
         domain_relevance: domainRelevance,
-        top_signals: signals.sort((a, b) => b.hits - a.hits).slice(0, 3),
+        top_signals: [],
       });
     }
   }
@@ -322,9 +270,11 @@ function cmdMatch(taskText, args = []) {
     hints,
     no_strong_matches: hints.length === 0,
     note:
-      'These are surface keyword signals only — many false positives are normal. ' +
-      "The agent must read each candidate domain's description + applies_when " +
-      'in full and decide using language understanding. dropped is a hard signal: ' +
+      'These are surface keyword signals over discovery metadata ' +
+      '(description, core_insight, keywords) only — many false positives are ' +
+      'normal. The agent decides fit from this metadata using its own ' +
+      'language understanding, then loads a candidate explicitly with ' +
+      '`kdna load` before relying on its judgment. dropped is a hard signal: ' +
       'do not load any domain in dropped.',
   };
 
@@ -336,12 +286,12 @@ function cmdMatch(taskText, args = []) {
   // Human format — make it clear this is hint not decision
   console.log(`Task: ${taskText.slice(0, 100)}${taskText.length > 100 ? '…' : ''}`);
   console.log('');
-  console.log(`This is a HINT report. The agent makes the final fit decision`);
-  console.log(`by reading each candidate's full description and applies_when.`);
+  console.log(`This is a HINT report over discovery metadata. The agent makes`);
+  console.log(`the final fit decision and loads a candidate explicitly (kdna load).`);
   console.log('');
 
   if (dropped.length) {
-    console.log(`Dropped (does_not_apply_when matched — do NOT load these):`);
+    console.log(`Dropped (not loadable or yanked — do NOT load these):`);
     for (const d of dropped) {
       console.log(`  ✗ ${d.name}: ${d.reason}`);
       if (d.evidence) console.log(`    "${d.evidence}"`);
