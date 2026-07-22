@@ -213,3 +213,98 @@ test('macOS keychain backend writes secrets through the stdin helper, never argv
     assert.equal(await ss.get(name), null);
   }
 });
+
+function writeExecutable(filePath, content) {
+  fs.writeFileSync(filePath, content, { mode: 0o755 });
+}
+
+test('keychain set refuses deterministically when the helper is missing and never touches the security CLI', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-noargv-'));
+  try {
+    const securityLog = path.join(tmp, 'security-calls.log');
+    writeExecutable(
+      path.join(tmp, 'security'),
+      `#!/bin/sh\necho "$@" >> "${securityLog}"\nexit 1\n`,
+    );
+    process.env.KDNA_SECRET_STORE_BACKEND = 'keychain';
+    process.env.KDNA_KEYCHAIN_HELPER_PATH = path.join(tmp, 'missing-helper');
+    process.env.PATH = `${tmp}${path.delimiter}/usr/bin:/bin`;
+    const ss = freshSecretStore();
+    await assert.rejects(
+      () => ss.set('any-name', 'any-secret'),
+      (error) => {
+        assert.equal(error.code, 'BACKEND_UNAVAILABLE');
+        assert.match(error.message, /Xcode Command Line Tools/);
+        assert.match(error.message, /refused/);
+        return true;
+      },
+    );
+    assert.equal(fs.existsSync(securityLog), false, 'security CLI must never be invoked');
+  } finally {
+    delete process.env.KDNA_KEYCHAIN_HELPER_PATH;
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('keychain get refuses deterministically when the helper is missing', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-noargv-get-'));
+  try {
+    process.env.KDNA_SECRET_STORE_BACKEND = 'keychain';
+    process.env.KDNA_KEYCHAIN_HELPER_PATH = path.join(tmp, 'missing-helper');
+    const ss = freshSecretStore();
+    await assert.rejects(() => ss.get('any-name'), (error) => {
+      assert.equal(error.code, 'BACKEND_UNAVAILABLE');
+      return true;
+    });
+  } finally {
+    delete process.env.KDNA_KEYCHAIN_HELPER_PATH;
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('a hung helper fails closed with KEYCHAIN_TIMEOUT instead of hanging', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-hang-'));
+  try {
+    writeExecutable(path.join(tmp, 'hanging-helper'), '#!/bin/sh\nsleep 60\n');
+    process.env.KDNA_SECRET_STORE_BACKEND = 'keychain';
+    process.env.KDNA_KEYCHAIN_HELPER_PATH = path.join(tmp, 'hanging-helper');
+    process.env.KDNA_KEYCHAIN_TIMEOUT_MS = '500';
+    const ss = freshSecretStore();
+    const started = Date.now();
+    await assert.rejects(() => ss.set('any-name', 'any-secret'), (error) => {
+      assert.equal(error.code, 'KEYCHAIN_TIMEOUT');
+      assert.match(error.message, /refusing to hang/);
+      return true;
+    });
+    assert.ok(Date.now() - started < 15_000, 'must fail fast, not hang');
+  } finally {
+    delete process.env.KDNA_KEYCHAIN_HELPER_PATH;
+    delete process.env.KDNA_KEYCHAIN_TIMEOUT_MS;
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('a working helper round-trips via stdin without argv secrets (mock helper records argv)', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-mock-helper-'));
+  try {
+    const argvLog = path.join(tmp, 'argv.log');
+    writeExecutable(
+      path.join(tmp, 'mock-helper'),
+      `#!/bin/sh\necho "$@" >> "${argvLog}"\ncase "$1" in\n  set) cat > /dev/null; exit 0;;\n  get) exit 44;;\n  delete) exit 0;;\nesac\nexit 2\n`,
+    );
+    process.env.KDNA_SECRET_STORE_BACKEND = 'keychain';
+    process.env.KDNA_KEYCHAIN_HELPER_PATH = path.join(tmp, 'mock-helper');
+    const ss = freshSecretStore();
+    const secret = 'super-secret-value-must-not-appear-in-argv';
+    await ss.set('roundtrip', secret);
+    assert.equal(await ss.get('roundtrip'), null);
+    await ss.delete('roundtrip');
+    const argv = fs.readFileSync(argvLog, 'utf8');
+    assert.ok(!argv.includes(secret), 'secret must never appear in helper argv');
+    assert.match(argv, /set aikdna-kdna roundtrip/);
+    assert.match(argv, /delete aikdna-kdna roundtrip/);
+  } finally {
+    delete process.env.KDNA_KEYCHAIN_HELPER_PATH;
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});

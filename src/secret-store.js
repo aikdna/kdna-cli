@@ -11,8 +11,9 @@
  *     keeps keychain ACL prompts away: items created by the helper are read
  *     back by the same helper, not by the `security` CLI (a different
  *     signing identity whose access would trigger a GUI prompt). If the
- *     compiler is unavailable the backend falls back to the `security` CLI,
- *     whose `-w` flag briefly exposes values in the local process list.
+ *     helper cannot be built or does not answer within its timeout, the
+ *     operation is REFUSED with a diagnostic; there is deliberately no
+ *     fallback that passes secrets through process argv.
  *     Note the CLI renders stored values containing non-printable bytes as
  *     hex on read; secrets stored by this backend are expected to be
  *     printable (PEM keys, JSON grants). Items are stored as
@@ -106,7 +107,7 @@ function passAvailable() {
   return os.platform() === 'linux' && commandAvailable('pass', ['ls']);
 }
 
-function keychainAvailable() {
+function securityCliAvailable() {
   if (os.platform() !== 'darwin') return false;
   try {
     execFileSync('which', ['security'], { stdio: 'ignore' });
@@ -114,6 +115,14 @@ function keychainAvailable() {
   } catch {
     return false;
   }
+}
+
+function keychainAvailable() {
+  if (process.env.KDNA_KEYCHAIN_HELPER_PATH) {
+    return fs.existsSync(process.env.KDNA_KEYCHAIN_HELPER_PATH);
+  }
+  if (os.platform() !== 'darwin') return false;
+  return fs.existsSync(KEYCHAIN_HELPER_PATH) || resolveSwiftc() !== null;
 }
 
 const KEYCHAIN_HELPER_SOURCE = `import Foundation
@@ -172,10 +181,17 @@ const KEYCHAIN_HELPER_ID = require('node:crypto')
   .update(KEYCHAIN_HELPER_SOURCE)
   .digest('hex')
   .slice(0, 12);
-const KEYCHAIN_HELPER_PATH = path.join(
-  PATHS.root,
-  'bin',
-  `kdna-keychain-helper-${KEYCHAIN_HELPER_ID}`,
+const KEYCHAIN_HELPER_PATH =
+  process.env.KDNA_KEYCHAIN_HELPER_PATH ||
+  path.join(PATHS.root, 'bin', `kdna-keychain-helper-${KEYCHAIN_HELPER_ID}`);
+
+const KEYCHAIN_OP_TIMEOUT_MS = Number.parseInt(
+  process.env.KDNA_KEYCHAIN_TIMEOUT_MS || '30000',
+  10,
+);
+const KEYCHAIN_COMPILE_TIMEOUT_MS = Number.parseInt(
+  process.env.KDNA_KEYCHAIN_COMPILE_TIMEOUT_MS || '300000',
+  10,
 );
 
 let keychainHelperState;
@@ -195,6 +211,10 @@ function keychainHelperAvailable() {
   if (keychainHelperState !== undefined) return keychainHelperState;
   try {
     if (!fs.existsSync(KEYCHAIN_HELPER_PATH)) {
+      if (process.env.KDNA_KEYCHAIN_HELPER_PATH) {
+        keychainHelperState = false;
+        return false;
+      }
       const swiftc = resolveSwiftc();
       if (!swiftc) {
         keychainHelperState = false;
@@ -206,7 +226,7 @@ function keychainHelperAvailable() {
       fs.writeFileSync(srcTmp, KEYCHAIN_HELPER_SOURCE, { mode: 0o600 });
       execFileSync(swiftc, ['-O', '-o', tmp, srcTmp], {
         stdio: ['ignore', 'ignore', 'pipe'],
-        timeout: 300_000,
+        timeout: KEYCHAIN_COMPILE_TIMEOUT_MS,
       });
       fs.unlinkSync(srcTmp);
       fs.renameSync(tmp, KEYCHAIN_HELPER_PATH);
@@ -219,73 +239,52 @@ function keychainHelperAvailable() {
   return keychainHelperState;
 }
 
-function keychainSet(name, value) {
-  if (keychainHelperAvailable()) {
-    execFileSync(KEYCHAIN_HELPER_PATH, ['set', SERVICE_NAME, name], {
-      input: value,
-      stdio: ['pipe', 'ignore', 'pipe'],
-      timeout: 30_000,
-    });
-    return;
-  }
-  // Fallback: the `security` CLI only accepts the new value via argv, where
-  // it is briefly visible to other local users in the process list. Install
-  // the Xcode Command Line Tools to compile the stdin-based helper and remove
-  // this exposure.
-  execFileSync(
-    'security',
-    ['add-generic-password', '-a', name, '-s', SERVICE_NAME, '-w', value, '-U'],
-    { stdio: ['ignore', 'ignore', 'pipe'], timeout: 30_000 },
+function keychainUnavailableError() {
+  return new SecretStoreError(
+    'BACKEND_UNAVAILABLE',
+    'macOS Keychain helper unavailable: install the Xcode Command Line Tools ' +
+      '(xcode-select --install) or select another backend via ' +
+      'KDNA_SECRET_STORE_BACKEND. The operation was refused rather than ' +
+      'falling back to passing the secret through process argv.',
   );
 }
 
-function keychainGet(name) {
-  if (keychainHelperAvailable()) {
-    try {
-      return execFileSync(KEYCHAIN_HELPER_PATH, ['get', SERVICE_NAME, name], {
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'pipe'],
-        timeout: 30_000,
-      });
-    } catch (e) {
-      if (e.status === 44) return null;
-      throw new SecretStoreError('PERMISSION_DENIED', e.stderr || e.message);
-    }
-  }
+function runHelper(args, options = {}) {
   try {
-    return execFileSync(
-      'security',
-      ['find-generic-password', '-s', SERVICE_NAME, '-a', name, '-w'],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 30_000 },
-    ).trimEnd();
+    return execFileSync(KEYCHAIN_HELPER_PATH, args, {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: KEYCHAIN_OP_TIMEOUT_MS,
+      ...options,
+    });
   } catch (e) {
-    if (e.status === 44 || /SecKeychainSearchCopyMatch/.test(e.stderr || '')) return null;
+    if (e.status === 44) return { notFound: true };
+    if (e.code === 'ETIMEDOUT' || e.signal === 'SIGTERM') {
+      throw new SecretStoreError(
+        'KEYCHAIN_TIMEOUT',
+        `macOS Keychain helper did not answer within ${KEYCHAIN_OP_TIMEOUT_MS}ms; ` +
+          'refusing to hang on a keychain prompt that cannot be displayed.',
+      );
+    }
     throw new SecretStoreError('PERMISSION_DENIED', e.stderr || e.message);
   }
 }
 
+function keychainSet(name, value) {
+  if (!keychainHelperAvailable()) throw keychainUnavailableError();
+  const result = runHelper(['set', SERVICE_NAME, name], { input: value });
+  if (result.notFound) throw new SecretStoreError('PERMISSION_DENIED', 'helper rejected the write');
+}
+
+function keychainGet(name) {
+  if (!keychainHelperAvailable()) throw keychainUnavailableError();
+  const result = runHelper(['get', SERVICE_NAME, name], { encoding: 'utf8' });
+  if (result.notFound) return null;
+  return result;
+}
+
 function keychainDelete(name) {
-  if (keychainHelperAvailable()) {
-    try {
-      execFileSync(KEYCHAIN_HELPER_PATH, ['delete', SERVICE_NAME, name], {
-        stdio: ['ignore', 'ignore', 'pipe'],
-        timeout: 30_000,
-      });
-      return;
-    } catch (e) {
-      if (e.status === 44) return;
-      throw new SecretStoreError('PERMISSION_DENIED', e.stderr || e.message);
-    }
-  }
-  try {
-    execFileSync('security', ['delete-generic-password', '-a', name, '-s', SERVICE_NAME], {
-      stdio: ['ignore', 'ignore', 'pipe'],
-      timeout: 30_000,
-    });
-  } catch (e) {
-    if (e.status !== 44)
-      throw new SecretStoreError('PERMISSION_DENIED', e.stderr || e.message);
-  }
+  if (!keychainHelperAvailable()) throw keychainUnavailableError();
+  runHelper(['delete', SERVICE_NAME, name]);
 }
 
 function ensureFileBackendDir() {
@@ -399,13 +398,13 @@ const backends = {
     },
     async set(name, value) {
       if (!keychainAvailable()) {
-        throw new SecretStoreError('BACKEND_UNAVAILABLE', 'macOS Keychain not available');
+        throw keychainUnavailableError();
       }
       keychainSet(name, value);
     },
     async delete(name) {
       if (!keychainAvailable()) {
-        throw new SecretStoreError('BACKEND_UNAVAILABLE', 'macOS Keychain not available');
+        throw keychainUnavailableError();
       }
       keychainDelete(name);
     },
@@ -413,7 +412,7 @@ const backends = {
       // The `security` CLI doesn't have a clean "list items in a
       // service" command without dumping the whole keychain. Use the
       // -g (grep) form with the service name; parse the labels.
-      if (!keychainAvailable()) {
+      if (!securityCliAvailable()) {
         throw new SecretStoreError('BACKEND_UNAVAILABLE', 'macOS Keychain not available');
       }
       try {
@@ -571,7 +570,7 @@ function syncBackend() {
     return {
       get(name) {
         if (!keychainAvailable())
-          throw new SecretStoreError('BACKEND_UNAVAILABLE', 'macOS Keychain not available');
+          throw keychainUnavailableError();
         return keychainGet(name);
       },
       set(name, value) {
@@ -697,6 +696,7 @@ module.exports = {
     decodeName,
     keychainAvailable,
     keychainHelperAvailable,
+    securityCliAvailable,
     secretToolAvailable,
     passAvailable,
     memorySecrets,
