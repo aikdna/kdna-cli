@@ -204,7 +204,10 @@ function keychainHelperAvailable() {
       const tmp = `${KEYCHAIN_HELPER_PATH}.tmp-${process.pid}`;
       const srcTmp = `${tmp}.swift`;
       fs.writeFileSync(srcTmp, KEYCHAIN_HELPER_SOURCE, { mode: 0o600 });
-      execFileSync(swiftc, ['-O', '-o', tmp, srcTmp], { stdio: ['ignore', 'ignore', 'pipe'] });
+      execFileSync(swiftc, ['-O', '-o', tmp, srcTmp], {
+        stdio: ['ignore', 'ignore', 'pipe'],
+        timeout: 300_000,
+      });
       fs.unlinkSync(srcTmp);
       fs.renameSync(tmp, KEYCHAIN_HELPER_PATH);
       fs.chmodSync(KEYCHAIN_HELPER_PATH, 0o700);
@@ -221,6 +224,7 @@ function keychainSet(name, value) {
     execFileSync(KEYCHAIN_HELPER_PATH, ['set', SERVICE_NAME, name], {
       input: value,
       stdio: ['pipe', 'ignore', 'pipe'],
+      timeout: 30_000,
     });
     return;
   }
@@ -231,7 +235,7 @@ function keychainSet(name, value) {
   execFileSync(
     'security',
     ['add-generic-password', '-a', name, '-s', SERVICE_NAME, '-w', value, '-U'],
-    { stdio: ['ignore', 'ignore', 'pipe'] },
+    { stdio: ['ignore', 'ignore', 'pipe'], timeout: 30_000 },
   );
 }
 
@@ -241,6 +245,7 @@ function keychainGet(name) {
       return execFileSync(KEYCHAIN_HELPER_PATH, ['get', SERVICE_NAME, name], {
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: 30_000,
       });
     } catch (e) {
       if (e.status === 44) return null;
@@ -251,7 +256,7 @@ function keychainGet(name) {
     return execFileSync(
       'security',
       ['find-generic-password', '-s', SERVICE_NAME, '-a', name, '-w'],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 30_000 },
     ).trimEnd();
   } catch (e) {
     if (e.status === 44 || /SecKeychainSearchCopyMatch/.test(e.stderr || '')) return null;
@@ -264,6 +269,7 @@ function keychainDelete(name) {
     try {
       execFileSync(KEYCHAIN_HELPER_PATH, ['delete', SERVICE_NAME, name], {
         stdio: ['ignore', 'ignore', 'pipe'],
+        timeout: 30_000,
       });
       return;
     } catch (e) {
@@ -274,6 +280,7 @@ function keychainDelete(name) {
   try {
     execFileSync('security', ['delete-generic-password', '-a', name, '-s', SERVICE_NAME], {
       stdio: ['ignore', 'ignore', 'pipe'],
+      timeout: 30_000,
     });
   } catch (e) {
     if (e.status !== 44)
