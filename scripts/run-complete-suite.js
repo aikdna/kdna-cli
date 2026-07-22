@@ -29,6 +29,7 @@ const UNIT_TEST_FILES = Object.freeze([
   'tests/setup.test.js',
   'tests/secret-store.test.js',
   'tests/license-redaction.test.js',
+  'tests/remote-transport-policy.test.js',
   'tests/validate-bundle.test.js',
   'tests/story5-bundle.test.js',
   'tests/story6-dependencies.test.js',

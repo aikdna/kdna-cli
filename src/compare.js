@@ -21,10 +21,14 @@
 
 const fs = require('fs');
 const path = require('path');
-const https = require('https');
 
 const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
 const { readContainer, resolveAsset } = require('./package-store');
+const {
+  RemoteTransportError,
+  llmProviderEndpoint,
+  postBoundedRemoteJson,
+} = require('./remote-transport');
 const CONFIG_FILE = path.join(USER_KDNA_DIR, 'config.json');
 
 const { parseName } = require('./registry');
@@ -79,91 +83,41 @@ function loadLlmConfig() {
   return { provider, model, apiKey, envName, baseUrl };
 }
 
-// Parse "https://host[:port]/path/prefix" → { host, port, basePath }
-function parseBaseUrl(url) {
-  const u = new URL(url);
-  return {
-    host: u.hostname,
-    port: u.port ? parseInt(u.port, 10) : 443,
-    basePath: u.pathname.replace(/\/$/, ''), // strip trailing slash
-  };
-}
-
-// ─── HTTP helpers ──────────────────────────────────────────────────────
-
-function httpsPost(host, port, pathPart, headers, body) {
-  return new Promise((resolve, reject) => {
-    const data = JSON.stringify(body);
-    const req = https.request(
-      {
-        host,
-        port: port || 443,
-        path: pathPart,
-        method: 'POST',
-        headers: { ...headers, 'Content-Length': Buffer.byteLength(data) },
-      },
-      (res) => {
-        const chunks = [];
-        res.on('data', (c) => chunks.push(c));
-        res.on('end', () => {
-          const text = Buffer.concat(chunks).toString('utf8');
-          if (res.statusCode >= 400) {
-            reject(new Error(`HTTP ${res.statusCode}: ${text.slice(0, 500)}`));
-            return;
-          }
-          try {
-            resolve(JSON.parse(text));
-          } catch {
-            reject(new Error(`Bad JSON from ${host}: ${text.slice(0, 500)}`));
-          }
-        });
-      },
-    );
-    req.on('error', reject);
-    req.setTimeout(120000, () => req.destroy(new Error(`timeout after 120s`)));
-    req.write(data);
-    req.end();
-  });
-}
-
 async function callLlm(cfg, systemPrompt, userMessage) {
-  const { host, port, basePath } = parseBaseUrl(cfg.baseUrl);
+  const endpoint = llmProviderEndpoint(cfg.baseUrl, cfg.provider);
 
   if (cfg.provider === 'anthropic') {
-    const resp = await httpsPost(
-      host,
-      port,
-      `${basePath}/v1/messages`,
-      {
+    const resp = await postBoundedRemoteJson({
+      url: endpoint,
+      headers: {
         'content-type': 'application/json',
         'anthropic-version': '2023-06-01',
         'x-api-key': cfg.apiKey,
       },
-      {
+      body: {
         model: cfg.model,
         max_tokens: 4096,
         system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],
       },
-    );
-    return resp.content?.map((c) => c.text || '').join('') || '';
+    });
+    const content = resp.content?.map((c) => c.text || '').join('');
+    if (typeof content !== 'string' || content.trim().length === 0) {
+      throw new RemoteTransportError(
+        'REMOTE_RESPONSE_INVALID',
+        'Remote provider returned an invalid response [REMOTE_RESPONSE_INVALID].',
+      );
+    }
+    return content;
   }
   if (cfg.provider === 'openai') {
-    // For OpenAI-compatible endpoints the base may already include /v1 (e.g.
-    // SiliconFlow: https://api.siliconflow.cn/v1). Append /chat/completions
-    // if the basePath doesn't already end with /v1.
-    const endpoint = basePath.endsWith('/v1')
-      ? `${basePath}/chat/completions`
-      : `${basePath}/v1/chat/completions`;
-    const resp = await httpsPost(
-      host,
-      port,
-      endpoint,
-      {
+    const resp = await postBoundedRemoteJson({
+      url: endpoint,
+      headers: {
         'content-type': 'application/json',
         authorization: `Bearer ${cfg.apiKey}`,
       },
-      {
+      body: {
         model: cfg.model,
         max_tokens: 4096,
         messages: [
@@ -171,8 +125,15 @@ async function callLlm(cfg, systemPrompt, userMessage) {
           { role: 'user', content: userMessage },
         ],
       },
-    );
-    return resp.choices?.[0]?.message?.content || '';
+    });
+    const content = resp.choices?.[0]?.message?.content;
+    if (typeof content !== 'string' || content.trim().length === 0) {
+      throw new RemoteTransportError(
+        'REMOTE_RESPONSE_INVALID',
+        'Remote provider returned an invalid response [REMOTE_RESPONSE_INVALID].',
+      );
+    }
+    return content;
   }
   error(`Unknown provider: ${cfg.provider}`);
 }
@@ -623,4 +584,4 @@ async function cmdCompare(input, args = []) {
   }
 }
 
-module.exports = { cmdCompare, buildKdnaPrompt };
+module.exports = { cmdCompare, buildKdnaPrompt, callLlm };

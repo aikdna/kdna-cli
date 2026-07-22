@@ -1,5 +1,6 @@
 /**
- * Fail-closed transport policy for remote projection and entitlement APIs.
+ * Fail-closed transport policy for remote projection, entitlement, and
+ * provider APIs.
  *
  * These paths carry task/context, authorization material, or both. External
  * services therefore require HTTPS. Plain HTTP is accepted only for the
@@ -16,6 +17,15 @@
 
 const MAX_REMOTE_URL_BYTES = 2048;
 const MAX_REMOTE_RESPONSE_BYTES = 1024 * 1024;
+
+class RemoteTransportError extends Error {
+  constructor(code, message, status = null) {
+    super(message);
+    this.name = 'RemoteTransportError';
+    this.code = code;
+    this.status = Number.isInteger(status) ? status : null;
+  }
+}
 
 function isExactLoopback(hostname) {
   return hostname === '127.0.0.1' || hostname === '[::1]';
@@ -88,6 +98,52 @@ function legacyActivationEndpoint(value) {
   return `${parsed.origin}/entitlements/activate`;
 }
 
+function canonicalLlmBaseUrl(value) {
+  assertVisibleAsciiUrl(value);
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error('provider base URL must be absolute');
+  }
+  if (
+    !parsed.hostname ||
+    parsed.username ||
+    parsed.password ||
+    parsed.search ||
+    parsed.hash ||
+    parsed.pathname.includes('%') ||
+    parsed.pathname
+      .split('/')
+      .some(
+        (segment, index) =>
+          segment === '.' ||
+          segment === '..' ||
+          (index > 0 && segment === '' && parsed.pathname !== '/'),
+      )
+  ) {
+    throw new Error('provider base URL contains an unsupported component');
+  }
+  assertSecureProtocol(parsed);
+
+  const canonical = parsed.pathname === '/' ? parsed.origin : `${parsed.origin}${parsed.pathname}`;
+  if (value !== canonical || (parsed.pathname !== '/' && parsed.pathname.endsWith('/'))) {
+    throw new Error('provider base URL is not canonical');
+  }
+  return parsed;
+}
+
+function llmProviderEndpoint(value, provider) {
+  const parsed = canonicalLlmBaseUrl(value);
+  const basePath = parsed.pathname === '/' ? '' : parsed.pathname;
+  if (provider === 'anthropic') return `${parsed.origin}${basePath}/v1/messages`;
+  if (provider === 'openai') {
+    const apiPath = basePath.endsWith('/v1') ? basePath : `${basePath}/v1`;
+    return `${parsed.origin}${apiPath}/chat/completions`;
+  }
+  throw new Error('provider is not supported');
+}
+
 function accountApiEndpoint(server, resource) {
   const parsed = canonicalContractUrl(server, ['', '/api', '/api/']);
   if (
@@ -141,6 +197,37 @@ function assertAccountApiRequestUrl(value) {
   return value;
 }
 
+function assertCanonicalRemoteRequestUrl(value) {
+  assertVisibleAsciiUrl(value);
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error('remote request URL must be absolute');
+  }
+  if (
+    !parsed.hostname ||
+    parsed.username ||
+    parsed.password ||
+    parsed.search ||
+    parsed.hash ||
+    parsed.pathname.includes('%') ||
+    value !== `${parsed.origin}${parsed.pathname}` ||
+    parsed.pathname
+      .split('/')
+      .some(
+        (segment, index) =>
+          segment === '.' ||
+          segment === '..' ||
+          (index > 0 && segment === '' && parsed.pathname !== '/'),
+      )
+  ) {
+    throw new Error('remote request URL is not canonical');
+  }
+  assertSecureProtocol(parsed);
+  return value;
+}
+
 function safeVerificationUrl(value) {
   assertVisibleAsciiUrl(value, { allowQuery: true });
   let parsed;
@@ -166,6 +253,11 @@ function safeRemoteCode(value, fallback = 'REMOTE_REQUEST_REJECTED') {
 async function readBoundedFetchJson(response) {
   const contentType = response.headers.get('content-type') || '';
   if (!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(contentType)) {
+    try {
+      await response.body?.cancel();
+    } catch {
+      // Response bytes never cross the transport boundary.
+    }
     throw new Error('remote response is not canonical JSON');
   }
   const contentLength = response.headers.get('content-length');
@@ -173,6 +265,11 @@ async function readBoundedFetchJson(response) {
     contentLength !== null &&
     (!/^(0|[1-9]\d*)$/.test(contentLength) || Number(contentLength) > MAX_REMOTE_RESPONSE_BYTES)
   ) {
+    try {
+      await response.body?.cancel();
+    } catch {
+      // Response bytes never cross the transport boundary.
+    }
     throw new Error('remote response size is invalid');
   }
   if (!response.body) throw new Error('remote response has no body');
@@ -202,13 +299,66 @@ async function readBoundedFetchJson(response) {
   }
 }
 
+async function postBoundedRemoteJson({ url, headers, body, timeoutMs = 120000 }) {
+  try {
+    assertCanonicalRemoteRequestUrl(url);
+  } catch {
+    throw new RemoteTransportError(
+      'REMOTE_URL_REFUSED',
+      'Remote provider URL was refused [REMOTE_URL_REFUSED].',
+    );
+  }
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      redirect: 'error',
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch {
+    throw new RemoteTransportError(
+      'REMOTE_TRANSPORT_FAILED',
+      'Remote provider request failed [REMOTE_TRANSPORT_FAILED].',
+    );
+  }
+
+  if (!response.ok) {
+    try {
+      await response.body?.cancel();
+    } catch {
+      // Response bytes never cross the transport boundary.
+    }
+    throw new RemoteTransportError(
+      'REMOTE_HTTP_ERROR',
+      `Remote provider rejected the request [REMOTE_HTTP_ERROR] (HTTP ${response.status}).`,
+      response.status,
+    );
+  }
+
+  try {
+    return await readBoundedFetchJson(response);
+  } catch {
+    throw new RemoteTransportError(
+      'REMOTE_RESPONSE_INVALID',
+      'Remote provider returned an invalid response [REMOTE_RESPONSE_INVALID].',
+    );
+  }
+}
+
 module.exports = {
   MAX_REMOTE_RESPONSE_BYTES,
+  RemoteTransportError,
   accountApiEndpoint,
   assertAccountApiRequestUrl,
+  assertCanonicalRemoteRequestUrl,
+  canonicalLlmBaseUrl,
   canonicalContractUrl,
   isExactLoopback,
   legacyActivationEndpoint,
+  llmProviderEndpoint,
+  postBoundedRemoteJson,
   readBoundedFetchJson,
   remoteProjectionEndpoint,
   safeRemoteCode,
