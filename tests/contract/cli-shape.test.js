@@ -19,58 +19,7 @@ function runCli(args) {
   });
 }
 
-const DELETED_COMMANDS = [
-  'verify',
-  'install',
-  'list',
-  'compare',
-  'setup',
-  'doctor',
-  'trace',
-  'history',
-  'publish',
-  'identity',
-  'license',
-  'protect',
-  'card',
-  'dev',
-  'search',
-  'info',
-  'remove',
-  'update',
-  'registry',
-  'diff',
-  'available',
-  'match',
-  'select',
-  'postvalidate',
-  'route',
-  'cluster',
-  'badge',
-  'audit',
-  'workpack',
-  'protocol',
-  'governance',
-  'proposal',
-  'review',
-  'evolution',
-  'regression',
-  'test',
-  'changelog',
-  'explain',
-  'version',
-  'init',
-  'preview',
-  'project',
-  'eval',
-  'export',
-  'cards',
-  'lock',
-  'studio',
-  'package',
-  'recover',
-  'unlock',
-];
+const DELETED_COMMANDS = ['install', 'list', 'setup', 'update', 'registry', 'available', 'match'];
 
 test('kdna --help is ≤12 lines', () => {
   const r = runCli(['--help']);
@@ -82,13 +31,11 @@ test('kdna --help is ≤12 lines', () => {
   assert.ok(lines.length <= 12, `help has ${lines.length} lines, expected ≤12`);
 });
 
-test('kdna help legacy does not exist', () => {
+test('kdna help legacy remains outside the default surface', () => {
   const r = runCli(['help', 'legacy']);
   assert.notEqual(r.status, 0, 'help legacy must exit non-zero');
-  assert.ok(
-    r.stderr.includes('Unknown command') || r.stdout.includes('Unknown command'),
-    'must report Unknown command',
-  );
+  assert.match(r.stderr + r.stdout, /Usage: kdna legacy|Unknown command/);
+  assert.doesNotMatch(runCli(['--help']).stdout, /help legacy/);
 });
 
 test('kdna help advanced does not exist', () => {
@@ -121,6 +68,14 @@ test('kdna --help contains only the current Core commands', () => {
   assert.ok(help.includes('pack'), 'missing pack');
   assert.ok(help.includes('unpack'), 'missing unpack');
   assert.ok(help.includes('demo'), 'missing demo');
+  assert.ok(help.includes('attach'), 'missing attach');
+  assert.ok(help.includes('attachments'), 'missing attachments');
+  assert.ok(help.includes('resolve'), 'missing resolve');
+  assert.ok(help.includes('disable'), 'missing disable');
+  assert.ok(help.includes('enable'), 'missing enable');
+  assert.ok(help.includes('switch'), 'missing switch');
+  assert.ok(help.includes('rollback'), 'missing rollback');
+  assert.ok(help.includes('remove'), 'missing attachment remove');
   // Must NOT have legacy references
   assert.ok(!help.includes('help legacy'), 'must not mention help legacy');
   assert.ok(!help.includes('Compatibility'), 'must not have compatibility section');

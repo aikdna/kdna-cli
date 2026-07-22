@@ -30,8 +30,6 @@ const { cmdDoctor } = require('./cmds/doctor');
 const { cmdTrace, cmdHistory } = require('./cmds/trace');
 const { cmdCluster } = require('./cmds/cluster');
 const { cmdProtect, cmdUnlock, cmdRecover } = require('./cmds/protect');
-const { cmdAvailable, cmdMatch } = require('./agent');
-const { cmdInstallExtended, cmdRemove, cmdList, cmdUpdate, cmdUpdateAll } = require('./install');
 const { cmdPublish, cmdPublishCheck } = require('./publish');
 const { cmdChangelog } = require('./cmds/changelog');
 const { cmdExplain } = require('./cmds/explain');
@@ -51,8 +49,17 @@ const { cmdPlanUse } = require('./cmds/plan-use');
 const { cmdUse } = require('./cmds/use');
 const legacy = require('./cmds/legacy');
 const quality = require('./cmds/quality');
-const registry = require('./cmds/registry');
-const { cmdSetup } = require('./cmds/setup');
+const {
+  WorkspaceAttachmentError,
+  WorkspaceCommandInputError,
+  cmdAttach,
+  cmdAttachments,
+  cmdRemove: cmdRemoveAttachment,
+  cmdResolve,
+  cmdRollback,
+  cmdSetState,
+  cmdSwitch,
+} = require('./cmds/workspace-attachments');
 const { validateBundle } = require('./cmds/validate-bundle');
 const { computeContextBudget } = require('./cmds/context-budget');
 const { appendAuditEntry } = require('./cmds/audit-log');
@@ -64,25 +71,13 @@ const {
 } = require('./cmds/watermark');
 const { scanBundleDeprecations, formatDeprecationStderr } = require('./cmds/deprecation');
 const studio = require('./cmds/studio');
-const { resolveAsset, readAssetManifest } = require('./package-store');
+const { readAssetManifest } = require('./package-store');
 const { loadExternalAuthorization } = require('./external-entitlement');
 const {
   readBoundedFetchJson,
   remoteProjectionEndpoint,
   safeRemoteCode,
 } = require('./remote-transport');
-
-const resolveAssetCallback = (name) => {
-  const pkg = resolveAsset(name);
-  if (pkg && pkg.asset_path) {
-    return {
-      path: pkg.asset_path,
-      version: pkg.version,
-      manifest: readAssetManifest(pkg.asset_path),
-    };
-  }
-  return null;
-};
 
 function readManifestForPath(absPath) {
   try {
@@ -158,179 +153,68 @@ if (args.includes('--exit-code')) setExitCodeOnly(true);
 function showHelp() {
   const v = require('../package.json').version;
   console.log(`kdna v${v} — KDNA runtime CLI
-  inspect   <name[@version]|file>    Inspect an installed or local .kdna asset
-  validate  <file.kdna>              Validate a .kdna container
-  validate  <path> --runtime         Validate and require LoadPlan readiness
-  validate  <bundle.json> --bundle   Validate a kdna.bundle.json manifest
-                                     (component resolution + stub; Story 3)
-  plan-load <name[@version]|file>    Return a LoadPlan before runtime load
-  load      <name[@version]|file>    Render agent-ready judgment context
-                                     --profile=<index|compact|scenario|full>
-                                     --as=<json|prompt|raw>
-                                     --namespace=<component-id>
-                                     --password-stdin        Read a protected
-                                       asset password from stdin
-                                     --remote-server <url>   Use a canonical
-                                       HTTPS server origin or exact /project
-                                       endpoint with kdna-remote-server for
-                                       access: "remote" assets. HTTP is allowed
-                                       only for 127.0.0.1 or [::1] development.
-                                       Equivalent to the
-                                       KDNA_REMOTE_SERVER env var.
-                                     --task <name>           Task verb
-                                       for remote projection
-                                       (default: review)
-                                      --context "..."         Context
-                                        for the projection
-  capsule-verify <capsule.json>        Verify Capsule structure and digest evidence
-                                       --json: machine-readable output
-  pack      <dev-source> <out>       Pack into .kdna (--force to overwrite)
-  unpack    <file.kdna> <out>        Extract .kdna into an editing/debug view
-  demo      <minimal|judgment> <dir>  Create a current KDNA demo source
-                                      --password-stdin creates an encrypted demo
-  lint      <source-dir>             Anti-Monolithic Domain check (RFC-0013 §4)
-                                      --strict: upgrade warnings to errors
-                                      --json: machine-readable output
-  eval-consumption <asset-path>      Run multi-gate consumption evaluation
-                                      --policy=<path>    Route policy JSON
-                                      --fixtures=<path>  Replay fixture directory
-                                      --gates=<list>     Gates to run (comma
-                                        separated, default: all 6)
-  eval asset <asset-path>            Run Asset Assay evaluation
-                                      --fixtures=<dir>   Fixture directory
-                                      --as=<json|md>     Output format
-                                      --classify         Classification only
-  eval cluster <asset-path>          Run Cluster Assay evaluation
-                                      --fixtures=<dir>   Fixture directory
-                                      --as=<json|md>     Output format
-                                      --gates=<list>     Gates to run
-  plan-use <asset.kdna>              Generate ConsumptionPlan (deterministic)
-                                      --task=<text>      Task description
-                                      --budget=<profile> Budget profile
-                                      --shape=<name>     Projection shape
-                                      --as=json|md       Output format
-                                      --runtime-contract  Assert the current Runtime contract
-  use <asset.kdna>                   Run through a registered Runner
-                                      --task=<text>      Task description
-                                      --runner=cli:default Current process runner
-                                      --agent-host=<cmd> Process host for cli:default
-                                      --agent-host-arg=<arg> Repeatable exact argument
-                                      --agent-host-capabilities=<file>
-                                                           Process-bound Agent Host descriptor
-                                      --runtime-contract  Assert the current Runtime contract
-                                      --as=json|trace    Output format
-                                      --list-runners     List registered runners
-                                      --mode=<list>      Replay modes (comma
-                                        separated, default:
-                                        repair,holdout,fresh)
-                                      --budget=<profile> interactive|code-review|
-                                        offline-audit
-                                      --as=<json|markdown>
-                                      --out=<path>       Output file (default:
-                                        stdout)
-  project   <asset-path>             Project a KDNA asset into a consumable form
-                                      --shape=<shape>    answer-pattern|compact
-                                        |scenario|full
-                                        (default: answer-pattern)
-                                      --task=<task>      Task type
-                                      --context=<json>   Context JSON
-                                      --as=<json|prompt> (default: prompt)
-  route     <asset-path>             Route a KDNA asset — select primary domain
-                                      --task=<task>      Task verb (default:
-                                        review)
-                                      --policy=<path>    Route policy JSON
-                                      --route-card=<path> Route card sidecar
-                                      --consumer-index=<path> Consumer index
-                                      --budget=<profile> interactive|code-review|
-                                        offline-audit
-                                      --as=<json|trace|prompt>
-                                      --trace=<path>     Write trace to file
-  compose   <asset-path>             Compose primary + advisor domains
-                                      --task=<task>      Task verb
-                                      --primary=<domain> Force primary domain
-                                      --advisors=<list>  Advisor IDs, comma-sep
-                                      --policy=<path>    Route policy JSON
-                                      --consumer-index=<path> Consumer index
-                                      --budget=<profile> interactive|code-review|
-                                        offline-audit
-                                      --source-hardmax=<n> Max source assets
-                                        (default: 3)
-                                      --as=<json|trace|prompt>
-                                      --trace=<path>     Write trace to file
-  asset-evidence <asset-path>        Generate asset evidence manifest
-                                      --out=<path>       Output manifest path
-                                      --as=<json|md>     (default: json)
-  workpack  <subcommand> <path>      Work Pack operations (init/validate/inspect/
-                                     explain/plan/run/report)
-Auth & Identity:
-  license  install <license.json>    Install a license for a domain
-  license  status [<domain>]         Show license status (all or one)
-  license  generate <domain>         Generate a signed license
-           --to <email> [--expires]
-  license  activate <domain>         Authorize this device in a browser
-                                      --server <url> [--asset <path>]
-                                      [--credential-stdin] [--no-browser]
-  license  sync [<domain>]           Refresh installed entitlement state
-  license  verify <license.json>     Verify a license file
-  license  bind <license.json>       Bind a license to this machine
-  license  show <license.json>       Display license status
-  identity init                      Generate Ed25519 identity keypair
-  identity show                      Display identity fingerprint/paths
-                                     (PEM, hex, base64)
-Diagnostics:
-  doctor   [--agents] [--domains]    System health check
-  trace    [--json] [--clear]        Observability trace logs
-  history  [--stats] [--json]        KDNA load history (agent trace)
-  history  --audit [--stats] [--json] CLI load audit log (~/.kdna/audit.jsonl)
-  cluster  <path>                    Validate a cluster manifest
-  protect  <file> --out <file>       Encrypt a .kdna asset with a password
-           [--password-stdin]
-           [--entries payload.kdnab]
-  protect  unlock <file>             Decrypt a protected .kdna
-           [--password-stdin]
-           [--profile compact|index|full]
-  protect  recover <file>            Recover a .kdna using a recovery code
-           --out <file> --code-stdin [--password-stdin]
-  available                            List installed domains (discovery metadata
-                                      only — no content is loaded)
-  match     "<task>"                  Find the best-matching domain for a task
-  install   <name|@scope/name|file>   Install a .kdna asset from local/registry
-                                      --allow-unverified permits an invalid local
-                                      asset only for an explicit dev workflow
-  remove    <@scope/name[@version]>   Remove one installed version
-  update    <@scope/name|--all>       Update installed assets from their registry
-  list      [--json]                  List installed packages (human or JSON)
-Authoring & Publishing:
-  publish  <file.kdna>               Publish a .kdna asset (see also --check)
-  publish  --check <path>            Quality gate check before publish
-  changelog <domain> --from --to     Generate judgment changelog between versions
-  explain  <domain>                  Natural-language explanation of a domain
-  protocol <validate|inspect>        Validate or inspect protocol artifacts
-  test     run <domain>              Run test cases against a domain
-  test     import                    Import test results
-Asset & Domain Operations:
-  badge    <domain>               Summarize declared evaluation evidence
-  badge    audit                   Audit registry for stale entries
-  badge    package <path>          Package a badge artifact
-  domain   validate <path>            Validate a domain source directory
-  domain   pack <src> <out>           Pack a domain source to .kdna
-  domain   unpack <file>              Unpack a .kdna file to a source dir
-  domain   inspect <path>             Inspect a domain source
-  domain   card <path>                Render a domain summary card
-  governance <proposal|review|...>   Human-governed self-improvement ops
-  legacy   <preview|project|eval>    Legacy domain migration commands
-  quality  <diff|search>              Asset version diff and local search
-  registry <list|refresh>            Registry operations (registry is out of scope
-                                     for KDNA Core; refresh is informational only)
-  setup                                First-time setup wizard
-  studio   <scaffold|cards|...>       Studio integration commands
-Flags: --version / --help / --json / --quiet
-`);
+  attach <file.kdna> | attachments       Approve or list workspace attachments
+  resolve --cwd <dir> --task-file <file> Resolve the approved workspace attachment
+  disable <attachment-id> | enable <id>  Exclude or re-enable an attachment
+  switch <id> <file.kdna>                Approve an explicit replacement
+  rollback <id> | remove <id>            Restore history or remove only the relation
+  inspect <file.kdna>                    Inspect an explicit local asset
+  validate <file.kdna>                   Validate an explicit local asset
+  plan-load <file.kdna>                  Return the Core LoadPlan
+  load <file.kdna>                       Load only when the Core plan authorizes it
+  pack <source-dir> <file.kdna> | unpack <file.kdna> <dir>
+  demo <minimal|judgment> <dir>`);
 }
 
 const cmd = args[0];
 
+function runWorkspaceCommand(command, commandArgs) {
+  try {
+    command(commandArgs);
+  } catch (commandError) {
+    if (
+      commandError instanceof WorkspaceAttachmentError ||
+      commandError instanceof WorkspaceCommandInputError
+    ) {
+      error(commandError.message, EXIT.INPUT_ERROR);
+    }
+    error('Workspace attachment operation failed safely.', EXIT.PROVIDER_ERROR);
+  }
+}
+
 switch (cmd) {
+  case 'attach': {
+    runWorkspaceCommand(cmdAttach, args.slice(1));
+    break;
+  }
+  case 'attachments': {
+    runWorkspaceCommand(cmdAttachments, args.slice(1));
+    break;
+  }
+  case 'resolve': {
+    runWorkspaceCommand(cmdResolve, args.slice(1));
+    break;
+  }
+  case 'disable': {
+    runWorkspaceCommand((commandArgs) => cmdSetState(commandArgs, 'disabled'), args.slice(1));
+    break;
+  }
+  case 'enable': {
+    runWorkspaceCommand((commandArgs) => cmdSetState(commandArgs, 'enabled'), args.slice(1));
+    break;
+  }
+  case 'switch': {
+    runWorkspaceCommand(cmdSwitch, args.slice(1));
+    break;
+  }
+  case 'rollback': {
+    runWorkspaceCommand(cmdRollback, args.slice(1));
+    break;
+  }
+  case 'remove': {
+    runWorkspaceCommand(cmdRemoveAttachment, args.slice(1));
+    break;
+  }
   case 'validate': {
     try {
       // --bundle mode: validate a kdna.bundle.json manifest (RFC #148 Story 3)
@@ -399,7 +283,6 @@ switch (cmd) {
         result.runtime_load_plan = core.planLoad(assetTarget, {
           hasPassword: args.includes('--has-password'),
           entitlement: entitlementStatus ? { status: entitlementStatus } : undefined,
-          resolveAsset: resolveAssetCallback,
         });
       }
       console.log(JSON.stringify(result, null, 2));
@@ -427,24 +310,12 @@ switch (cmd) {
           EXIT.INPUT_ERROR,
         );
       const core = require('@aikdna/kdna-core');
-      let planTarget = assetTarget;
-      let abs = require('node:path').resolve(planTarget);
+      const planTarget = assetTarget;
+      const abs = require('node:path').resolve(planTarget);
       const containerFmt = core.detectContainerFormat(abs);
-      let isKdna = fs.existsSync(abs) && fs.statSync(abs).isFile() && containerFmt === 'kdna';
+      const isKdna = fs.existsSync(abs) && fs.statSync(abs).isFile() && containerFmt === 'kdna';
       if (!isKdna) {
-        const installed = resolveAsset(assetTarget);
-        if (installed?.asset_path) {
-          planTarget = installed.asset_path;
-          abs = require('node:path').resolve(planTarget);
-          const installedFmt = core.detectContainerFormat(abs);
-          isKdna = fs.existsSync(abs) && fs.statSync(abs).isFile() && installedFmt === 'kdna';
-        }
-      }
-      if (!isKdna) {
-        error(
-          'plan-load requires a packaged .kdna asset file or installed package name',
-          EXIT.INPUT_ERROR,
-        );
+        error('plan-load requires an explicit packaged .kdna asset file', EXIT.INPUT_ERROR);
       }
       // Story 13 — soft deprecation scan (bundle manifest-level +
       // per-component). Non-blocking. Always emitted before the plan
@@ -477,7 +348,6 @@ switch (cmd) {
           entitlement:
             externalSession?.entitlement ||
             (entitlementStatus ? { status: entitlementStatus } : undefined),
-          resolveAsset: resolveAssetCallback,
         });
 
         // Context budget reporting (Story 8) — non-blocking, best-effort.
@@ -643,8 +513,7 @@ switch (cmd) {
       const target = args.filter((a) => !a.startsWith('--'))[1];
       if (!target) error('Usage: kdna inspect <path> [--json] [--locale zh-CN]');
       const { isKdnaSourceDir, detectContainerFormat, inspect } = require('@aikdna/kdna-core');
-      const resolvedAsset = resolveAsset(target);
-      const abs = resolvedAsset?.asset_path || require('node:path').resolve(target);
+      const abs = require('node:path').resolve(target);
       if (!fs.existsSync(abs)) error(`File not found: ${target}`, EXIT.INPUT_ERROR);
       const containerFmt = detectContainerFormat(abs);
       const isKdna = isKdnaSourceDir(abs) || containerFmt === 'kdna';
@@ -668,8 +537,7 @@ switch (cmd) {
         EXIT.INPUT_ERROR,
       );
     const core = require('@aikdna/kdna-core');
-    const resolvedAsset = resolveAsset(target);
-    const abs = resolvedAsset?.asset_path || require('node:path').resolve(target);
+    const abs = require('node:path').resolve(target);
     if (!fs.existsSync(abs)) error(`File not found: ${target}`, EXIT.INPUT_ERROR);
     const isKdna = fs.statSync(abs).isFile() && core.detectContainerFormat(abs) === 'kdna';
     if (!isKdna) {
@@ -774,7 +642,6 @@ switch (cmd) {
           externalSession?.entitlement ||
           (entitlementStatus ? { status: entitlementStatus } : undefined),
         decryptEntry: externalSession?.decryptEntry,
-        resolveAsset: resolveAssetCallback,
       });
       appendAuditEntry({
         asset_path: abs,
@@ -1173,24 +1040,6 @@ switch (cmd) {
     break;
   }
 
-  case 'registry': {
-    const sub = args[1];
-    if (sub === 'refresh') {
-      registry.cmdRegistry('refresh');
-      break;
-    }
-    if (sub === 'list' || sub === undefined) {
-      registry.cmdList(sub === 'list', args.includes('--json'));
-      break;
-    }
-    error('Usage: kdna registry <list|refresh> [--json]');
-    break;
-  }
-
-  case 'setup': {
-    cmdSetup(args.slice(1));
-    break;
-  }
   case 'studio': {
     const sub = args[1];
     if (sub === 'scaffold') {
@@ -1253,51 +1102,6 @@ switch (cmd) {
     break;
   }
 
-  case 'available': {
-    cmdAvailable(args.slice(1));
-    break;
-  }
-
-  case 'match': {
-    const taskText = args.slice(1).find((a) => !a.startsWith('--')) || '';
-    cmdMatch(taskText, args.slice(1));
-    break;
-  }
-
-  case 'install': {
-    // args.slice(1) is the array of args. cmdInstallExtended takes
-    // (input, args) where input is the source string and args is the
-    // remaining flag array. Pass the first non-flag arg as input.
-    const installArgs = args.slice(1);
-    const installInput = installArgs.find((a) => !a.startsWith('--')) || '';
-    cmdInstallExtended(installInput, installArgs);
-    break;
-  }
-  case 'remove': {
-    // Without @version, remove the active version. If another version remains,
-    // the highest installed version becomes active.
-    const removeInput = args.slice(1).find((a) => !a.startsWith('--')) || '';
-    if (!removeInput) error('Usage: kdna remove <@scope/name[@version]>', EXIT.INPUT_ERROR);
-    cmdRemove(removeInput);
-    break;
-  }
-  case 'update': {
-    if (args.includes('--all')) {
-      cmdUpdateAll();
-      break;
-    }
-    const updateInput = args.slice(1).find((a) => !a.startsWith('--')) || '';
-    if (!updateInput) error('Usage: kdna update <@scope/name|--all>', EXIT.INPUT_ERROR);
-    cmdUpdate(updateInput);
-    break;
-  }
-  case 'list': {
-    // kdna list [--json] — show installed packages. Distinct from
-    // `kdna available` (which is agent-facing discovery metadata).
-    // This is the human-facing list of what is installed on this machine.
-    cmdList(args.slice(1));
-    break;
-  }
   case 'capsule-verify': {
     const capsuleFile = args.slice(1).find((a) => !a.startsWith('--')) || '';
     if (!capsuleFile)

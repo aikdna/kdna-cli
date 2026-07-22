@@ -15,6 +15,7 @@ const { assetDigest } = require('../src/package-store');
 const { extractKdnaArchive } = require('../src/safe-archive');
 
 const cli = path.join(__dirname, '..', 'src', 'cli.js');
+const internalCli = path.join(__dirname, 'helpers', 'invoke-internal-command.js');
 
 const CRC_TABLE = (() => {
   const table = new Uint32Array(256);
@@ -303,6 +304,19 @@ exit 22
 function runCli(args, env) {
   const needsShim = env && env.KDNA_ARCHIVE_FIXTURE_DIR;
   return spawnSync(process.execPath, [cli, ...args], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      ...env,
+      KDNA_REGISTRY_URL: '',
+      ...(needsShim ? { PATH: `${curlShimDir()}:${process.env.PATH}` } : {}),
+    },
+  });
+}
+
+function runInternal(args, env) {
+  const needsShim = env && env.KDNA_ARCHIVE_FIXTURE_DIR;
+  return spawnSync(process.execPath, [internalCli, ...args], {
     encoding: 'utf8',
     env: {
       ...process.env,
@@ -982,7 +996,10 @@ test('single-argument diff uses the verified installed asset without resolving i
       KDNA_ARCHIVE_FIXTURE_DIR: tmp,
     };
 
-    const install = runCli(['install', oldArchive, '--yes', '--json', '--allow-unverified'], env);
+    const install = runInternal(
+      ['install', oldArchive, '--yes', '--json', '--allow-unverified'],
+      env,
+    );
     assert.equal(install.status, 0, install.stderr);
     const installed = JSON.parse(install.stdout);
 

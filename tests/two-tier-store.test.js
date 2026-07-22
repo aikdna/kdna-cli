@@ -28,15 +28,18 @@ const os = require('node:os');
 const cbor = require('cbor-x');
 const { buildChecksums, pack } = require('@aikdna/kdna-core');
 
-const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
+const PUBLIC_CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
+const INTERNAL_CLI = path.resolve(__dirname, 'helpers', 'invoke-internal-command.js');
+const INTERNAL_COMMANDS = new Set(['available', 'match', 'install', 'remove', 'update', 'list']);
 const CURRENT_FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'minimal');
 
 function run(args, opts = {}) {
+  const executable = INTERNAL_COMMANDS.has(args[0]) ? INTERNAL_CLI : PUBLIC_CLI;
   try {
     return {
       ok: true,
       code: 0,
-      stdout: execFileSync('node', [CLI, ...args], {
+      stdout: execFileSync('node', [executable, ...args], {
         encoding: 'utf8',
         timeout: 30000,
         env: { ...process.env, ...(opts.env || {}) },
@@ -234,7 +237,7 @@ test('kdna install accepts current assets that declare canonical asset_id', () =
   assert.ok(fs.existsSync(projectAsset), 'hyphenated current asset file should exist');
 });
 
-test('kdna plan-load accepts an installed current asset name', () => {
+test('public kdna plan-load rejects an installed name and requires an explicit file', () => {
   const { proj, env, root } = makeEnv();
   const asset = path.join(root, 'deployment-review.kdna');
   const pack = run(['pack', CURRENT_FIXTURE, asset], { env, cwd: proj });
@@ -249,13 +252,8 @@ test('kdna plan-load accepts an installed current asset name', () => {
     env,
     cwd: otherCwd,
   });
-  assert.ok(
-    planned.ok,
-    `kdna plan-load by installed name failed: ${planned.stderr}\n${planned.stdout}`,
-  );
-  const plan = JSON.parse(planned.stdout);
-  assert.equal(plan.state, 'ready');
-  assert.equal(plan.can_load_now, true);
+  assert.equal(planned.ok, false);
+  assert.match(planned.stderr, /requires an explicit packaged \.kdna asset file/);
 });
 
 test('agent discovery is metadata-only and never projects payload content', () => {

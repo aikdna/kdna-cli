@@ -8,7 +8,9 @@ const path = require('node:path');
 const { buildChecksums, pack } = require('@aikdna/kdna-core');
 const { compareExactVersions, parseName, selectRegistryEntry } = require('../src/registry');
 
-const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
+const PUBLIC_CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
+const INTERNAL_CLI = path.resolve(__dirname, 'helpers', 'invoke-internal-command.js');
+const INTERNAL_COMMANDS = new Set(['available', 'match', 'install', 'remove', 'update', 'list']);
 const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'minimal');
 const NAME = '@example/versioned-review';
 const CORE_ENTRY = process.env.KDNA_CORE_SOURCE_ROOT
@@ -16,11 +18,12 @@ const CORE_ENTRY = process.env.KDNA_CORE_SOURCE_ROOT
   : require.resolve('@aikdna/kdna-core');
 
 function run(args, { env, cwd } = {}) {
+  const executable = INTERNAL_COMMANDS.has(args[0]) ? INTERNAL_CLI : PUBLIC_CLI;
   try {
     return {
       ok: true,
       code: 0,
-      stdout: execFileSync('node', [CLI, ...args], {
+      stdout: execFileSync('node', [executable, ...args], {
         encoding: 'utf8',
         timeout: 30000,
         env: { ...process.env, ...(env || {}) },
@@ -77,7 +80,7 @@ function buildAsset(root, version, name = NAME) {
 
 function runAsync(args, { env, cwd } = {}) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [CLI, ...args], {
+    const child = spawn(process.execPath, [INTERNAL_CLI, ...args], {
       env: { ...process.env, ...(env || {}) },
       cwd: cwd || process.cwd(),
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -282,7 +285,13 @@ test('version-aware install, migration, inspect, plan, use, remove and rollback'
   const predecessorRecord = current.packages[NAME].versions['1.1.0'];
   writeJson(indexPath, { version: 2, packages: { [NAME]: predecessorRecord } });
 
-  const inspectLegacyPin = run(['inspect', `${NAME}@1.0.0`, '--json'], { env, cwd: project });
+  const recoveredList = run(['list', '--json'], { env, cwd: project });
+  assert.ok(recoveredList.ok, recoveredList.stderr);
+  assert.deepEqual(
+    JSON.parse(recoveredList.stdout).map(({ version }) => version),
+    ['1.0.0', '1.1.0'],
+  );
+  const inspectLegacyPin = run(['inspect', initialAsset.asset, '--json'], { env, cwd: project });
   assert.ok(inspectLegacyPin.ok, inspectLegacyPin.stderr);
   assert.equal(JSON.parse(inspectLegacyPin.stdout).version, '1.0.0');
 
@@ -306,8 +315,14 @@ test('version-aware install, migration, inspect, plan, use, remove and rollback'
     ],
   );
 
-  const inspectBase = run(['inspect', NAME, '--json'], { env, cwd: project });
-  const inspectPinned = run(['inspect', `${NAME}@1.0.0`, '--json'], { env, cwd: project });
+  const inspectBase = run(
+    ['inspect', migrated.packages[NAME].versions['1.1.0'].asset_path, '--json'],
+    { env, cwd: project },
+  );
+  const inspectPinned = run(
+    ['inspect', migrated.packages[NAME].versions['1.0.0'].asset_path, '--json'],
+    { env, cwd: project },
+  );
   assert.ok(inspectBase.ok, inspectBase.stderr);
   assert.ok(inspectPinned.ok, inspectPinned.stderr);
   assert.equal(JSON.parse(inspectBase.stdout).version, '1.1.0');
@@ -361,7 +376,11 @@ test('version-aware install, migration, inspect, plan, use, remove and rollback'
     JSON.parse(afterRollback.stdout).map(({ version, active }) => ({ version, active })),
     [{ version: '1.0.0', active: true }],
   );
-  const inspectRollback = run(['inspect', NAME, '--json'], { env, cwd: project });
+  const rolledBackIndex = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
+  const inspectRollback = run(
+    ['inspect', rolledBackIndex.packages[NAME].versions['1.0.0'].asset_path, '--json'],
+    { env, cwd: project },
+  );
   assert.equal(JSON.parse(inspectRollback.stdout).version, '1.0.0');
 
   const missing = run(['use', `${NAME}@9.9.9`, '--task=missing'], { env, cwd: project });

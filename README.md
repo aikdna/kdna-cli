@@ -26,13 +26,32 @@ kdna plan-load ./demo-judgment.kdna --json
 kdna load ./demo-judgment.kdna --profile=compact --as=json
 ```
 
-| Command | Responsibility |
-|---|---|
-| `kdna inspect <file>` | Read container metadata without adopting its judgment |
-| `kdna validate <file>` | Check format, schema, payload, integrity, and load contract |
-| `kdna plan-load <file>` | Return the authorization/readiness decision before projection |
-| `kdna load <file>` | Produce a Runtime Capsule or prompt projection |
-| `kdna pack` / `kdna unpack` | Package or inspect a portable asset |
+To approve that exact file for one workspace, save the current task text in a
+regular file and use the workspace contract:
+
+```bash
+kdna attach ./demo-judgment.kdna --cwd ./my-project \
+  --role article-writing --applies-to draft --does-not-apply-to code --yes
+kdna attachments --cwd ./my-project
+kdna resolve --cwd ./my-project --task-file ./current-task.txt
+```
+
+`attach` copies the validated bytes to an immutable digest snapshot under
+`./my-project/.kdna/`. The source file may then move without changing the
+workspace fact. Omit `--yes` for an interactive approval prompt; non-interactive
+callers must provide it explicitly.
+
+| Command                               | Responsibility                                                      |
+| ------------------------------------- | ------------------------------------------------------------------- |
+| `kdna inspect <file>`                 | Read container metadata without adopting its judgment               |
+| `kdna validate <file>`                | Check format, schema, payload, integrity, and load contract         |
+| `kdna plan-load <file>`               | Return the authorization/readiness decision before projection       |
+| `kdna load <file>`                    | Produce a Runtime Capsule or prompt projection                      |
+| `kdna pack` / `kdna unpack`           | Package or inspect a portable asset                                 |
+| `kdna attach` / `kdna attachments`    | Approve or list exact workspace-local attachments                   |
+| `kdna resolve`                        | Return `load`, `ask`, `skip`, or `block` without projecting content |
+| `kdna disable` / `enable`             | Retain an attachment while controlling eligibility                  |
+| `kdna switch` / `rollback` / `remove` | Replace, restore, or remove only the workspace relation             |
 
 Successful loading proves technical delivery of a named projection. It does
 not prove that an Agent followed the judgment or that the result became better.
@@ -45,24 +64,35 @@ A consuming Host must start from:
 - an exact workspace, application, session, or user attachment that the Host
   previously recorded as user-approved.
 
+The CLI reference implementation records that approval only in
+`<workspace>/.kdna/attachments.json`, with immutable snapshots in
+`<workspace>/.kdna/assets/`. It never falls back to a user-global package
+directory, scans for unrelated assets, or merges parent and child workspace
+records. The record and snapshots are ignored by Git by default because they
+may expose private preferences and asset identity.
+
 Saving, discovery, attachment, authorization, applicability, and loading are
 separate events. A Host must expose active asset identity, version or digest,
 scope, and reason, and provide controls to disable it, switch it, or roll it
 back.
 
-## Published management and advanced surfaces
+## Maintained advanced modules and historical surfaces
 
-Exact releases also contain local-store, setup, discovery, routing,
-composition, Cluster, WorkPack, Trace, evaluation, identity, encryption,
-activation, and remote-loading commands. These are versioned facts, not the
-default product model. Several are experimental or under product
-recertification.
+The repository still maintains routing, composition, Cluster, WorkPack, Trace,
+evaluation, identity, encryption, activation, remote-loading, and historical
+Store implementation modules. They retain their tests and release history but
+are not workspace attachment authority.
+
+The default dispatcher no longer exposes `available`, `match`, Store
+`install`, package `remove`, `update`, package `list`, `registry`, or `setup`.
+`remove` now means only removal of one workspace attachment relation and never
+deletes an immutable snapshot.
 
 In particular:
 
-- installing or finding an asset does not authorize or attach it;
+- historical Store state does not authorize or attach an asset;
 - an `active_version` in the legacy Store is not Host consent;
-- `kdna setup` and Skill-file presence do not prove an Agent integration;
+- Skill-file presence does not prove an Agent integration;
 - routing and matching may operate only inside an already user-approved
   attachment set;
 - evaluation output is claimant-scoped and is not Core validity or an official

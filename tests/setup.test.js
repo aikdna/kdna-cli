@@ -5,7 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
-const cli = path.resolve(__dirname, '..', 'src', 'cli.js');
+const cli = path.resolve(__dirname, 'helpers', 'invoke-internal-command.js');
 const bundled = fs.readFileSync(
   path.resolve(__dirname, '..', 'skills', 'kdna-loader', 'SKILL.md'),
   'utf8',

@@ -23,6 +23,7 @@ const {
 } = require('../src/runtime-contract');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
+const INTERNAL_CLI = path.resolve(__dirname, 'helpers', 'invoke-internal-command.js');
 const CORE_PRELOAD = path.resolve(__dirname, 'helpers', 'require-golden-core.js');
 const CORE_SOURCE_ROOT = process.env.KDNA_CORE_SOURCE_ROOT || process.env.KDNA_GOLDEN_CORE_ROOT;
 const CORE_ENTRY = CORE_SOURCE_ROOT
@@ -64,6 +65,19 @@ function run(args, env = {}) {
     .filter(Boolean)
     .join(' ');
   return spawnSync(process.execPath, [CLI, ...args], {
+    encoding: 'utf8',
+    env: { ...process.env, NODE_OPTIONS: nodeOptions, KDNA_QUIET: '1', ...env },
+  });
+}
+
+function runInternal(args, env = {}) {
+  const nodeOptions = [
+    process.env.NODE_OPTIONS,
+    CORE_SOURCE_ROOT ? `--require=${JSON.stringify(CORE_PRELOAD)}` : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
+  return spawnSync(process.execPath, [INTERNAL_CLI, ...args], {
     encoding: 'utf8',
     env: { ...process.env, NODE_OPTIONS: nodeOptions, KDNA_QUIET: '1', ...env },
   });
@@ -361,7 +375,7 @@ test('installed ConsumptionPlan binds A and C to the independent install receipt
   const sourceBytes = fs.readFileSync(readOnlyAsset);
   const sourceMode = fs.statSync(readOnlyAsset).mode & 0o777;
   try {
-    const installed = run(['install', readOnlyAsset, '--yes', '--json'], env);
+    const installed = runInternal(['install', readOnlyAsset, '--yes', '--json'], env);
     assert.equal(installed.status, 0, installed.stderr);
     const receipt = JSON.parse(installed.stdout);
     assert.deepEqual(fs.readFileSync(readOnlyAsset), sourceBytes);
