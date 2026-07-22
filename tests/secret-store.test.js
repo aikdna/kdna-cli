@@ -194,6 +194,10 @@ test('macOS keychain backend writes secrets through the stdin helper, never argv
     t.skip('macOS-only integration test');
     return;
   }
+  if (process.env.CI) {
+    t.skip('CI keychains cannot display ACL prompts; behavior is covered by local verification');
+    return;
+  }
   process.env.KDNA_SECRET_STORE_BACKEND = 'keychain';
   const ss = freshSecretStore();
   const name = `helper-test-${process.pid}`;
