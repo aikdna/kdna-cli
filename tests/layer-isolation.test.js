@@ -82,13 +82,6 @@ const FORBIDDEN_RE = new RegExp(`\\b(${FORBIDDEN_TOKENS.join('|')})\\b`);
 // - line: 1-indexed line number in file
 // - reason: why this occurrence is NOT a content-trust claim
 const ALLOWLIST = [
-  // secret-store.js — docstring about recommended way to use keychain
-  {
-    file: 'src/secret-store.js',
-    line: 8,
-    reason:
-      'docstring: "This is the recommended [way]..." — tool-usage recommendation, not a content-trust claim',
-  },
   // diff.js — shared semver calculation and output field
   {
     file: 'src/diff.js',

@@ -3,11 +3,18 @@
  *
  * A cross-platform secret storage abstraction. Backends:
  *
- *   - 'keychain' (default on macOS): uses the macOS Keychain via the
- *     `security` CLI. Each secret is stored as a generic-password item
- *     under the `service` 'aikdna-kdna'. This is the recommended
- *     backend on macOS — the OS handles encryption at rest, app
- *     sandboxing, and Touch ID / AppleScript authorization.
+ *   - 'keychain' (default on macOS): uses the macOS Keychain. Writes go
+ *     through a small Swift helper (compiled once on first use into
+ *     ~/.kdna/bin, requiring the Xcode Command Line Tools) that receives
+ *     the secret over stdin, so values never appear in process argv. If
+ *     the compiler is unavailable the backend falls back to the
+ *     `security` CLI, whose `-w` flag briefly exposes the value in the
+ *     local process list. Reads/deletes use the `security` CLI and never
+ *     place secret values in argv. Note the CLI renders stored values
+ *     containing non-printable bytes as hex on read; secrets stored by
+ *     this backend are expected to be printable (PEM keys, JSON grants).
+ *     Items are stored as generic-password
+ *     entries under the `service` 'aikdna-kdna'.
  *
  *   - 'secret-service' (preferred on Linux desktops): uses libsecret's
  *     `secret-tool` and the active desktop keyring.
@@ -105,6 +112,95 @@ function keychainAvailable() {
   } catch {
     return false;
   }
+}
+
+const KEYCHAIN_HELPER_PATH = path.join(PATHS.root, 'bin', 'kdna-keychain-helper');
+
+const KEYCHAIN_HELPER_SOURCE = `import Foundation
+import Security
+
+let args = CommandLine.arguments
+guard args.count == 3 else {
+    fputs("usage: kdna-keychain-helper <service> <account>\\n", stderr)
+    exit(2)
+}
+let service = args[1]
+let account = args[2]
+let secret = FileHandle.standardInput.readDataToEndOfFile()
+guard !secret.isEmpty else {
+    fputs("secret must not be empty\\n", stderr)
+    exit(2)
+}
+let query: [CFString: Any] = [
+    kSecClass: kSecClassGenericPassword,
+    kSecAttrService: service,
+    kSecAttrAccount: account,
+]
+SecItemDelete(query as CFDictionary)
+var attributes = query
+attributes[kSecValueData] = secret
+let status = SecItemAdd(attributes as CFDictionary, nil)
+guard status == errSecSuccess else {
+    fputs("SecItemAdd failed: \\(status)\\n", stderr)
+    exit(1)
+}
+`;
+
+let keychainHelperState;
+
+function resolveSwiftc() {
+  for (const candidate of ['/usr/bin/swiftc']) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  try {
+    return execFileSync('xcrun', ['-f', 'swiftc'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    return null;
+  }
+}
+
+function keychainHelperAvailable() {
+  if (keychainHelperState !== undefined) return keychainHelperState;
+  try {
+    if (!fs.existsSync(KEYCHAIN_HELPER_PATH)) {
+      const swiftc = resolveSwiftc();
+      if (!swiftc) {
+        keychainHelperState = false;
+        return false;
+      }
+      fs.mkdirSync(path.dirname(KEYCHAIN_HELPER_PATH), { recursive: true, mode: 0o700 });
+      const tmp = `${KEYCHAIN_HELPER_PATH}.tmp-${process.pid}`;
+      const srcTmp = `${tmp}.swift`;
+      fs.writeFileSync(srcTmp, KEYCHAIN_HELPER_SOURCE, { mode: 0o600 });
+      execFileSync(swiftc, ['-O', '-o', tmp, srcTmp], { stdio: ['ignore', 'ignore', 'pipe'] });
+      fs.unlinkSync(srcTmp);
+      fs.renameSync(tmp, KEYCHAIN_HELPER_PATH);
+      fs.chmodSync(KEYCHAIN_HELPER_PATH, 0o700);
+    }
+    keychainHelperState = true;
+  } catch {
+    keychainHelperState = false;
+  }
+  return keychainHelperState;
+}
+
+function keychainSet(name, value) {
+  if (keychainHelperAvailable()) {
+    execFileSync(KEYCHAIN_HELPER_PATH, [SERVICE_NAME, name], {
+      input: value,
+      stdio: ['pipe', 'ignore', 'pipe'],
+    });
+    return;
+  }
+  // Fallback: the `security` CLI only accepts the new value via argv, where
+  // it is briefly visible to other local users in the process list. Install
+  // the Xcode Command Line Tools to compile the stdin-based helper and remove
+  // this exposure.
+  execFileSync(
+    'security',
+    ['add-generic-password', '-a', name, '-s', SERVICE_NAME, '-w', value, '-U'],
+    { stdio: ['ignore', 'ignore', 'pipe'] },
+  );
 }
 
 function ensureFileBackendDir() {
@@ -233,12 +329,7 @@ const backends = {
       if (!keychainAvailable()) {
         throw new SecretStoreError('BACKEND_UNAVAILABLE', 'macOS Keychain not available');
       }
-      // -U updates in place if exists, otherwise adds
-      execFileSync(
-        'security',
-        ['add-generic-password', '-a', name, '-s', SERVICE_NAME, '-w', value, '-U'],
-        { stdio: ['ignore', 'ignore', 'pipe'] },
-      );
+      keychainSet(name, value);
     },
     async delete(name) {
       if (!keychainAvailable()) {
@@ -428,11 +519,7 @@ function syncBackend() {
         }
       },
       set(name, value) {
-        execFileSync(
-          'security',
-          ['add-generic-password', '-a', name, '-s', SERVICE_NAME, '-w', value, '-U'],
-          { stdio: ['ignore', 'ignore', 'pipe'] },
-        );
+        keychainSet(name, value);
       },
       delete(name) {
         try {
@@ -560,6 +647,7 @@ module.exports = {
     encodeName,
     decodeName,
     keychainAvailable,
+    keychainHelperAvailable,
     secretToolAvailable,
     passAvailable,
     memorySecrets,
