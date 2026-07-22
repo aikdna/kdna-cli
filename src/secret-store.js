@@ -118,10 +118,10 @@ function securityCliAvailable() {
 }
 
 function keychainAvailable() {
-  if (os.platform() !== 'darwin') return false;
   if (process.env.KDNA_KEYCHAIN_HELPER_PATH) {
     return fs.existsSync(process.env.KDNA_KEYCHAIN_HELPER_PATH);
   }
+  if (os.platform() !== 'darwin') return false;
   return fs.existsSync(KEYCHAIN_HELPER_PATH) || resolveSwiftc() !== null;
 }
 
