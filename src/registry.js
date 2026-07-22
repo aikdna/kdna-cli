@@ -13,7 +13,8 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { execFileSync } = require('child_process');
+
+const { assertHttpsDownloadUrl, CURL_HTTPS_ONLY_ARGS, curlFetch } = require('./https-download');
 
 const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
 const REGISTRY_DIR = path.join(USER_KDNA_DIR, 'registry');
@@ -160,11 +161,19 @@ function verifyRegistrySignature(registry, rawPayload) {
   if (rootKeys.length === 0)
     return { verified: false, error: 'No Ed25519 root keys in trust metadata' };
 
-  // Check if the registry has a signature file
+  // Check if the registry has a signature file. The signature and payload
+  // fetches are HTTPS-only with redirect downgrade disabled, same as every
+  // other curl path: a cached registry must never re-enable an http: or
+  // credentialed registry endpoint.
   const sigUrl = CANONICAL_REGISTRY_URL.replace(/\.json$/, '.sig');
+  try {
+    assertHttpsDownloadUrl(sigUrl);
+  } catch (guardError) {
+    return { verified: false, error: guardError.message };
+  }
   let signature;
   try {
-    const sigResult = execFileSync('curl', ['-sL', '--max-time', '10', sigUrl], {
+    const sigResult = curlFetch(['-sL', ...CURL_HTTPS_ONLY_ARGS, '--max-time', '10', sigUrl], {
       encoding: 'utf8',
       timeout: 15000,
     });
@@ -176,10 +185,18 @@ function verifyRegistrySignature(registry, rawPayload) {
 
   if (!rawPayload) {
     try {
-      rawPayload = execFileSync('curl', ['-sL', '--max-time', '10', CANONICAL_REGISTRY_URL], {
-        encoding: 'utf8',
-        timeout: 15000,
-      });
+      assertHttpsDownloadUrl(CANONICAL_REGISTRY_URL);
+    } catch (guardError) {
+      return { verified: false, error: guardError.message };
+    }
+    try {
+      rawPayload = curlFetch(
+        ['-sL', ...CURL_HTTPS_ONLY_ARGS, '--max-time', '10', CANONICAL_REGISTRY_URL],
+        {
+          encoding: 'utf8',
+          timeout: 15000,
+        },
+      );
     } catch {
       return { verified: false, error: 'Cannot fetch registry for verification' };
     }
@@ -303,7 +320,16 @@ class RegistrySource {
   }
 
   fetch() {
-    const raw = execFileSync('curl', ['-fsSL', this.url], { encoding: 'utf8', timeout: 30000 });
+    // HTTPS-only for both the canonical registry and custom scope
+    // registries from config: the URL scheme is not a config-level trust
+    // decision, and embedded credentials must never reach curl argv.
+    // curlFetch normalizes failures into a sterile DownloadError (stable
+    // category + exit code); raw curl stderr/stdout never propagates.
+    assertHttpsDownloadUrl(this.url);
+    const raw = curlFetch(['-fsSL', ...CURL_HTTPS_ONLY_ARGS, this.url], {
+      encoding: 'utf8',
+      timeout: 30000,
+    });
     const data = JSON.parse(raw);
     writeJson(this.cacheFile, data);
     return data;

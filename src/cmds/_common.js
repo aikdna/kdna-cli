@@ -122,30 +122,9 @@ function selfCheckText(item) {
   return '';
 }
 
-/**
- * Downloads over the CLI's curl paths are HTTPS-only. Registry metadata is
- * not a trust boundary for the URL scheme: a poisoned or redirected entry
- * must never turn `kdna install` / archive downloads into a file:// read or
- * a javascript:/ftp: fetch. Digest verification still runs on the downloaded
- * bytes; this guard only constrains how bytes are fetched.
- */
-function assertHttpsDownloadUrl(url) {
-  if (typeof url !== 'string' || !url) {
-    throw new Error('refusing to download: asset URL is missing');
-  }
-  let parsed;
-  try {
-    parsed = new URL(url);
-  } catch {
-    throw new Error(`refusing to download: invalid asset URL: ${url}`);
-  }
-  if (parsed.protocol !== 'https:') {
-    throw new Error(
-      `refusing to download: only https: URLs are allowed (got ${parsed.protocol || 'unknown scheme'})`,
-    );
-  }
-  return parsed;
-}
+// The HTTPS-only download guard lives in src/https-download.js so that
+// src/registry.js can use it without a require cycle through this module.
+const { assertHttpsDownloadUrl } = require('../https-download');
 
 function isYesNoSelfCheck(item) {
   const raw = selfCheckText(item).trim();

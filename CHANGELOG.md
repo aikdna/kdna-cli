@@ -2,6 +2,64 @@
 
 ## Unreleased
 
+- Apply one fail-closed transport policy to every packaged CLI path that sends
+  task, context, license, activation credential, account/device authorization,
+  provider token, or judgment material. Remote projection, legacy Activation,
+  account/device APIs, and the withdrawn compare source's provider client now
+  require an external `https:` origin; plain HTTP is accepted
+  only for the exact numeric loopback hosts `127.0.0.1` and `[::1]` (never
+  `localhost`, a LAN address, or another hostname). Each client admits only
+  its exact contractual origin/path shape and rejects URL credentials,
+  unapproved paths, query strings, fragments, parser normalization, and
+  non-visible-ASCII input before creating a request. Device verification
+  links use the same scheme/host rule while retaining their provider-issued
+  path and query contract.
+
+  Projection fetches now refuse every redirect, bound successful JSON bodies,
+  and fail closed on malformed responses. Activation/account clients already
+  did not follow redirects and now reject every non-2xx response explicitly.
+  User-facing failures expose at most a validated stable upstream code and
+  HTTP status: full URLs, redirect locations, server messages/bodies, tokens,
+  request material, raw network exceptions, and failed-sync local paths are
+  removed from the error boundary. Hostile tests prove the redirect target is
+  never reached and sensitive response or request material never appears. The
+  compare command remains outside the Preview; hardening its packaged source
+  does not restore or advertise that command.
+
+- Harden every CLI-owned curl fetch against redirect downgrade, credentialed
+  URLs, and error-path information leaks. All download paths — `kdna install`
+  asset downloads, the safe-archive fetch used by `diff` / `changelog`, the
+  canonical registry fetch, custom scope registry fetches, and the registry
+  signature sidecar fetch — now invoke curl with
+  `--proto =https --proto-redir =https` so `curl -L` can no longer follow an
+  HTTPS→HTTP or HTTPS→FTP redirect. URLs with embedded username/password
+  credentials are refused before curl runs, keeping credentials out of
+  process argv; registry and signature endpoints go through the same
+  `https:`-only guard as asset downloads (previously only the install/archive
+  paths were checked). Timeout, retry, digest, and signature verification
+  behavior is unchanged.
+
+  Download URLs carrying a query string or fragment are now also refused
+  before curl runs: query/fragment components are where leaked tokens live,
+  and CLI-managed downloads never need them. Correction of the earlier
+  hardening round's error contract: user-facing download errors previously
+  echoed the raw curl stderr/message and a merely credential-stripped URL
+  (still exposing the full path and query — an audit reproduced a leaked
+  `?token=` secret twice in one error). Errors on every download path now
+  carry only the asset coordinates or operation name, a stable error
+  category (`DOWNLOAD_URL_REFUSED`, `DOWNLOAD_PROTOCOL_BLOCKED`,
+  `DOWNLOAD_HTTP_ERROR`, `DOWNLOAD_TIMEOUT`, `DOWNLOAD_FAILED`, …) derived
+  from the curl exit code rather than parsed natural-language stderr, and
+  optionally the exit code itself. Full URLs, URL path/query/fragment,
+  local destination paths, curl stdout/stderr, server response bodies, and
+  Node's raw `execFileSync` message (which embeds argv) no longer reach
+  users; `redactUrlForError` is removed. Failed downloads now also remove
+  the partial temporary file. Hostile tests drive recording curl shims that
+  prove refused URLs never reach curl argv, that maximally hostile curl
+  stderr (full URL + token + local path + forged server response) never
+  reaches CLI output, and that HTTPS→HTTPS redirects still succeed while
+  HTTPS→HTTP/HTTPS→FTP stay blocked on all five fetch paths.
+
 - Make `kdna available` (and `kdna match`) discovery-only: the commands now
   enumerate installed candidates and emit manifest metadata plus LoadPlan
   diagnostics (`load_state`, `issues`) without calling `loadAuthorized` or
@@ -41,7 +99,7 @@
 - Withdraw the legacy behavior-comparison command surface from Preview. The
   Runtime path remains `inspect → validate → plan-load → load`; external
   outcome studies are not project release gates.
-- Bind the unpublished CLI candidate to KDNA Core source ref `3676ab0`, while
+- Bind the unpublished CLI candidate to final KDNA Core source ref `76bbc58`, while
   keeping release readiness blocked until that dependency has a canonical
   registry artifact.
 - Print the CLI's natural semantic version without a generation-style prefix.

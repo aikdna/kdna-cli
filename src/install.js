@@ -24,6 +24,7 @@ const {
   compareExactVersions,
 } = require('./registry');
 const { EXIT, error, assertHttpsDownloadUrl } = require('./cmds/_common');
+const { CURL_HTTPS_ONLY_ARGS, curlFetch, describeDownloadFailure } = require('./https-download');
 const PATHS = require('./paths');
 const {
   installAsset,
@@ -208,16 +209,19 @@ function printActiveVersionKeptHint(installed, full, jsonMode) {
 
 function downloadFile(url, dest) {
   // HTTPS-only: registry metadata must never redirect the installer to
-  // file:/ftp:/javascript: URLs. Digest verification below still applies.
+  // file:/ftp:/javascript: URLs, and token-bearing query/fragment URLs are
+  // refused before curl runs. Digest verification below still applies.
   assertHttpsDownloadUrl(url);
   ensureDir(path.dirname(dest));
   let lastErr;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      execFileSync('curl', ['-fsSL', '--retry', '2', '--retry-delay', '1', '-o', dest, url], {
-        timeout: 90000,
-        stdio: 'pipe',
-      });
+      curlFetch(
+        ['-fsSL', ...CURL_HTTPS_ONLY_ARGS, '--retry', '2', '--retry-delay', '1', '-o', dest, url],
+        {
+          timeout: 90000,
+        },
+      );
       return;
     } catch (e) {
       lastErr = e;
@@ -231,8 +235,10 @@ function downloadFile(url, dest) {
       }
     }
   }
-  const stderr = lastErr?.stderr?.toString().trim() || lastErr?.message || 'unknown';
-  throw new Error(`download failed after 3 attempts: ${stderr}`);
+  // lastErr is already a sterile DownloadError from curlFetch: it carries a
+  // stable category and exit code only, never curl stderr/stdout, the URL,
+  // or local paths (raw subprocess errors are never rethrown).
+  throw lastErr;
 }
 
 // ─── Signature verification ────────────────────────────────────────────
@@ -391,7 +397,17 @@ function installSingleFromUrl({ entry }, jsonMode = false, local = false) {
   try {
     downloadFile(assetUrl, tmpFile);
   } catch (downloadError) {
-    error(`Failed to download ${assetUrl}: ${downloadError.message}`, EXIT.REGISTRY_ERROR);
+    try {
+      fs.unlinkSync(tmpFile);
+    } catch {
+      /* the temp file may not exist yet */
+    }
+    // Sterile error: asset coordinates + a stable download category (+ curl
+    // exit code). Never the URL, URL parts, local paths, or server bytes.
+    error(
+      `Failed to download ${entry.name}@${entry.version}: ${describeDownloadFailure(downloadError)}`,
+      EXIT.REGISTRY_ERROR,
+    );
   }
 
   // asset digest check

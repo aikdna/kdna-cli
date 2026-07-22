@@ -13,6 +13,7 @@ const { error, EXIT } = require('./_common');
 const { loadJudgment } = require('../diff');
 const { RegistryResolver } = require('../registry');
 const { downloadAndExtractKdna } = require('../safe-archive');
+const { describeDownloadFailure } = require('../https-download');
 const { judgmentChanges, recommendedVersionBump } = require('../judgment-diff');
 
 function downloadVersion(entry, version, destDir, options = {}) {
@@ -110,7 +111,12 @@ function cmdChangelog(args = []) {
     });
   } catch (downloadError) {
     fs.rmSync(tempRoot, { recursive: true, force: true });
-    error(`Failed to download ${fetching}: ${downloadError.message}`, EXIT.PROVIDER_ERROR);
+    // Sterile error: asset coordinates + a stable download category (+ curl
+    // exit code). Never the URL, URL parts, local paths, or server bytes.
+    error(
+      `Failed to download ${fetching}: ${describeDownloadFailure(downloadError)}`,
+      EXIT.PROVIDER_ERROR,
+    );
   }
   fs.rmSync(tempRoot, { recursive: true, force: true });
 

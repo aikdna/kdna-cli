@@ -1,4 +1,5 @@
 const { CANONICAL_REGISTRY_URL, REGISTRY_CACHE, fetchRegistry } = require('../registry');
+const { describeDownloadFailure } = require('../https-download');
 const { error, loadRegistry, EXIT } = require('./_common');
 const { listInstalled, readContainer } = require('../package-store');
 
@@ -96,7 +97,17 @@ function cmdRegistry(subcommand) {
   if (subcommand !== 'refresh') {
     error('Usage: kdna registry refresh');
   }
-  const domains = fetchRegistry();
+  let domains;
+  try {
+    domains = fetchRegistry();
+  } catch (fetchError) {
+    // Sterile error: operation name + stable download category only; never
+    // the registry URL, curl stderr, or local cache paths.
+    error(
+      `Failed to refresh registry: ${describeDownloadFailure(fetchError)}`,
+      EXIT.REGISTRY_ERROR,
+    );
+  }
   console.log(`✓ Registry refreshed from ${CANONICAL_REGISTRY_URL}`);
   console.log(`  Cache: ${REGISTRY_CACHE}`);
   console.log(`  Domains: ${domains.length}`);
