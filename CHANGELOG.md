@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- Apply one fail-closed transport policy to every CLI path that sends task,
+  context, license, activation credential, or account/device authorization
+  material. Remote projection, legacy Activation, and account/device API
+  endpoints now require an external `https:` origin; plain HTTP is accepted
+  only for the exact numeric loopback hosts `127.0.0.1` and `[::1]` (never
+  `localhost`, a LAN address, or another hostname). Each client admits only
+  its exact contractual origin/path shape and rejects URL credentials,
+  unapproved paths, query strings, fragments, parser normalization, and
+  non-visible-ASCII input before creating a request. Device verification
+  links use the same scheme/host rule while retaining their provider-issued
+  path and query contract.
+
+  Projection fetches now refuse every redirect, bound successful JSON bodies,
+  and fail closed on malformed responses. Activation/account clients already
+  did not follow redirects and now reject every non-2xx response explicitly.
+  User-facing failures expose at most a validated stable upstream code and
+  HTTP status: full URLs, redirect locations, server messages/bodies, tokens,
+  request material, raw network exceptions, and failed-sync local paths are
+  removed from the error boundary. Hostile tests prove the redirect target is
+  never reached and sensitive response or request material never appears.
+
 - Harden every CLI-owned curl fetch against redirect downgrade, credentialed
   URLs, and error-path information leaks. All download paths — `kdna install`
   asset downloads, the safe-archive fetch used by `diff` / `changelog`, the

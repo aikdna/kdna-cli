@@ -16,6 +16,13 @@ const { EXIT, error } = require('./_common');
 const { recordTrace } = require('./trace');
 const PATHS = require('../paths');
 const external = require('../external-entitlement');
+const {
+  accountApiEndpoint,
+  assertAccountApiRequestUrl,
+  legacyActivationEndpoint,
+  safeRemoteCode,
+  safeVerificationUrl,
+} = require('../remote-transport');
 const IDENTITY_DIR = PATHS.identity;
 const PRIVATE_KEY_PATH = path.join(IDENTITY_DIR, 'kdna.key');
 const PUBLIC_KEY_PATH = path.join(IDENTITY_DIR, 'kdna.pub');
@@ -297,7 +304,7 @@ function readActivationFromFile(url, domain, key) {
 
 function postJson(url, body) {
   return new Promise((resolve, reject) => {
-    const u = new URL(url);
+    const u = new URL(legacyActivationEndpoint(url));
     const client = u.protocol === 'http:' ? http : https;
     const data = JSON.stringify(body);
     const req = client.request(
@@ -314,22 +321,44 @@ function postJson(url, body) {
       },
       (res) => {
         const chunks = [];
-        res.on('data', (chunk) => chunks.push(chunk));
-        res.on('end', () => {
-          const text = Buffer.concat(chunks).toString('utf8');
-          if (res.statusCode >= 400) {
-            reject(new Error(`activation server HTTP ${res.statusCode}: ${text.slice(0, 300)}`));
+        let size = 0;
+        res.on('error', () => reject(new Error('activation server response is invalid')));
+        res.on('data', (chunk) => {
+          size += chunk.length;
+          if (size > 64 * 1024) {
+            res.destroy(new Error('activation server response is too large'));
             return;
           }
+          chunks.push(chunk);
+        });
+        res.on('end', () => {
+          const contentType = res.headers['content-type'] || '';
+          const jsonContent = /^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(contentType);
+          let payload = null;
           try {
-            resolve(JSON.parse(text));
+            if (jsonContent) payload = JSON.parse(Buffer.concat(chunks).toString('utf8'));
           } catch {
-            reject(new Error(`activation server returned invalid JSON`));
+            // Generic response boundary below.
           }
+          if (res.statusCode < 200 || res.statusCode >= 300) {
+            const code = safeRemoteCode(
+              payload?.error?.code || payload?.code,
+              'ACTIVATION_REQUEST_REJECTED',
+            );
+            reject(
+              new Error(
+                `activation server rejected the request [${code}] (HTTP ${res.statusCode})`,
+              ),
+            );
+            return;
+          }
+          if (!payload || typeof payload !== 'object' || Array.isArray(payload))
+            return reject(new Error('activation server returned an invalid response'));
+          resolve(payload);
         });
       },
     );
-    req.on('error', reject);
+    req.on('error', () => reject(new Error('activation server is unavailable')));
     req.on('timeout', () => req.destroy(new Error('activation server timeout')));
     req.write(data);
     req.end();
@@ -341,13 +370,14 @@ async function requestActivation(domain, key, server) {
   if (server.startsWith('file://') || server.startsWith('/')) {
     return readActivationFromFile(server, domain, key);
   }
-  const payload = await postJson(server, {
+  const endpoint = legacyActivationEndpoint(server);
+  const payload = await postJson(endpoint, {
     domain,
     license_key: key,
     machine_fingerprint: machineFingerprint(),
     client: 'kdna-cli',
   });
-  return normalizeActivation(domain, key, payload, server);
+  return normalizeActivation(domain, key, payload, endpoint);
 }
 
 function writeInstalledLicense(license) {
@@ -593,17 +623,12 @@ async function cmdLicenseActivate(args = []) {
 }
 
 function accountApiUrl(server, resource) {
-  const base = server.replace(/\/+$/, '');
-  const parsed = new URL(base);
-  if (!['http:', 'https:'].includes(parsed.protocol))
-    throw new Error('activation server must use HTTP or HTTPS');
-  const apiBase = base.endsWith('/api') ? base : `${base}/api`;
-  return `${apiBase}/v1/${resource.replace(/^\/+/, '')}`;
+  return accountApiEndpoint(server, resource);
 }
 
 function postAccountJson(url, body) {
   return new Promise((resolve, reject) => {
-    const u = new URL(url);
+    const u = new URL(assertAccountApiRequestUrl(url));
     const client = u.protocol === 'http:' ? http : https;
     const data = JSON.stringify(body);
     const req = client.request(
@@ -634,14 +659,20 @@ function postAccountJson(url, body) {
           } catch {
             /* generic below */
           }
-          if (res.statusCode >= 400) {
-            const code = payload?.error?.code || payload?.code || 'request_rejected';
+          if (res.statusCode < 200 || res.statusCode >= 300) {
+            const code = safeRemoteCode(
+              payload?.error?.code || payload?.code,
+              'ACCOUNT_REQUEST_REJECTED',
+            );
             reject(
-              new Error(`activation server rejected the request (HTTP ${res.statusCode}, ${code})`),
+              new Error(
+                `activation server rejected the request [${code}] (HTTP ${res.statusCode})`,
+              ),
             );
             return;
           }
-          if (!payload) return reject(new Error('activation server returned invalid JSON'));
+          if (!payload || typeof payload !== 'object' || Array.isArray(payload))
+            return reject(new Error('activation server returned an invalid response'));
           resolve(payload);
         });
       },
@@ -685,13 +716,7 @@ async function activateExternalGrant({ domain, server, args, jsonMode }) {
   if (!created.activation_id || !created.challenge || !created.verification_uri) {
     throw new Error('activation server response is missing device authorization fields');
   }
-  const verificationUrl = new URL(created.verification_uri);
-  const localHttp =
-    verificationUrl.protocol === 'http:' &&
-    ['127.0.0.1', 'localhost', '::1'].includes(verificationUrl.hostname);
-  if (verificationUrl.protocol !== 'https:' && !localHttp) {
-    throw new Error('device verification URI must use HTTPS (or local HTTP for development)');
-  }
+  const verificationUrl = safeVerificationUrl(created.verification_uri);
   const proof = external.activationProof({
     activationId: created.activation_id,
     challenge: created.challenge,
@@ -701,14 +726,14 @@ async function activateExternalGrant({ domain, server, args, jsonMode }) {
   if (!args.includes('--no-browser')) {
     try {
       const { spawn } = require('node:child_process');
-      const child = spawn('open', [created.verification_uri], { detached: true, stdio: 'ignore' });
+      const child = spawn('open', [verificationUrl], { detached: true, stdio: 'ignore' });
       child.unref();
     } catch {
       /* user can open the printed URL */
     }
   }
   if (!jsonMode) {
-    console.log(`Open: ${created.verification_uri}`);
+    console.log(`Open: ${verificationUrl}`);
     if (created.user_code) console.log(`Device code: ${created.user_code}`);
     console.log('Waiting for account authorization…');
   }
@@ -770,11 +795,11 @@ async function syncOneLicense(entry, serverOverride = null) {
   const key = licenseKey(license);
   const server = serverOverride || license.activation_server || license.license_server_url || null;
   if (!license.domain || !key || !server) {
-    return {
+    return publicSyncFailure({
       ...licenseStatusRecord(license, entry.file),
       synced: false,
       sync_error: 'missing domain, license key, or activation server',
-    };
+    });
   }
   try {
     const activation = await requestActivation(license.domain, key, server);
@@ -790,30 +815,37 @@ async function syncOneLicense(entry, serverOverride = null) {
   } catch (e) {
     const syncError = redactLicenseKey(e.message, key);
     recordLicenseTrace('sync', license, { server, synced: false, sync_error: syncError });
-    return {
+    return publicSyncFailure({
       ...licenseStatusRecord(license, entry.file),
       synced: false,
       sync_error: syncError,
-    };
+    });
   }
+}
+
+function publicSyncFailure(record) {
+  const safe = { ...record };
+  delete safe.file;
+  delete safe.server;
+  return safe;
 }
 
 async function syncExternalEntitlement(domain, serverOverride = null) {
   const metadata = external.readMetadata(domain);
   if (!metadata?.entitlement_id || !metadata?.device_id) {
-    return {
+    return publicSyncFailure({
       ...(external.statusRecord(domain) || { domain }),
       synced: false,
       sync_error: 'activation metadata is incomplete',
-    };
+    });
   }
   const server = serverOverride || metadata.server;
   if (!server)
-    return {
+    return publicSyncFailure({
       ...external.statusRecord(domain),
       synced: false,
       sync_error: 'activation server is missing',
-    };
+    });
   try {
     const device = external.prepareDevice(domain, metadata.device_label);
     const challenge = await postAccountJson(
@@ -847,7 +879,11 @@ async function syncExternalEntitlement(domain, serverOverride = null) {
     external.installActivation({ domain, server, assetPath, response, device });
     return { ...external.statusRecord(domain), synced: true };
   } catch (error) {
-    return { ...external.statusRecord(domain), synced: false, sync_error: error.message };
+    return publicSyncFailure({
+      ...external.statusRecord(domain),
+      synced: false,
+      sync_error: error.message,
+    });
   }
 }
 

@@ -67,7 +67,7 @@ async function withReflectingActivationErrorServer(key, fn) {
   }
 }
 
-test('license activate redacts license_key from activation server errors', async () => {
+test('license activate sterilizes activation server errors', async () => {
   const env = makeIsolatedEnv('kdna-license-redact-activate-');
   const key = 'KDNA-LIC-SHOULD-NOT-LEAK';
 
@@ -78,11 +78,12 @@ test('license activate redacts license_key from activation server errors', async
     );
     assert.ok(!activate.ok, 'activation should fail');
     assert.doesNotMatch(activate.stderr, new RegExp(key));
-    assert.match(activate.stderr, /redacted-license-key/);
+    assert.doesNotMatch(activate.stderr, /denied request body/);
+    assert.match(activate.stderr, /\[DENIED\]/);
   });
 });
 
-test('license sync redacts license_key from output and trace errors', async () => {
+test('license sync sterilizes output and trace errors', async () => {
   const env = makeIsolatedEnv('kdna-license-redact-sync-');
   const key = 'KDNA-LIC-SYNC-SHOULD-NOT-LEAK';
   const licenseDir = path.join(env.KDNA_HOME, 'licenses');
@@ -112,13 +113,17 @@ test('license sync redacts license_key from output and trace errors', async () =
     const sync = await runAsync(['license', 'sync', '@aikdna/redact-sync', '--json'], { env });
     assert.ok(sync.ok, `sync command should return status JSON: ${sync.stderr}`);
     assert.doesNotMatch(sync.stdout, new RegExp(key));
-    assert.match(sync.stdout, /redacted-license-key/);
+    assert.doesNotMatch(sync.stdout, /denied request body/);
+    assert.doesNotMatch(sync.stdout, /kdna-license-redact-sync-/);
+    assert.match(sync.stdout, /\[DENIED\]/);
     const syncJson = JSON.parse(sync.stdout);
     assert.equal(syncJson.synced, false);
 
     const trace = await runAsync(['trace', '--json'], { env });
     assert.ok(trace.ok, `trace failed: ${trace.stderr}`);
     assert.doesNotMatch(trace.stdout, new RegExp(key));
-    assert.match(trace.stdout, /redacted-license-key/);
+    assert.doesNotMatch(trace.stdout, /denied request body/);
+    assert.doesNotMatch(trace.stdout, /kdna-license-redact-sync-/);
+    assert.match(trace.stdout, /\[DENIED\]/);
   });
 });

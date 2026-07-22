@@ -66,6 +66,11 @@ const { scanBundleDeprecations, formatDeprecationStderr } = require('./cmds/depr
 const studio = require('./cmds/studio');
 const { resolveAsset, readAssetManifest } = require('./package-store');
 const { loadExternalAuthorization } = require('./external-entitlement');
+const {
+  readBoundedFetchJson,
+  remoteProjectionEndpoint,
+  safeRemoteCode,
+} = require('./remote-transport');
 
 const resolveAssetCallback = (name) => {
   const pkg = resolveAsset(name);
@@ -165,10 +170,11 @@ function showHelp() {
                                      --namespace=<component-id>
                                      --password-stdin        Read a protected
                                        asset password from stdin
-                                     --remote-server <url>   Use a visible-ASCII
-                                       HTTP(S) server base URL or exact /project
+                                     --remote-server <url>   Use a canonical
+                                       HTTPS server origin or exact /project
                                        endpoint with kdna-remote-server for
-                                       access: "remote" assets.
+                                       access: "remote" assets. HTTP is allowed
+                                       only for 127.0.0.1 or [::1] development.
                                        Equivalent to the
                                        KDNA_REMOTE_SERVER env var.
                                      --task <name>           Task verb
@@ -1418,54 +1424,7 @@ function isAccessRemote(abs) {
  * If neither is set, we fail with a clear error.
  */
 function resolveRemoteProjectionUrl(remoteServer) {
-  const hasForbiddenRawCharacter =
-    typeof remoteServer === 'string' &&
-    [...remoteServer].some((character) => {
-      const codePoint = character.codePointAt(0);
-      return (
-        character === '\\' ||
-        character === '?' ||
-        character === '#' ||
-        codePoint < 0x21 ||
-        codePoint > 0x7e
-      );
-    });
-  if (typeof remoteServer !== 'string' || remoteServer.length === 0 || hasForbiddenRawCharacter) {
-    throw new Error('remote server URL contains forbidden raw characters');
-  }
-
-  const scheme = /^https?:\/\//i.exec(remoteServer);
-  if (!scheme) throw new Error('unsupported protocol');
-  const authorityAndPath = remoteServer.slice(scheme[0].length);
-  const pathOffset = authorityAndPath.indexOf('/');
-  const authority = pathOffset === -1 ? authorityAndPath : authorityAndPath.slice(0, pathOffset);
-  const rawPath = pathOffset === -1 ? '' : authorityAndPath.slice(pathOffset);
-  if (
-    authority.length === 0 ||
-    authority.includes('@') ||
-    !['', '/', '/project'].includes(rawPath)
-  ) {
-    throw new Error('unsupported authority or path');
-  }
-
-  const parsed = new URL(remoteServer);
-  if (
-    !['http:', 'https:'].includes(parsed.protocol) ||
-    !parsed.hostname ||
-    parsed.username ||
-    parsed.password ||
-    parsed.search ||
-    parsed.hash
-  ) {
-    throw new Error('unsupported URL structure');
-  }
-  const expectedPath = rawPath === '/project' ? '/project' : '/';
-  if (parsed.pathname !== expectedPath) {
-    throw new Error('URL parser changed the raw path');
-  }
-
-  parsed.pathname = '/project';
-  return parsed.toString();
+  return remoteProjectionEndpoint(remoteServer);
 }
 
 async function runRemoteLoad(opts) {
@@ -1513,8 +1472,8 @@ async function runRemoteLoad(opts) {
     url = resolveRemoteProjectionUrl(remoteServer);
   } catch (_) {
     process.stderr.write(
-      'Error: --remote-server must be a visible-ASCII HTTP(S) server base URL or the exact /project endpoint.\n' +
-        'Internationalized hostnames must use their ASCII (punycode) form.\n',
+      'Error: --remote-server must be a canonical HTTPS origin or exact /project endpoint.\n' +
+        'HTTP is allowed only for the exact 127.0.0.1 or [::1] loopback host.\n',
     );
     process.exit(EXIT.INPUT_ERROR);
     return;
@@ -1531,38 +1490,37 @@ async function runRemoteLoad(opts) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: reqBody,
+      redirect: 'error',
       signal: AbortSignal.timeout(10_000),
     });
 
     if (!response.ok) {
-      let body;
+      let code = 'REMOTE_REQUEST_REJECTED';
       try {
-        body = await response.json();
-      } catch (_) {
-        body = null;
+        const body = await readBoundedFetchJson(response);
+        code = safeRemoteCode(body?.error?.code);
+      } catch {
+        // A malformed error response is still a rejection. Its body never
+        // crosses the user-facing error boundary.
       }
-      const code = body && body.error && body.error.code;
-      const msg = body && body.error && body.error.message;
       process.stderr.write(
-        `Error: remote server returned HTTP ${response.status}` +
-          (code ? ` (${code})` : '') +
-          (msg ? `: ${msg}` : '') +
-          '\n',
+        `Error: remote projection rejected [${code}] (HTTP ${response.status}). ` +
+          'No projection was loaded.\n',
       );
       process.exit(EXIT.PROVIDER_ERROR);
     }
 
-    const projection = await response.json();
+    const projection = await readBoundedFetchJson(response);
     // CRITICAL-2 (2026-06-29): hand off to the formatter and
     // explicit-exit helper. The async IIFE that called us
     // doesn't await; the explicit process.exit() inside the
     // helper keeps node from closing in-flight fetch handles
     // before stdout has fully flushed.
     finishRemoteLoad(projection, url, assetUid, task, context, mode, as);
-  } catch (e) {
+  } catch {
     process.stderr.write(
-      `Error: remote server unreachable at ${url}: ${e.message}\n` +
-        'Check the URL or that kdna-remote-server is running.\n',
+      'Error: remote projection request failed [REMOTE_TRANSPORT_FAILED]. ' +
+        'No projection was loaded.\n',
     );
     process.exit(EXIT.PROVIDER_ERROR);
   }

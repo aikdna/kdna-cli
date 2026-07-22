@@ -85,6 +85,7 @@ async function startFakeRemoteServer(opts = {}) {
       asset_version: '1.0.0',
     },
     statusCode: opts.statusCode || 200,
+    redirectUrl: opts.redirectUrl || null,
   });
 
   const script = `
@@ -105,6 +106,11 @@ async function startFakeRemoteServer(opts = {}) {
             url: req.url, method: req.method, body: body ? JSON.parse(body) : null,
           }));
         } catch (_) { /* ignore */ }
+        if (cfg.redirectUrl) {
+          res.writeHead(302, { Location: cfg.redirectUrl });
+          res.end();
+          return;
+        }
         res.writeHead(statusCode, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(response));
       });
@@ -392,7 +398,13 @@ test('CRITICAL-2: server error response (non-2xx) is mapped to a CLI error', asy
   try {
     server = await startFakeRemoteServer({
       statusCode: 403,
-      response: { ok: false, error: { code: 'ENTITLEMENT_DENIED', message: 'license not valid' } },
+      response: {
+        ok: false,
+        error: {
+          code: 'ENTITLEMENT_DENIED',
+          message: 'license not valid; token=server-secret; file=/tmp/provider/private.json',
+        },
+      },
     });
     const dir = makeRemoteFixture(tmp);
     const r = run(['load', dir, '--as=json', '--remote-server', server.url], {
@@ -400,9 +412,38 @@ test('CRITICAL-2: server error response (non-2xx) is mapped to a CLI error', asy
     });
     assert.notEqual(r.status, 0, 'server error must produce non-zero exit');
     assert.match(r.stderr, /ENTITLEMENT_DENIED/);
-    assert.match(r.stderr, /license not valid/);
+    assert.doesNotMatch(r.stderr, /license not valid|server-secret|provider\/private/);
+    assert.match(r.stderr, /No projection was loaded/);
   } finally {
     if (server) await server.stop();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('CRITICAL-2: projection redirects are not followed and errors expose no URL', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-crit2-'));
+  let destination;
+  let redirector;
+  try {
+    destination = await startFakeRemoteServer();
+    redirector = await startFakeRemoteServer({
+      redirectUrl: `${destination.url}?token=redirect-secret`,
+    });
+    const dir = makeRemoteFixture(tmp);
+    const r = run(['load', dir, '--as=json', '--remote-server', redirector.url], {
+      env: { KDNA_IDENTITY_DIR: path.join(tmp, 'keys') },
+    });
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, /REMOTE_TRANSPORT_FAILED/);
+    assert.doesNotMatch(r.stderr, /127\.0\.0\.1|redirect-secret|\/project/);
+    assert.equal(
+      readLastRequest(destination),
+      null,
+      'redirect destination must receive no request',
+    );
+  } finally {
+    if (redirector) await redirector.stop();
+    if (destination) await destination.stop();
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
@@ -445,6 +486,9 @@ test('CRITICAL-2: non-canonical remote URLs fail before any request', async () =
     const dir = makeRemoteFixture(tmp);
     const baseUrl = server.url.replace('/project', '');
     const hostileUrls = [
+      ['localhost HTTP exception', baseUrl.replace('127.0.0.1', 'localhost')],
+      ['LAN HTTP exception', 'http://192.168.1.10:3000'],
+      ['external HTTP service', 'http://remote.example.test'],
       ['empty userinfo', baseUrl.replace('://', '://@')],
       ['userinfo', baseUrl.replace('://', '://user:password@')],
       ['empty query', `${baseUrl}?`],
@@ -500,7 +544,7 @@ test('CRITICAL-2: non-canonical remote URLs fail before any request', async () =
         env: { KDNA_IDENTITY_DIR: path.join(tmp, 'keys') },
       });
       assert.equal(r.status, 2, `${label} must fail as input: ${r.stderr}`);
-      assert.match(r.stderr, /server base URL or the exact \/project endpoint/);
+      assert.match(r.stderr, /canonical HTTPS origin or exact \/project endpoint/);
       assert.equal(readLastRequest(server), null, `${label} must not reach the server`);
     }
   } finally {
@@ -521,7 +565,7 @@ test('CRITICAL-2: obsolete projection path is rejected instead of accepted as an
       env: { KDNA_IDENTITY_DIR: path.join(tmp, 'keys') },
     });
     assert.equal(r.status, 2);
-    assert.match(r.stderr, /server base URL or the exact \/project endpoint/);
+    assert.match(r.stderr, /canonical HTTPS origin or exact \/project endpoint/);
     assert.equal(readLastRequest(server), null, 'rejected aliases must not reach the server');
   } finally {
     if (server) await server.stop();
