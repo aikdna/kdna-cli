@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- Harden every CLI-owned curl fetch against redirect downgrade and
+  credentialed URLs. All download paths — `kdna install` asset downloads,
+  the safe-archive fetch used by `diff` / `changelog`, the canonical
+  registry fetch, custom scope registry fetches, and the registry signature
+  sidecar fetch — now invoke curl with `--proto =https --proto-redir =https`
+  so `curl -L` can no longer follow an HTTPS→HTTP or HTTPS→FTP redirect.
+  URLs with embedded username/password credentials are refused before curl
+  runs, keeping credentials out of process argv; registry and signature
+  endpoints go through the same `https:`-only guard as asset downloads
+  (previously only the install/archive paths were checked). Error messages
+  no longer echo the offending URL: credentials are stripped, non-`https:`
+  URLs are reduced to their scheme, and unparseable input is never
+  reflected. Timeout, retry, digest, and signature verification behavior is
+  unchanged. Hostile tests drive a recording curl shim that proves the
+  protocol-pinning flags reach curl argv on all three paths and simulates
+  HTTPS→HTTPS (allowed), HTTPS→HTTP, and HTTPS→FTP (blocked) redirects.
+
 - Make `kdna available` (and `kdna match`) discovery-only: the commands now
   enumerate installed candidates and emit manifest metadata plus LoadPlan
   diagnostics (`load_state`, `issues`) without calling `loadAuthorized` or

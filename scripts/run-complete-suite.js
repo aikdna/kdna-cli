@@ -24,6 +24,7 @@ const UNIT_TEST_FILES = Object.freeze([
   'tests/e2e-password.test.js',
   'tests/capsule-verify.test.js',
   'tests/archive-io-hardening.test.js',
+  'tests/discovery-install-hardening.test.js',
   'tests/cli-smoke.test.js',
   'tests/setup.test.js',
   'tests/secret-store.test.js',

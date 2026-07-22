@@ -8,7 +8,7 @@ const { execFileSync } = require('node:child_process');
 const { TextDecoder } = require('node:util');
 const zlib = require('node:zlib');
 const { nameFromAssetId } = require('./registry');
-const { assertHttpsDownloadUrl } = require('./cmds/_common');
+const { assertHttpsDownloadUrl, CURL_HTTPS_ONLY_ARGS } = require('./https-download');
 
 const EOCD_SIGNATURE = 0x06054b50;
 const CENTRAL_SIGNATURE = 0x02014b50;
@@ -470,7 +470,7 @@ function extractKdnaArchive(archivePath, destination, options = {}) {
 
 function curlDownload(url, outputPath) {
   assertHttpsDownloadUrl(url);
-  execFileSync('curl', ['-fsSL', '--retry', '2', '-o', outputPath, url], {
+  execFileSync('curl', ['-fsSL', ...CURL_HTTPS_ONLY_ARGS, '--retry', '2', '-o', outputPath, url], {
     timeout: 60000,
     stdio: 'pipe',
   });

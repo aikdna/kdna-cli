@@ -24,6 +24,7 @@ const {
   compareExactVersions,
 } = require('./registry');
 const { EXIT, error, assertHttpsDownloadUrl } = require('./cmds/_common');
+const { CURL_HTTPS_ONLY_ARGS, redactUrlForError } = require('./https-download');
 const PATHS = require('./paths');
 const {
   installAsset,
@@ -214,10 +215,14 @@ function downloadFile(url, dest) {
   let lastErr;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      execFileSync('curl', ['-fsSL', '--retry', '2', '--retry-delay', '1', '-o', dest, url], {
-        timeout: 90000,
-        stdio: 'pipe',
-      });
+      execFileSync(
+        'curl',
+        ['-fsSL', ...CURL_HTTPS_ONLY_ARGS, '--retry', '2', '--retry-delay', '1', '-o', dest, url],
+        {
+          timeout: 90000,
+          stdio: 'pipe',
+        },
+      );
       return;
     } catch (e) {
       lastErr = e;
@@ -391,7 +396,10 @@ function installSingleFromUrl({ entry }, jsonMode = false, local = false) {
   try {
     downloadFile(assetUrl, tmpFile);
   } catch (downloadError) {
-    error(`Failed to download ${assetUrl}: ${downloadError.message}`, EXIT.REGISTRY_ERROR);
+    error(
+      `Failed to download ${redactUrlForError(assetUrl)}: ${downloadError.message}`,
+      EXIT.REGISTRY_ERROR,
+    );
   }
 
   // asset digest check
