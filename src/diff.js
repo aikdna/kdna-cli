@@ -23,6 +23,7 @@ const { RegistryResolver } = require('./registry');
 const { EXIT } = require('./cmds/_common');
 const { assertInstalledIntegrity, getInstalled, readContainer } = require('./package-store');
 const { downloadAndExtractKdna } = require('./safe-archive');
+const { describeDownloadFailure } = require('./https-download');
 const {
   judgmentChanges,
   jsonChanges,
@@ -293,7 +294,12 @@ async function cmdDiff(a, b, args = []) {
     });
   } catch (downloadError) {
     fs.rmSync(tempRoot, { recursive: true, force: true });
-    error(`Failed to download ${fetching}: ${downloadError.message}`, EXIT.PROVIDER_ERROR);
+    // Sterile error: asset coordinates + a stable download category (+ curl
+    // exit code). Never the URL, URL parts, local paths, or server bytes.
+    error(
+      `Failed to download ${fetching}: ${describeDownloadFailure(downloadError)}`,
+      EXIT.PROVIDER_ERROR,
+    );
   }
   fs.rmSync(tempRoot, { recursive: true, force: true });
 

@@ -4,11 +4,10 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { execFileSync } = require('node:child_process');
 const { TextDecoder } = require('node:util');
 const zlib = require('node:zlib');
 const { nameFromAssetId } = require('./registry');
-const { assertHttpsDownloadUrl, CURL_HTTPS_ONLY_ARGS } = require('./https-download');
+const { assertHttpsDownloadUrl, CURL_HTTPS_ONLY_ARGS, curlFetch } = require('./https-download');
 
 const EOCD_SIGNATURE = 0x06054b50;
 const CENTRAL_SIGNATURE = 0x02014b50;
@@ -47,7 +46,12 @@ const CRC_TABLE = (() => {
 })();
 
 function fail(message) {
-  throw new Error(`unsafe KDNA archive: ${message}`);
+  const err = new Error(`unsafe KDNA archive: ${message}`);
+  // CLI-owned, vetted message: asset coordinates and archive entry names
+  // only — never local paths, URLs, curl output, or server bytes. Safe to
+  // surface to users via describeDownloadFailure.
+  err.cliOwned = true;
+  throw err;
 }
 
 function ensureRange(buffer, offset, length, label) {
@@ -441,7 +445,10 @@ function extractKdnaArchive(archivePath, destination, options = {}) {
     options.onVerifiedArchive(archivePath, verified);
   }
   if (fs.existsSync(absoluteDestination)) {
-    throw new Error(`refusing to replace existing extraction destination: ${absoluteDestination}`);
+    // Never echo the local destination path in a user-facing error.
+    const err = new Error('refusing to replace an existing extraction destination');
+    err.cliOwned = true;
+    throw err;
   }
 
   const parent = path.dirname(absoluteDestination);
@@ -470,9 +477,10 @@ function extractKdnaArchive(archivePath, destination, options = {}) {
 
 function curlDownload(url, outputPath) {
   assertHttpsDownloadUrl(url);
-  execFileSync('curl', ['-fsSL', ...CURL_HTTPS_ONLY_ARGS, '--retry', '2', '-o', outputPath, url], {
+  // curlFetch normalizes failures into a sterile DownloadError: callers
+  // never see curl stderr/stdout, the URL, or the local output path.
+  curlFetch(['-fsSL', ...CURL_HTTPS_ONLY_ARGS, '--retry', '2', '-o', outputPath, url], {
     timeout: 60000,
-    stdio: 'pipe',
   });
 }
 

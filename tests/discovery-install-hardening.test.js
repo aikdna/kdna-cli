@@ -25,6 +25,7 @@ const { buildChecksums, pack } = require('@aikdna/kdna-core');
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 const CURRENT_FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'minimal');
 const { assertHttpsDownloadUrl } = require('../src/cmds/_common');
+const { DownloadError, describeDownloadFailure } = require('../src/https-download');
 const { downloadAndExtractKdna } = require('../src/safe-archive');
 
 function run(args, opts = {}) {
@@ -589,7 +590,14 @@ test('archive download path: HTTPS->HTTPS redirect works, HTTP/FTP redirects blo
       const blocked = path.join(fixtureDir, `blocked-${origin.slice(8)}`);
       assert.throws(
         () => downloadAndExtractKdna(`${origin}/${archiveName}`, blocked),
-        /Protocol ".*" not supported|Command failed/,
+        (err) => {
+          // Stable, sterile category — never curl's natural-language stderr.
+          assert.match(err.message, /^DOWNLOAD_PROTOCOL_BLOCKED \(curl exit 1\)$/, err.message);
+          assert.ok(!err.message.includes('Protocol "'), err.message);
+          assert.ok(!err.message.includes(origin), err.message);
+          assert.ok(!err.message.includes(archiveName), err.message);
+          return true;
+        },
         label,
       );
       assert.equal(fs.existsSync(blocked), false, label);
@@ -657,8 +665,14 @@ test('kdna install download path: HTTPS->HTTPS redirect installs, downgrade redi
       cwd: proj,
     });
     assert.equal(downgraded.ok, false, 'install must fail when the redirect downgrades');
-    assert.match(downgraded.stderr, /Failed to download/);
-    assert.match(downgraded.stderr, /Protocol "http" not supported/);
+    assert.match(downgraded.stderr, /Failed to download @aikdna\/transport-install@1\.0\.0/);
+    assert.match(downgraded.stderr, /DOWNLOAD_PROTOCOL_BLOCKED \(curl exit 1\)/);
+    // Raw curl stderr must never reach the user: the libcurl message, the
+    // full URL, and the local temp path are all forbidden in CLI output.
+    const downgradedOutput = downgraded.stdout + downgraded.stderr;
+    assert.ok(!downgradedOutput.includes('Protocol "http" not supported'), downgradedOutput);
+    assert.ok(!downgradedOutput.includes(DOWNGRADE_HTTP_ORIGIN), downgradedOutput);
+    assert.ok(!downgradedOutput.includes('.kdna.tmp'), downgradedOutput);
 
     // Credentialed URL: refused before curl runs, and the error must not
     // echo the credentials.
@@ -736,7 +750,15 @@ test('registry fetch path: canonical registry, signature fetch, and redirect dow
         registryUrl: `${DOWNGRADE_HTTP_ORIGIN}/registry.json`,
       });
       try {
-        assert.throws(() => downgraded.mod.fetchRegistry(), /Protocol "http" not supported/);
+        assert.throws(
+          () => downgraded.mod.fetchRegistry(),
+          (err) => {
+            assert.match(err.message, /^DOWNLOAD_PROTOCOL_BLOCKED \(curl exit 1\)$/, err.message);
+            assert.ok(!err.message.includes('Protocol "http" not supported'), err.message);
+            assert.ok(!err.message.includes(DOWNGRADE_HTTP_ORIGIN), err.message);
+            return true;
+          },
+        );
         assert.deepEqual(downgraded.mod.loadRegistry({ allowNetwork: true, refresh: true }), []);
       } finally {
         downgraded.restore();
@@ -806,4 +828,291 @@ test('registry fetch path: custom scope registries are pinned and downgrades blo
       fs.rmSync(home, { recursive: true, force: true });
     }
   });
+});
+
+// ─── 5. hostile error paths: nothing raw ever reaches the user ───────────────
+//
+// User-facing download errors may carry ONLY: the asset coordinates or the
+// operation name, a stable error category (DOWNLOAD_*), and the curl exit
+// code. Forbidden everywhere: the full URL, URL path/query/fragment,
+// credentials or tokens, local destination paths, curl stdout/stderr, and
+// server response bytes.
+
+const HOSTILE_ORIGIN = 'https://hostile.invalid';
+const HOSTILE_TOKEN = 'TOP_SECRET_TOKEN';
+const HOSTILE_LOCAL_PATH = '/Users/attacker/private/secret-target.kdna';
+const HOSTILE_SERVER_BODY = 'FORGED-SERVER-RESPONSE-BODY';
+
+// A PATH shim for `curl` whose stderr is maximally hostile: it embeds the
+// full request URL, a query-style token, a local machine path, and a forged
+// server response, then writes partial bytes to the -o target and exits 22.
+// None of these strings may appear in CLI stdout/stderr or in thrown error
+// messages.
+function hostileCurlShimDir() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-hostile-curl-shim-'));
+  const script = `#!/bin/sh
+if [ -n "$KDNA_CURL_SHIM_ARGV_LOG" ]; then
+  printf '%s\\n' "$@" >> "$KDNA_CURL_SHIM_ARGV_LOG"
+fi
+out=""
+url=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "-o" ]; then out="$arg"; fi
+  prev="$arg"
+  url="$arg"
+done
+if [ -n "$out" ]; then
+  printf 'partial-bytes' > "$out"
+fi
+printf 'curl: (22) The requested URL returned error: 500 %s\\n' "$url" >&2
+printf 'server said: ${HOSTILE_SERVER_BODY} token=${HOSTILE_TOKEN} dest=${HOSTILE_LOCAL_PATH}\\n' >&2
+exit 22
+`;
+  fs.writeFileSync(path.join(dir, 'curl'), script, { mode: 0o755 });
+  return dir;
+}
+
+function assertSterileDownloadError(text) {
+  for (const leaked of [
+    HOSTILE_TOKEN,
+    HOSTILE_LOCAL_PATH,
+    HOSTILE_SERVER_BODY,
+    HOSTILE_ORIGIN,
+    'curl: (22)',
+    'secret-fragment',
+  ]) {
+    assert.ok(!text.includes(leaked), `forbidden string leaked into user output: ${leaked}`);
+  }
+}
+
+test('assertHttpsDownloadUrl refuses query strings and fragments without echoing them', () => {
+  for (const [url, needle] of [
+    [`https://example.invalid/asset.kdna?token=${HOSTILE_TOKEN}`, /query string/],
+    ['https://example.invalid/asset.kdna#secret-fragment', /fragment/],
+  ]) {
+    assert.throws(
+      () => assertHttpsDownloadUrl(url),
+      (err) => {
+        assert.match(err.message, /DOWNLOAD_URL_REFUSED/);
+        assert.match(err.message, needle);
+        assert.ok(!err.message.includes(HOSTILE_TOKEN), err.message);
+        assert.ok(!err.message.includes('secret-fragment'), err.message);
+        assert.ok(!err.message.includes('example.invalid'), err.message);
+        return true;
+      },
+      url,
+    );
+  }
+});
+
+test('describeDownloadFailure collapses raw subprocess messages to stable categories', () => {
+  // Simulates an execFileSync failure whose ONLY payload is Error#message:
+  // Node embeds the full argv (URL + local destination path) there, and a
+  // forged server body may ride along. None of it may survive.
+  const raw = new Error(
+    `Command failed: curl -fsSL https://example.invalid/a.kdna?token=${HOSTILE_TOKEN} ` +
+      `-o ${HOSTILE_LOCAL_PATH}\n${HOSTILE_SERVER_BODY}`,
+  );
+  raw.status = 22;
+  const described = describeDownloadFailure(raw);
+  assert.equal(described, 'DOWNLOAD_FAILED');
+
+  const classified = describeDownloadFailure(new DownloadError('DOWNLOAD_HTTP_ERROR', 22));
+  assert.equal(classified, 'DOWNLOAD_HTTP_ERROR (curl exit 22)');
+
+  for (const text of [described, classified]) {
+    assertSterileDownloadError(text);
+    assert.ok(!text.includes('example.invalid'), text);
+    assert.ok(!text.includes('Command failed'), text);
+  }
+});
+
+test('install path: query-token and fragment asset URLs are refused before curl runs', () => {
+  const { root, proj, env } = makeEnv();
+  const shimDir = transportCurlShimDir();
+  const logFile = path.join(root, 'curl-argv.log');
+  const registryDir = path.join(env.KDNA_HOME, 'registry');
+  fs.mkdirSync(registryDir, { recursive: true });
+  const digest = `sha256:${'4'.repeat(64)}`;
+  const shimEnv = {
+    ...env,
+    PATH: `${shimDir}${path.delimiter}${process.env.PATH}`,
+    KDNA_ARCHIVE_FIXTURE_DIR: root,
+    KDNA_CURL_SHIM_ARGV_LOG: logFile,
+    KDNA_REGISTRY_URL: '',
+  };
+  try {
+    for (const [label, assetUrl] of [
+      ['query token', `${FIXTURE_ORIGIN}/asset.kdna?token=${HOSTILE_TOKEN}`],
+      ['fragment', `${FIXTURE_ORIGIN}/asset.kdna#secret-fragment`],
+    ]) {
+      writeJson(
+        path.join(registryDir, 'domains.json'),
+        registryDocument([registryDomainEntry('@aikdna/query-refused', '1.0.0', assetUrl, digest)]),
+      );
+      const result = run(['install', '@aikdna/query-refused', '--yes'], {
+        env: shimEnv,
+        cwd: proj,
+      });
+      assert.equal(result.ok, false, label);
+      assert.match(result.stderr, /DOWNLOAD_URL_REFUSED/, label);
+      assertSterileDownloadError(result.stdout + result.stderr);
+      assert.ok(!(result.stdout + result.stderr).includes(FIXTURE_ORIGIN), label);
+    }
+    assert.equal(
+      fs.existsSync(logFile),
+      false,
+      'curl must never run for a refused asset URL, so tokens never reach argv',
+    );
+  } finally {
+    fs.rmSync(shimDir, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('archive path: query-token and fragment URLs are refused before curl runs', () => {
+  withTransportShim(({ logFile }) => {
+    for (const [url, needle] of [
+      [`${FIXTURE_ORIGIN}/asset.kdna?token=${HOSTILE_TOKEN}`, /query string/],
+      [`${FIXTURE_ORIGIN}/asset.kdna#secret-fragment`, /fragment/],
+    ]) {
+      assert.throws(
+        () => downloadAndExtractKdna(url, path.join(os.tmpdir(), 'kdna-never-created-query')),
+        (err) => {
+          assert.match(err.message, /DOWNLOAD_URL_REFUSED/);
+          assert.match(err.message, needle);
+          assertSterileDownloadError(err.message);
+          assert.ok(!err.message.includes(FIXTURE_ORIGIN), err.message);
+          return true;
+        },
+      );
+    }
+    assert.equal(fs.existsSync(logFile), false, 'curl must never run for a refused URL');
+  });
+});
+
+test('registry endpoints with query strings or fragments are refused before curl runs', () => {
+  withTransportShim(({ logFile }) => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-query-endpoint-home-'));
+    try {
+      // Canonical registry endpoint (canonical fetch + signature sidecar
+      // derive from it).
+      for (const registryUrl of [
+        `${FIXTURE_ORIGIN}/registry.json?token=${HOSTILE_TOKEN}`,
+        `${FIXTURE_ORIGIN}/registry.json#secret-fragment`,
+      ]) {
+        const refused = freshRegistryModule({ home, registryUrl });
+        try {
+          assert.throws(
+            () => refused.mod.fetchRegistry(),
+            (err) => {
+              assert.match(err.message, /DOWNLOAD_URL_REFUSED/);
+              assertSterileDownloadError(err.message);
+              assert.ok(!err.message.includes(FIXTURE_ORIGIN), err.message);
+              return true;
+            },
+            registryUrl,
+          );
+        } finally {
+          refused.restore();
+        }
+      }
+
+      // Custom scope registry endpoint from config.json.
+      fs.mkdirSync(path.join(home, '.kdna'), { recursive: true });
+      writeJson(path.join(home, '.kdna', 'config.json'), {
+        default_scope: '@aikdna',
+        registries: { '@custom': `${FIXTURE_ORIGIN}/custom.json?token=${HOSTILE_TOKEN}` },
+      });
+      const { mod, restore } = freshRegistryModule({ home, registryUrl: '' });
+      try {
+        const resolver = new mod.RegistryResolver({ allowNetwork: true, refresh: true });
+        assert.throws(
+          () => resolver.resolve('@custom/thing'),
+          (err) => {
+            assert.match(err.message, /Cannot load registry for scope @custom/);
+            assertSterileDownloadError(err.message);
+            return true;
+          },
+        );
+      } finally {
+        restore();
+      }
+      assert.equal(
+        fs.existsSync(logFile),
+        false,
+        'curl must never run for a refused registry endpoint',
+      );
+    } finally {
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+});
+
+test('install path: hostile curl stderr never reaches the user and temp files are cleaned', () => {
+  const { root, proj, env } = makeEnv();
+  const shimDir = hostileCurlShimDir();
+  const logFile = path.join(root, 'curl-argv.log');
+  const registryDir = path.join(env.KDNA_HOME, 'registry');
+  fs.mkdirSync(registryDir, { recursive: true });
+  writeJson(
+    path.join(registryDir, 'domains.json'),
+    registryDocument([
+      registryDomainEntry(
+        '@aikdna/hostile-install',
+        '1.0.0',
+        `${HOSTILE_ORIGIN}/asset.kdna`,
+        `sha256:${'3'.repeat(64)}`,
+      ),
+    ]),
+  );
+  try {
+    const result = run(['install', '@aikdna/hostile-install', '--yes'], {
+      env: {
+        ...env,
+        PATH: `${shimDir}${path.delimiter}${process.env.PATH}`,
+        KDNA_CURL_SHIM_ARGV_LOG: logFile,
+        KDNA_REGISTRY_URL: '',
+      },
+      cwd: proj,
+    });
+    assert.equal(result.ok, false, 'hostile download must fail');
+    assert.match(
+      result.stderr,
+      /Failed to download @aikdna\/hostile-install@1\.0\.0: DOWNLOAD_HTTP_ERROR \(curl exit 22\)/,
+    );
+    assertSterileDownloadError(result.stdout + result.stderr);
+
+    // The shim wrote partial bytes into the temp download target; a failed
+    // download must not leave it behind.
+    const downloadsDir = path.join(env.KDNA_HOME, 'cache', 'downloads');
+    const leftovers = fs.existsSync(downloadsDir) ? fs.readdirSync(downloadsDir) : [];
+    assert.deepEqual(leftovers, [], 'failed downloads must not leave temp files behind');
+  } finally {
+    fs.rmSync(shimDir, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('archive path: hostile curl stderr never reaches thrown errors', () => {
+  const shimDir = hostileCurlShimDir();
+  const savedPath = process.env.PATH;
+  process.env.PATH = `${shimDir}${path.delimiter}${process.env.PATH}`;
+  try {
+    const dest = path.join(os.tmpdir(), `kdna-never-created-hostile-${Date.now()}`);
+    let thrown = null;
+    try {
+      downloadAndExtractKdna(`${HOSTILE_ORIGIN}/asset.kdna`, dest);
+    } catch (e) {
+      thrown = e;
+    }
+    assert.ok(thrown, 'hostile download must fail');
+    assert.equal(thrown.message, 'DOWNLOAD_HTTP_ERROR (curl exit 22)');
+    assertSterileDownloadError(thrown.message);
+    assert.equal(fs.existsSync(dest), false, 'extraction destination must not be created');
+  } finally {
+    process.env.PATH = savedPath;
+    fs.rmSync(shimDir, { recursive: true, force: true });
+  }
 });

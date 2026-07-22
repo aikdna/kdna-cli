@@ -85,17 +85,17 @@ const ALLOWLIST = [
   // diff.js — shared semver calculation and output field
   {
     file: 'src/diff.js',
-    line: 31,
+    line: 32,
     reason: 'shared `recommendedVersionBump` helper import — semver calculation',
   },
   {
     file: 'src/diff.js',
-    line: 377,
+    line: 383,
     reason: 'shared `recommendedVersionBump` helper call — semver calculation',
   },
   {
     file: 'src/diff.js',
-    line: 395,
+    line: 401,
     reason:
       'output field: `recommended_version_bump: <semver>` — semver tool recommendation, not a content-trust claim',
   },
@@ -113,22 +113,22 @@ const ALLOWLIST = [
   // cmds/changelog.js — shared semver calculation and output
   {
     file: 'src/cmds/changelog.js',
-    line: 16,
+    line: 17,
     reason: 'shared `recommendedVersionBump` helper import — semver calculation',
   },
   {
     file: 'src/cmds/changelog.js',
-    line: 138,
+    line: 144,
     reason: 'internal var from `recommendedVersionBump` — semver calculation',
   },
   {
     file: 'src/cmds/changelog.js',
-    line: 156,
+    line: 162,
     reason: 'output field: `recommended_version_bump: <semver>` — semver tool recommendation',
   },
   {
     file: 'src/cmds/changelog.js',
-    line: 203,
+    line: 209,
     reason:
       'output: "Recommended version bump: `<semver>`" — semver tool recommendation, not a content-trust claim',
   },

@@ -13,9 +13,8 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { execFileSync } = require('child_process');
 
-const { assertHttpsDownloadUrl, CURL_HTTPS_ONLY_ARGS } = require('./https-download');
+const { assertHttpsDownloadUrl, CURL_HTTPS_ONLY_ARGS, curlFetch } = require('./https-download');
 
 const USER_KDNA_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.kdna');
 const REGISTRY_DIR = path.join(USER_KDNA_DIR, 'registry');
@@ -174,14 +173,10 @@ function verifyRegistrySignature(registry, rawPayload) {
   }
   let signature;
   try {
-    const sigResult = execFileSync(
-      'curl',
-      ['-sL', ...CURL_HTTPS_ONLY_ARGS, '--max-time', '10', sigUrl],
-      {
-        encoding: 'utf8',
-        timeout: 15000,
-      },
-    );
+    const sigResult = curlFetch(['-sL', ...CURL_HTTPS_ONLY_ARGS, '--max-time', '10', sigUrl], {
+      encoding: 'utf8',
+      timeout: 15000,
+    });
     signature = sigResult.trim();
   } catch {
     // .sig file may not exist yet (pre-signing transition)
@@ -195,8 +190,7 @@ function verifyRegistrySignature(registry, rawPayload) {
       return { verified: false, error: guardError.message };
     }
     try {
-      rawPayload = execFileSync(
-        'curl',
+      rawPayload = curlFetch(
         ['-sL', ...CURL_HTTPS_ONLY_ARGS, '--max-time', '10', CANONICAL_REGISTRY_URL],
         {
           encoding: 'utf8',
@@ -329,8 +323,10 @@ class RegistrySource {
     // HTTPS-only for both the canonical registry and custom scope
     // registries from config: the URL scheme is not a config-level trust
     // decision, and embedded credentials must never reach curl argv.
+    // curlFetch normalizes failures into a sterile DownloadError (stable
+    // category + exit code); raw curl stderr/stdout never propagates.
     assertHttpsDownloadUrl(this.url);
-    const raw = execFileSync('curl', ['-fsSL', ...CURL_HTTPS_ONLY_ARGS, this.url], {
+    const raw = curlFetch(['-fsSL', ...CURL_HTTPS_ONLY_ARGS, this.url], {
       encoding: 'utf8',
       timeout: 30000,
     });

@@ -2,22 +2,39 @@
 
 ## Unreleased
 
-- Harden every CLI-owned curl fetch against redirect downgrade and
-  credentialed URLs. All download paths — `kdna install` asset downloads,
-  the safe-archive fetch used by `diff` / `changelog`, the canonical
-  registry fetch, custom scope registry fetches, and the registry signature
-  sidecar fetch — now invoke curl with `--proto =https --proto-redir =https`
-  so `curl -L` can no longer follow an HTTPS→HTTP or HTTPS→FTP redirect.
-  URLs with embedded username/password credentials are refused before curl
-  runs, keeping credentials out of process argv; registry and signature
-  endpoints go through the same `https:`-only guard as asset downloads
-  (previously only the install/archive paths were checked). Error messages
-  no longer echo the offending URL: credentials are stripped, non-`https:`
-  URLs are reduced to their scheme, and unparseable input is never
-  reflected. Timeout, retry, digest, and signature verification behavior is
-  unchanged. Hostile tests drive a recording curl shim that proves the
-  protocol-pinning flags reach curl argv on all three paths and simulates
-  HTTPS→HTTPS (allowed), HTTPS→HTTP, and HTTPS→FTP (blocked) redirects.
+- Harden every CLI-owned curl fetch against redirect downgrade, credentialed
+  URLs, and error-path information leaks. All download paths — `kdna install`
+  asset downloads, the safe-archive fetch used by `diff` / `changelog`, the
+  canonical registry fetch, custom scope registry fetches, and the registry
+  signature sidecar fetch — now invoke curl with
+  `--proto =https --proto-redir =https` so `curl -L` can no longer follow an
+  HTTPS→HTTP or HTTPS→FTP redirect. URLs with embedded username/password
+  credentials are refused before curl runs, keeping credentials out of
+  process argv; registry and signature endpoints go through the same
+  `https:`-only guard as asset downloads (previously only the install/archive
+  paths were checked). Timeout, retry, digest, and signature verification
+  behavior is unchanged.
+
+  Download URLs carrying a query string or fragment are now also refused
+  before curl runs: query/fragment components are where leaked tokens live,
+  and CLI-managed downloads never need them. Correction of the earlier
+  hardening round's error contract: user-facing download errors previously
+  echoed the raw curl stderr/message and a merely credential-stripped URL
+  (still exposing the full path and query — an audit reproduced a leaked
+  `?token=` secret twice in one error). Errors on every download path now
+  carry only the asset coordinates or operation name, a stable error
+  category (`DOWNLOAD_URL_REFUSED`, `DOWNLOAD_PROTOCOL_BLOCKED`,
+  `DOWNLOAD_HTTP_ERROR`, `DOWNLOAD_TIMEOUT`, `DOWNLOAD_FAILED`, …) derived
+  from the curl exit code rather than parsed natural-language stderr, and
+  optionally the exit code itself. Full URLs, URL path/query/fragment,
+  local destination paths, curl stdout/stderr, server response bodies, and
+  Node's raw `execFileSync` message (which embeds argv) no longer reach
+  users; `redactUrlForError` is removed. Failed downloads now also remove
+  the partial temporary file. Hostile tests drive recording curl shims that
+  prove refused URLs never reach curl argv, that maximally hostile curl
+  stderr (full URL + token + local path + forged server response) never
+  reaches CLI output, and that HTTPS→HTTPS redirects still succeed while
+  HTTPS→HTTP/HTTPS→FTP stay blocked on all five fetch paths.
 
 - Make `kdna available` (and `kdna match`) discovery-only: the commands now
   enumerate installed candidates and emit manifest metadata plus LoadPlan
