@@ -19,6 +19,12 @@ const {
   safeRemoteCode,
 } = require('../runtime-remote-transport');
 const { snapshotAssetFile } = require('../snapshot-asset');
+const {
+  cmdRuntimeLoad,
+  cmdRuntimePlanLoad,
+  isRuntimeHostRequest,
+  isRuntimePlanRequest,
+} = require('../runtime-host-command');
 
 const ENTITLEMENT_STATUSES = new Set(['active', 'expired', 'revoked', 'offline_grace']);
 const LOAD_PROFILES = new Set(['index', 'compact', 'scenario', 'full']);
@@ -99,6 +105,7 @@ function cmdValidate(args) {
 }
 
 function cmdPlanLoad(args) {
+  if (isRuntimePlanRequest(args)) return cmdRuntimePlanLoad(args);
   rejectPasswordArgv(args);
   const parsed = parseCommandArgs(args, {
     booleans: ['--has-password', '--json'],
@@ -277,6 +284,7 @@ async function loadRemote({ manifest, parsed, outputFormat }) {
 }
 
 async function cmdLoad(args) {
+  if (isRuntimeHostRequest(args)) return cmdRuntimeLoad(args);
   rejectPasswordArgv(args);
   const parsed = parseCommandArgs(args, {
     booleans: ['--password-stdin', '--audit', '--has-password'],

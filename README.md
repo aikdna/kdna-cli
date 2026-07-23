@@ -45,8 +45,8 @@ callers must provide it explicitly.
 | ------------------------------------- | ------------------------------------------------------------------- |
 | `kdna inspect <file>`                 | Read container metadata without adopting its judgment               |
 | `kdna validate <file>`                | Check format, schema, payload, integrity, and load contract         |
-| `kdna plan-load <file>`               | Return the authorization/readiness decision before projection       |
-| `kdna load <file>`                    | Produce a Runtime Capsule or prompt projection                      |
+| `kdna plan-load <file>`               | Return a LoadPlan or explicit-file Host ConsumptionPlan             |
+| `kdna load <file>`                    | Produce a projection or deliver a Capsule to a registered Host      |
 | `kdna pack` / `kdna unpack`           | Package or inspect a portable asset                                 |
 | `kdna attach` / `kdna attachments`    | Approve or list exact workspace-local attachments                   |
 | `kdna resolve`                        | Return `load`, `ask`, `skip`, or `block` without projecting content |
@@ -89,8 +89,11 @@ at `release-surface/npm-file-allowlist.json`.
 
 The distributed runtime contains only the explicit file/workspace path shown
 above, the two maintained demo fixtures, runtime authorization support, and
-the closed remote projection client. Development and historical modules that
-remain in the source repository are not callable and are not distributed.
+the closed remote projection and explicit process Host clients. Process Host
+delivery requires an exact `.kdna` file, task, executable, ordered arguments,
+and a process-bound capability registration; it never resolves a package name
+or consults a global Store. Development and historical modules that remain in
+the source repository are not callable and are not distributed.
 
 `remove` means only removal of one workspace attachment relation. It never
 selects a package by name and never deletes an immutable asset snapshot.

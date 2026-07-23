@@ -7,13 +7,16 @@
   authority: the eight workspace controls, six explicit asset I/O commands,
   the maintained demo, help, and version are callable; every other top-level
   name follows one stable exit-code-2 rejection. The npm package now has one
-  executable and an exact 27-file allowlist containing only that file/workspace
-  Runtime, the two maintained fixtures, runtime authorization and remote
-  projection support, and the two allowlist documents. Historical evaluators,
+  executable and an exact 31-file allowlist containing only that file/workspace
+  Runtime, the two maintained fixtures, runtime authorization, remote
+  projection, explicit process Host delivery, and the two allowlist documents.
+  Host planning and delivery accept only an explicit packaged file and cannot
+  fall back to the historical package Store. Historical evaluators,
   experiments, global asset-library paths, validators, templates, and the
-  loader adapter remain outside both the dispatcher and the npm tar. The CLI no
-  longer depends on `@aikdna/kdna-eval`; release and clean-install checks bind
-  only the exact Core and CBOR dependencies required by the distributed code.
+  loader adapter remain outside both the dispatcher and the npm tar. The CLI
+  no longer depends on `@aikdna/kdna-eval`; release and clean-install checks
+  bind only the exact Core and CBOR dependencies required by the distributed
+  code.
 
 - Make explicit-file `kdna load` genuinely one-shot: it no longer creates
   `~/.kdna/audit.jsonl` unless the user opts in for that invocation with

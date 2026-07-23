@@ -23,7 +23,6 @@ const {
 } = require('../src/runtime-contract');
 
 const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
-const INTERNAL_CLI = path.resolve(__dirname, 'helpers', 'invoke-internal-command.js');
 const CORE_PRELOAD = path.resolve(__dirname, 'helpers', 'require-golden-core.js');
 const CORE_SOURCE_ROOT = process.env.KDNA_CORE_SOURCE_ROOT || process.env.KDNA_GOLDEN_CORE_ROOT;
 const CORE_ENTRY = CORE_SOURCE_ROOT
@@ -65,19 +64,6 @@ function run(args, env = {}) {
     .filter(Boolean)
     .join(' ');
   return spawnSync(process.execPath, [CLI, ...args], {
-    encoding: 'utf8',
-    env: { ...process.env, NODE_OPTIONS: nodeOptions, KDNA_QUIET: '1', ...env },
-  });
-}
-
-function runInternal(args, env = {}) {
-  const nodeOptions = [
-    process.env.NODE_OPTIONS,
-    CORE_SOURCE_ROOT ? `--require=${JSON.stringify(CORE_PRELOAD)}` : null,
-  ]
-    .filter(Boolean)
-    .join(' ');
-  return spawnSync(process.execPath, [INTERNAL_CLI, ...args], {
     encoding: 'utf8',
     env: { ...process.env, NODE_OPTIONS: nodeOptions, KDNA_QUIET: '1', ...env },
   });
@@ -235,7 +221,7 @@ test('Core candidate is the formal default dependency coordinate', () => {
     ? require(path.join(path.resolve(CORE_SOURCE_ROOT), 'package.json'))
     : require('@aikdna/kdna-core/package.json');
   assert.equal(corePackage.version, CORE_CANDIDATE_VERSION);
-  const current = run(['plan-use', asset, '--task=Review', '--as=json']);
+  const current = run(['plan-load', asset, '--task=Review', '--as=json']);
   assert.equal(current.status, 0, current.stderr);
   assert.equal(JSON.parse(current.stdout).contract_version, '0.1.0');
 });
@@ -273,36 +259,36 @@ test('exported budget profiles cannot be mutated across Plan builds', () => {
   assert.equal(plan.budget.max_projection_chars, 2500);
 });
 
-test('runtime-contract flag is isolated and unknown values never fall back', () => {
-  const unknown = run(['plan-use', asset, '--task=Review', '--runtime-contract=2']);
+test('runtime-contract flag is isolated and Host selectors never leak into planning', () => {
+  const unknown = run(['plan-load', asset, '--task=Review', '--runtime-contract=2']);
   assert.notEqual(unknown.status, 0);
   assert.match(unknown.stderr, /no generation selector/);
-  const leaked = run(['plan-use', asset, '--task=Review', '--agent-host-capabilities=x']);
-  assert.equal(leaked.status, 0, leaked.stderr);
-  assert.equal(JSON.parse(leaked.stdout).contract_version, '0.1.0');
-  const useLeaked = run(['use', asset, '--task=Review', '--agent-host-capabilities=x']);
+  const leaked = run(['plan-load', asset, '--task=Review', '--agent-host-capabilities=x']);
+  assert.notEqual(leaked.status, 0);
+  assert.match(leaked.stderr, /does not select or start an Agent Host/);
+  const useLeaked = run(['load', asset, '--task=Review', '--agent-host-capabilities=x']);
   assert.notEqual(useLeaked.status, 0);
   assert.match(useLeaked.stderr, /requires an explicit --agent-host/);
 });
 
-test('plan-use rejects selectors and every duplicate runtime-contract occurrence', () => {
+test('plan-load rejects selectors and every duplicate runtime-contract occurrence', () => {
   for (const flags of [
     ['--runtime-contract', '--runtime-contract'],
     ['--runtime-contract=0.1.0'],
   ]) {
-    const result = run(['plan-use', asset, '--task=Review', ...flags]);
+    const result = run(['plan-load', asset, '--task=Review', ...flags]);
     assert.notEqual(result.status, 0, flags.join('+'));
     assert.match(result.stderr, /no generation selector/);
     assert.equal(result.stdout, '');
   }
 });
 
-test('use rejects selectors and every duplicate runtime-contract occurrence', () => {
+test('load rejects selectors and every duplicate runtime-contract occurrence', () => {
   for (const flags of [
     ['--runtime-contract', '--runtime-contract'],
     ['--runtime-contract=0.1.0'],
   ]) {
-    const result = run(['use', asset, '--task=Review', ...flags]);
+    const result = run(['load', asset, '--task=Review', ...flags]);
     assert.notEqual(result.status, 0, flags.join('+'));
     assert.match(result.stderr, /no generation selector/);
     assert.equal(result.stdout, '');
@@ -366,65 +352,29 @@ test('ConsumptionPlan uses one packaged-byte snapshot and contains no local path
   });
 });
 
-test('installed ConsumptionPlan binds A and C to the independent install receipt', () => {
-  const home = path.join(root, 'installed-home');
-  const env = { HOME: home, KDNA_HOME: path.join(home, '.kdna') };
-  const readOnlyAsset = path.join(root, 'read-only-fixture.kdna');
-  fs.copyFileSync(asset, readOnlyAsset);
-  fs.chmodSync(readOnlyAsset, 0o444);
-  const sourceBytes = fs.readFileSync(readOnlyAsset);
-  const sourceMode = fs.statSync(readOnlyAsset).mode & 0o777;
-  try {
-    const installed = runInternal(['install', readOnlyAsset, '--yes', '--json'], env);
-    assert.equal(installed.status, 0, installed.stderr);
-    const receipt = JSON.parse(installed.stdout);
-    assert.deepEqual(fs.readFileSync(readOnlyAsset), sourceBytes);
-    assert.deepEqual(fs.readFileSync(receipt.path), sourceBytes);
-    if (process.platform !== 'win32') {
-      assert.equal(fs.statSync(readOnlyAsset).mode & 0o777, sourceMode);
-      assert.equal(fs.statSync(receipt.path).mode & 0o777, 0o600);
-    }
-    assert.equal(
-      fs
-        .readdirSync(path.dirname(path.dirname(receipt.path)))
-        .some((entry) => entry.includes('.tmp-')),
-      false,
-    );
-
-    const planned = run(
-      [
-        'plan-use',
-        receipt.name + '@1.0.0',
-        '--task=Review installed asset',
-        '--runtime-contract',
-        '--as=json',
-      ],
-      env,
-    );
-    assert.equal(planned.status, 0, planned.stderr);
-    const plan = JSON.parse(planned.stdout);
-    assert.deepEqual(
-      {
-        source: plan.asset_ref.expected_digests.asset.source,
-        comparison: plan.asset_ref.expected_digests.asset.comparison,
-      },
-      { source: 'install_receipt', comparison: 'matched' },
-    );
-    assert.deepEqual(
-      {
-        source: plan.asset_ref.expected_digests.content.source,
-        comparison: plan.asset_ref.expected_digests.content.comparison,
-      },
-      { source: 'install_receipt', comparison: 'matched' },
-    );
-  } finally {
-    fs.chmodSync(readOnlyAsset, 0o600);
-  }
+test('ConsumptionPlan rejects package names and never discovers the global Store', () => {
+  const home = path.join(root, 'closed-store-home');
+  const store = path.join(home, '.kdna', 'packages', '@aikdna', 'hidden', '1.0.0');
+  fs.mkdirSync(store, { recursive: true });
+  fs.copyFileSync(asset, path.join(store, 'asset.kdna'));
+  const planned = run(
+    [
+      'plan-load',
+      '@aikdna/hidden@1.0.0',
+      '--task=Review installed asset',
+      '--runtime-contract',
+      '--as=json',
+    ],
+    { HOME: home, KDNA_HOME: path.join(home, '.kdna') },
+  );
+  assert.notEqual(planned.status, 0);
+  assert.match(planned.stderr, /explicit packaged \.kdna file/);
+  assert.equal(planned.stdout, '');
 });
 
 test('missing capability descriptor is rejected before projection', () => {
   const result = run([
-    'use',
+    'load',
     asset,
     '--task=Review',
     '--runtime-contract',
@@ -542,7 +492,7 @@ test('negotiation blocks a missing delivery digest profile before Host calls', a
 
 test('selected negotiation followed by Capsule load failure returns an honest blocked JudgmentTrace', () => {
   const planned = run([
-    'plan-use',
+    'plan-load',
     invalidPayloadAsset,
     '--task=Review invalid payload',
     '--runtime-contract',
@@ -568,7 +518,7 @@ test('selected negotiation followed by Capsule load failure returns an honest bl
     script,
   ]);
   const result = run([
-    'use',
+    'load',
     invalidPayloadAsset,
     '--task=Review invalid payload',
     '--runtime-contract',
@@ -615,8 +565,8 @@ test('Host adapter construction failure returns a blocked Trace without a receip
   assert.equal(execution.trace.execution.execution_status, 'not_started');
 });
 
-test('runtime contract rejects space-form flags and invalid timeout before execution', () => {
-  for (const command of ['plan-use', 'use']) {
+test('runtime contract rejects generation selectors and invalid timeout before execution', () => {
+  for (const command of ['plan-load', 'load']) {
     for (const args of [
       [command, asset, '--task=Review', '--runtime-contract', '1'],
       [command, '--runtime-contract', '1', asset, '--task=Review'],
@@ -627,24 +577,24 @@ test('runtime contract rejects space-form flags and invalid timeout before execu
       assert.equal(result.stdout, '');
     }
   }
-  for (const timeout of ['100', '0', '-1', '1ms', '2147483648']) {
-    const timeoutArgs = timeout === '100' ? ['--timeout', timeout] : [`--timeout=${timeout}`];
-    const result = run(['use', asset, '--task=Review', '--runtime-contract', ...timeoutArgs]);
+  for (const timeout of ['0', '-1', '1ms', '2147483648']) {
+    const timeoutArgs = [`--timeout=${timeout}`];
+    const result = run(['load', asset, '--task=Review', '--runtime-contract', ...timeoutArgs]);
     assert.notEqual(result.status, 0, timeout);
     assert.match(result.stderr, /positive integer/);
     assert.equal(result.stdout, '');
   }
-  const timeoutBeforeTarget = run([
-    'use',
+  const validSpaceTimeout = run([
+    'load',
     '--runtime-contract',
     '--timeout',
     '100',
     asset,
     '--task=Review',
   ]);
-  assert.notEqual(timeoutBeforeTarget.status, 0);
-  assert.match(timeoutBeforeTarget.stderr, /positive integer/);
-  assert.equal(timeoutBeforeTarget.stdout, '');
+  assert.notEqual(validSpaceTimeout.status, 0);
+  assert.match(validSpaceTimeout.stderr, /requires an explicit --agent-host/);
+  assert.equal(validSpaceTimeout.stdout, '');
 });
 
 test('over-budget evidence uses Core terminal and calls Host adapter zero times', async () => {
@@ -767,7 +717,7 @@ test('Agent Host executes exact ordered args containing spaces and shell metacha
     processArgs,
   );
   const result = run([
-    'use',
+    'load',
     asset,
     '--task=Review exact process arguments',
     '--runtime-contract',
@@ -832,7 +782,7 @@ test('Host-native matched receipt and all five terminal states produce strict Ju
       script,
     ]);
     const result = run([
-      'use',
+      'load',
       asset,
       '--task=Review this packaged decision',
       '--runtime-contract',
@@ -889,15 +839,15 @@ test('fixture Host independently rejects identity tampering and reports Capsule 
 
 test('runtime contract blocks source directories, Cluster, mock, and missing Host explicitly', () => {
   const source = run([
-    'plan-use',
+    'plan-load',
     path.resolve(__dirname, '..', 'fixtures', 'minimal'),
     '--task=Review',
     '--runtime-contract',
   ]);
   assert.notEqual(source.status, 0);
-  assert.match(source.stderr, /regular packaged \.kdna/);
+  assert.match(source.stderr, /explicit packaged \.kdna/);
   const cluster = run([
-    'plan-use',
+    'plan-load',
     path.resolve(__dirname, '..', 'fixtures', 'cluster-launch-decision.json'),
     '--task=Review',
     '--runtime-contract',
@@ -905,7 +855,7 @@ test('runtime contract blocks source directories, Cluster, mock, and missing Hos
   assert.notEqual(cluster.status, 0);
   assert.match(cluster.stderr, /packaged \.kdna/);
   const mock = run([
-    'use',
+    'load',
     asset,
     '--task=Review',
     '--runtime-contract',
@@ -915,7 +865,7 @@ test('runtime contract blocks source directories, Cluster, mock, and missing Hos
   assert.notEqual(mock.status, 0);
   assert.match(mock.stderr, /requires --runner=cli:default/);
   const missing = run([
-    'use',
+    'load',
     asset,
     '--task=Review',
     '--runtime-contract',
@@ -931,7 +881,7 @@ test('Host registration and Trace never expose the local descriptor, executable,
     script,
   ]);
   const result = run([
-    'use',
+    'load',
     asset,
     '--task=Review privacy',
     '--runtime-contract',
@@ -951,9 +901,9 @@ test('Host registration and Trace never expose the local descriptor, executable,
 });
 
 test('plan-only uses the same ConsumptionPlan planner and does not require a Host', () => {
-  const direct = run(['plan-use', asset, '--task=Review', '--runtime-contract', '--as=json']);
+  const direct = run(['plan-load', asset, '--task=Review', '--runtime-contract', '--as=json']);
   const alias = run([
-    'use',
+    'load',
     asset,
     '--task=Review',
     '--runtime-contract',

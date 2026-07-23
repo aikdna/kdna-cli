@@ -30,6 +30,9 @@ We will acknowledge within 5 business days and provide a timeline for a fix.
   integrity, authorization, decryption, and archive handling
 - `kdna load --remote-server`: remote projection client behavior and
   avoidance of plaintext payload exposure
+- `kdna load --agent-host`: exact process/argument binding, bounded process
+  transport, registered Host capabilities, Capsule delivery correlation, and
+  explicit-file-only planning
 - Password-protected `demo` and `load` paths: pass passwords over standard
   input with `--password-stdin`. Passwords in process arguments are rejected.
 - Account/device private keys, issuer pins, and grants: encrypted operating

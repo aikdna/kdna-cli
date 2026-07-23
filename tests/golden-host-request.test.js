@@ -178,7 +178,7 @@ test('Golden Runtime Capsule reaches the real process Host without semantic loss
       '--require',
       PRELOAD,
       CLI,
-      'use',
+      'load',
       asset,
       `--task=${contract.task}`,
       `--agent-host=${process.execPath}`,
