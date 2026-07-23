@@ -307,7 +307,7 @@ function cmdHistoryAudit(args) {
 
   if (recent.length === 0) {
     console.log('No audit log entries found.');
-    console.log('Audit entries are written on every kdna load call.');
+    console.log('Use kdna load <file.kdna> --audit to write an explicit local receipt.');
     process.exit(EXIT.OK);
   }
 
@@ -319,7 +319,7 @@ function cmdHistoryAudit(args) {
       : 'unknown';
     const result = (e.result || '?').padEnd(8);
     const profile = (e.profile || '-').padEnd(10);
-    const asset = e.asset_id || e.asset_path || '(unknown)';
+    const asset = e.asset_id || '(unknown)';
     const errorNote = e.result === 'error' && e.error_code ? ` [${e.error_code}]` : '';
     console.log(`${ts} ${result} ${profile} ${asset}${errorNote}`);
   }

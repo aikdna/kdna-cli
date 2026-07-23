@@ -1,16 +1,17 @@
 /**
  * audit-log.js — CLI load audit log (roadmap-2026.md Story 10)
  *
- * Appends a structured JSON line to ~/.kdna/audit.jsonl for every
- * `kdna load` invocation. The file grows indefinitely (append-only);
- * it is never rotated or cleared automatically.
+ * Appends a structured JSON line to ~/.kdna/audit.jsonl only when a user
+ * explicitly requests a receipt with `kdna load --audit`. A normal one-shot
+ * file load creates no persistent state. The file is append-only and is never
+ * rotated or cleared automatically.
  *
  * This audit log is DISTINCT from the daily trace files
  * (~/.kdna/traces/YYYY-MM-DD.jsonl) which record agent observability
  * events. The audit log is the CLI-level load audit trail:
  *
  *   traces  — what domains the agent loaded during a session
- *   audit   — every kdna load call, with its outcome (success/error)
+ *   audit   — explicitly requested kdna load receipts (success/error)
  *
  * Both are local-only and never sent anywhere.
  *
@@ -18,7 +19,6 @@
  * {
  *   "timestamp":   "2026-06-28T11:30:00.000Z",
  *   "event_type":  "load",
- *   "asset_path":  "/path/to/asset.kdna",
  *   "asset_id":    "kdna:domain:writing"  (from kdna.json, optional),
  *   "version":     "0.7.2"               (from kdna.json, optional),
  *   "profile":     "compact",
@@ -47,7 +47,6 @@ const AUDIT_FILE = PATHS.audit;
  * Never throws — audit writes must not block or break the load command.
  *
  * @param {object} entry
- * @param {string} entry.asset_path   Resolved absolute path to the asset.
  * @param {string} [entry.asset_id]   From kdna.json if available.
  * @param {string} [entry.version]    From kdna.json if available.
  * @param {string} entry.profile      Load profile (compact/full/index/scenario).
@@ -63,7 +62,6 @@ function appendAuditEntry(entry) {
     const record = {
       timestamp: new Date().toISOString(),
       event_type: 'load',
-      asset_path: entry.asset_path || null,
       asset_id: entry.asset_id || null,
       version: entry.version || null,
       profile: entry.profile || null,
@@ -100,7 +98,23 @@ function readAuditLog(opts = {}) {
     const lines = fs.readFileSync(AUDIT_FILE, 'utf8').trim().split('\n').filter(Boolean);
     for (const line of lines) {
       try {
-        const entry = JSON.parse(line);
+        const parsed = JSON.parse(line);
+        if (!parsed || typeof parsed !== 'object' || parsed.event_type !== 'load') continue;
+        // Read old records without ever returning their historical absolute
+        // asset_path field. Current output has one closed, content-neutral
+        // receipt shape even when the local file predates this privacy fix.
+        const entry = {
+          timestamp: parsed.timestamp || null,
+          event_type: 'load',
+          asset_id: parsed.asset_id || null,
+          version: parsed.version || null,
+          profile: parsed.profile || null,
+          as: parsed.as || null,
+          access_mode: parsed.access_mode || null,
+          result: parsed.result,
+          error_code: parsed.error_code || null,
+          duration_ms: typeof parsed.duration_ms === 'number' ? parsed.duration_ms : null,
+        };
         if (since && entry.timestamp) {
           const ts = new Date(entry.timestamp);
           if (ts < since) continue;
@@ -139,7 +153,7 @@ function auditStats(entries) {
       const code = e.error_code || 'unknown';
       byErrorCode[code] = (byErrorCode[code] || 0) + 1;
     }
-    const key = e.asset_id || e.asset_path || '(unknown)';
+    const key = e.asset_id || '(unknown)';
     if (!byAsset[key]) byAsset[key] = { success: 0, error: 0 };
     byAsset[key][e.result === 'success' ? 'success' : 'error']++;
   }

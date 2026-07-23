@@ -55,6 +55,9 @@ callers must provide it explicitly.
 
 Successful loading proves technical delivery of a named projection. It does
 not prove that an Agent followed the judgment or that the result became better.
+An explicit-file load is one-shot and creates no persistent CLI state by
+default. Add `--audit` only when you want a content-neutral local receipt;
+receipts omit source paths, judgment content, and authorization material.
 
 ## User and Host contract
 
