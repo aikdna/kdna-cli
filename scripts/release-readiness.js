@@ -13,14 +13,14 @@ const {
 
 const CORE_PACKAGE_NAME = '@aikdna/kdna-core';
 const REQUIRED_CORE_VERSION = CORE_CANDIDATE_VERSION;
-const EVAL_PACKAGE_NAME = '@aikdna/kdna-eval';
-const REQUIRED_EVAL_VERSION = '0.3.2';
+const CBOR_PACKAGE_NAME = 'cbor-x';
+const REQUIRED_CBOR_VERSION = '1.6.4';
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-function validateReleaseReadiness({ pkg, lock, installedCore, installedEval }) {
+function validateReleaseReadiness({ pkg, lock, installedCore, installedCbor }) {
   assert(pkg?.name === EXPECTED_PACKAGE_NAME, `package name must be ${EXPECTED_PACKAGE_NAME}`);
   assert(STABLE_VERSION_RE.test(pkg.version || ''), 'CLI version must be stable canonical SemVer');
   assert(lock?.lockfileVersion === 3, 'package-lock.json must use lockfileVersion 3');
@@ -30,10 +30,10 @@ function validateReleaseReadiness({ pkg, lock, installedCore, installedEval }) {
     declaredCore === REQUIRED_CORE_VERSION,
     `Core dependency must be ${REQUIRED_CORE_VERSION}; found ${String(declaredCore)}`,
   );
-  const declaredEval = pkg.dependencies?.[EVAL_PACKAGE_NAME];
+  const declaredCbor = pkg.dependencies?.[CBOR_PACKAGE_NAME];
   assert(
-    declaredEval === REQUIRED_EVAL_VERSION,
-    `Eval dependency must be ${REQUIRED_EVAL_VERSION}; found ${String(declaredEval)}`,
+    declaredCbor === REQUIRED_CBOR_VERSION,
+    `CBOR dependency must be ${REQUIRED_CBOR_VERSION}; found ${String(declaredCbor)}`,
   );
   const root = lock.packages?.[''];
   assert(
@@ -45,8 +45,8 @@ function validateReleaseReadiness({ pkg, lock, installedCore, installedEval }) {
     'lockfile root Core dependency is stale',
   );
   assert(
-    root.dependencies?.[EVAL_PACKAGE_NAME] === REQUIRED_EVAL_VERSION,
-    'lockfile root Eval dependency is stale',
+    root.dependencies?.[CBOR_PACKAGE_NAME] === REQUIRED_CBOR_VERSION,
+    'lockfile root CBOR dependency is stale',
   );
   const lockedCore = lock.packages?.[`node_modules/${CORE_PACKAGE_NAME}`];
   assert(lockedCore?.version === REQUIRED_CORE_VERSION, 'locked Core artifact is stale');
@@ -62,25 +62,25 @@ function validateReleaseReadiness({ pkg, lock, installedCore, installedEval }) {
     installedCore?.name === CORE_PACKAGE_NAME && installedCore?.version === REQUIRED_CORE_VERSION,
     'installed Core artifact does not match the formal release dependency',
   );
-  const lockedEval = lock.packages?.[`node_modules/${EVAL_PACKAGE_NAME}`];
-  assert(lockedEval?.version === REQUIRED_EVAL_VERSION, 'locked Eval artifact is stale');
+  const lockedCbor = lock.packages?.[`node_modules/${CBOR_PACKAGE_NAME}`];
+  assert(lockedCbor?.version === REQUIRED_CBOR_VERSION, 'locked CBOR artifact is stale');
   assert(
-    lockedEval?.resolved === canonicalRegistryUrl(EVAL_PACKAGE_NAME, REQUIRED_EVAL_VERSION),
-    `locked Eval must use the canonical registry artifact before release; found ${String(lockedEval?.resolved)}`,
+    lockedCbor?.resolved === canonicalRegistryUrl(CBOR_PACKAGE_NAME, REQUIRED_CBOR_VERSION),
+    `locked CBOR must use the canonical registry artifact before release; found ${String(lockedCbor?.resolved)}`,
   );
   assert(
-    /^sha512-[A-Za-z0-9+/]{86}==$/.test(lockedEval?.integrity || ''),
-    'locked Eval registry integrity is missing or invalid',
+    /^sha512-[A-Za-z0-9+/]{86}==$/.test(lockedCbor?.integrity || ''),
+    'locked CBOR registry integrity is missing or invalid',
   );
   assert(
-    installedEval?.name === EVAL_PACKAGE_NAME && installedEval?.version === REQUIRED_EVAL_VERSION,
-    'installed Eval artifact does not match the formal release dependency',
+    installedCbor?.name === CBOR_PACKAGE_NAME && installedCbor?.version === REQUIRED_CBOR_VERSION,
+    'installed CBOR artifact does not match the formal release dependency',
   );
 
   return Object.freeze({
     cli: `${pkg.name}@${pkg.version}`,
     core: `${CORE_PACKAGE_NAME}@${REQUIRED_CORE_VERSION}`,
-    eval: `${EVAL_PACKAGE_NAME}@${REQUIRED_EVAL_VERSION}`,
+    cbor: `${CBOR_PACKAGE_NAME}@${REQUIRED_CBOR_VERSION}`,
   });
 }
 
@@ -90,12 +90,12 @@ function main() {
   const lock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
   const installedCorePath = require.resolve(`${CORE_PACKAGE_NAME}/package.json`, { paths: [root] });
   const installedCore = JSON.parse(fs.readFileSync(installedCorePath, 'utf8'));
-  const installedEvalPath = require.resolve(`${EVAL_PACKAGE_NAME}/package.json`, { paths: [root] });
-  const installedEval = JSON.parse(fs.readFileSync(installedEvalPath, 'utf8'));
+  const installedCborPath = require.resolve(`${CBOR_PACKAGE_NAME}/package.json`, { paths: [root] });
+  const installedCbor = JSON.parse(fs.readFileSync(installedCborPath, 'utf8'));
   verifyCandidateBinding(root);
   verifyInstalledAikdnaGraph(root);
-  const ready = validateReleaseReadiness({ pkg, lock, installedCore, installedEval });
-  console.log(`Release dependency closure verified: ${ready.cli} -> ${ready.core}, ${ready.eval}`);
+  const ready = validateReleaseReadiness({ pkg, lock, installedCore, installedCbor });
+  console.log(`Release dependency closure verified: ${ready.cli} -> ${ready.core}, ${ready.cbor}`);
 }
 
 if (require.main === module) {
@@ -109,8 +109,8 @@ if (require.main === module) {
 
 module.exports = {
   CORE_PACKAGE_NAME,
-  EVAL_PACKAGE_NAME,
+  CBOR_PACKAGE_NAME,
   REQUIRED_CORE_VERSION,
-  REQUIRED_EVAL_VERSION,
+  REQUIRED_CBOR_VERSION,
   validateReleaseReadiness,
 };

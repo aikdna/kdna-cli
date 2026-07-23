@@ -4,26 +4,42 @@
   "description": "KDNA CLI — runtime control plane for inspecting, validating, planning, packing, unpacking, and loading local .kdna assets.",
   "type": "commonjs",
   "bin": {
-    "kdna": "src/cli.js",
-    "kdna-lint": "validators/kdna-lint.js",
-    "kdna-validate": "validators/kdna-validate.js"
+    "kdna": "src/cli.js"
   },
   "files": [
-    "src/",
-    "validators/",
-    "templates/",
-    "skills/",
     "LICENSE",
     "NOTICE",
+    "README.md",
     "SECURITY.md",
-    "schema/",
-    "fixtures/"
+    "fixtures/judgment/checksums.json",
+    "fixtures/judgment/kdna.json",
+    "fixtures/judgment/mimetype",
+    "fixtures/judgment/payload.kdnab",
+    "fixtures/minimal/checksums.json",
+    "fixtures/minimal/kdna.json",
+    "fixtures/minimal/mimetype",
+    "fixtures/minimal/payload.kdnab",
+    "release-surface/cli-command-allowlist.json",
+    "release-surface/npm-file-allowlist.json",
+    "src/cli.js",
+    "src/cmds/asset-io.js",
+    "src/cmds/audit-log.js",
+    "src/cmds/demo.js",
+    "src/cmds/workspace-attachments.js",
+    "src/foundation-common.js",
+    "src/local-state-paths.js",
+    "src/runtime-entitlement.js",
+    "src/runtime-remote-transport.js",
+    "src/secret-store.js",
+    "src/snapshot-asset.js",
+    "src/workspace-attachments.js"
   ],
   "scripts": {
     "lint": "eslint src/ validators/ tests/",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "node scripts/run-complete-suite.js --complete",
+    "test:release-surface": "node --test tests/release-surface.test.js",
     "check:public-surface": "node scripts/check-public-surface.mjs",
     "check:workflow-authority": "node scripts/check-workflow-authority.js",
     "check:protocol-names": "node scripts/check-current-protocol-names.js",
@@ -67,12 +83,7 @@
   },
   "dependencies": {
     "@aikdna/kdna-core": "0.21.0",
-    "@aikdna/kdna-eval": "0.3.2"
-  },
-  "optionalDependencies": {
-    "ajv": "^8.20.0",
-    "ajv-formats": "^3.0.1",
-    "cbor-x": "^1.6.4"
+    "cbor-x": "1.6.4"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

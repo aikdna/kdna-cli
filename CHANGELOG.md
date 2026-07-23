@@ -2,11 +2,26 @@
 
 ## Unreleased
 
+- Freeze the candidate npm and command surfaces as machine-readable contracts.
+  `release-surface/cli-command-allowlist.json` is the sole top-level dispatcher
+  authority: the eight workspace controls, six explicit asset I/O commands,
+  the maintained demo, help, and version are callable; every other top-level
+  name follows one stable exit-code-2 rejection. The npm package now has one
+  executable and an exact 27-file allowlist containing only that file/workspace
+  Runtime, the two maintained fixtures, runtime authorization and remote
+  projection support, and the two allowlist documents. Historical evaluators,
+  experiments, global asset-library paths, validators, templates, and the
+  loader adapter remain outside both the dispatcher and the npm tar. The CLI no
+  longer depends on `@aikdna/kdna-eval`; release and clean-install checks bind
+  only the exact Core and CBOR dependencies required by the distributed code.
+
 - Make explicit-file `kdna load` genuinely one-shot: it no longer creates
   `~/.kdna/audit.jsonl` unless the user opts in for that invocation with
-  `--audit`. New receipts omit the source path, and `history --audit` removes
-  the historical `asset_path` field while reading older local records, so a
-  personal absolute path cannot cross the current CLI output boundary.
+  `--audit`. New receipts omit the source path, and the retained audit reader
+  removes the historical `asset_path` field while reading older local records,
+  so a personal absolute path cannot cross the current CLI output boundary.
+  The historical `history` command itself is not in the candidate command
+  allowlist or npm package.
 
 - Add the file-first workspace attachment reference implementation. The CLI
   now snapshots one explicitly approved regular `.kdna` file by exact SHA-256
@@ -23,7 +38,9 @@
   package `list`, `registry`, and `setup` from the default help and dispatcher.
   `inspect`, `validate`, `plan-load`, and `load` now accept explicit local paths
   and do not resolve global package names. The underlying historical modules
-  keep direct regression coverage but are not aliases or attachment authority.
+  remain source history but are not shipped modules, aliases, or attachment
+  authority. The same closed rule applies to every other command absent from
+  the machine-readable allowlist.
 
 - Apply one fail-closed transport policy to every packaged CLI path that sends
   task, context, license, activation credential, account/device authorization,

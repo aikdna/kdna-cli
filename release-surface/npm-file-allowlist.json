@@ -1,0 +1,33 @@
+{
+  "document_type": "kdna.npm-file-allowlist",
+  "schema_version": "0.1.0",
+  "files": [
+    "LICENSE",
+    "NOTICE",
+    "README.md",
+    "SECURITY.md",
+    "fixtures/judgment/checksums.json",
+    "fixtures/judgment/kdna.json",
+    "fixtures/judgment/mimetype",
+    "fixtures/judgment/payload.kdnab",
+    "fixtures/minimal/checksums.json",
+    "fixtures/minimal/kdna.json",
+    "fixtures/minimal/mimetype",
+    "fixtures/minimal/payload.kdnab",
+    "package.json",
+    "release-surface/cli-command-allowlist.json",
+    "release-surface/npm-file-allowlist.json",
+    "src/cli.js",
+    "src/cmds/asset-io.js",
+    "src/cmds/audit-log.js",
+    "src/cmds/demo.js",
+    "src/cmds/workspace-attachments.js",
+    "src/foundation-common.js",
+    "src/local-state-paths.js",
+    "src/runtime-entitlement.js",
+    "src/runtime-remote-transport.js",
+    "src/secret-store.js",
+    "src/snapshot-asset.js",
+    "src/workspace-attachments.js"
+  ]
+}

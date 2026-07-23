@@ -5,10 +5,7 @@
  *   A) appendAuditEntry() + readAuditLog() unit round-trip
  *   B) auditStats() computes correct summary
  *   C) kdna load is state-free by default and --audit writes a safe receipt
- *   D) kdna history --audit reads the audit log
- *   E) kdna history --audit --stats computes stats
- *   F) kdna history --audit --json returns JSON
- *   G) audit write failure never crashes kdna load
+ *   D) retired history variants remain outside the closed command allowlist
  *
  * Run: node --test tests/story10-audit-log.test.js
  */
@@ -234,9 +231,9 @@ test('Story 10 CLI: kdna load --audit writes a path-free receipt', () => {
   }
 });
 
-// ─── D: CLI — kdna history --audit reads audit log ───────────────────────────
+// ─── D: retired history command stays outside the closed release surface ─────
 
-test('Story 10 CLI: kdna history --audit --json shows audit entries', () => {
+test('Story 10 CLI: retired history command cannot read an existing audit file', () => {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s10-home-'));
   try {
     // First, create some audit entries via kdna load
@@ -248,20 +245,17 @@ test('Story 10 CLI: kdna history --audit --json shows audit entries', () => {
     });
 
     const r = run(['history', '--audit', '--json'], { kdnaHome: tmpHome });
-    assert.equal(r.status, 0, `kdna history --audit --json failed:\n${r.stderr}`);
-
-    const out = JSON.parse(r.stdout);
-    assert.ok(Array.isArray(out.entries), 'entries should be an array');
-    assert.ok(out.total >= 2, `expected >= 2 entries, got ${out.total}`);
-    assert.equal(out.entries[0].event_type, 'load');
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /command is not in the approved allowlist/u);
+    assert.equal(r.stdout, '');
   } finally {
     fs.rmSync(tmpHome, { recursive: true, force: true });
   }
 });
 
-// ─── E: CLI — kdna history --audit --stats ───────────────────────────────────
+// ─── E: retired history variants share the same stable rejection ─────────────
 
-test('Story 10 CLI: kdna history --audit --stats --json shows stats', () => {
+test('Story 10 CLI: retired history stats variant is rejected', () => {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s10-home-'));
   try {
     run(['load', RUNTIME_FIXTURE, '--profile=compact', '--as=json', '--audit'], {
@@ -269,28 +263,23 @@ test('Story 10 CLI: kdna history --audit --stats --json shows stats', () => {
     });
 
     const r = run(['history', '--audit', '--stats', '--json'], { kdnaHome: tmpHome });
-    assert.equal(r.status, 0, `failed:\n${r.stderr}`);
-
-    const out = JSON.parse(r.stdout);
-    assert.ok(typeof out.total === 'number');
-    assert.ok(typeof out.success === 'number');
-    assert.ok(typeof out.error === 'number');
-    assert.ok(typeof out.error_rate === 'number');
-    assert.equal(out.success, 1);
-    assert.equal(out.error, 0);
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /command is not in the approved allowlist/u);
+    assert.equal(r.stdout, '');
   } finally {
     fs.rmSync(tmpHome, { recursive: true, force: true });
   }
 });
 
-// ─── F: Audit file absent → history --audit exits 0 with empty message ────────
+// ─── F: absence of state does not create a hidden exception ──────────────────
 
-test('Story 10 CLI: kdna history --audit with no audit file exits 0', () => {
+test('Story 10 CLI: retired history command remains rejected with no audit file', () => {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s10-home-'));
   try {
     const r = run(['history', '--audit'], { kdnaHome: tmpHome });
-    assert.equal(r.status, 0, `expected exit 0:\n${r.stderr}`);
-    assert.match(r.stdout, /No audit log entries found/);
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /command is not in the approved allowlist/u);
+    assert.equal(r.stdout, '');
   } finally {
     fs.rmSync(tmpHome, { recursive: true, force: true });
   }

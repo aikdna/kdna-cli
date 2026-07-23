@@ -36,7 +36,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const PATHS = require('../paths');
+const PATHS = require('../local-state-paths');
 
 const AUDIT_FILE = PATHS.audit;
 

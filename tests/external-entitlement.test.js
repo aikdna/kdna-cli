@@ -29,11 +29,14 @@ test(
       '../src/paths',
       '../src/secret-store',
       '../src/external-entitlement',
+      '../src/runtime-entitlement',
+      '../src/local-state-paths',
       '../src/package-store',
     ]) {
       delete require.cache[require.resolve(id)];
     }
     const external = require('../src/external-entitlement');
+    const runtimeEntitlement = require('../src/runtime-entitlement');
     const assetDir = path.join(home, 'asset');
     const assetFile = path.join(home, 'asset.kdna');
     fs.mkdirSync(assetDir, { recursive: true });
@@ -137,7 +140,9 @@ test(
       assert.equal(metadataText.includes(grant.signature), false);
       assert.equal(metadataText.includes('issuer_public_keys'), false);
 
-      const session = external.loadExternalAuthorization(assetFile, manifest, { now: new Date() });
+      const session = runtimeEntitlement.loadExternalAuthorization(assetFile, manifest, {
+        now: new Date(),
+      });
       const capsule = core.loadAuthorized(assetFile, {
         profile: 'compact',
         as: 'json',
@@ -151,7 +156,8 @@ test(
       const secretStore = require('../src/secret-store');
       secretStore.setSync(names.statusVersion, '2');
       assert.throws(
-        () => external.loadExternalAuthorization(assetFile, manifest, { now: new Date() }),
+        () =>
+          runtimeEntitlement.loadExternalAuthorization(assetFile, manifest, { now: new Date() }),
         (error) => error.code === 'KDNA_GRANT_ROLLBACK_DETECTED',
       );
     } finally {

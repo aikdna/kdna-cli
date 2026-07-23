@@ -4,44 +4,8 @@ const crypto = require('node:crypto');
 const path = require('node:path');
 const zlib = require('node:zlib');
 const { COMMIT_RE, EXPECTED_PACKAGE_NAME, STABLE_VERSION_RE } = require('./release-policy');
-
-const REQUIRED_PACK_FILES = Object.freeze([
-  'package.json',
-  'src/cli.js',
-  'src/runtime-contract.js',
-  'src/agent-host-capabilities.js',
-  'src/agent-host-process.js',
-  'src/cmds/_kdna-eval.js',
-  'src/cmds/plan-use.js',
-  'src/cmds/use.js',
-  'validators/kdna-lint.js',
-  'validators/kdna-validate.js',
-  'skills/kdna-loader/SKILL.md',
-  'schema/manifest.schema.json',
-  'schema/payload-profile.schema.json',
-  'schema/load-contract.schema.json',
-  'schema/trace.schema.json',
-  'fixtures/minimal/kdna.json',
-  'fixtures/minimal/payload.kdnab',
-  'fixtures/judgment/kdna.json',
-  'fixtures/judgment/payload.kdnab',
-]);
-const ALLOWED_PACK_ROOTS = Object.freeze([
-  'fixtures/',
-  'schema/',
-  'skills/',
-  'src/',
-  'templates/',
-  'validators/',
-]);
-const ALLOWED_PACK_FILES = new Set([
-  'LICENSE',
-  'NOTICE',
-  'README.md',
-  'SECURITY.md',
-  'package.json',
-]);
-const FORBIDDEN_PACK_FILES = new Set(['src/loader.js', 'src/runner.js', 'src/verify.js']);
+const FILE_POLICY = require('../release-surface/npm-file-allowlist.json');
+const APPROVED_PACK_FILES = Object.freeze([...FILE_POLICY.files].sort());
 const FORBIDDEN_COORDINATION_FILES = new Set(['agents.md', 'worklog.md']);
 const SENSITIVE_PACK_NAME_PATTERNS = Object.freeze([
   /(?:^|[-_.])(private|internal|confidential)(?:[-_.]|$)/i,
@@ -176,16 +140,12 @@ function parseTarFiles(tarball) {
 
 function validatePackedFilePolicy(files) {
   assert(Array.isArray(files) && files.length > 0, 'packed file list must not be empty');
-  const paths = new Set(files.map((file) => file.path));
-  for (const required of REQUIRED_PACK_FILES) {
-    assert(paths.has(required), `required packed file is missing: ${required}`);
-  }
+  const actualPaths = files.map((file) => file.path).sort();
+  assert(
+    JSON.stringify(actualPaths) === JSON.stringify(APPROVED_PACK_FILES),
+    'packed file set differs from the approved npm file allowlist',
+  );
   for (const file of files) {
-    const allowed =
-      ALLOWED_PACK_FILES.has(file.path) ||
-      ALLOWED_PACK_ROOTS.some((prefix) => file.path.startsWith(prefix));
-    assert(allowed, `unexpected packed file: ${file.path}`);
-    assert(!FORBIDDEN_PACK_FILES.has(file.path), `retired implementation was packed: ${file.path}`);
     const basename = path.posix.basename(file.path);
     assert(
       !FORBIDDEN_COORDINATION_FILES.has(basename.toLowerCase()),

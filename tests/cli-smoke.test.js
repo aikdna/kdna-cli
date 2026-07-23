@@ -1,6 +1,6 @@
 /**
- * cli-smoke.test.js — Smoke test that all 19 case-routed commands are reachable
- * from the CLI dispatcher in src/cli.js.
+ * cli-smoke.test.js — Smoke test that the approved command allowlist is the
+ * complete callable CLI surface.
  *
  * This test catches a class of bugs where a case is added/removed from the
  * switch statement (or its routing logic is wrong) and the command silently
@@ -25,47 +25,11 @@ function runCli(args) {
 }
 
 /**
- * The case-routed commands. Keep in sync with src/cli.js.
- * If you add a new case 'foo': { ... } block, add 'foo' to this array.
+ * The machine-readable policy is the single source of truth.
  */
-const CASE_ROUTED_COMMANDS = [
-  'validate',
-  'plan-load',
-  'load',
-  'pack',
-  'unpack',
-  'inspect',
-  'demo',
-  'lint',
-  'workpack',
-  'license',
-  'identity',
-  'doctor',
-  'trace',
-  'history',
-  'cluster',
-  'protect',
-  'attach',
-  'attachments',
-  'resolve',
-  'disable',
-  'enable',
-  'switch',
-  'rollback',
-  'remove',
-  'publish',
-  'changelog',
-  'explain',
-  'protocol',
-  'test',
-  'badge',
-  'domain',
-  'governance',
-  'legacy',
-  'quality',
-  'studio',
-  'version',
-];
+const CASE_ROUTED_COMMANDS = require('../release-surface/cli-command-allowlist.json').commands.map(
+  (entry) => entry.command,
+);
 
 test('cli-smoke: every case-routed command is reachable (not "Unknown command")', () => {
   const unreachable = [];

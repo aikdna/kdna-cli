@@ -14,8 +14,8 @@ const {
 } = require('../scripts/current-release-binding');
 const { validateReleaseContext } = require('../scripts/release-policy');
 const {
+  REQUIRED_CBOR_VERSION,
   REQUIRED_CORE_VERSION,
-  REQUIRED_EVAL_VERSION,
   validateReleaseReadiness,
 } = require('../scripts/release-readiness');
 const {
@@ -238,7 +238,7 @@ test('publish workflow has one canonical release-only path and publishes the ver
   assert.match(preflight, /scripts\/check-public-surface\.mjs/);
   assert.match(preflight, /scripts\/check-workflow-authority\.js/);
   assert.match(preflight, /scripts\/check-current-protocol-names\.js/);
-  assert.match(preflight, /scripts\/verify-eval-runtime-package\.js/);
+  assert.match(preflight, /tests\/release-surface\.test\.js/);
 
   const packageJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
   assert.equal(packageJson.scripts.test, 'node scripts/run-complete-suite.js --complete');
@@ -246,7 +246,7 @@ test('publish workflow has one canonical release-only path and publishes the ver
   assert.equal(packageJson.scripts['test:all'], 'node scripts/run-complete-suite.js --complete');
   assert.equal(packageJson.scripts['test:smoke'], 'node scripts/run-complete-suite.js --smoke');
   const completeSuite = fs.readFileSync(path.join(ROOT, 'scripts/run-complete-suite.js'), 'utf8');
-  assert.match(completeSuite, /tests\/e2e-encrypt\.test\.js/);
+  assert.match(completeSuite, /tests\/release-surface\.test\.js/);
   assert.doesNotMatch(completeSuite, /spawnSync\(['"]npm['"]/);
   assert.equal(
     packageJson.scripts['test:golden-host-request'],
@@ -291,7 +291,6 @@ test('publish workflow has one canonical release-only path and publishes the ver
     'scripts/generate-release-evidence.js',
     'scripts/generate-core-candidate-evidence.js',
     'scripts/verify-pack-policy.js',
-    'scripts/verify-eval-runtime-package.js',
     'scripts/verify-core-candidate-tar.js',
   ]) {
     const source = fs.readFileSync(path.join(ROOT, script), 'utf8');
@@ -432,14 +431,14 @@ test('current release Git binding ignores hostile Git environment redirection', 
   );
 });
 
-test('release readiness requires exact formal Core and Eval releases across manifest, lock, and install', () => {
+test('release readiness requires exact formal Core and CBOR releases across manifest, lock, and install', () => {
   const integrity = `sha512-${Buffer.alloc(64).toString('base64')}`;
   const pkg = {
     name: '@aikdna/kdna-cli',
     version: '0.35.1',
     dependencies: {
       '@aikdna/kdna-core': REQUIRED_CORE_VERSION,
-      '@aikdna/kdna-eval': REQUIRED_EVAL_VERSION,
+      'cbor-x': REQUIRED_CBOR_VERSION,
     },
   };
   const lock = {
@@ -450,7 +449,7 @@ test('release readiness requires exact formal Core and Eval releases across mani
         version: pkg.version,
         dependencies: {
           '@aikdna/kdna-core': REQUIRED_CORE_VERSION,
-          '@aikdna/kdna-eval': REQUIRED_EVAL_VERSION,
+          'cbor-x': REQUIRED_CBOR_VERSION,
         },
       },
       'node_modules/@aikdna/kdna-core': {
@@ -458,19 +457,19 @@ test('release readiness requires exact formal Core and Eval releases across mani
         resolved: canonicalRegistryUrl('@aikdna/kdna-core', REQUIRED_CORE_VERSION),
         integrity,
       },
-      'node_modules/@aikdna/kdna-eval': {
-        version: REQUIRED_EVAL_VERSION,
-        resolved: canonicalRegistryUrl('@aikdna/kdna-eval', REQUIRED_EVAL_VERSION),
+      'node_modules/cbor-x': {
+        version: REQUIRED_CBOR_VERSION,
+        resolved: canonicalRegistryUrl('cbor-x', REQUIRED_CBOR_VERSION),
         integrity,
       },
     },
   };
   const installedCore = { name: '@aikdna/kdna-core', version: REQUIRED_CORE_VERSION };
-  const installedEval = { name: '@aikdna/kdna-eval', version: REQUIRED_EVAL_VERSION };
-  assert.deepEqual(validateReleaseReadiness({ pkg, lock, installedCore, installedEval }), {
+  const installedCbor = { name: 'cbor-x', version: REQUIRED_CBOR_VERSION };
+  assert.deepEqual(validateReleaseReadiness({ pkg, lock, installedCore, installedCbor }), {
     cli: '@aikdna/kdna-cli@0.35.1',
     core: `@aikdna/kdna-core@${REQUIRED_CORE_VERSION}`,
-    eval: `@aikdna/kdna-eval@${REQUIRED_EVAL_VERSION}`,
+    cbor: `cbor-x@${REQUIRED_CBOR_VERSION}`,
   });
 
   assert.throws(
@@ -479,7 +478,7 @@ test('release readiness requires exact formal Core and Eval releases across mani
         pkg: { ...pkg, dependencies: { '@aikdna/kdna-core': '0.18.0' } },
         lock,
         installedCore,
-        installedEval,
+        installedCbor,
       }),
     /Core dependency must be/,
   );
@@ -495,7 +494,7 @@ test('release readiness requires exact formal Core and Eval releases across mani
           },
         },
         installedCore,
-        installedEval,
+        installedCbor,
       }),
     /locked Core artifact is stale/,
   );
@@ -514,7 +513,7 @@ test('release readiness requires exact formal Core and Eval releases across mani
           },
         },
         installedCore,
-        installedEval,
+        installedCbor,
       }),
     /canonical registry artifact/,
   );
@@ -533,7 +532,7 @@ test('release readiness requires exact formal Core and Eval releases across mani
           },
         },
         installedCore,
-        installedEval,
+        installedCbor,
       }),
     /integrity is missing or invalid/,
   );
@@ -542,13 +541,13 @@ test('release readiness requires exact formal Core and Eval releases across mani
       validateReleaseReadiness({
         pkg: {
           ...pkg,
-          dependencies: { ...pkg.dependencies, '@aikdna/kdna-eval': '0.3.1' },
+          dependencies: { ...pkg.dependencies, 'cbor-x': '1.6.3' },
         },
         lock,
         installedCore,
-        installedEval,
+        installedCbor,
       }),
-    /Eval dependency must be/,
+    /CBOR dependency must be/,
   );
   assert.throws(
     () =>
@@ -558,16 +557,16 @@ test('release readiness requires exact formal Core and Eval releases across mani
           ...lock,
           packages: {
             ...lock.packages,
-            'node_modules/@aikdna/kdna-eval': {
-              ...lock.packages['node_modules/@aikdna/kdna-eval'],
+            'node_modules/cbor-x': {
+              ...lock.packages['node_modules/cbor-x'],
               resolved: 'file:tests/fixtures/eval.tgz',
             },
           },
         },
         installedCore,
-        installedEval,
+        installedCbor,
       }),
-    /locked Eval must use the canonical registry artifact/,
+    /locked CBOR must use the canonical registry artifact/,
   );
   assert.throws(
     () =>
@@ -575,15 +574,15 @@ test('release readiness requires exact formal Core and Eval releases across mani
         pkg,
         lock,
         installedCore,
-        installedEval: { ...installedEval, version: '0.3.1' },
+        installedCbor: { ...installedCbor, version: '1.6.3' },
       }),
-    /installed Eval artifact does not match/,
+    /installed CBOR artifact does not match/,
   );
 
   const currentPackage = require('../package.json');
   const currentLock = require('../package-lock.json');
   const currentInstalledCore = require('@aikdna/kdna-core/package.json');
-  const currentInstalledEval = require('@aikdna/kdna-eval/package.json');
+  const currentInstalledCbor = require('cbor-x/package.json');
   assert.equal(currentPackage.dependencies['@aikdna/kdna-core'], REQUIRED_CORE_VERSION);
   assert.throws(
     () =>
@@ -591,7 +590,7 @@ test('release readiness requires exact formal Core and Eval releases across mani
         pkg: currentPackage,
         lock: currentLock,
         installedCore: currentInstalledCore,
-        installedEval: currentInstalledEval,
+        installedCbor: currentInstalledCbor,
       }),
     /canonical registry artifact/,
   );
@@ -750,31 +749,14 @@ test('release evidence recomputes hashes and reads file facts from the tarball',
 });
 
 test('pack policy requires the current runtime surface and rejects retired or private files', () => {
-  const required = [
-    'package.json',
-    'src/cli.js',
-    'src/runtime-contract.js',
-    'src/agent-host-capabilities.js',
-    'src/agent-host-process.js',
-    'src/cmds/_kdna-eval.js',
-    'src/cmds/plan-use.js',
-    'src/cmds/use.js',
-    'validators/kdna-lint.js',
-    'validators/kdna-validate.js',
-    'skills/kdna-loader/SKILL.md',
-    'schema/manifest.schema.json',
-    'schema/payload-profile.schema.json',
-    'schema/load-contract.schema.json',
-    'schema/trace.schema.json',
-    'fixtures/minimal/kdna.json',
-    'fixtures/minimal/payload.kdnab',
-    'fixtures/judgment/kdna.json',
-    'fixtures/judgment/payload.kdnab',
-  ].map((file) => ({ path: file, size: 1 }));
+  const required = require('../release-surface/npm-file-allowlist.json').files.map((file) => ({
+    path: file,
+    size: 1,
+  }));
   assert.equal(validatePackedFilePolicy(required), required);
   assert.throws(
     () => validatePackedFilePolicy([...required, { path: 'tests/private.test.js', size: 1 }]),
-    /unexpected packed file/,
+    /approved npm file allowlist/,
   );
   assert.throws(
     () =>
@@ -782,7 +764,7 @@ test('pack policy requires the current runtime surface and rejects retired or pr
         ...required,
         { path: 'tests/helpers/require-kdna-eval-fixture.js', size: 1 },
       ]),
-    /unexpected packed file/,
+    /approved npm file allowlist/,
   );
   for (const hostilePath of [
     'src/AGENTS.md',
@@ -792,18 +774,20 @@ test('pack policy requires the current runtime surface and rejects retired or pr
   ]) {
     assert.throws(
       () => validatePackedFilePolicy([...required, { path: hostilePath, size: 1 }]),
-      /private coordination file|sensitive-category file/,
+      /approved npm file allowlist/,
       hostilePath,
     );
   }
   assert.throws(
     () => validatePackedFilePolicy([...required, { path: 'src/runner.js', size: 1 }]),
-    /retired implementation was packed/,
+    /approved npm file allowlist/,
   );
   assert.throws(
     () =>
-      validatePackedFilePolicy(required.filter((file) => file.path !== 'src/runtime-contract.js')),
-    /required packed file is missing/,
+      validatePackedFilePolicy(
+        required.filter((file) => file.path !== 'src/runtime-entitlement.js'),
+      ),
+    /approved npm file allowlist/,
   );
 });
 

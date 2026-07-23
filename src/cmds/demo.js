@@ -1,6 +1,12 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const { rejectPasswordArgv, resolvePassword } = require('./_common');
+const {
+  EXIT,
+  error,
+  parseCommandArgs,
+  rejectPasswordArgv,
+  resolvePassword,
+} = require('../foundation-common');
 
 const DEMOS = {
   minimal: {
@@ -15,43 +21,37 @@ const DEMOS = {
 
 function cmdDemo(args) {
   rejectPasswordArgv(args);
-  const force = args.includes('--force');
-  const sub = args.filter((a) => !a.startsWith('--'))[0];
+  const parsed = parseCommandArgs(args, {
+    booleans: ['--force', '--password-stdin'],
+  });
+  const force = parsed.has('--force');
+  const sub = parsed.positional[0];
 
   const demo = DEMOS[sub];
   if (!demo) {
     const names = Object.keys(DEMOS).join('|');
-    console.error(
+    error(
       `Usage: kdna demo <${names}> <output-dir> [--force] [--password-stdin]`,
+      EXIT.INPUT_ERROR,
     );
-    console.error('  minimal   — minimal schema-shape demo (protocol debugging)');
-    console.error('  judgment  — real judgment-content first-run example');
-    console.error('  --password-stdin — create an encrypted licensed asset (preferred)');
-    process.exit(2);
   }
 
-  const dest = args.filter((a) => !a.startsWith('--'))[1];
-  if (!dest) {
-    console.error(
-      `Usage: kdna demo ${sub} <output-dir> [--force] [--password-stdin]`,
-    );
-    process.exit(2);
+  const dest = parsed.positional[1];
+  if (!dest || parsed.positional.length !== 2) {
+    error(`Usage: kdna demo ${sub} <output-dir> [--force] [--password-stdin]`, EXIT.INPUT_ERROR);
   }
 
   const srcDir = path.join(__dirname, '..', '..', 'fixtures', demo.fixture);
   const outDir = path.resolve(dest);
 
   if (!fs.existsSync(srcDir)) {
-    console.error(`Fixture not found at ${srcDir}`);
-    process.exit(1);
+    error(`Fixture not found at ${srcDir}`);
   }
 
   if (fs.existsSync(outDir)) {
     const existing = fs.readdirSync(outDir).filter((f) => f !== '.DS_Store');
     if (existing.length > 0 && !force) {
-      console.error(`Target already exists and is not empty: ${outDir}`);
-      console.error('Use --force to overwrite.');
-      process.exit(2);
+      error(`Target already exists and is not empty: ${outDir}`, EXIT.INPUT_ERROR);
     }
   }
 
@@ -67,19 +67,17 @@ function cmdDemo(args) {
   }
 
   // Encrypt only when the secure stdin input mode is explicitly selected.
-  const passwordRequested = args.includes('--password-stdin');
+  const passwordRequested = parsed.has('--password-stdin');
   if (passwordRequested) {
     const password = resolvePassword(args);
     if (!password) {
-      console.error('Error: password input is empty');
-      process.exit(2);
+      error('Password input is empty.', EXIT.INPUT_ERROR);
     }
 
     const manifestPath = path.join(outDir, 'kdna.json');
     const payloadPath = path.join(outDir, 'payload.kdnab');
     if (!fs.existsSync(manifestPath) || !fs.existsSync(payloadPath)) {
-      console.error('Error: fixture missing required entries for encryption');
-      process.exit(1);
+      error('Fixture is missing required entries for encryption.');
     }
 
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));

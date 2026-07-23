@@ -63,7 +63,7 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const os = require('node:os');
 
-const PATHS = require('./paths');
+const PATHS = require('./local-state-paths');
 
 const SERVICE_NAME = 'aikdna-kdna';
 const FILE_BACKEND_DIR = path.join(PATHS.root, 'secrets');
