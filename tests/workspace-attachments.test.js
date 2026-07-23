@@ -583,7 +583,7 @@ test('old global store routes are unknown and absent from default help', () => {
   for (const command of ['available', 'match', 'install', 'update', 'list', 'registry', 'setup']) {
     const result = runCli([command]);
     assert.notEqual(result.status, 0, `${command} unexpectedly routed`);
-    assert.match(result.stderr + result.stdout, /Unknown command/);
+    assert.match(result.stderr + result.stdout, /command is not in the approved allowlist/);
   }
   const help = runCli(['--help']);
   assert.equal(help.status, 0, help.stderr);

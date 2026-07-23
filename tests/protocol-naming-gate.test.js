@@ -156,7 +156,7 @@ test('naming gate accepts counts, natural coordinates, and third-party action re
   assert.deepEqual(scanCurrentProtocolNames(root), []);
 });
 
-test('packed artifact rejects a responsibility generation injected through its path', (t) => {
+test('source naming gate rejects an injected generation while exact package allowlist excludes it', (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-protocol-packed-path-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   fs.mkdirSync(path.join(root, 'scripts'), { recursive: true });
@@ -170,14 +170,15 @@ test('packed artifact rejects a responsibility generation injected through its p
   fs.mkdirSync(path.dirname(injectedFile), { recursive: true });
   fs.writeFileSync(injectedFile, 'packed path probe\n');
 
-  const expected = `npm-pack/${path.posix.join(...injectedSegments)}`;
-  const issues = scanPackedArtifact(root);
+  const expected = path.posix.join(...injectedSegments);
+  const sourceIssues = scanCurrentProtocolNames(root);
   assert.ok(
-    issues.some(
+    sourceIssues.some(
       (issue) =>
         issue.file === expected &&
         issue.line === null &&
         issue.rule === 'generation on a KDNA responsibility',
     ),
   );
+  assert.deepEqual(scanPackedArtifact(root), []);
 });

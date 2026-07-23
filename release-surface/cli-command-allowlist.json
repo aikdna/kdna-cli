@@ -1,0 +1,97 @@
+{
+  "document_type": "kdna.cli-command-allowlist",
+  "schema_version": "0.1.0",
+  "commands": [
+    {
+      "command": "attach",
+      "usage": "attach <file.kdna>",
+      "purpose": "Approve one explicit asset snapshot for a workspace."
+    },
+    {
+      "command": "attachments",
+      "usage": "attachments",
+      "purpose": "List the explicit attachment record for a workspace."
+    },
+    {
+      "command": "resolve",
+      "usage": "resolve --cwd <workspace> --task-file <file>",
+      "purpose": "Resolve one task file against approved workspace attachments."
+    },
+    {
+      "command": "disable",
+      "usage": "disable <attachment-id>",
+      "purpose": "Disable one approved workspace attachment."
+    },
+    {
+      "command": "enable",
+      "usage": "enable <attachment-id>",
+      "purpose": "Re-enable one approved workspace attachment."
+    },
+    {
+      "command": "switch",
+      "usage": "switch <attachment-id> <file.kdna>",
+      "purpose": "Approve an explicit replacement for one workspace attachment."
+    },
+    {
+      "command": "rollback",
+      "usage": "rollback <attachment-id>",
+      "purpose": "Restore the preceding snapshot for one workspace attachment."
+    },
+    {
+      "command": "remove",
+      "usage": "remove <attachment-id>",
+      "purpose": "Remove only one workspace attachment relation."
+    },
+    {
+      "command": "inspect",
+      "usage": "inspect <file.kdna|source-dir>",
+      "purpose": "Inspect an explicit local KDNA asset or source directory."
+    },
+    {
+      "command": "validate",
+      "usage": "validate <file.kdna|source-dir>",
+      "purpose": "Validate an explicit local KDNA asset or source directory."
+    },
+    {
+      "command": "plan-load",
+      "usage": "plan-load <file.kdna>",
+      "purpose": "Return the Core LoadPlan for an explicit packaged asset."
+    },
+    {
+      "command": "load",
+      "usage": "load <file.kdna>",
+      "purpose": "Load an explicit packaged asset only when Core authorizes it."
+    },
+    {
+      "command": "pack",
+      "usage": "pack <source-dir> <file.kdna>",
+      "purpose": "Pack an explicit KDNA source directory."
+    },
+    {
+      "command": "unpack",
+      "usage": "unpack <file.kdna> <empty-dir>",
+      "purpose": "Unpack an explicit packaged KDNA asset into an empty directory."
+    },
+    {
+      "command": "demo",
+      "usage": "demo <minimal|judgment> <dir>",
+      "purpose": "Create one of the two maintained local source fixtures."
+    },
+    {
+      "command": "help",
+      "usage": "help",
+      "purpose": "Display this exact command allowlist."
+    },
+    {
+      "command": "version",
+      "usage": "version",
+      "purpose": "Display the CLI package version."
+    }
+  ],
+  "option_aliases": ["--help", "-h", "--version", "-v"],
+  "rejection": {
+    "exit_code": 2,
+    "message_prefix": "command is not in the approved allowlist:",
+    "stderr_prefix": "Error: command is not in the approved allowlist:"
+  }
+}

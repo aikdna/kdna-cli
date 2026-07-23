@@ -48,7 +48,6 @@ const {
 
 const ROOT = path.resolve(__dirname, '..');
 const CORE = '@aikdna/kdna-core';
-const EVAL = '@aikdna/kdna-eval';
 const CORE_VERSION = require('../package.json').dependencies[CORE];
 
 function copyFixtureRoot(t) {
@@ -91,7 +90,6 @@ function writeInstalledPackage(root, installPath, name, version) {
 
 function createCanonicalInstalledGraph(root) {
   writeInstalledPackage(root, CORE, CORE, CORE_VERSION);
-  writeInstalledPackage(root, EVAL, EVAL, '0.3.2');
 }
 
 function git(repository, args) {
@@ -202,7 +200,7 @@ test('trusted Git uses a Git-compatible null config device and still scrubs ever
   }
 });
 
-test('default install binds one exact Core candidate while published Eval stays canonical', () => {
+test('default install binds one exact Core candidate with no second AIKDNA runtime dependency', () => {
   const pkg = require('../package.json');
   const lock = require('../package-lock.json');
   const binding = verifyCandidateBinding(ROOT);
@@ -213,14 +211,9 @@ test('default install binds one exact Core candidate while published Eval stays 
     lock.packages[`node_modules/${CORE}`].resolved,
     `file:${binding.packages[0].artifact}`,
   );
-  assert.equal(
-    lock.packages[`node_modules/${EVAL}`].resolved,
-    canonicalRegistryUrl(EVAL, pkg.dependencies[EVAL]),
-  );
   assert.equal(require('@aikdna/kdna-core/package.json').version, CORE_VERSION);
   assert.deepEqual(verifyInstalledAikdnaGraph(ROOT), {
     [CORE]: CORE_VERSION,
-    [EVAL]: '0.3.2',
   });
 });
 
@@ -841,7 +834,7 @@ test('binding completeness rejects omissions, extras, duplicate copies, and host
   rejects(
     BINDING_PATH,
     (binding) => {
-      binding.packages.push({ ...binding.packages[0], name: EVAL });
+      binding.packages.push({ ...binding.packages[0], name: '@aikdna/unexpected-runtime' });
     },
     /candidate binding package set mismatch|duplicate packages/,
   );
@@ -897,9 +890,13 @@ test('binding completeness rejects omissions, extras, duplicate copies, and host
   rejects(
     'package-lock.json',
     (lock) => {
-      lock.packages[`node_modules/${EVAL}`].resolved = 'file:tests/fixtures/eval.tgz';
+      lock.packages['node_modules/@aikdna/unbound-runtime'] = {
+        version: '1.0.0',
+        resolved: 'file:tests/fixtures/unbound-runtime.tgz',
+        integrity: `sha512-${Buffer.alloc(64).toString('base64')}`,
+      };
     },
-    /unbound file lock package/,
+    /unbound (?:AIKDNA|file) lock package/,
   );
   rejects(
     'package-lock.json',
@@ -1167,7 +1164,6 @@ test('installed graph rejects alias copies, nested copies, symlinks, extras, and
     createCanonicalInstalledGraph(root);
     assert.deepEqual(verifyInstalledAikdnaGraph(root), {
       [CORE]: CORE_VERSION,
-      [EVAL]: '0.3.2',
     });
   });
   await t.test('npm alias physical package identity', (t) => {
@@ -1290,7 +1286,6 @@ test('installed graph rejects alias copies, nested copies, symlinks, extras, and
   await t.test('canonical package version drift', (t) => {
     const root = copyFixtureRoot(t);
     writeInstalledPackage(root, CORE, CORE, '0.18.0');
-    writeInstalledPackage(root, EVAL, EVAL, '0.3.2');
     assert.throws(() => verifyInstalledAikdnaGraph(root), /version mismatch/);
   });
   await t.test('installed package manifest symlink', (t) => {

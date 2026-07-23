@@ -7,8 +7,8 @@ const path = require('node:path');
 const { TextDecoder } = require('node:util');
 
 const core = require('@aikdna/kdna-core');
-const { loadExternalAuthorization } = require('./external-entitlement');
-const { snapshotAssetFile } = require('./runtime-contract');
+const { loadExternalAuthorization } = require('./runtime-entitlement');
+const { snapshotAssetFile } = require('./snapshot-asset');
 
 const DOCUMENT_TYPE = 'kdna.workspace-attachments';
 const RESOLUTION_TYPE = 'kdna.workspace-resolution';

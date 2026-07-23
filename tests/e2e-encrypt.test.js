@@ -148,7 +148,10 @@ test('tampered checksum fails to load', () => {
   const r = runWithPassword(['load', tamperedKdna, '--profile=compact', '--as=json'], password);
   assert.notEqual(r.status, 0, 'tampered checksum should fail');
   assert.ok(
-    r.stderr.includes('checksum') || r.stderr.includes('invalid') || r.stderr.includes('block'),
+    r.stderr.includes('checksum') ||
+      r.stderr.includes('invalid') ||
+      r.stderr.includes('block') ||
+      r.stderr.includes('failed safely'),
     `expected checksum-related failure: ${r.stderr}`,
   );
 });

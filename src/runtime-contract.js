@@ -1,13 +1,11 @@
 'use strict';
 
 const crypto = require('node:crypto');
-const fs = require('node:fs');
 const path = require('node:path');
 
-const packageStore = require('./package-store');
 const { createProcessAgentHost } = require('./agent-host-process');
+const { snapshotAssetFile } = require('./snapshot-asset');
 
-const MAX_ASSET_BYTES = 256 * 1024 * 1024;
 const BUDGETS = Object.freeze({
   interactive: Object.freeze({
     max_projection_chars: 2500,
@@ -48,90 +46,22 @@ function snapshotCoreCapsuleVersions(core) {
   return Object.freeze([...versions]);
 }
 
-function snapshotAssetFile(assetPath, fileSystem = fs) {
-  const noFollow = fileSystem.constants.O_NOFOLLOW || 0;
-  let descriptor;
-  try {
-    const pathStat = fileSystem.lstatSync(assetPath);
-    if (pathStat.isSymbolicLink() || !pathStat.isFile()) {
-      throw new Error('Runtime contract requires a regular non-symlink packaged .kdna file.');
-    }
-    descriptor = fileSystem.openSync(assetPath, fileSystem.constants.O_RDONLY | noFollow);
-    const before = fileSystem.fstatSync(descriptor);
-    if (!before.isFile())
-      throw new Error('Runtime contract requires a regular packaged .kdna file.');
-    if (
-      pathStat.dev === undefined ||
-      pathStat.ino === undefined ||
-      before.dev === undefined ||
-      before.ino === undefined ||
-      pathStat.dev !== before.dev ||
-      pathStat.ino !== before.ino
-    ) {
-      throw new Error('Packaged asset changed before it was opened.');
-    }
-    if (before.size <= 0 || before.size > MAX_ASSET_BYTES) {
-      throw new Error(`Packaged asset must be between 1 and ${MAX_ASSET_BYTES} bytes.`);
-    }
-    const bytes = fileSystem.readFileSync(descriptor);
-    const after = fileSystem.fstatSync(descriptor);
-    if (
-      bytes.length !== before.size ||
-      before.dev !== after.dev ||
-      before.ino !== after.ino ||
-      before.size !== after.size ||
-      before.mtimeMs !== after.mtimeMs ||
-      before.ctimeMs !== after.ctimeMs
-    ) {
-      throw new Error('Packaged asset changed while it was read.');
-    }
-    return bytes;
-  } finally {
-    if (descriptor !== undefined) fileSystem.closeSync(descriptor);
-  }
-}
-
 function resolvePackagedSnapshot(target) {
-  const expanded = String(target).replace(/^~/, process.env.HOME || '');
-  const looksLocal =
-    expanded.startsWith('.') ||
-    expanded.startsWith('/') ||
-    expanded.endsWith('.kdna') ||
-    fs.existsSync(expanded);
-
-  if (looksLocal) {
-    const absolute = path.resolve(expanded);
-    let stat;
-    try {
-      stat = fs.lstatSync(absolute);
-    } catch {
-      throw new Error('Packaged .kdna asset was not found.');
-    }
-    if (stat.isSymbolicLink() || !stat.isFile() || !absolute.endsWith('.kdna')) {
-      throw new Error('Runtime contract accepts only a regular packaged .kdna file.');
-    }
-    return {
-      bytes: snapshotAssetFile(absolute),
-      expectedAsset: null,
-      expectedContent: null,
-      installed: false,
-    };
+  const absolute = path.resolve(String(target));
+  if (!absolute.endsWith('.kdna')) {
+    throw new Error('Runtime contract accepts only an explicit packaged .kdna file.');
   }
-
-  const installed = packageStore.getInstalled(target);
-  if (!installed?.asset_path) throw new Error('Installed packaged asset was not found.');
-  const integrity = packageStore.assertInstalledIntegrity(installed, target);
+  let bytes;
+  try {
+    bytes = snapshotAssetFile(absolute);
+  } catch {
+    throw new Error('Runtime contract accepts only an existing regular packaged .kdna file.');
+  }
   return {
-    bytes: snapshotAssetFile(installed.asset_path),
-    expectedAsset: {
-      value: integrity.actual_asset_digest,
-      source: 'install_receipt',
-    },
-    expectedContent: {
-      value: integrity.actual_content_digest,
-      source: 'install_receipt',
-    },
-    installed: true,
+    bytes,
+    expectedAsset: null,
+    expectedContent: null,
+    installed: false,
   };
 }
 

@@ -22,7 +22,7 @@ kdna demo judgment ./demo-judgment
 kdna pack ./demo-judgment ./demo-judgment.kdna
 kdna inspect ./demo-judgment.kdna
 kdna validate ./demo-judgment.kdna
-kdna plan-load ./demo-judgment.kdna --json
+kdna plan-load ./demo-judgment.kdna
 kdna load ./demo-judgment.kdna --profile=compact --as=json
 ```
 
@@ -45,8 +45,8 @@ callers must provide it explicitly.
 | ------------------------------------- | ------------------------------------------------------------------- |
 | `kdna inspect <file>`                 | Read container metadata without adopting its judgment               |
 | `kdna validate <file>`                | Check format, schema, payload, integrity, and load contract         |
-| `kdna plan-load <file>`               | Return the authorization/readiness decision before projection       |
-| `kdna load <file>`                    | Produce a Runtime Capsule or prompt projection                      |
+| `kdna plan-load <file>`               | Return a LoadPlan or explicit-file Host ConsumptionPlan             |
+| `kdna load <file>`                    | Produce a projection or deliver a Capsule to a registered Host      |
 | `kdna pack` / `kdna unpack`           | Package or inspect a portable asset                                 |
 | `kdna attach` / `kdna attachments`    | Approve or list exact workspace-local attachments                   |
 | `kdna resolve`                        | Return `load`, `ask`, `skip`, or `block` without projecting content |
@@ -79,41 +79,24 @@ separate events. A Host must expose active asset identity, version or digest,
 scope, and reason, and provide controls to disable it, switch it, or roll it
 back.
 
-## Maintained advanced modules and historical surfaces
+## Closed release surface
 
-The repository still maintains routing, composition, Cluster, WorkPack, Trace,
-evaluation, identity, encryption, activation, remote-loading, and historical
-Store implementation modules. They retain their tests and release history but
-are not workspace attachment authority.
+The npm package has one executable, `kdna`, and one machine-readable top-level
+command allowlist at
+`release-surface/cli-command-allowlist.json`. Commands outside that allowlist
+are rejected with exit code 2. The exact package file list is frozen separately
+at `release-surface/npm-file-allowlist.json`.
 
-The default dispatcher no longer exposes `available`, `match`, Store
-`install`, package `remove`, `update`, package `list`, `registry`, or `setup`.
-`remove` now means only removal of one workspace attachment relation and never
-deletes an immutable snapshot.
+The distributed runtime contains only the explicit file/workspace path shown
+above, the two maintained demo fixtures, runtime authorization support, and
+the closed remote projection and explicit process Host clients. Process Host
+delivery requires an exact `.kdna` file, task, executable, ordered arguments,
+and a process-bound capability registration; it never resolves a package name
+or consults a global Store. Development and historical modules that remain in
+the source repository are not callable and are not distributed.
 
-In particular:
-
-- historical Store state does not authorize or attach an asset;
-- an `active_version` in the legacy Store is not Host consent;
-- Skill-file presence does not prove an Agent integration;
-- routing and matching may operate only inside an already user-approved
-  attachment set;
-- evaluation output is claimant-scoped and is not Core validity or an official
-  quality score.
-
-See the KDNA repository's
-[tool status matrix](https://github.com/aikdna/kdna/blob/main/docs/tool-status-matrix.md)
-and this package's [CHANGELOG](./CHANGELOG.md) for exact-version facts.
-
-## Agent adapters
-
-The bundled `kdna-loader` Skill is currently **Unassessed**. Its allowed target
-contract is a thin adapter for one explicit file or exact user-approved
-attachment. It may not scan a global Store, infer consent from task keywords,
-autonomously select judgment, or hide whether KDNA is active.
-
-Until a Host adapter is independently recertified, call the file-first
-CLI/Core path directly.
+`remove` means only removal of one workspace attachment relation. It never
+selects a package by name and never deletes an immutable asset snapshot.
 
 ## Authoring
 
