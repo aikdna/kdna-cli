@@ -11,6 +11,7 @@ const ROOT = path.resolve(__dirname, '..');
 const CLI = path.join(ROOT, 'src', 'cli.js');
 const COMMAND_POLICY = require('../release-surface/cli-command-allowlist.json');
 const FILE_POLICY = require('../release-surface/npm-file-allowlist.json');
+const { resolveTrustedNpmInvocation } = require('../scripts/runtime-candidate-binding');
 const temporaryRoots = [];
 
 after(() => {
@@ -97,17 +98,26 @@ test('every retired command is rejected through one stable fail-closed path', ()
 });
 
 test('npm dry-run file set exactly equals the approved package file allowlist', () => {
-  const result = spawnSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], {
-    cwd: ROOT,
-    env: { ...process.env, NO_UPDATE_NOTIFIER: '1' },
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  assert.equal(result.status, 0, result.stderr);
-  const report = JSON.parse(result.stdout);
-  const actual = report[0].files.map((entry) => entry.path).sort();
-  const expected = [...FILE_POLICY.files].sort();
-  assert.deepEqual(actual, expected);
+  const npm = resolveTrustedNpmInvocation(ROOT);
+  try {
+    const result = spawnSync(
+      npm.command,
+      [...npm.prefixArgs, 'pack', '--dry-run', '--json', '--ignore-scripts'],
+      {
+        cwd: ROOT,
+        env: { ...process.env, NO_UPDATE_NOTIFIER: '1' },
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    const actual = report[0].files.map((entry) => entry.path).sort();
+    const expected = [...FILE_POLICY.files].sort();
+    assert.deepEqual(actual, expected);
+  } finally {
+    npm.dispose();
+  }
 });
 
 test('package manifest has one bin and no evaluation dependency', () => {
