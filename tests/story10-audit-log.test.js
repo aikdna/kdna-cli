@@ -125,7 +125,7 @@ test('Story 10 unit: legacy absolute paths are removed from current audit output
       `${JSON.stringify({
         timestamp: '2026-07-23T00:00:00.000Z',
         event_type: 'load',
-        asset_path: '/Users/private/project/personal.kdna',
+        asset_path: '/tmp/private-project/personal.kdna',
         asset_id: 'kdna:example:writing',
         version: '1.0.0',
         profile: 'compact',
@@ -141,7 +141,7 @@ test('Story 10 unit: legacy absolute paths are removed from current audit output
     const entries = readAuditLog();
     assert.equal(entries.length, 1);
     assert.equal(Object.hasOwn(entries[0], 'asset_path'), false);
-    assert.doesNotMatch(JSON.stringify(entries), /Users|private|personal\.kdna/u);
+    assert.doesNotMatch(JSON.stringify(entries), /tmp|private-project|personal\.kdna/u);
   } finally {
     process.env.KDNA_HOME = origHome;
     delete require.cache[require.resolve('../src/paths.js')];
