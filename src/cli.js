@@ -533,7 +533,7 @@ switch (cmd) {
     const target = args.filter((a) => !a.startsWith('--'))[1];
     if (!target)
       error(
-        'Usage: kdna load <file.kdna> [--profile=<index|compact|scenario|full>] [--as=<json|prompt|raw>] [--namespace=<component-id>] [--password-stdin]',
+        'Usage: kdna load <file.kdna> [--profile=<index|compact|scenario|full>] [--as=<json|prompt|raw>] [--namespace=<component-id>] [--password-stdin] [--audit]',
         EXIT.INPUT_ERROR,
       );
     const core = require('@aikdna/kdna-core');
@@ -556,6 +556,10 @@ switch (cmd) {
     };
     const profile = getFlag('--profile') || 'compact';
     const as = getFlag('--as') || 'json';
+    // An explicit-file load is one-shot by default and must not create
+    // ~/.kdna state. Users who want a local, content-neutral receipt can opt
+    // in for this invocation with --audit.
+    const auditRequested = args.includes('--audit');
     // --namespace <id>: filter load output to a single RAG namespace (Story 11).
     // Only the component whose rag_namespace contains <id> is returned.
     // Useful for querying one component of a Bundle without loading all content.
@@ -613,6 +617,12 @@ switch (cmd) {
     // we route to the configured kdna-remote-server instead.
     const remoteServer = getFlag('--remote-server') || process.env.KDNA_REMOTE_SERVER || null;
     if (isAccessRemote(abs)) {
+      if (auditRequested) {
+        error(
+          '--audit currently supports local Runtime loads only; remote loads do not write a local receipt.',
+          EXIT.INPUT_ERROR,
+        );
+      }
       runRemoteLoad({ abs, remoteServer, getFlag, args }).catch((e) => {
         process.stderr.write(`Error: ${e.message || e}\n`);
         process.exit(EXIT.VALIDATION_FAILED);
@@ -643,17 +653,18 @@ switch (cmd) {
           (entitlementStatus ? { status: entitlementStatus } : undefined),
         decryptEntry: externalSession?.decryptEntry,
       });
-      appendAuditEntry({
-        asset_path: abs,
-        asset_id: auditAssetId,
-        version: auditVersion,
-        profile,
-        as,
-        access_mode: auditAccessMode,
-        result: 'success',
-        error_code: null,
-        duration_ms: Date.now() - loadStart,
-      });
+      if (auditRequested) {
+        appendAuditEntry({
+          asset_id: auditAssetId,
+          version: auditVersion,
+          profile,
+          as,
+          access_mode: auditAccessMode,
+          result: 'success',
+          error_code: null,
+          duration_ms: Date.now() - loadStart,
+        });
+      }
 
       // --namespace filter (Story 11): if requested, reduce output to a
       // single component's content from resolved_dependencies.
@@ -728,17 +739,18 @@ switch (cmd) {
       }
       return;
     } catch (e) {
-      appendAuditEntry({
-        asset_path: abs,
-        asset_id: auditAssetId,
-        version: auditVersion,
-        profile,
-        as,
-        access_mode: auditAccessMode,
-        result: 'error',
-        error_code: e.code || null,
-        duration_ms: Date.now() - loadStart,
-      });
+      if (auditRequested) {
+        appendAuditEntry({
+          asset_id: auditAssetId,
+          version: auditVersion,
+          profile,
+          as,
+          access_mode: auditAccessMode,
+          result: 'error',
+          error_code: e.code || null,
+          duration_ms: Date.now() - loadStart,
+        });
+      }
       if (e.code === 'KDNA_DECRYPT_FAILED') {
         process.stderr.write('Error: decryption failed. Check your password.\n');
         process.exit(EXIT.JUDGMENT_QUALITY_FAILED);

@@ -4,7 +4,7 @@
  * Verifies:
  *   A) appendAuditEntry() + readAuditLog() unit round-trip
  *   B) auditStats() computes correct summary
- *   C) kdna load writes a success entry to the audit log
+ *   C) kdna load is state-free by default and --audit writes a safe receipt
  *   D) kdna history --audit reads the audit log
  *   E) kdna history --audit --stats computes stats
  *   F) kdna history --audit --json returns JSON
@@ -52,7 +52,6 @@ test('Story 10 unit: appendAuditEntry writes a line; readAuditLog reads it back'
   try {
     const { appendAuditEntry, readAuditLog } = require('../src/cmds/audit-log');
     appendAuditEntry({
-      asset_path: '/test/writing.kdna',
       asset_id: 'kdna:domain:writing',
       version: '0.7.2',
       profile: 'compact',
@@ -68,6 +67,7 @@ test('Story 10 unit: appendAuditEntry writes a line; readAuditLog reads it back'
     assert.equal(entries[0].asset_id, 'kdna:domain:writing');
     assert.equal(entries[0].result, 'success');
     assert.equal(entries[0].profile, 'compact');
+    assert.equal(Object.hasOwn(entries[0], 'asset_path'), false);
     assert.ok(entries[0].timestamp);
     assert.equal(entries[0].duration_ms, 120);
   } finally {
@@ -86,15 +86,15 @@ test('Story 10 unit: readAuditLog filters by result', () => {
   delete require.cache[require.resolve('../src/cmds/audit-log.js')];
   try {
     const { appendAuditEntry, readAuditLog } = require('../src/cmds/audit-log');
-    appendAuditEntry({ asset_path: '/a.kdna', result: 'success', profile: 'compact', as: 'json' });
+    appendAuditEntry({ asset_id: 'kdna:a', result: 'success', profile: 'compact', as: 'json' });
     appendAuditEntry({
-      asset_path: '/b.kdna',
+      asset_id: 'kdna:b',
       result: 'error',
       error_code: 'KDNA_DECRYPT_FAILED',
       profile: 'compact',
       as: 'json',
     });
-    appendAuditEntry({ asset_path: '/c.kdna', result: 'success', profile: 'full', as: 'json' });
+    appendAuditEntry({ asset_id: 'kdna:c', result: 'success', profile: 'full', as: 'json' });
 
     const all = readAuditLog();
     const errors = readAuditLog({ result: 'error' });
@@ -104,6 +104,44 @@ test('Story 10 unit: readAuditLog filters by result', () => {
     assert.equal(errors.length, 1);
     assert.equal(errors[0].error_code, 'KDNA_DECRYPT_FAILED');
     assert.equal(successes.length, 2);
+  } finally {
+    process.env.KDNA_HOME = origHome;
+    delete require.cache[require.resolve('../src/paths.js')];
+    delete require.cache[require.resolve('../src/cmds/audit-log.js')];
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('Story 10 unit: legacy absolute paths are removed from current audit output', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s10-'));
+  const origHome = process.env.KDNA_HOME;
+  process.env.KDNA_HOME = tmp;
+  delete require.cache[require.resolve('../src/paths.js')];
+  delete require.cache[require.resolve('../src/cmds/audit-log.js')];
+  try {
+    const auditFile = path.join(tmp, 'audit.jsonl');
+    fs.writeFileSync(
+      auditFile,
+      `${JSON.stringify({
+        timestamp: '2026-07-23T00:00:00.000Z',
+        event_type: 'load',
+        asset_path: '/tmp/private-project/personal.kdna',
+        asset_id: 'kdna:example:writing',
+        version: '1.0.0',
+        profile: 'compact',
+        as: 'json',
+        access_mode: 'public',
+        result: 'success',
+        error_code: null,
+        duration_ms: 1,
+      })}\n`,
+      { mode: 0o600 },
+    );
+    const { readAuditLog } = require('../src/cmds/audit-log');
+    const entries = readAuditLog();
+    assert.equal(entries.length, 1);
+    assert.equal(Object.hasOwn(entries[0], 'asset_path'), false);
+    assert.doesNotMatch(JSON.stringify(entries), /tmp|private-project|personal\.kdna/u);
   } finally {
     process.env.KDNA_HOME = origHome;
     delete require.cache[require.resolve('../src/paths.js')];
@@ -150,12 +188,25 @@ test('Story 10 unit: auditStats computes correct summary', () => {
   }
 });
 
-// ─── C: CLI — kdna load writes audit entry ────────────────────────────────────
+// ─── C: CLI — one-shot by default, explicit safe receipt ─────────────────────
 
-test('Story 10 CLI: kdna load success writes audit entry to KDNA_HOME/audit.jsonl', () => {
+test('Story 10 CLI: one-shot kdna load creates no persistent CLI state by default', () => {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s10-home-'));
   try {
     const r = run(['load', RUNTIME_FIXTURE, '--profile=compact', '--as=json'], {
+      kdnaHome: tmpHome,
+    });
+    assert.equal(r.status, 0, `kdna load failed:\n${r.stderr}`);
+    assert.deepEqual(fs.readdirSync(tmpHome), []);
+  } finally {
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }
+});
+
+test('Story 10 CLI: kdna load --audit writes a path-free receipt', () => {
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s10-home-'));
+  try {
+    const r = run(['load', RUNTIME_FIXTURE, '--profile=compact', '--as=json', '--audit'], {
       kdnaHome: tmpHome,
     });
     assert.equal(r.status, 0, `kdna load failed:\n${r.stderr}`);
@@ -171,6 +222,11 @@ test('Story 10 CLI: kdna load success writes audit entry to KDNA_HOME/audit.json
     assert.equal(entry.result, 'success');
     assert.equal(entry.profile, 'compact');
     assert.equal(entry.as, 'json');
+    assert.equal(Object.hasOwn(entry, 'asset_path'), false);
+    assert.doesNotMatch(
+      lines[0],
+      new RegExp(RUNTIME_FIXTURE.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')),
+    );
     assert.ok(entry.timestamp);
     assert.ok(typeof entry.duration_ms === 'number');
   } finally {
@@ -184,8 +240,12 @@ test('Story 10 CLI: kdna history --audit --json shows audit entries', () => {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s10-home-'));
   try {
     // First, create some audit entries via kdna load
-    run(['load', RUNTIME_FIXTURE, '--profile=compact', '--as=json'], { kdnaHome: tmpHome });
-    run(['load', RUNTIME_FIXTURE, '--profile=full', '--as=prompt'], { kdnaHome: tmpHome });
+    run(['load', RUNTIME_FIXTURE, '--profile=compact', '--as=json', '--audit'], {
+      kdnaHome: tmpHome,
+    });
+    run(['load', RUNTIME_FIXTURE, '--profile=full', '--as=prompt', '--audit'], {
+      kdnaHome: tmpHome,
+    });
 
     const r = run(['history', '--audit', '--json'], { kdnaHome: tmpHome });
     assert.equal(r.status, 0, `kdna history --audit --json failed:\n${r.stderr}`);
@@ -204,7 +264,9 @@ test('Story 10 CLI: kdna history --audit --json shows audit entries', () => {
 test('Story 10 CLI: kdna history --audit --stats --json shows stats', () => {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s10-home-'));
   try {
-    run(['load', RUNTIME_FIXTURE, '--profile=compact', '--as=json'], { kdnaHome: tmpHome });
+    run(['load', RUNTIME_FIXTURE, '--profile=compact', '--as=json', '--audit'], {
+      kdnaHome: tmpHome,
+    });
 
     const r = run(['history', '--audit', '--stats', '--json'], { kdnaHome: tmpHome });
     assert.equal(r.status, 0, `failed:\n${r.stderr}`);

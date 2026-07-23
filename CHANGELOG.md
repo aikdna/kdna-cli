@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Make explicit-file `kdna load` genuinely one-shot: it no longer creates
+  `~/.kdna/audit.jsonl` unless the user opts in for that invocation with
+  `--audit`. New receipts omit the source path, and `history --audit` removes
+  the historical `asset_path` field while reading older local records, so a
+  personal absolute path cannot cross the current CLI output boundary.
+
 - Add the file-first workspace attachment reference implementation. The CLI
   now snapshots one explicitly approved regular `.kdna` file by exact SHA-256
   under `<workspace>/.kdna/assets/`, writes the closed
