@@ -92,7 +92,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "eslint": "^10.6.0",
-    "prettier": "^3.9.1"
+    "prettier": "^3.9.6"
   },
   "directories": {
     "doc": "docs",
