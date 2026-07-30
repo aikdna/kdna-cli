@@ -291,12 +291,17 @@ test('multiple positive attachments and same-role disagreement ask with attachme
 
 test('protected or remote assets block before scope when authorization is not satisfied', () => {
   const root = temporaryRoot('authorization');
-  attach(root, buildAsset(root, { access: 'remote' }));
+  const attached = attach(root, buildAsset(root, { access: 'remote' }));
+  const recordBefore = fs.readFileSync(recordPath(root));
+  const snapshot = path.join(root, '.kdna', ...attached.attachment.asset.snapshot.split('/'));
+  const snapshotBefore = fs.readFileSync(snapshot);
   const result = resolve(root, 'draft this');
   assert.equal(result.decision, 'block');
   assert.equal(result.reason_code, 'authorization_required');
   assert.equal(result.authorization, 'required');
   assert.equal(result.integrity, 'verified');
+  assert.deepEqual(fs.readFileSync(recordPath(root)), recordBefore);
+  assert.deepEqual(fs.readFileSync(snapshot), snapshotBefore);
 });
 
 test('adapter schema mismatch blocks with a closed adapter_incompatible result', () => {
