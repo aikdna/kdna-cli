@@ -1135,7 +1135,7 @@ function snapshotAbsolutePath(paths, asset) {
   return absolute;
 }
 
-function verifyAssetReference(paths, asset) {
+function verifyAssetReference(paths, asset, options = {}) {
   const snapshot = snapshotAbsolutePath(paths, asset);
   let bytes;
   try {
@@ -1179,7 +1179,13 @@ function verifyAssetReference(paths, asset) {
   ) {
     fail('asset_invalid', 'Workspace snapshot identity or LoadPlan is invalid.');
   }
-  return { bytes, manifest, plan };
+  const passwordAuthorizationDeferred =
+    options.deferPasswordAuthorization === true &&
+    plan.state === 'needs_password' &&
+    plan.issues?.some(
+      (issue) => issue.code === 'KDNA_AUTH_PASSWORD_REQUIRED',
+    );
+  return { bytes, manifest, plan, passwordAuthorizationDeferred };
 }
 
 function mutateAttachment(cwd, workspaceRoot, attachmentId, mutation) {
@@ -2184,7 +2190,9 @@ function resolveWorkspace(options) {
     for (const item of items) {
       let asset;
       try {
-        asset = verifyAssetReference(workspace.paths, item.attachment.asset);
+        asset = verifyAssetReference(workspace.paths, item.attachment.asset, {
+          deferPasswordAuthorization: options.deferPasswordAuthorization,
+        });
       } catch (error) {
         const code =
           error instanceof WorkspaceAttachmentError &&
@@ -2196,7 +2204,11 @@ function resolveWorkspace(options) {
         };
       }
       const authorization = asset.plan.can_load_now === true ? 'satisfied' : 'required';
-      if (requireAuthorization && authorization === 'required') {
+      if (
+        requireAuthorization &&
+        authorization === 'required' &&
+        asset.passwordAuthorizationDeferred !== true
+      ) {
         return {
           blocked: blockResult(
             'authorization_required',

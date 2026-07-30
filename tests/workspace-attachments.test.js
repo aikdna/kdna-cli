@@ -81,7 +81,9 @@ function buildProtectedAsset(root, password = 'workspace-test-password') {
   const suffix = crypto.randomBytes(4).toString('hex');
   const source = path.join(root, `protected-source-${suffix}`);
   const protectedAsset = path.join(root, `protected-${suffix}.kdna`);
-  const demo = runCli(['demo', 'minimal', source, '--password-stdin'], { input: `${password}\n` });
+  const demo = runCli(['demo', 'minimal', source, '--password-stdin'], {
+    input: `${password}\n`,
+  });
   assert.equal(demo.status, 0, demo.stderr);
   const packed = runCli(['pack', source, protectedAsset]);
   assert.equal(packed.status, 0, packed.stderr);
@@ -122,6 +124,7 @@ function resolve(root, text, options = {}) {
     selectionTaskDigest: options.selectionTaskDigest,
     selectionPlanDigest: options.selectionPlanDigest,
     selectionApproved: options.selectionApproved,
+    deferPasswordAuthorization: options.deferPasswordAuthorization,
   });
 }
 
@@ -1014,6 +1017,40 @@ test('explicitly outside-scope assets do not block on missing authorization or d
   assert.equal(missingOutside.integrity, 'not_checked');
   assert.equal(resolve(missingRoot, 'draft this').reason_code, 'snapshot_missing');
 });
+
+test('adapter-only deferred password authorization resolves scope without claiming authorization', () => {
+  const root = temporaryRoot('deferred-authorization');
+  const protectedAsset = buildProtectedAsset(root);
+  attach(root, protectedAsset);
+
+  const blocked = resolve(root, 'draft this');
+  assert.equal(blocked.decision, 'block');
+  assert.equal(blocked.reason_code, 'authorization_required');
+  assert.equal(blocked.authorization, 'required');
+
+  const inScope = resolve(root, 'draft this', {
+    deferPasswordAuthorization: true,
+  });
+  assert.equal(inScope.decision, 'load');
+  assert.equal(inScope.reason_code, 'single_approved_attachment_clearly_applies');
+  assert.equal(inScope.authorization, 'required');
+  assert.equal(inScope.integrity, 'verified');
+
+  const outsideScope = resolve(root, 'review this code', {
+    deferPasswordAuthorization: true,
+  });
+  assert.equal(outsideScope.decision, 'skip');
+  assert.equal(outsideScope.reason_code, 'outside_scope');
+  assert.equal(outsideScope.authorization, 'not_checked');
+
+  const cliResult = runCli(
+    ['resolve', '--cwd', root, '--task-stdin', '--defer-password-authorization'],
+    { input: Buffer.from('draft this', 'utf8') },
+  );
+  assert.equal(cliResult.status, 0, cliResult.stderr);
+  assert.equal(JSON.parse(cliResult.stdout).authorization, 'required');
+});
+
 test('adapter schema mismatch blocks with a closed adapter_incompatible result', () => {
   const root = temporaryRoot('adapter');
   const result = resolve(root, 'draft', { adapterSchema: '0.0.1' });
