@@ -479,6 +479,34 @@ test('exclusive lock contention leaves the complete record unchanged', () => {
   fs.unlinkSync(lock);
 });
 
+test('workspace lock owner is complete and durable before the exclusive name is published', () => {
+  const root = temporaryRoot('lock-publish');
+  const asset = buildAsset(root);
+  const originalLink = fs.linkSync;
+  let observedOwner = null;
+  fs.linkSync = (owner, lock) => {
+    if (path.basename(lock) === 'attachments.lock') {
+      observedOwner = JSON.parse(fs.readFileSync(owner, 'utf8'));
+      assert.equal(fs.statSync(owner).mode & 0o777, 0o600);
+    }
+    return originalLink(owner, lock);
+  };
+  try {
+    attach(root, asset);
+  } finally {
+    fs.linkSync = originalLink;
+  }
+  assert.equal(observedOwner.pid, process.pid);
+  assert.match(observedOwner.created_at, /^\d{4}-\d{2}-\d{2}T/u);
+  assert.equal(fs.existsSync(path.join(root, '.kdna', 'attachments.lock')), false);
+  assert.equal(
+    fs
+      .readdirSync(path.join(root, '.kdna'))
+      .some((entry) => entry.startsWith('.attachments-lock-owner-')),
+    false,
+  );
+});
+
 test('a dead process lock is recovered without weakening exclusive mutation', () => {
   const root = temporaryRoot('dead-lock');
   const attached = attach(root, buildAsset(root));
