@@ -453,36 +453,43 @@ function atomicWriteRecord(paths, record) {
 
 function withWorkspaceLock(paths, action) {
   ensureWorkspaceLayout(paths);
-  let descriptor;
   let acquired = false;
-  const noFollow = fs.constants.O_NOFOLLOW || 0;
   while (!acquired) {
+    const owner = path.join(
+      paths.kdnaDirectory,
+      `.attachments-lock-owner-${process.pid}-${crypto.randomBytes(8).toString('hex')}.tmp`,
+    );
+    let descriptor;
     try {
       descriptor = fs.openSync(
-        paths.lock,
-        fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | noFollow,
+        owner,
+        fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL,
         0o600,
       );
+      fs.writeFileSync(
+        descriptor,
+        `${JSON.stringify({ pid: process.pid, created_at: new Date().toISOString() })}\n`,
+        'utf8',
+      );
+      fs.fsyncSync(descriptor);
+      fs.closeSync(descriptor);
+      descriptor = undefined;
+      fs.linkSync(owner, paths.lock);
       acquired = true;
     } catch (error) {
       if (!error || error.code !== 'EEXIST') throw error;
       if (!recoverDeadLock(paths.lock)) {
         fail('workspace_locked', 'Another workspace attachment mutation holds the lock.');
       }
+    } finally {
+      if (descriptor !== undefined) fs.closeSync(descriptor);
+      unlinkIfPresent(owner);
+      fsyncDirectory(paths.kdnaDirectory);
     }
   }
   try {
-    fs.writeFileSync(
-      descriptor,
-      `${JSON.stringify({ pid: process.pid, created_at: new Date().toISOString() })}\n`,
-      'utf8',
-    );
-    fs.fsyncSync(descriptor);
-    fs.closeSync(descriptor);
-    descriptor = undefined;
     return action();
   } finally {
-    if (descriptor !== undefined) fs.closeSync(descriptor);
     if (acquired) {
       unlinkIfPresent(paths.lock);
       fsyncDirectory(paths.kdnaDirectory);
