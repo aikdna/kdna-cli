@@ -356,11 +356,12 @@ function cmdResolve(args) {
       '--selection-task-digest',
       '--selection-plan-digest',
       '--selection-approved',
+      '--defer-password-authorization',
     ]),
   );
   if (parsed.positional.length !== 0) {
     inputError(
-      'Usage: kdna resolve --cwd <start> [--workspace-root <boundary>] (--task-stdin | --task-file <file>) [--adapter-schema 0.3.0] [--select-attachment <id> --selection-task-digest <sha256:...> [--selection-plan-digest <sha256:...>] --selection-approved]',
+      'Usage: kdna resolve --cwd <start> [--workspace-root <boundary>] (--task-stdin | --task-file <file>) [--adapter-schema 0.3.0] [--select-attachment <id> --selection-task-digest <sha256:...> [--selection-plan-digest <sha256:...>] --selection-approved] [--defer-password-authorization]',
     );
   }
   const cwd = parsed.one('--cwd');
@@ -385,6 +386,7 @@ function cmdResolve(args) {
         selectionTaskDigest: parsed.one('--selection-task-digest') || undefined,
         selectionPlanDigest: parsed.one('--selection-plan-digest') || undefined,
         selectionApproved: parsed.has('--selection-approved'),
+        deferPasswordAuthorization: parsed.has('--defer-password-authorization'),
       }),
     );
   } finally {

@@ -266,6 +266,14 @@ node ./src/cli.js switch att_<id> ./replacement.kdna \
   --consent-digest sha256:<digest-from-preview>
 ```
 
+Read/load adapters that hold a separate process-scoped password source may add
+`--defer-password-authorization` to `kdna resolve`. This evaluates only the
+approved attachment's public workspace scope and returns
+`authorization: "required"` for an otherwise applicable protected asset. It
+does not accept, verify, or load a password. The adapter must still pass the
+real password through `kdna load --password-stdin`; only successful decryption
+may upgrade the delivered result to `authorization: "satisfied"`.
+
 ## Closed release surface
 
 The npm package has one executable, `kdna`, and one machine-readable top-level
