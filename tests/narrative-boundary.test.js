@@ -68,6 +68,23 @@ test('workspace narrative requires a bounded Host root and rejects home authorit
   assert.match(resolve.purpose, /explicit Host workspace boundary/);
 });
 
+test('ordinary Host approval is human-readable and hides mechanical coordinates', () => {
+  const readme = read('README.md');
+  assert.match(readme, /default user-facing status shows the asset name and\s+version/);
+  assert.match(readme, /purpose and boundary, Host identity, named processing destination/);
+  assert.match(
+    readme,
+    /Digests, receipts, record IDs, and plan coordinates remain available only in\s+technical details, JSON, or audit output/,
+  );
+  assert.match(readme, /ordinary approval is never a hash\s+questionnaire/);
+  assert.match(
+    readme,
+    /original natural-language instruction already binds\s+the exact file, workspace, purpose or scope, current Host, named destination/,
+  );
+  assert.match(readme, /Host does not\s+ask again merely to display a digest/);
+  assert.match(readme, /mechanically supplies the workspace, scope mode, digests/);
+});
+
 test('source-candidate task examples prefer stdin and keep file input explicit', () => {
   const readme = read('README.md');
   const candidate = readme.slice(readme.indexOf('## Unreleased 0.36.0 source candidate'));

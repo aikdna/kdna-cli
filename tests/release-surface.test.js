@@ -165,9 +165,26 @@ test('package file set excludes retired experiments, global asset paths, and ada
     'src/cmds/cluster',
     'src/cmds/compose',
     'src/cmds/legacy',
+    'src/agent.js',
+    'src/publish.js',
   ]) {
     assert.doesNotMatch(serialized, new RegExp(forbidden.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')));
   }
+});
+
+test('retired publication and global-discovery modules are explicit and unreachable', () => {
+  const approved = new Set(FILE_POLICY.files);
+  for (const file of ['src/agent.js', 'src/publish.js']) {
+    assert.equal(approved.has(file), false, `${file} must remain outside the npm package`);
+    assert.match(
+      fs.readFileSync(path.join(ROOT, file), 'utf8').slice(0, 320),
+      /RETIRED \/ NON-AUTHORITATIVE SOURCE MODULE/u,
+      `${file} must not look like current product authority`,
+    );
+  }
+  assert.equal(COMMAND_POLICY.commands.some(({ command }) => command === 'publish'), false);
+  assert.equal(COMMAND_POLICY.commands.some(({ command }) => command === 'available'), false);
+  assert.equal(COMMAND_POLICY.commands.some(({ command }) => command === 'match'), false);
 });
 
 test('ordinary explicit-file command does not discover or mutate a user-global asset directory', () => {
