@@ -61,7 +61,20 @@ test('workspace narrative requires a bounded Host root and rejects home authorit
   assert.match(readme, /home-level\s+`~\/\.kdna\/attachments\.json` fails closed/);
   assert.match(readme, /never falls back to a user-global package\s+directory/);
   assert.match(resolve.usage, /--workspace-root <boundary>/);
+  assert.match(resolve.usage, /--task-stdin \| --task-file <file>/);
   assert.match(resolve.purpose, /explicit Host workspace boundary/);
+});
+
+test('source-candidate task examples prefer stdin and keep file input explicit', () => {
+  const readme = read('README.md');
+  const candidate = readme.slice(readme.indexOf('## Unreleased 0.36.0 source candidate'));
+  assert.match(candidate, /resolve --cwd \.\/my-project --task-stdin/);
+  assert.match(candidate, /writes bounded UTF-8 task bytes\s+to the child process stdin/);
+  assert.match(
+    candidate,
+    /`--task-file` remains\s+available only when the user already has an explicit task file/,
+  );
+  assert.doesNotMatch(candidate, /save the current task text in a regular file/iu);
 });
 
 test('scope narrative does not present phrase matching as natural-language understanding', () => {

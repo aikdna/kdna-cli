@@ -14,8 +14,8 @@
     },
     {
       "command": "resolve",
-      "usage": "resolve --cwd <start> [--workspace-root <boundary>] --task-file <file>",
-      "purpose": "Resolve one task file against approved attachments inside the explicit Host workspace boundary."
+      "usage": "resolve --cwd <start> [--workspace-root <boundary>] (--task-stdin | --task-file <file>)",
+      "purpose": "Resolve one stdin or explicit-file task against approved attachments inside the explicit Host workspace boundary."
     },
     {
       "command": "disable",

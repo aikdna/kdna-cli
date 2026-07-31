@@ -1053,6 +1053,112 @@ test(
   },
 );
 
+test('task stdin is bounded, strict UTF-8, mutually exclusive, and leaves no workspace bytes', () => {
+  const root = temporaryRoot('task-stdin');
+  attach(root, buildAsset(root));
+  const recordBefore = fs.readFileSync(recordPath(root));
+  const assetsBefore = fs.readdirSync(path.join(root, '.kdna', 'assets')).sort();
+  const directoryBefore = fs.readdirSync(path.join(root, '.kdna')).sort();
+
+  let result = runCli(['resolve', '--cwd', root, '--task-stdin'], {
+    input: Buffer.from('draft this', 'utf8'),
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).decision, 'load');
+  assert.deepEqual(fs.readFileSync(recordPath(root)), recordBefore);
+  assert.deepEqual(fs.readdirSync(path.join(root, '.kdna', 'assets')).sort(), assetsBefore);
+  assert.deepEqual(fs.readdirSync(path.join(root, '.kdna')).sort(), directoryBefore);
+
+  result = runCli(['resolve', '--cwd', root, '--task-stdin'], {
+    input: Buffer.alloc(64 * 1024 + 1, 0x61),
+  });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /size limit/u);
+
+  result = runCli(['resolve', '--cwd', root, '--task-stdin'], {
+    input: Buffer.from([0xff]),
+  });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /UTF-8/u);
+
+  result = runCli(['resolve', '--cwd', root, '--task-stdin'], { input: Buffer.alloc(0) });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /non-empty UTF-8 text/u);
+
+  const taskFile = writeTask(root, 'draft this', 'mutually-exclusive-task.txt');
+  result = runCli(['resolve', '--cwd', root, '--task-file', taskFile, '--task-stdin'], {
+    input: Buffer.from('draft this', 'utf8'),
+  });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /exactly one/u);
+
+  result = runCli(['resolve', '--cwd', root]);
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /exactly one/u);
+});
+
+test('task stdin and task file produce identical load, ask, skip, and block decisions', () => {
+  for (const [label, task, expected] of [
+    ['load', 'draft this', 'load'],
+    ['ask', 'review this document', 'ask'],
+    ['skip', 'review this code', 'skip'],
+  ]) {
+    const root = temporaryRoot(`stdin-equivalence-${label}`);
+    attach(root, buildAsset(root));
+    const taskFile = writeTask(root, task);
+    const fromFile = runCli(['resolve', '--cwd', root, '--task-file', taskFile]);
+    const fromStdin = runCli(['resolve', '--cwd', root, '--task-stdin'], {
+      input: Buffer.from(task, 'utf8'),
+    });
+    assert.equal(fromFile.status, 0, fromFile.stderr);
+    assert.equal(fromStdin.status, 0, fromStdin.stderr);
+    assert.deepEqual(JSON.parse(fromStdin.stdout), JSON.parse(fromFile.stdout));
+    assert.equal(JSON.parse(fromStdin.stdout).decision, expected);
+  }
+
+  const blockedRoot = temporaryRoot('stdin-equivalence-block');
+  attach(blockedRoot, buildAsset(blockedRoot, { access: 'remote' }));
+  const blockedTask = 'draft this';
+  const blockedFile = writeTask(blockedRoot, blockedTask);
+  const fromFile = runCli(['resolve', '--cwd', blockedRoot, '--task-file', blockedFile]);
+  const fromStdin = runCli(['resolve', '--cwd', blockedRoot, '--task-stdin'], {
+    input: Buffer.from(blockedTask, 'utf8'),
+  });
+  assert.equal(fromFile.status, 0, fromFile.stderr);
+  assert.equal(fromStdin.status, 0, fromStdin.stderr);
+  assert.deepEqual(JSON.parse(fromStdin.stdout), JSON.parse(fromFile.stdout));
+  assert.equal(JSON.parse(fromStdin.stdout).decision, 'block');
+});
+
+test('task stdin never enters CLI argv, environment, or resolver output', () => {
+  const root = temporaryRoot('task-stdin-sterile');
+  attach(root, buildAsset(root));
+  const task = 'private-task-sentinel-7d6c6d1b';
+  const hook = path.join(root, 'task-stdin-argv-env-guard.cjs');
+  fs.writeFileSync(
+    hook,
+    `
+const sentinel = ${JSON.stringify(task)};
+if (
+  process.argv.some((value) => value.includes(sentinel)) ||
+  Object.values(process.env).some((value) => String(value).includes(sentinel))
+) {
+  throw new Error("task text reached argv or environment");
+}
+`,
+    { mode: 0o600 },
+  );
+  const inherited = process.env.NODE_OPTIONS ? `${process.env.NODE_OPTIONS} ` : '';
+  const result = runCli(['resolve', '--cwd', root, '--task-stdin'], {
+    input: Buffer.from(task, 'utf8'),
+    env: { NODE_OPTIONS: `${inherited}--require=${hook}` },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).decision, 'ask');
+  assert.doesNotMatch(result.stdout, new RegExp(task, 'u'));
+  assert.doesNotMatch(result.stderr, new RegExp(task, 'u'));
+});
+
 test('CLI approval is mandatory off-TTY and --yes performs the exact approved mutation', () => {
   const root = temporaryRoot('cli-approval');
   const asset = buildAsset(root);

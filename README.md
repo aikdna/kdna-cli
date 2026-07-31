@@ -53,15 +53,20 @@ Alternatively, an evaluator may use a candidate package supplied with an exact
 SHA-256 receipt; its digest must be verified before installation. Neither path
 changes what npm `latest` promises.
 
-To approve one exact file for one workspace from that detached source
-candidate, save the current task text in a regular file and use:
+To approve one exact file for one workspace from that detached source candidate
+and resolve a task without writing its text to disk, use:
 
 ```bash
 node ./src/cli.js attach ./demo-judgment.kdna --cwd ./my-project \
   --role article-writing --applies-to draft --does-not-apply-to code --yes
 node ./src/cli.js attachments --cwd ./my-project
-node ./src/cli.js resolve --cwd ./my-project --task-file ./current-task.txt
+node ./src/cli.js resolve --cwd ./my-project --task-stdin
 ```
+
+For the last command, the invoking Agent or Host writes bounded UTF-8 task bytes
+to the child process stdin and then closes the stream. `--task-file` remains
+available only when the user already has an explicit task file; exactly one
+input mode is required.
 
 `attach` copies the validated bytes to an immutable digest snapshot under
 `./my-project/.kdna/`. The source file may then move without changing the
@@ -116,6 +121,11 @@ Saving, discovery, attachment, authorization, applicability, and loading are
 separate events. A Host must expose active asset identity, version or digest,
 scope, and reason, and provide controls to disable it, switch it, or roll it
 back.
+
+A workspace may retain multiple independently approved attachments, but one
+task resolves to zero or one selected asset. Conflicts ask; this source
+candidate does not silently combine assets or define an explicit composition
+contract.
 
 The source-candidate resolver is a conservative deterministic interpreter of
 user-approved scope hints, not an AI classifier for arbitrary natural
