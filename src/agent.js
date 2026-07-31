@@ -1,32 +1,10 @@
 /**
- * Agent-facing commands — what the kdna-loader skill calls.
+ * RETIRED / NON-AUTHORITATIVE SOURCE MODULE.
  *
- *   kdna available --json
- *     List installed domains, lean JSON discovery metadata: identity,
- *     version, status, manifest description/keywords, and LoadPlan
- *     diagnostics (load_state / issues). Excludes yanked.
- *     Discovery is metadata-only: no content is loaded and no Runtime
- *     Capsule projection is produced. Load is a separate, explicit event
- *     (`kdna load <name>`) — the agent decides fit from discovery
- *     metadata and its own language understanding, then loads.
- *
- *   kdna match "<task>" [--json]
- *     Auxiliary signal — does NOT decide which domain to use. Returns:
- *       - dropped: domains whose does_not_apply_when clearly matches the
- *         task (hard disqualification — agent should respect)
- *       - hints: substring overlap signals per domain (weak — agent should
- *         not treat as a fit decision; many false positives expected)
- *     The agent makes the final call using its own language understanding.
- *
- *   kdna load <name|file.kdna> [--as=prompt]
- *     Read the domain's judgment and emit context suitable for agent
- *     system-prompt injection (axioms one-liners + stances +
- *     banned-terms + misunderstandings + self-checks).
- *     For raw inspection use: kdna load <file.kdna> --as=raw
- *
- * These commands are the supported interface between the kdna-loader
- * skill and the KDNA file format. The skill should not read KDNA
- * internals directly.
+ * This historical global-discovery adapter is excluded from the npm package
+ * and its commands are rejected by the closed CLI router. Current consumption
+ * is explicit-file or workspace-attachment based; this file must not be cited
+ * as a supported Host contract.
  */
 
 const fs = require('fs');

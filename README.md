@@ -166,16 +166,23 @@ preferences and asset identity; a real Git worktree regression requires clean
 porcelain status after attach.
 
 Saving, discovery, attachment, authorization, applicability, and loading are
-separate events. A Host must expose active asset identity, version or digest,
-scope, and reason, and provide controls to disable it, switch it, or roll it
-back.
+separate events. A Host's default user-facing status shows the asset name and
+version, purpose and boundary, Host identity, named processing destination,
+permissions, decision reason, and controls to disable, switch, or roll back.
+Digests, receipts, record IDs, and plan coordinates remain available only in
+technical details, JSON, or audit output; ordinary approval is never a hash
+questionnaire.
 
 These low-level flags are an integration surface, not a field questionnaire
-for ordinary users. A qualified Host collects one meaningful approval in
-natural language, keeps private task and scope bytes off argv, and supplies
-the exact workspace, scope mode, digests, approval source, and internal
-attachment ID. It asks again only for a genuinely ambiguous choice, a
-caller-proposed scope, a policy-changing switch, or destructive cleanup.
+for ordinary users. If the original natural-language instruction already binds
+the exact file, workspace, purpose or scope, current Host, named destination,
+and least projection, that is the one meaningful approval; the Host does not
+ask again merely to display a digest. The Host keeps private task and scope
+bytes off argv and mechanically supplies the workspace, scope mode, digests,
+approval source, profile, and internal attachment ID. It asks again only for a
+genuinely ambiguous choice, a caller-proposed scope not covered by the original
+instruction, a changed asset/Host/destination/profile/permission boundary, a
+policy-changing switch, or destructive cleanup.
 
 A workspace may retain multiple independently approved attachments, but one
 task resolves to zero or one selected asset. Conflicts ask; this source

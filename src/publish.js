@@ -1,8 +1,9 @@
 /**
- * kdna publish --check <path> — Quality gate for domain publication.
+ * RETIRED / NON-AUTHORITATIVE SOURCE MODULE.
  *
- * Checks beyond structural validity: anti-vagueness, content completeness,
- * and registry readiness.
+ * This historical publication experiment is excluded from the npm package and
+ * the closed CLI router rejects `publish`. It is retained only for source
+ * archaeology and must not be cited as current product behavior or policy.
  */
 
 const fs = require('fs');
