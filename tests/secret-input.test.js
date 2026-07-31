@@ -88,6 +88,27 @@ test('bounded stdin reader drains finite hostile input and never trims the logic
       }),
     (error) => error instanceof SecretInputError && error.code === 'secret_input_too_large',
   );
+
+  const eventual = finiteReader('retry-secret\n');
+  let attempts = 0;
+  assert.equal(
+    readSecretStdin({
+      fileSystem: {
+        readSync(...args) {
+          attempts += 1;
+          if (attempts <= 2) {
+            const transient = new Error('transient read');
+            transient.code = 'EAGAIN';
+            throw transient;
+          }
+          return eventual.readSync(...args);
+        },
+      },
+      label: 'Password',
+    }),
+    'retry-secret',
+  );
+  assert.ok(attempts > 2);
 });
 
 test('two-value recovery input preserves the complete second secret after one delimiter', () => {

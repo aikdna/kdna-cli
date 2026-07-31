@@ -31,6 +31,8 @@ const VALUE_FLAGS = new Set([
   '--selection-plan-digest',
   '--consent-digest',
 ]);
+const MAX_TRANSIENT_READ_RETRIES = 1000;
+const READ_RETRY_STATE = new Int32Array(new SharedArrayBuffer(4));
 
 class WorkspaceCommandInputError extends Error {
   constructor(message) {
@@ -129,7 +131,20 @@ function readBoundedStdin(maximum, label) {
   const buffer = Buffer.allocUnsafe(16 * 1024);
   try {
     while (true) {
-      const count = fs.readSync(process.stdin.fd, buffer, 0, buffer.length);
+      let count;
+      let retries = 0;
+      while (true) {
+        try {
+          count = fs.readSync(process.stdin.fd, buffer, 0, buffer.length);
+          break;
+        } catch (readError) {
+          if (readError?.code !== 'EAGAIN' || retries >= MAX_TRANSIENT_READ_RETRIES) {
+            throw readError;
+          }
+          retries += 1;
+          Atomics.wait(READ_RETRY_STATE, 0, 0, 1);
+        }
+      }
       if (count === 0) break;
       if (exceeded || total + count > maximum) {
         exceeded = true;
