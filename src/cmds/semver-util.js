@@ -1,5 +1,5 @@
 /**
- * semver-util.js — Semver comparison helpers (Story 13)
+ * semver-util.js — Semver comparison helpers
  *
  * Re-exports parseSemver / compareSemver / satisfies from @aikdna/kdna-core,
  * which is the canonical implementation shared across the KDNA toolchain.

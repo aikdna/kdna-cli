@@ -30,25 +30,25 @@ function run(args, opts = {}) {
   });
 }
 
-test('Story 5: validate current format exits 0 with no spurious deprecation warning', () => {
+test('validate current format exits 0 with no spurious deprecation warning', () => {
   const r = run(['validate', FIXTURE]);
   assert.equal(r.status, 0, `expected exit 0, got ${r.status}:\n${r.stderr}`);
   assert.doesNotMatch(r.stderr, /format is deprecated/i);
 });
 
-test('Story 5: load current format exits 0 with no spurious deprecation warning', () => {
+test('load current format exits 0 with no spurious deprecation warning', () => {
   const r = run(['load', RUNTIME_FIXTURE]);
   assert.equal(r.status, 0, `expected exit 0, got ${r.status}:\n${r.stderr}`);
   assert.doesNotMatch(r.stderr, /format is deprecated/i);
 });
 
-test('Story 5: inspect current format exits 0 with no spurious deprecation warning', () => {
+test('inspect current format exits 0 with no spurious deprecation warning', () => {
   const r = run(['inspect', FIXTURE]);
   assert.equal(r.status, 0, `expected exit 0, got ${r.status}:\n${r.stderr}`);
   assert.doesNotMatch(r.stderr, /format is deprecated/i);
 });
 
-test('Story 5: validate bundle manifest and payload successfully', () => {
+test('validate bundle manifest and payload successfully', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-bundle-'));
   try {
     const manifest = currentManifest({

@@ -1,5 +1,5 @@
 /**
- * story10-audit-log.test.js — CLI load audit log (Story 10)
+ * audit-log.test.js — CLI load audit log
  *
  * Verifies:
  *   A) appendAuditEntry() + readAuditLog() unit round-trip
@@ -7,7 +7,7 @@
  *   C) kdna load is state-free by default and --audit writes a safe receipt
  *   D) retired history variants remain outside the closed command allowlist
  *
- * Run: node --test tests/story10-audit-log.test.js
+ * Run: node --test tests/audit-log.test.js
  */
 
 'use strict';
@@ -38,7 +38,7 @@ function run(args, opts = {}) {
 
 // ─── A: Unit — appendAuditEntry + readAuditLog ────────────────────────────────
 
-test('Story 10 unit: appendAuditEntry writes a line; readAuditLog reads it back', () => {
+test('unit: appendAuditEntry writes a line; readAuditLog reads it back', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s10-'));
   // Temporarily override KDNA_HOME so audit file goes to tmp
   const origHome = process.env.KDNA_HOME;
@@ -75,7 +75,7 @@ test('Story 10 unit: appendAuditEntry writes a line; readAuditLog reads it back'
   }
 });
 
-test('Story 10 unit: readAuditLog filters by result', () => {
+test('unit: readAuditLog filters by result', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s10-'));
   const origHome = process.env.KDNA_HOME;
   process.env.KDNA_HOME = tmp;
@@ -109,7 +109,7 @@ test('Story 10 unit: readAuditLog filters by result', () => {
   }
 });
 
-test('Story 10 unit: legacy absolute paths are removed from current audit output', () => {
+test('unit: legacy absolute paths are removed from current audit output', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s10-'));
   const origHome = process.env.KDNA_HOME;
   process.env.KDNA_HOME = tmp;
@@ -149,7 +149,7 @@ test('Story 10 unit: legacy absolute paths are removed from current audit output
 
 // ─── B: Unit — auditStats ─────────────────────────────────────────────────────
 
-test('Story 10 unit: auditStats computes correct summary', () => {
+test('unit: auditStats computes correct summary', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s10-'));
   const origHome = process.env.KDNA_HOME;
   process.env.KDNA_HOME = tmp;
@@ -187,7 +187,7 @@ test('Story 10 unit: auditStats computes correct summary', () => {
 
 // ─── C: CLI — one-shot by default, explicit safe receipt ─────────────────────
 
-test('Story 10 CLI: one-shot kdna load creates no persistent CLI state by default', () => {
+test('CLI: one-shot kdna load creates no persistent CLI state by default', () => {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s10-home-'));
   try {
     const r = run(['load', RUNTIME_FIXTURE, '--profile=compact', '--as=json'], {
@@ -200,7 +200,7 @@ test('Story 10 CLI: one-shot kdna load creates no persistent CLI state by defaul
   }
 });
 
-test('Story 10 CLI: kdna load --audit writes a path-free receipt', () => {
+test('CLI: kdna load --audit writes a path-free receipt', () => {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s10-home-'));
   try {
     const r = run(['load', RUNTIME_FIXTURE, '--profile=compact', '--as=json', '--audit'], {
@@ -233,7 +233,7 @@ test('Story 10 CLI: kdna load --audit writes a path-free receipt', () => {
 
 // ─── D: retired history command stays outside the closed release surface ─────
 
-test('Story 10 CLI: retired history command cannot read an existing audit file', () => {
+test('CLI: retired history command cannot read an existing audit file', () => {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s10-home-'));
   try {
     // First, create some audit entries via kdna load
@@ -255,7 +255,7 @@ test('Story 10 CLI: retired history command cannot read an existing audit file',
 
 // ─── E: retired history variants share the same stable rejection ─────────────
 
-test('Story 10 CLI: retired history stats variant is rejected', () => {
+test('CLI: retired history stats variant is rejected', () => {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s10-home-'));
   try {
     run(['load', RUNTIME_FIXTURE, '--profile=compact', '--as=json', '--audit'], {
@@ -273,7 +273,7 @@ test('Story 10 CLI: retired history stats variant is rejected', () => {
 
 // ─── F: absence of state does not create a hidden exception ──────────────────
 
-test('Story 10 CLI: retired history command remains rejected with no audit file', () => {
+test('CLI: retired history command remains rejected with no audit file', () => {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s10-home-'));
   try {
     const r = run(['history', '--audit'], { kdnaHome: tmpHome });

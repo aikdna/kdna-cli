@@ -66,7 +66,7 @@ function cmdEvalCluster(args) {
   try {
     const { generateClusterPlan } = require('../cluster-engine');
     plan = generateClusterPlan(manifest, task || 'default task');
-  } catch (e) {
+  } catch {
     // Plan generation failed — structural gate will catch this
   }
 
@@ -77,7 +77,7 @@ function cmdEvalCluster(args) {
       try {
         const data = JSON.parse(fs.readFileSync(path.join(fixturesPath, f), 'utf8'));
         if (data.task) fixtures.push(data);
-      } catch (_) {}
+      } catch {}
     }
   }
 

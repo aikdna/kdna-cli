@@ -75,7 +75,7 @@ function cmdEvalConsumption(args) {
           } else {
             fixtures.push(data);
           }
-        } catch (_) {}
+        } catch {}
       }
     } catch (e) {
       error(`Cannot read fixture directory: ${fixturesDir} — ${e.message}`, EXIT.INPUT_ERROR);
@@ -240,7 +240,7 @@ function cmdEvalConsumption(args) {
 
 function buildFixtureSummary(fixtures, modeResults) {
   const summary = { total: fixtures.length, routed: 0, failed_routing: 0 };
-  for (const [mode, data] of Object.entries(modeResults || {})) {
+  for (const data of Object.values(modeResults || {})) {
     const routeGate = data.gates?.find((g) => g.gate === 'route');
     if (routeGate) {
       if (routeGate.pass === true) summary.routed++;

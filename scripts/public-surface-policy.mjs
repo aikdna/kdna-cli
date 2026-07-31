@@ -3,10 +3,17 @@ const CANDIDATE_BINDING_PATH = 'tests/fixtures/runtime-candidates/binding.json';
 const FULL_HASH = /^[a-f0-9]{40}$/i;
 
 export const PASSWORD_ARGV_EXAMPLE_PATTERN = /\bkdna\b[^\n]*--password(?:=|\s+)/gi;
+export const LICENSE_CREDENTIAL_ARGV_EXAMPLE_PATTERN =
+  /\bkdna\s+license\s+activate\b[^\n]*--(?:license-)?key(?:=|\s+\S+)/gi;
 
 export function isPasswordArgvExample(line) {
   PASSWORD_ARGV_EXAMPLE_PATTERN.lastIndex = 0;
   return PASSWORD_ARGV_EXAMPLE_PATTERN.exec(line) !== null;
+}
+
+export function isLicenseCredentialArgvExample(line) {
+  LICENSE_CREDENTIAL_ARGV_EXAMPLE_PATTERN.lastIndex = 0;
+  return LICENSE_CREDENTIAL_ARGV_EXAMPLE_PATTERN.exec(line) !== null;
 }
 
 export function allowFormalReleaseHash(match, context) {

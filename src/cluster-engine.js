@@ -20,8 +20,6 @@
  *   6. Single-asset path never implicitly invokes Router or Cluster
  */
 
-const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
 
 // ── Constants ─────────────────────────────────────────────────────────

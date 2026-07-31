@@ -234,7 +234,7 @@ test('all 6 gates are function gates (no pass: null)', () => {
     assert.equal(r.status, 0);
     const out = JSON.parse(r.stdout);
     const allGates = [];
-    for (const [mode, data] of Object.entries(out.results)) {
+    for (const data of Object.values(out.results)) {
       for (const g of data.gates) {
         allGates.push(g);
       }

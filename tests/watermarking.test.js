@@ -1,7 +1,7 @@
 /**
- * story21-watermarking.test.js — Payload-level watermarking (Story 21)
+ * watermarking.test.js — Payload-level watermarking
  *
- * Verifies the six acceptance criteria from the Story 21 work package:
+ * Verifies the public watermark behavior:
  *   1. kdna plan-load <asset> outputs watermark_policy for
  *      access: "licensed" or "remote" (and NOT for "public").
  *   2. The watermark contains asset_uid, consumer_id (if
@@ -20,7 +20,7 @@
  *   - No watermark keys committed to the repo (the key is
  *     process-local, generated fresh per CLI invocation).
  *
- * Run: node --test tests/story21-watermarking.test.js
+ * Run: node --test tests/watermarking.test.js
  */
 
 'use strict';
@@ -31,7 +31,6 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
-const crypto = require('node:crypto');
 const {
   currentManifest,
   currentJudgmentPayload,
@@ -46,11 +45,8 @@ const {
   watermarkPolicy,
   verifyWatermark,
   renderWatermarkHeader,
-  resolveConsumerId,
   newHmacKey,
-  stableStringify,
   WATERMARK_VERSION,
-  WATERMARKED_ACCESS_MODES,
 } = require('../src/cmds/watermark');
 
 function run(args, opts = {}) {
@@ -102,7 +98,7 @@ function makeFixture(tmpDir, access = 'public') {
 
 // ─── A: shouldWatermark + module-level behavior ──────────────────────────
 
-test('Story 21 watermark: shouldWatermark returns true for licensed/remote, false for public', () => {
+test('watermark: shouldWatermark returns true for licensed/remote, false for public', () => {
   assert.equal(shouldWatermark('licensed'), true);
   assert.equal(shouldWatermark('remote'), true);
   assert.equal(shouldWatermark('public'), false);
@@ -111,7 +107,7 @@ test('Story 21 watermark: shouldWatermark returns true for licensed/remote, fals
   assert.equal(shouldWatermark('something-else'), false);
 });
 
-test('Story 21 watermark: buildWatermark returns null for public access', () => {
+test('watermark: buildWatermark returns null for public access', () => {
   const wm = buildWatermark({
     access: 'public',
     assetUid: 'urn:test',
@@ -119,7 +115,7 @@ test('Story 21 watermark: buildWatermark returns null for public access', () => 
   assert.equal(wm, null);
 });
 
-test('Story 21 watermark: buildWatermark includes all required fields', () => {
+test('watermark: buildWatermark includes all required fields', () => {
   const wm = buildWatermark({
     access: 'licensed',
     assetUid: 'urn:uuid:abc',
@@ -135,7 +131,7 @@ test('Story 21 watermark: buildWatermark includes all required fields', () => {
   assert.match(wm.hmac, /^[0-9a-f]{64}$/);
 });
 
-test('Story 21 watermark: verifyWatermark returns ok when the HMAC matches', () => {
+test('watermark: verifyWatermark returns ok when the HMAC matches', () => {
   const key = newHmacKey();
   const wm = buildWatermark({
     access: 'remote',
@@ -148,7 +144,7 @@ test('Story 21 watermark: verifyWatermark returns ok when the HMAC matches', () 
   assert.equal(v.ok, true);
 });
 
-test('Story 21 watermark: verifyWatermark returns invalid when the HMAC does not match', () => {
+test('watermark: verifyWatermark returns invalid when the HMAC does not match', () => {
   const wm = buildWatermark({
     access: 'remote',
     assetUid: 'urn:test',
@@ -159,7 +155,7 @@ test('Story 21 watermark: verifyWatermark returns invalid when the HMAC does not
   assert.equal(v.reason, 'hmac mismatch');
 });
 
-test('Story 21 watermark: verifyWatermark returns invalid when the body is tampered', () => {
+test('watermark: verifyWatermark returns invalid when the body is tampered', () => {
   const key = newHmacKey();
   const wm = buildWatermark({
     access: 'licensed',
@@ -173,7 +169,7 @@ test('Story 21 watermark: verifyWatermark returns invalid when the body is tampe
   assert.equal(v.reason, 'hmac mismatch');
 });
 
-test('Story 21 watermark: renderWatermarkHeader produces a content-neutral one-liner', () => {
+test('watermark: renderWatermarkHeader produces a content-neutral one-liner', () => {
   const wm = buildWatermark({
     access: 'licensed',
     assetUid: 'urn:uuid:abc',
@@ -193,7 +189,7 @@ test('Story 21 watermark: renderWatermarkHeader produces a content-neutral one-l
   assert.doesNotMatch(lower, /\brecommended\b/);
 });
 
-test('Story 21 watermark: watermarkPolicy describes the policy without secret material', () => {
+test('watermark: watermarkPolicy describes the policy without secret material', () => {
   const policy = watermarkPolicy({
     access: 'licensed',
     assetUid: 'urn:test',
@@ -210,7 +206,7 @@ test('Story 21 watermark: watermarkPolicy describes the policy without secret ma
 
 // ─── B: CLI integration ────────────────────────────────────────────────
 
-test('Story 21 plan-load: licensed plan stays inside the public LoadPlan schema', () => {
+test('plan-load: licensed plan stays inside the public LoadPlan schema', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s21-'));
   const env = { KDNA_IDENTITY_DIR: path.join(tmp, 'keys') };
   try {
@@ -227,7 +223,7 @@ test('Story 21 plan-load: licensed plan stays inside the public LoadPlan schema'
   }
 });
 
-test('Story 21 plan-load: remote plan stays inside the public LoadPlan schema', () => {
+test('plan-load: remote plan stays inside the public LoadPlan schema', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s21-'));
   const env = { KDNA_IDENTITY_DIR: path.join(tmp, 'keys') };
   try {
@@ -241,7 +237,7 @@ test('Story 21 plan-load: remote plan stays inside the public LoadPlan schema', 
   }
 });
 
-test('Story 21 plan-load: NO watermark_policy for public asset', () => {
+test('plan-load: NO watermark_policy for public asset', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s21-'));
   const env = { KDNA_IDENTITY_DIR: path.join(tmp, 'keys') };
   try {
@@ -259,7 +255,7 @@ test('Story 21 plan-load: NO watermark_policy for public asset', () => {
   }
 });
 
-test('Story 21 load: JSON output includes watermark for licensed asset', () => {
+test('load: JSON output includes watermark for licensed asset', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s21-'));
   const env = { KDNA_IDENTITY_DIR: path.join(tmp, 'keys') };
   try {
@@ -277,7 +273,7 @@ test('Story 21 load: JSON output includes watermark for licensed asset', () => {
   }
 });
 
-test('Story 21 load: prompt output includes the [WATERMARK ...] header for licensed asset', () => {
+test('load: prompt output includes the [WATERMARK ...] header for licensed asset', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s21-'));
   const env = { KDNA_IDENTITY_DIR: path.join(tmp, 'keys') };
   try {
@@ -295,7 +291,7 @@ test('Story 21 load: prompt output includes the [WATERMARK ...] header for licen
   }
 });
 
-test('Story 21 load: NO watermark for public asset (even in --as=prompt)', () => {
+test('load: NO watermark for public asset (even in --as=prompt)', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s21-'));
   const env = { KDNA_IDENTITY_DIR: path.join(tmp, 'keys') };
   try {
@@ -309,7 +305,7 @@ test('Story 21 load: NO watermark for public asset (even in --as=prompt)', () =>
   }
 });
 
-test('Story 21 load: watermark consumer_id is the local identity fingerprint when kdna identity is set up', () => {
+test('load: watermark consumer_id is the local identity fingerprint when kdna identity is set up', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s21-'));
   const env = {
     KDNA_IDENTITY_DIR: path.join(tmp, 'keys'),
@@ -331,7 +327,7 @@ test('Story 21 load: watermark consumer_id is the local identity fingerprint whe
   }
 });
 
-test('Story 21 load: watermark consumer_id is null when no kdna identity is set up', () => {
+test('load: watermark consumer_id is null when no kdna identity is set up', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s21-'));
   const env = {
     KDNA_IDENTITY_DIR: path.join(tmp, 'keys-no-such'),

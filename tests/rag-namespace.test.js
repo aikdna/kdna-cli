@@ -1,5 +1,5 @@
 /**
- * story11-rag-namespace.test.js — RAG namespace isolation (Story 11)
+ * rag-namespace.test.js — RAG namespace isolation
  *
  * Verifies:
  *   A) Core authorized-load output for a Bundle with resolved_dependencies
@@ -7,7 +7,7 @@
  *   B) --as=prompt output includes [NAMESPACE: id] headers per component
  *   C) kdna load --namespace <id> filters to one component's content
  *
- * Run: node --test tests/story11-rag-namespace.test.js
+ * Run: node --test tests/rag-namespace.test.js
  */
 
 'use strict';
@@ -38,7 +38,7 @@ function run(args, opts = {}) {
 
 // ─── A: Core API — rag_namespace + rag_isolation_policy ───────────────────────
 
-test('Story 11 core: rag_namespace is added to resolved_dependencies', () => {
+test('core: rag_namespace is added to resolved_dependencies', () => {
   const core = require('@aikdna/kdna-core');
 
   // Exercise the current authorized-load route with a mock resolver.
@@ -61,7 +61,7 @@ test('Story 11 core: rag_namespace is added to resolved_dependencies', () => {
   assert.equal(expected, '@scope/dep-a@2.0.0');
 });
 
-test('Story 11 core: rag_namespace format — name@version and name-only', () => {
+test('core: rag_namespace format — name@version and name-only', () => {
   // Verify the namespace derivation contract:
   //   dep with name + version  → "name@version"
   //   dep with name only       → "name"
@@ -78,7 +78,7 @@ test('Story 11 core: rag_namespace format — name@version and name-only', () =>
 
 // ─── B: CLI — plan-load with mock resolver shows rag_namespace ────────────────
 
-test('Story 11 CLI: plan-load with resolved deps → rag_namespace in output', () => {
+test('CLI: plan-load with resolved deps → rag_namespace in output', () => {
   // We can't easily mock resolveAsset in CLI, but we can verify that
   // plan-load on a single asset has no rag_isolation_policy (correct)
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s11-'));
@@ -99,7 +99,7 @@ test('Story 11 CLI: plan-load with resolved deps → rag_namespace in output', (
 
 // ─── C: CLI — kdna load --namespace filter ────────────────────────────────────
 
-test('Story 11 CLI: kdna load --namespace with no Bundle deps → warning on stderr, normal output', () => {
+test('CLI: kdna load --namespace with no Bundle deps → warning on stderr, normal output', () => {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s11-home-'));
   try {
     const r = run(['load', RUNTIME_FIXTURE, '--namespace=@scope/missing', '--as=json'], {
@@ -119,7 +119,7 @@ test('Story 11 CLI: kdna load --namespace with no Bundle deps → warning on std
 
 // ─── D: Smoke — kdna load output has no cross-namespace data leakage ──────────
 
-test('Story 11 smoke: kdna load single asset has no rag_isolation_policy field', () => {
+test('smoke: kdna load single asset has no rag_isolation_policy field', () => {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s11-home-'));
   try {
     const r = run(['load', RUNTIME_FIXTURE, '--as=json'], { kdnaHome: tmpHome });

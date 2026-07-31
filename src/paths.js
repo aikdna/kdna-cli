@@ -3,7 +3,7 @@
 // NOTE: domains/ is NOT part of the runtime model (see local-kdna-home-spec.md §Invariants).
 // The domains field below is retained ONLY for legacy migration. New code MUST use packages/.
 //
-// Two-tier store (roadmap-2026.md §5.1 Story 2):
+// Two-tier package-store paths:
 // The package store now supports two roots — the user-global root
 // (~/.kdna/packages/) and a project-local root (./.kdna/packages/).
 // Project-local wins on conflict for reads; the user-global root
@@ -49,7 +49,7 @@ const PATHS = {
 PATHS.USER_KDNA_DIR = KDNA_HOME;
 PATHS.INSTALL_DIR = PATHS.packages;
 
-// ─── Project-local paths (Story 2) ─────────────────────────────────────
+// ─── Project-local paths ────────────────────────────────────────
 //
 // Resolved at access time, not at module load. The project root is
 // determined by KDNA_PROJECT_ROOT (if set) or process.cwd() (if not).

@@ -1,5 +1,5 @@
 /**
- * deprecation.js — Bundle component deprecation scan (Story 13)
+ * deprecation.js — Bundle component deprecation scan
  *
  * Scans a bundle manifest (the `kdna.bundle.json` file with
  * `bundle_format: "kdna.bundle"`) for components that declare a
@@ -44,7 +44,7 @@
  * Design contract: deprecation is a soft signal, never blocking.
  * It does NOT affect exit code. It does NOT prevent load/plan-load.
  * It is purely informational and does not block loading.
- * in Story 5 (`kdna load` on an asset prints a one-liner to stderr).
+ * in  (`kdna load` on an asset prints a one-liner to stderr).
  */
 
 'use strict';
@@ -139,7 +139,7 @@ function evaluateDeprecation(deprecation, componentId, componentLabel, currentVe
   // Resolve the "since" condition from one of three accepted field names.
   //   "since"          — preferred; can be a version literal, comparator,
   //                      or range (e.g. "0.28.0", ">=0.28.0", "^0.28.0")
-  //   "deprecated_in"  — alias (matches the wording in the Story 13 brief)
+  //   "deprecated_in"  — alias (matches the wording in the  brief)
   //   "deprecated_at"  — shorthand: version ≥ this is deprecated
   let since = null;
   if (typeof deprecation.since === 'string' && deprecation.since.trim() !== '') {

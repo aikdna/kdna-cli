@@ -1,5 +1,5 @@
 /**
- * validate-bundle.js — Bundle validation (roadmap-2026.md Stories 3 + 9 + 13)
+ * validate-bundle.js — Bundle validation
  *
  * Validates a `kdna.bundle.json` manifest (RFC #148 Phase 1):
  *
@@ -8,9 +8,9 @@
  *   - For each component: resolves `path`, checks the file exists,
  *     detects it as a KDNA container, and runs the existing
  *     `validate()` pass from @aikdna/kdna-core.
- *   - Runs per-card-type conflict analysis across component pairs
- *     (Story 9, per docs/CONFLICT_RESOLUTION.md).
- *   - Story 13: validates per-component `trust_level` and `deprecation`
+ *   - Runs per-card-type conflict analysis across component pairs, per
+ *     docs/CONFLICT_RESOLUTION.md.
+ *   - Validates per-component `trust_level` and `deprecation`
  *     fields, surfaces `low_trust_warnings` (WARNING-level conflicts
  *     involving `community`-trust components), and surfaces bundle-level
  *     deprecation signals when the current CLI version satisfies the
@@ -22,7 +22,7 @@
  *       bundle manifest is malformed, or ERROR-severity conflicts found)
  *
  * Output: JSON to stdout, mirroring the shape documented in
- * docs/CONFLICT_RESOLUTION.md §Conflict Report Format. Story 13 adds
+ * docs/CONFLICT_RESOLUTION.md §Conflict Report Format. The result adds
  * `low_trust_warnings` and `deprecation_warnings` top-level sections.
  */
 
@@ -43,14 +43,14 @@ const VALID_TRUST_LEVELS = new Set(['community', 'verified', 'official']);
  * @param {string} manifestPath  Absolute or relative path to the manifest JSON.
  * @param {object} [opts]
  * @param {boolean} [opts.verbose]  Include full per-component validation detail.
- * @param {string} [opts.currentVersion]  the running CLI version. Story 13
- *   uses this to evaluate the `deprecation` blocks in the manifest. When
+ * @param {string} [opts.currentVersion]  the running CLI version.
+ *   The validator uses this to evaluate the `deprecation` blocks in the manifest. When
  *   omitted, `deprecation_warnings` is emitted as an empty section.
  * @returns {BundleValidationResult}
  */
 function validateBundle(manifestPath, opts = {}) {
   const abs = path.resolve(manifestPath);
-  // Story 13: default the currentVersion to the CLI's own package.json
+  // Default currentVersion to the CLI's own package.json
   // version. Callers can override (e.g. tests) but the CLI case always
   // gets a value here.
   const currentVersion = opts.currentVersion || require('../../package.json').version;
@@ -150,7 +150,7 @@ function validateBundle(manifestPath, opts = {}) {
       });
     }
 
-    // Story 13 — trust_level validation. Optional field; when present
+    // trust_level validation. Optional field; when present
     // it must be one of {community, verified, official}. Anything else
     // is a hard schema error (rejected at validate time, not silently
     // ignored), because a typo here would mask the trust signal.
@@ -210,7 +210,7 @@ function validateBundle(manifestPath, opts = {}) {
     let fmt;
     try {
       fmt = detectContainerFormat(compAbs);
-    } catch (e) {
+    } catch {
       fmt = null;
     }
 
@@ -270,10 +270,10 @@ function validateBundle(manifestPath, opts = {}) {
       priority: typeof comp.priority === 'number' ? comp.priority : null,
       valid: compValid,
       issues: compResult.issues || [],
-      // Story 13 — surface trust_level so conflict-analysis can tag
+      // Surface trust_level so conflict-analysis can tag
       // entries with the trust_level of each side.
       trust_level: VALID_TRUST_LEVELS.has(comp.trust_level) ? comp.trust_level : null,
-      // Story 13 — surface the raw deprecation block (validation does
+      // Surface the raw deprecation block (validation does
       // not require it to be well-formed here; the deprecation check
       // happens in the deprecation.js module against the current CLI
       // version). Stored as-is for the report to surface to the user.
@@ -285,14 +285,14 @@ function validateBundle(manifestPath, opts = {}) {
     componentResults.push(entry);
   }
 
-  // 4. Conflict analysis (Story 9) — per-card-type static analysis across
+  // 4. Conflict analysis — per-card-type static analysis across
   //    all component pairs, per docs/CONFLICT_RESOLUTION.md.
   try {
     const { errors: cErr, warnings: cWarn, info: cInfo } = analyseConflicts(componentResults, core);
     for (const e of cErr) errors.push(e);
     for (const w of cWarn) warnings.push(w);
     for (const i of cInfo) info.push(i);
-  } catch (_) {
+  } catch {
     // Conflict analysis is non-blocking — a bug here must not break validate
     info.push({
       conflict_type: 'info',
@@ -311,7 +311,7 @@ function validateBundle(manifestPath, opts = {}) {
  * @param {Array}  warnings
  * @param {Array}  info
  * @param {object} [opts]
- * @param {string} [opts.currentVersion]  the running CLI version (Story 13).
+ * @param {string} [opts.currentVersion]  the running CLI version.
  *   When provided, the result also includes `deprecation_warnings` (entries
  *   that the current CLI version satisfies) and `low_trust_warnings`
  *   (WARNING-level conflicts involving community-trust components).
@@ -335,7 +335,7 @@ function buildResult(manifest, components, errors, warnings, info, opts = {}) {
     info,
   };
 
-  // Story 13 — low_trust_warnings: filter WARNING-level entries where
+  // low_trust_warnings: filter WARNING-level entries where
   // at least one side has trust_level === "community". The conflict
   // entries are still in `warnings`; this section is a convenience
   // summary that downstream consumers (and the CLI's stderr line)
@@ -352,14 +352,14 @@ function buildResult(manifest, components, errors, warnings, info, opts = {}) {
       new Set(
         lowTrustWarnings.flatMap((w) =>
           [w.component_a, w.component_b].filter(
-            (id) => w.trust_level_a === 'community' || w.trust_level_b === 'community',
+            () => w.trust_level_a === 'community' || w.trust_level_b === 'community',
           ),
         ),
       ),
     ),
   };
 
-  // Story 13 — deprecation_warnings: scan the manifest (top-level
+  // deprecation_warnings: scan the manifest (top-level
   // deprecation block + each component's deprecation block) against
   // the current CLI version. The CLI version is passed via opts; when
   // not provided (older callers, internal tests), this section is

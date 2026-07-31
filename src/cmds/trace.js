@@ -156,7 +156,7 @@ function cmdTrace(args) {
 }
 
 function cmdHistory(args) {
-  // --audit mode: read from ~/.kdna/audit.jsonl (Story 10)
+  // --audit mode: read from ~/.kdna/audit.jsonl
   if (args.includes('--audit')) {
     return cmdHistoryAudit(args);
   }

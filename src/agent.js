@@ -37,7 +37,6 @@ const {
   listInstalled: listInstalledAssets,
   readContainer,
   readContainerJson,
-  resolveAsset,
 } = require('./package-store');
 const { licenseDecryptOptionsForManifest } = require('./cmds/license');
 const { planLoad } = require('@aikdna/kdna-core');
@@ -52,23 +51,6 @@ function listInstalled() {
     const parsed = parseName(entry.full);
     return { ...entry, scope: parsed.scope, ident: parsed.ident };
   });
-}
-
-function assetLabel(asset, fallback) {
-  return asset.name || asset.parsed?.full || fallback;
-}
-
-function traceAssetFields(asset, manifest = {}, license = null) {
-  const fields = {
-    asset_path: asset.asset_path,
-    asset_digest: asset.asset_digest || null,
-    content_digest: asset.content_digest || null,
-    version: manifest.version || asset.version || null,
-    judgment_version: manifest.judgment_version || asset.judgment_version || null,
-    access: manifest.access || asset.access || null,
-  };
-  if (license?.license_id) fields.license_id = license.license_id;
-  return fields;
 }
 
 /**

@@ -70,7 +70,7 @@ test('asset-evidence includes checksums for sidecar files', () => {
   assert.equal(r.status, 0);
   const out = JSON.parse(r.stdout);
   assert.ok(Object.keys(out.integrity.checksums).length > 0);
-  for (const [key, val] of Object.entries(out.integrity.checksums)) {
+  for (const val of Object.values(out.integrity.checksums)) {
     assert.match(val, /^sha256:/);
   }
 });

@@ -15,9 +15,9 @@ function loadManifest(absPath) {
         const core = require('@aikdna/kdna-core');
         const m = core.inspect(absPath);
         if (m) return m;
-      } catch (_) {}
+      } catch {}
     }
-  } catch (_) {}
+  } catch {}
   return null;
 }
 

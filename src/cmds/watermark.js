@@ -1,7 +1,7 @@
 /**
- * watermark.js — payload-level watermarking (Story 21)
+ * watermark.js — payload-level watermarking
  *
- * Design contract (from `roadmap-2026.md` §5.1 Story 21 + §13.7):
+ * Watermark behavior:
  *
  *   1. Watermarks are per-mode: `access: "licensed"` and
  *      `access: "remote"` get a watermark. `access: "public"`
@@ -85,12 +85,11 @@ function resolveConsumerId(opts) {
   if (opts && opts.identityDir) candidates.push(opts.identityDir);
   if (process.env.KDNA_IDENTITY_DIR) candidates.push(process.env.KDNA_IDENTITY_DIR);
   try {
-    const fs = require('node:fs');
     const path = require('node:path');
     const os = require('node:os');
     const home = process.env.HOME || process.env.USERPROFILE || os.homedir();
     candidates.push(path.join(home, '.kdna', 'keys'));
-  } catch (_) {
+  } catch {
     // ignore
   }
 
@@ -103,7 +102,7 @@ function resolveConsumerId(opts) {
         const pub = fs.readFileSync(pubPath, 'utf8');
         return crypto.createHash('sha256').update(pub).digest('hex').substring(0, 16);
       }
-    } catch (_) {
+    } catch {
       // continue
     }
   }
@@ -230,7 +229,7 @@ function renderWatermarkHeader(watermark) {
 
 /**
  * Stable canonical JSON for HMAC computation. Same shape as
- * the kdna-cli's STABLE_STRINGIFY used in Story 19/20 — kept
+ * the kdna-cli's STABLE_STRINGIFY used in  — kept
  * independent here because the servers don't share code with
  * the CLI, and the canonical form is the simplest possible
  * deterministic serialization.

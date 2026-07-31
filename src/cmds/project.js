@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { error, EXIT } = require('./_common');
+const { EXIT } = require('./_common');
 
 function cmdProject(args) {
   const getFlag = (name) => {
@@ -40,7 +40,7 @@ function cmdProject(args) {
   if (contextRaw) {
     try {
       context = JSON.parse(contextRaw);
-    } catch (_) {
+    } catch {
       context = { raw: contextRaw };
     }
   }
@@ -50,7 +50,7 @@ function cmdProject(args) {
     const { resolveAsset } = require('../package-store');
     const resolved = resolveAsset(assetPath);
     if (resolved?.asset_path) loadTarget = resolved.asset_path;
-  } catch (_) {}
+  } catch {}
 
   const abs = path.resolve(loadTarget);
   const projectData = {
@@ -98,13 +98,13 @@ function cmdProject(args) {
                 access: m.access || 'public',
                 creator: m.creator || null,
               };
-            } catch (_) {}
+            } catch {}
           }
-        } catch (_) {
+        } catch {
           // kdna-core not available or not a kdna file
         }
       }
-    } catch (_) {}
+    } catch {}
   }
 
   const projection = projectShape(projectData, shape, task, context, assetPath);
@@ -133,7 +133,7 @@ function tryLoadProjection(absPath, shape) {
     if (typeof content === 'string' && content.trim()) {
       return { content, profile };
     }
-  } catch (_) {}
+  } catch {}
 
   return null;
 }
@@ -244,14 +244,7 @@ function buildSources(projectData) {
   return sources;
 }
 
-function estimateConfidence(projectData) {
-  if (!projectData.manifest) return 'low';
-  if (projectData.manifest.access === 'remote') return 'pending';
-  if (projectData.manifest.version) return 'medium';
-  return 'low';
-}
-
-function buildAlternatives(projectData, task) {
+function buildAlternatives(projectData, _task) {
   if (!projectData.manifest) {
     return [{ answer: 'No asset found. Check the path or install the asset.', reason: 'missing' }];
   }

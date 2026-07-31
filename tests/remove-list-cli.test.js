@@ -1,10 +1,10 @@
 /**
  * remove-list-cli.test.js — kdna remove + kdna list CLI commands
- * (roadmap-2026.md §5.1 Story 1).
+ * for the retired package-store command surface.
  *
  * Closes the largest gap between the RFC's claim ("no kdna
  * remove / kdna list commands") and reality. The package-store API
- * already has `removeInstalled()` and `listInstalled()`; this story
+ * already has `removeInstalled()` and `listInstalled()`; this suite
  * wires them into the top-level CLI dispatcher and adds the test
  * coverage that proves they work end-to-end.
  *

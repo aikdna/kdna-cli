@@ -1,5 +1,5 @@
 /**
- * audit-log.js — CLI load audit log (roadmap-2026.md Story 10)
+ * audit-log.js — CLI load audit log
  *
  * Appends a structured JSON line to ~/.kdna/audit.jsonl only when a user
  * explicitly requests a receipt with `kdna load --audit`. A normal one-shot

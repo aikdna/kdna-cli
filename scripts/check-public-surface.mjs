@@ -16,6 +16,7 @@ import trustedGit from './trusted-git.js';
 import {
   allowFormalReleaseHash,
   isRulePathExcluded,
+  LICENSE_CREDENTIAL_ARGV_EXAMPLE_PATTERN,
   PASSWORD_ARGV_EXAMPLE_PATTERN,
 } from './public-surface-policy.mjs';
 
@@ -82,9 +83,53 @@ const rules = [
     hint: 'Replace with "single-model self-evaluation".',
   },
   {
+    name: 'internal-work-package-label',
+    pattern: new RegExp(`\\b${['Sto', 'ry'].join('')}\\s+\\d+\\b`, 'gi'),
+    excludeExactPaths: ['CHANGELOG.md'],
+    excludePathPrefixes: ['evidence/', 'docs/audits/'],
+    hint: 'Describe the current behavior without an internal work-package number.',
+  },
+  {
+    name: 'internal-release-governance',
+    pattern: new RegExp(
+      [
+        `${['owner', 'approved'].join('[- ]')}`,
+        `${['owner', 'reviewed'].join('[- ]')}`,
+        `${['fact', 'card'].join('[- ]')}`,
+        `${['branch', 'release strategy'].join('[- ]')}`,
+        `${['no', 'tag'].join(' ')}.{0,24}${['release', 'automation'].join(' ')}`,
+      ].join('|'),
+      'gi',
+    ),
+    excludeExactPaths: ['CHANGELOG.md'],
+    excludePathPrefixes: ['evidence/', 'docs/audits/'],
+    hint: 'Describe the public release or support boundary without internal coordination language.',
+  },
+  {
+    name: 'maintainer-credential-source',
+    pattern: new RegExp(
+      [
+        `${['private', 'pass', 'tool'].join('\\s+')}`,
+        `maintainers?.{0,80}(?:${['credential', 'source'].join(' ')}|${[
+          'pass',
+          'tool',
+        ].join(' ')})`,
+      ].join('|'),
+      'gi',
+    ),
+    excludeExactPaths: ['CHANGELOG.md'],
+    excludePathPrefixes: ['evidence/', 'docs/audits/'],
+    hint: 'Document only user-facing password, secure-store, and Host-provider contracts.',
+  },
+  {
     name: 'password-in-argv-example',
     pattern: PASSWORD_ARGV_EXAMPLE_PATTERN,
     hint: 'Pipe the password with --password-stdin; do not publish executable examples that put secrets in argv.',
+  },
+  {
+    name: 'license-credential-in-argv-example',
+    pattern: LICENSE_CREDENTIAL_ARGV_EXAMPLE_PATTERN,
+    hint: 'Use browser activation, an external grant, or --credential-stdin.',
   },
 ];
 

@@ -45,7 +45,7 @@ function checkReference(ref, dependencies = {}) {
       digest_verified: loadPlan?.checks?.checksums_valid === true && digestMatches !== false,
       declared_digest_matches: digestMatches,
     };
-  } catch (_) {
+  } catch {
     return { available: true, loadable: false, state: 'invalid', digest_verified: false };
   }
 }

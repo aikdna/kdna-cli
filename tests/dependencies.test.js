@@ -8,7 +8,7 @@ const os = require('node:os');
 const core = require('@aikdna/kdna-core');
 const cbor = require('cbor-x');
 
-test('Story 6: dependencies semver and topological sorting logic', () => {
+test('dependencies semver and topological sorting logic', () => {
   // Test direct satisfies helper if available, or test via planLoad with mock resolver
   const mockResolveAsset = (name) => {
     const assets = {
@@ -60,7 +60,7 @@ test('Story 6: dependencies semver and topological sorting logic', () => {
     return assets[name] || null;
   };
 
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-story6-'));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-dependencies-'));
   try {
     fs.writeFileSync(path.join(tmp, 'mimetype'), 'application/vnd.kdna.asset');
 
@@ -123,7 +123,7 @@ test('Story 6: dependencies semver and topological sorting logic', () => {
   }
 });
 
-test('Story 6: circular dependency throwing error', () => {
+test('circular dependency throwing error', () => {
   const mockResolveAsset = (name) => {
     const assets = {
       '@scope/dep-a': {
@@ -176,7 +176,7 @@ test('Story 6: circular dependency throwing error', () => {
     return assets[name] || null;
   };
 
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-story6-circular-'));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-dependencies-circular-'));
   try {
     fs.writeFileSync(path.join(tmp, 'mimetype'), 'application/vnd.kdna.asset');
 
@@ -238,7 +238,7 @@ test('Story 6: circular dependency throwing error', () => {
   }
 });
 
-test('Story 6: unsatisfied/mismatched dependency throwing error', () => {
+test('unsatisfied/mismatched dependency throwing error', () => {
   const mockResolveAsset = (name) => {
     const assets = {
       '@scope/dep-a': {
@@ -266,7 +266,7 @@ test('Story 6: unsatisfied/mismatched dependency throwing error', () => {
     return assets[name] || null;
   };
 
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-story6-mismatch-'));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-dependencies-mismatch-'));
   try {
     fs.writeFileSync(path.join(tmp, 'mimetype'), 'application/vnd.kdna.asset');
 
