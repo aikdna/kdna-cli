@@ -317,6 +317,12 @@ Protected assets are an optional authorization gate, not a requirement for
 every KDNA. A user-facing Host may obtain authorization from explicit password
 input, a system-secure store, or a Host authorization provider and must keep
 the secret off argv, environment variables, ordinary files, and ordinary logs.
+Packaged account/device credentials require macOS Keychain, Linux Secret
+Service, or an encrypted password store. If none is available, the source
+candidate returns `BACKEND_UNAVAILABLE`; it never falls back to a plaintext
+file. The explicit legacy `file` backend is read/delete-only for migration, the
+`env` backend is read-only compatibility input, and `memory` is restricted to
+`NODE_ENV=test`.
 
 The source candidate's `--password-stdin` contract is bounded strict UTF-8. It
 removes at most one final transport LF or CRLF and preserves every other

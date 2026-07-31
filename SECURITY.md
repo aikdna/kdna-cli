@@ -37,7 +37,10 @@ We will acknowledge within 5 business days and provide a timeline for a fix.
   input with `--password-stdin`. Passwords in process arguments are rejected.
 - Account/device private keys, issuer pins, and grants: encrypted operating
   system or GPG-backed secret backends are required; plaintext backends fail
-  closed for this material.
+  closed for this material. No encrypted backend means
+  `BACKEND_UNAVAILABLE`, not a plaintext fallback. The explicit legacy file
+  backend may only read/delete old migration data and refuses all writes;
+  in-memory credential storage is test-only.
 
 Commands not present in `release-surface/cli-command-allowlist.json` are
 outside the distributed CLI contract and fail closed.

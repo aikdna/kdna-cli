@@ -52,7 +52,7 @@ function assertSecureSecretStore() {
   if (backend === 'memory' && process.env.NODE_ENV === 'test') return;
   throw new ExternalEntitlementError(
     'KDNA_SECRET_STORE_REQUIRED',
-    'Account/device grants require macOS Keychain, Linux Secret Service, or an encrypted pass store; plaintext and environment backends are not permitted.',
+    'Account/device grants require macOS Keychain, Linux Secret Service, or an encrypted password store; plaintext and environment backends are not permitted.',
   );
 }
 

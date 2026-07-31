@@ -1,5 +1,5 @@
 /**
- * secret-store.js — current KDNA SecretStore (B7)
+ * secret-store.js — KDNA encrypted credential storage
  *
  * A cross-platform secret storage abstraction. Backends:
  *
@@ -25,22 +25,21 @@
  *   - 'pass' (Linux/headless): uses the GPG-encrypted standard password
  *     store. Secret values are written over stdin and never appear in argv.
  *
- *   - 'file' (fallback on Linux/Windows and CI): secrets are stored
- *     under `~/.kdna/secrets/<name>` with file permissions set to
- *     0600 (owner read/write only). The contents are stored as
- *     plaintext for now; an encrypted-on-disk format is a future
- *     extension. The file backend is the cross-platform fallback and
- *     is the default in non-macOS environments to avoid breaking CLI
- *     workflows in CI.
+ *   - 'legacy-file-readonly' (selected only by the explicit legacy alias
+ *     'file'): permits migration reads/deletes from old 0600 plaintext files
+ *     but refuses every write. It is not secure credential storage.
  *
- *   - 'env' (debug only): secrets are read from process.env.
- *     Write/delete are no-ops. Useful for CI / docker / k8s where
- *     secret injection is via env vars.
+ *   - 'env' (explicit compatibility input only): values may be read from
+ *     process.env, while write/delete are refused. It is never selected
+ *     automatically and is not approved for persisted authorization material.
+ *
+ *   - 'memory' (tests only): available only when NODE_ENV=test.
  *
  * The active backend is chosen by the `KDNA_SECRET_STORE_BACKEND`
  * environment variable. If unset, defaults to 'keychain' on macOS
- * (process.platform === 'darwin'), then an available encrypted Linux backend,
- * and finally 'file' for non-sensitive compatibility workflows.
+ * (process.platform === 'darwin'), then an available encrypted Linux backend.
+ * If no encrypted backend exists, operations fail with BACKEND_UNAVAILABLE.
+ * There is no plaintext fallback.
  *
  * Interface (Promise-based to leave room for async Keychain APIs later):
  *
@@ -49,13 +48,8 @@
  *   delete(name): Promise<void>
  *   list(): Promise<string[]>
  *
- * Errors: SecretStoreError (with .code: 'NOT_FOUND' | 'BACKEND_UNAVAILABLE' | 'PERMISSION_DENIED').
- *
- * Security note: the file backend is NOT encrypted on disk. It exists
- * for non-sensitive compatibility workflows. Account/device grants
- * require an encrypted backend: macOS Keychain, Linux Secret Service,
- * or a GPG-backed standard password store. They explicitly reject the
- * plaintext file and environment backends.
+ * Errors: SecretStoreError (with .code: 'NOT_FOUND' |
+ * 'BACKEND_UNAVAILABLE' | 'PERMISSION_DENIED').
  */
 
 const fs = require('node:fs');
@@ -79,11 +73,28 @@ class SecretStoreError extends Error {
 
 function pickBackend() {
   const env = process.env.KDNA_SECRET_STORE_BACKEND;
+  if (env === 'file') return 'legacy-file-readonly';
   if (env) return env;
   if (os.platform() === 'darwin') return 'keychain';
   if (os.platform() === 'linux' && secretToolAvailable()) return 'secret-service';
   if (os.platform() === 'linux' && passAvailable()) return 'pass';
-  return 'file';
+  return 'unavailable';
+}
+
+function unavailableBackendError() {
+  return new SecretStoreError(
+    'BACKEND_UNAVAILABLE',
+    'No encrypted credential backend is available. Configure macOS Keychain, ' +
+      'Linux Secret Service, or an encrypted password store.',
+  );
+}
+
+function assertTestBackend(backend) {
+  if (backend !== 'memory' || process.env.NODE_ENV === 'test') return;
+  throw new SecretStoreError(
+    'BACKEND_UNAVAILABLE',
+    'The memory credential backend is available only when NODE_ENV=test.',
+  );
 }
 
 function commandAvailable(command, args = ['--version']) {
@@ -476,7 +487,7 @@ const backends = {
     },
   },
 
-  file: {
+  'legacy-file-readonly': {
     async get(name) {
       ensureFileBackendDir();
       const p = path.join(FILE_BACKEND_DIR, encodeName(name));
@@ -489,9 +500,12 @@ const backends = {
       }
     },
     async set(name, value) {
-      ensureFileBackendDir();
-      const p = path.join(FILE_BACKEND_DIR, encodeName(name));
-      fs.writeFileSync(p, value + '\n', { mode: 0o600 });
+      void name;
+      void value;
+      throw new SecretStoreError(
+        'BACKEND_UNAVAILABLE',
+        'Legacy plaintext credential files are read-only for migration; configure an encrypted backend before writing.',
+      );
     },
     async delete(name) {
       const p = path.join(FILE_BACKEND_DIR, encodeName(name));
@@ -552,6 +566,21 @@ const backends = {
       return [...memorySecrets.keys()].sort();
     },
   },
+
+  unavailable: {
+    async get() {
+      throw unavailableBackendError();
+    },
+    async set() {
+      throw unavailableBackendError();
+    },
+    async delete() {
+      throw unavailableBackendError();
+    },
+    async list() {
+      throw unavailableBackendError();
+    },
+  },
 };
 
 function encodeName(name) {
@@ -566,6 +595,7 @@ function decodeName(encoded) {
 
 function syncBackend() {
   const backend = pickBackend();
+  assertTestBackend(backend);
   if (backend === 'keychain') {
     return {
       get(name) {
@@ -602,7 +632,7 @@ function syncBackend() {
       },
     };
   }
-  if (backend === 'file') {
+  if (backend === 'legacy-file-readonly') {
     return {
       get(name) {
         ensureFileBackendDir();
@@ -610,10 +640,12 @@ function syncBackend() {
         return fs.existsSync(p) ? fs.readFileSync(p, 'utf8').replace(/\n$/, '') : null;
       },
       set(name, value) {
-        ensureFileBackendDir();
-        fs.writeFileSync(path.join(FILE_BACKEND_DIR, encodeName(name)), value + '\n', {
-          mode: 0o600,
-        });
+        void name;
+        void value;
+        throw new SecretStoreError(
+          'BACKEND_UNAVAILABLE',
+          'Legacy plaintext credential files are read-only for migration; configure an encrypted backend before writing.',
+        );
       },
       delete(name) {
         try {
@@ -624,6 +656,19 @@ function syncBackend() {
       },
     };
   }
+  if (backend === 'unavailable') {
+    return {
+      get() {
+        throw unavailableBackendError();
+      },
+      set() {
+        throw unavailableBackendError();
+      },
+      delete() {
+        throw unavailableBackendError();
+      },
+    };
+  }
   throw new SecretStoreError('BACKEND_UNAVAILABLE', `Unknown backend: ${backend}`);
 }
 
@@ -631,6 +676,7 @@ async function withBackend(fn) {
   // Re-pick the backend on every call so that setting
   // KDNA_SECRET_STORE_BACKEND at runtime (e.g. in tests) takes effect.
   const backend = pickBackend();
+  assertTestBackend(backend);
   if (!backends[backend]) {
     throw new SecretStoreError('BACKEND_UNAVAILABLE', `Unknown backend: ${backend}`);
   }
@@ -639,7 +685,7 @@ async function withBackend(fn) {
 
 module.exports = {
   /**
-   * @param {string} name — secret identifier (e.g. 'npm-token', 'openai-api-key')
+   * @param {string} name — opaque credential identifier
    * @returns {Promise<string | null>} — the stored value, or null if not found
    */
   get(name) {
@@ -684,6 +730,26 @@ module.exports = {
 
   backendName() {
     return pickBackend();
+  },
+
+  backendStatus() {
+    const name = pickBackend();
+    const secureForSecrets = ['keychain', 'secret-service', 'pass'].includes(name);
+    return {
+      name,
+      secure_for_secrets: secureForSecrets,
+      writable: secureForSecrets || (name === 'memory' && process.env.NODE_ENV === 'test'),
+      classification:
+        name === 'memory'
+          ? 'test-only'
+          : name === 'env'
+            ? 'explicit-readonly-compatibility'
+            : name === 'legacy-file-readonly'
+              ? 'legacy-readonly-migration'
+              : name === 'unavailable'
+                ? 'unavailable'
+                : 'encrypted-system-backend',
+    };
   },
 
   // Expose for tests
