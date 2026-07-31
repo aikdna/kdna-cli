@@ -1,9 +1,8 @@
 /**
  * layer-isolation.test.js — Layer isolation regression test
- * (roadmap-2026.md §13.1).
  *
- * Per the design contract in roadmap-2026.md §13.1 and
- * OPEN/kdna/SPEC.md §250: "CLI and Core are explicitly forbidden
+ * Per the public protocol responsibility contract, the CLI and Core
+ * are explicitly forbidden
  * from emitting `recommended`, `officially_approved`, `high_quality`
  * or any similar content-trust claim. This is a hard rule, not a
  * convention."
@@ -52,7 +51,7 @@ const SRC_DIR = path.join(REPO_ROOT, 'src');
 const CLI_BIN = path.join(REPO_ROOT, 'src', 'cli.js');
 const FIXTURE = path.join(REPO_ROOT, 'fixtures', 'minimal');
 
-// Per roadmap-2026.md §13.1 design contract.
+// Public protocol responsibility contract.
 //
 // 'trusted' is intentionally EXCLUDED from this list. The current
 // code uses 'trusted' in three legitimate-or-design-debate places:
@@ -220,7 +219,7 @@ function collectForbiddenStringValues(obj, out = []) {
 
 // ─── test 1: source structure ─────────────────────────────────────────
 
-test('layer-isolation: no content-trust claim tokens in CLI source (per roadmap §13.1)', () => {
+test('layer-isolation: no content-trust claim tokens in CLI source', () => {
   const files = walkJsFiles(SRC_DIR);
   const findings = [];
   for (const f of files) {
@@ -229,8 +228,7 @@ test('layer-isolation: no content-trust claim tokens in CLI source (per roadmap 
   if (findings.length > 0) {
     const msg = findings.map((f) => `  ${f.file}:${f.line}  [${f.token}]  ${f.text}`).join('\n');
     assert.fail(
-      `Found content-trust claim tokens in CLI source (per design contract, ` +
-        `roadmap-2026.md §13.1). Either remove the claim or add an entry to ` +
+      `Found content-trust claim tokens in CLI source. Either remove the claim or add an entry to ` +
         `ALLOWLIST in tests/layer-isolation.test.js with a justification.\n` +
         `Findings:\n${msg}`,
     );

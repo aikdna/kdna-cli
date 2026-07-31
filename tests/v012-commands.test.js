@@ -61,7 +61,7 @@ function makeIsolatedEnv(prefix = 'kdna-test-home-') {
 }
 
 function ensureIdentity(env) {
-  // Story 19 path migration: ~/.kdna/identity/ → ~/.kdna/keys/ed25519.key
+  // Legacy identity path migration: ~/.kdna/identity/ → ~/.kdna/keys/ed25519.key
   const keyPath = path.join(env.KDNA_HOME, 'keys', 'ed25519.key');
   if (fs.existsSync(keyPath)) return;
   const r = run(['identity', 'init'], { env });
@@ -363,7 +363,7 @@ test('kdna license install registers to ~/.kdna/licenses/', () => {
   fs.unlinkSync(outPath);
 });
 
-test('kdna license activate and sync enforce entitlement revocation', () => {
+test('license credential argv is rejected and an installed receipt syncs revocation', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-license-activate-home-'));
   const kdnaHome = path.join(home, '.kdna');
   const env = { HOME: home, KDNA_HOME: kdnaHome };
@@ -391,24 +391,50 @@ test('kdna license activate and sync enforce entitlement revocation', () => {
     ),
   );
 
-  const activate = run(
-    [
-      'license',
-      'activate',
-      '@aikdna/pro',
-      '--key',
-      key,
-      '--server',
-      `file://${serverPath}`,
-      '--json',
-    ],
-    { env },
+  for (const unsafeArgs of [
+    ['--key', key],
+    [`--key=${key}`],
+    ['--license-key', key],
+    [`--license-key=${key}`],
+  ]) {
+    const rejected = run(
+      [
+        'license',
+        'activate',
+        '@aikdna/pro',
+        ...unsafeArgs,
+        '--server',
+        `file://${serverPath}`,
+        '--json',
+      ],
+      { env },
+    );
+    assert.ok(!rejected.ok, 'license credential in argv must fail closed');
+    assert.match(rejected.stderr, /not accepted in process arguments/);
+    assert.doesNotMatch(rejected.stderr, new RegExp(key));
+    assert.equal(rejected.stdout, '');
+  }
+
+  const licenseDir = path.join(kdnaHome, 'licenses');
+  fs.mkdirSync(licenseDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(licenseDir, 'aikdna-pro.json'),
+    JSON.stringify(
+      {
+        version: '1.0',
+        domain: '@aikdna/pro',
+        license_key: key,
+        license_id: 'lic_activate_test',
+        issued_to: 'buyer@example.com',
+        status: 'active',
+        require_machine_binding: false,
+        require_online_check: false,
+        activation_server: `file://${serverPath}`,
+      },
+      null,
+      2,
+    ),
   );
-  assert.ok(activate.ok, `license activate failed: ${activate.stderr}`);
-  const activated = JSON.parse(activate.stdout);
-  assert.equal(activated.domain, '@aikdna/pro');
-  assert.equal(activated.valid, true);
-  assert.ok(!activate.stdout.includes(key));
 
   const status = run(['license', 'status', '@aikdna/pro', '--json'], { env });
   assert.ok(status.ok, `license status failed: ${status.stderr}`);
@@ -453,12 +479,7 @@ test('kdna license activate and sync enforce entitlement revocation', () => {
   assert.ok(trace.ok, `trace failed: ${trace.stderr}`);
   const traceJson = JSON.parse(trace.stdout);
   const licenseEvents = traceJson.entries.filter((entry) => entry.event === 'license');
-  assert.ok(
-    licenseEvents.some(
-      (entry) => entry.action === 'activate' && entry.license_id === 'lic_activate_test',
-    ),
-    `expected activation trace, got ${trace.stdout}`,
-  );
+  assert.ok(!licenseEvents.some((entry) => entry.action === 'activate'));
   assert.ok(
     licenseEvents.some(
       (entry) => entry.action === 'sync' && entry.revoked === true && entry.valid === false,

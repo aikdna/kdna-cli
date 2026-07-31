@@ -209,7 +209,7 @@ function checkHumanLock(domainPath) {
 
 // ─── Main check function ──────────────────────────────────────────────
 
-function cmdPublishCheck(domainPath, args = []) {
+function cmdPublishCheck(domainPath, _args = []) {
   const abs = path.resolve(domainPath);
   if (!fs.existsSync(abs)) error(`Domain not found: ${abs}`);
 

@@ -1,6 +1,6 @@
 /**
  * validate-bundle.test.js — kdna validate --bundle stub tests
- * (roadmap-2026.md §5.1 Story 3, RFC #148 v1.x Phase 1).
+ * (RFC #148 Phase 1).
  *
  * Verifies that `kdna validate <bundle.json> --bundle` correctly:
  *
@@ -12,7 +12,7 @@
  *   - Accepts two components pointing at the same fixture (valid duplicate)
  *   - Emits no conflict entries for a single-component bundle (nothing to compare)
  *
- * The full conflict analysis is tested in story9-conflict-analysis.test.js.
+ * The full conflict analysis is tested in conflict-analysis.test.js.
  *
  * Run: node --test tests/validate-bundle.test.js
  */
@@ -194,7 +194,7 @@ test('validate --bundle: missing manifest argument exits non-zero with usage mes
   assert.match(r.stderr, /Usage/i);
 });
 
-test('validate --bundle: valid run with Story 9 — no stub INFO note, conflict counts present', () => {
+test('validate --bundle: valid run has conflict counts and no stub INFO note', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-bundle-'));
   try {
     const bundlePath = writeBundle(tmp, {
@@ -207,9 +207,10 @@ test('validate --bundle: valid run with Story 9 — no stub INFO note, conflict 
     const r = run(['validate', bundlePath, '--bundle']);
     assert.equal(r.status, 0);
     const out = JSON.parse(r.stdout);
-    // Story 9 replaced the stub — no stub INFO note about "Story 9 pending"
-    const stubNote = out.info.find((i) => i.note && i.note.includes('Story 9'));
-    assert.ok(!stubNote, 'stub INFO note should be absent after Story 9 ships');
+    const stubNote = out.info.find(
+      (i) => i.note && /conflict analysis (?:pending|not implemented)/iu.test(i.note),
+    );
+    assert.ok(!stubNote, 'stub INFO note should be absent after conflict analysis ships');
     // conflicts summary object must always be present
     assert.ok(typeof out.conflicts.error_count === 'number');
     assert.ok(typeof out.conflicts.warning_count === 'number');

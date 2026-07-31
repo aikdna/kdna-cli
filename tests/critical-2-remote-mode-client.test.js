@@ -105,7 +105,7 @@ async function startFakeRemoteServer(opts = {}) {
           fs.writeFileSync(lastRequestPath, JSON.stringify({
             url: req.url, method: req.method, body: body ? JSON.parse(body) : null,
           }));
-        } catch (_) { /* ignore */ }
+        } catch { /* ignore */ }
         if (cfg.redirectUrl) {
           res.writeHead(302, { Location: cfg.redirectUrl });
           res.end();
@@ -147,7 +147,7 @@ async function startFakeRemoteServer(opts = {}) {
   // Clean up the ready marker so it doesn't accumulate.
   try {
     fs.unlinkSync(readyPath);
-  } catch (_) {
+  } catch {
     /* ignore */
   }
 
@@ -170,7 +170,7 @@ function readLastRequest(server) {
   if (!fs.existsSync(server.lastRequestPath)) return null;
   try {
     return JSON.parse(fs.readFileSync(server.lastRequestPath, 'utf8'));
-  } catch (_) {
+  } catch {
     return null;
   }
 }
@@ -461,7 +461,7 @@ test('CRITICAL-2: --remote-server URL accepts a base URL and uses /project', asy
     for (const remoteServer of [baseUrl, `${baseUrl}/`]) {
       try {
         fs.unlinkSync(server.lastRequestPath);
-      } catch (_) {
+      } catch {
         // The first accepted request has no prior request record.
       }
       const r = run(['load', dir, '--as=json', '--remote-server', remoteServer], {
@@ -537,7 +537,7 @@ test('CRITICAL-2: non-canonical remote URLs fail before any request', async () =
     for (const [label, remoteServer] of hostileUrls) {
       try {
         fs.unlinkSync(server.lastRequestPath);
-      } catch (_) {
+      } catch {
         // Rejections must leave no request record to remove.
       }
       const r = run(['load', dir, '--as=json', '--remote-server', remoteServer], {

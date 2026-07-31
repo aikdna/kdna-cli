@@ -1,5 +1,5 @@
 /**
- * story8-context-budget.test.js — Context budget reporting (Story 8)
+ * context-budget.test.js — Context budget reporting
  *
  * Verifies that kdna plan-load <bundle> attaches a context_budget_report
  * when the Bundle manifest declares context_budget.max_tokens.
@@ -12,7 +12,7 @@
  *   4. Budget declared, components exceed, strategy='error' → over_budget=true,
  *      budget_action='block_load', exit 1 (plan state=invalid)
  *
- * Run: node --test tests/story8-context-budget.test.js
+ * Run: node --test tests/context-budget.test.js
  */
 
 'use strict';
@@ -105,7 +105,7 @@ function writeBundleFixture(dir, opts = {}) {
 
 // ─── Unit tests for computeContextBudget ────────────────────────────────────
 
-test('Story 8 unit: no resolved deps → empty components, zero total', () => {
+test('unit: no resolved deps → empty components, zero total', () => {
   const { computeContextBudget } = require('../src/cmds/context-budget');
   const report = computeContextBudget({ max_tokens: 5000 }, []);
   assert.equal(report.total_estimated_tokens, 0);
@@ -116,7 +116,7 @@ test('Story 8 unit: no resolved deps → empty components, zero total', () => {
   assert.equal(report.strategy, 'warn');
 });
 
-test('Story 8 unit: two components fit within budget → over_budget=false', () => {
+test('unit: two components fit within budget → over_budget=false', () => {
   const { computeContextBudget } = require('../src/cmds/context-budget');
   const deps = [
     { name: '@scope/a', version: '1.0.0', path: '/mock/a.kdna' },
@@ -135,7 +135,7 @@ test('Story 8 unit: two components fit within budget → over_budget=false', () 
   assert.equal(report.components[1].load_order, 2);
 });
 
-test('Story 8 unit: two components exceed budget, strategy=warn', () => {
+test('unit: two components exceed budget, strategy=warn', () => {
   const { computeContextBudget } = require('../src/cmds/context-budget');
   const deps = [
     { name: '@scope/a', version: '1.0.0' },
@@ -150,7 +150,7 @@ test('Story 8 unit: two components exceed budget, strategy=warn', () => {
   assert.equal(report.strategy, 'warn');
 });
 
-test('Story 8 unit: components exceed budget, strategy=truncate_lowest_priority', () => {
+test('unit: components exceed budget, strategy=truncate_lowest_priority', () => {
   const { computeContextBudget } = require('../src/cmds/context-budget');
   const deps = [
     { name: '@scope/a', version: '1.0.0' },
@@ -164,7 +164,7 @@ test('Story 8 unit: components exceed budget, strategy=truncate_lowest_priority'
   assert.equal(report.budget_action, 'truncate_lowest_priority_components');
 });
 
-test('Story 8 unit: components exceed budget, strategy=error', () => {
+test('unit: components exceed budget, strategy=error', () => {
   const { computeContextBudget } = require('../src/cmds/context-budget');
   const deps = [{ name: '@scope/a', version: '1.0.0' }];
   const report = computeContextBudget({ max_tokens: 500, strategy: 'error' }, deps);
@@ -173,7 +173,7 @@ test('Story 8 unit: components exceed budget, strategy=error', () => {
   assert.equal(report.budget_action, 'block_load');
 });
 
-test('Story 8 unit: default estimation_basis when per_component not declared', () => {
+test('unit: default estimation_basis when per_component not declared', () => {
   const {
     computeContextBudget,
     DEFAULT_TOKENS_PER_COMPONENT,
@@ -186,7 +186,7 @@ test('Story 8 unit: default estimation_basis when per_component not declared', (
 
 // ─── CLI integration: no context_budget → no report ─────────────────────────
 
-test('Story 8 CLI: bundle without context_budget → no context_budget_report in plan', () => {
+test('CLI: bundle without context_budget → no context_budget_report in plan', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s8-'));
   try {
     const assetPath = writeBundleFixture(tmp); // no contextBudget
@@ -203,7 +203,7 @@ test('Story 8 CLI: bundle without context_budget → no context_budget_report in
   }
 });
 
-test('Story 8 CLI: bundle with context_budget but no resolved deps → no report', () => {
+test('CLI: bundle with context_budget but no resolved deps → no report', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s8-'));
   try {
     const assetPath = writeBundleFixture(tmp, {

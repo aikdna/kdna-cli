@@ -1,4 +1,4 @@
-const { describe, it } = require('node:test');
+const { it } = require('node:test');
 const assert = require('node:assert');
 const crypto = require('node:crypto');
 const fs = require('node:fs');

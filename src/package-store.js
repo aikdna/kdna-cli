@@ -143,7 +143,7 @@ function withIndexLock(tier, callback) {
   }
 }
 
-// ─── Two-tier store helpers (Story 2) ──────────────────────────────────
+// ─── Two-tier store helpers ─────────────────────────────────────
 //
 // `tier` is one of:
 //   - 'global' — the user-global root at ~/.kdna/packages/ + index.json

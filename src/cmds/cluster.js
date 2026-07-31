@@ -13,11 +13,10 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { error, EXIT, readJson, writeJson } = require('./_common');
+const { error, EXIT, writeJson } = require('./_common');
 const {
   validateClusterManifest,
   generateClusterPlan,
-  generateClusterTrace,
   migrateToCanonical,
   detectConflicts,
   arbitratePrimary,
@@ -100,7 +99,7 @@ function loadManifest(absPath) {
   if (!fs.existsSync(absPath)) return null;
   try {
     return JSON.parse(fs.readFileSync(absPath, 'utf8'));
-  } catch (_) {
+  } catch {
     return null;
   }
 }

@@ -1,7 +1,7 @@
 /**
- * story13-trust-deprecation.test.js — Trust levels + deprecation (Story 13)
+ * trust-deprecation.test.js — Trust levels + deprecation ()
  *
- * Verifies the three Story 13 deliverables in OPEN/kdna-cli:
+ * Verifies semver, deprecation, and trust-level conflict behavior:
  *
  *   1) trust_level on each bundle component descriptor
  *      (community | verified | official) — accepted in kdna validate --bundle,
@@ -27,7 +27,7 @@
  *   E) CLI: load + plan-load print deprecation to stderr
  *   F) validate --bundle: stderr_text populated when deprecation matches
  *
- * Run: node --test tests/story13-trust-deprecation.test.js
+ * Run: node --test tests/trust-deprecation.test.js
  */
 
 'use strict';
@@ -132,14 +132,14 @@ const axiomPayload = (id, text) =>
 
 // ─── A: semver-util unit ──────────────────────────────────────────────────────
 
-test('Story 13 semver: parseSemver accepts plain semver', () => {
+test('semver: parseSemver accepts plain semver', () => {
   const { parseSemver } = require('../src/cmds/semver-util');
   assert.deepEqual(parseSemver('1.2.3'), { major: 1, minor: 2, patch: 3 });
   assert.deepEqual(parseSemver('v0.28.25'), { major: 0, minor: 28, patch: 25 });
   assert.deepEqual(parseSemver('0.0.0'), { major: 0, minor: 0, patch: 0 });
 });
 
-test('Story 13 semver: parseSemver strips pre-release / build', () => {
+test('semver: parseSemver strips pre-release / build', () => {
   const { parseSemver } = require('../src/cmds/semver-util');
   assert.deepEqual(parseSemver('1.2.3-alpha.1'), { major: 1, minor: 2, patch: 3 });
   assert.deepEqual(parseSemver('1.2.3+build.5'), { major: 1, minor: 2, patch: 3 });
@@ -147,7 +147,7 @@ test('Story 13 semver: parseSemver strips pre-release / build', () => {
   assert.equal(parseSemver(null), null);
 });
 
-test('Story 13 semver: compareSemver orders correctly', () => {
+test('semver: compareSemver orders correctly', () => {
   const { compareSemver } = require('../src/cmds/semver-util');
   assert.ok(compareSemver('0.28.25', '0.28.24') > 0);
   assert.ok(compareSemver('0.28.0', '0.28.10') < 0);
@@ -155,7 +155,7 @@ test('Story 13 semver: compareSemver orders correctly', () => {
   assert.ok(compareSemver('0.28.0', '0.27.99') > 0);
 });
 
-test('Story 13 semver: satisfies handles caret/tilde/comparators/ranges', () => {
+test('semver: satisfies handles caret/tilde/comparators/ranges', () => {
   const { satisfies } = require('../src/cmds/semver-util');
   assert.equal(satisfies('0.28.25', '^0.28.0'), true, '^0.28.0 should match 0.28.25');
   assert.equal(satisfies('0.28.25', '~0.28.0'), true, '~0.28.0 should match 0.28.25');
@@ -177,14 +177,14 @@ test('Story 13 semver: satisfies handles caret/tilde/comparators/ranges', () => 
 
 // ─── B: deprecation.js unit ───────────────────────────────────────────────────
 
-test('Story 13 deprecation: evaluateDeprecation returns null for missing block', () => {
+test('deprecation: evaluateDeprecation returns null for missing block', () => {
   const { evaluateDeprecation } = require('../src/cmds/deprecation');
   assert.equal(evaluateDeprecation(null, 'comp-1', 'component', '0.28.0'), null);
   assert.equal(evaluateDeprecation(undefined, 'comp-1', 'component', '0.28.0'), null);
   assert.equal(evaluateDeprecation({}, 'comp-1', 'component', '0.28.0'), null);
 });
 
-test('Story 13 deprecation: evaluateDeprecation matches `since` against version', () => {
+test('deprecation: evaluateDeprecation matches `since` against version', () => {
   const { evaluateDeprecation } = require('../src/cmds/deprecation');
   const dep = { since: '>=0.28.0', reason: 'Renamed' };
   const w = evaluateDeprecation(dep, 'comp-1', 'component', '0.28.25');
@@ -198,7 +198,7 @@ test('Story 13 deprecation: evaluateDeprecation matches `since` against version'
   assert.match(w.message, /Renamed/);
 });
 
-test('Story 13 deprecation: deprecated_in is an alias for since', () => {
+test('deprecation: deprecated_in is an alias for since', () => {
   const { evaluateDeprecation } = require('../src/cmds/deprecation');
   const dep = { deprecated_in: '^0.28.0' };
   const w = evaluateDeprecation(dep, 'comp-1', 'component', '0.28.25');
@@ -206,7 +206,7 @@ test('Story 13 deprecation: deprecated_in is an alias for since', () => {
   assert.equal(w.since, '^0.28.0');
 });
 
-test('Story 13 deprecation: deprecated_at is shorthand for `since: >=X`', () => {
+test('deprecation: deprecated_at is shorthand for `since: >=X`', () => {
   const { evaluateDeprecation } = require('../src/cmds/deprecation');
   const dep = { deprecated_at: '0.28.0' };
   assert.ok(
@@ -224,7 +224,7 @@ test('Story 13 deprecation: deprecated_at is shorthand for `since: >=X`', () => 
   );
 });
 
-test('Story 13 deprecation: kind escalates to "removal" past remove_in', () => {
+test('deprecation: kind escalates to "removal" past remove_in', () => {
   const { evaluateDeprecation } = require('../src/cmds/deprecation');
   const dep = { since: '0.28.0', remove_in: '0.30.0' };
   const early = evaluateDeprecation(dep, 'comp-1', 'component', '0.28.5');
@@ -235,13 +235,13 @@ test('Story 13 deprecation: kind escalates to "removal" past remove_in', () => {
   assert.match(late.message, /REMOVAL/);
 });
 
-test('Story 13 deprecation: returns null when CLI version does not satisfy', () => {
+test('deprecation: returns null when CLI version does not satisfy', () => {
   const { evaluateDeprecation } = require('../src/cmds/deprecation');
   const dep = { since: '>=0.30.0' };
   assert.equal(evaluateDeprecation(dep, 'comp-1', 'component', '0.28.25'), null);
 });
 
-test('Story 13 deprecation: scanBundleDeprecations reads top-level + per-component', () => {
+test('deprecation: scanBundleDeprecations reads top-level + per-component', () => {
   const { scanBundleDeprecations } = require('../src/cmds/deprecation');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s13-dep-'));
   try {
@@ -295,14 +295,14 @@ test('Story 13 deprecation: scanBundleDeprecations reads top-level + per-compone
   }
 });
 
-test('Story 13 deprecation: scanBundleDeprecations returns [] for non-bundle', () => {
+test('deprecation: scanBundleDeprecations returns [] for non-bundle', () => {
   const { scanBundleDeprecations } = require('../src/cmds/deprecation');
   // FIXTURE is a judgment source dir, not a bundle.
   const warnings = scanBundleDeprecations(FIXTURE, '0.28.25');
   assert.deepEqual(warnings, []);
 });
 
-test('Story 13 deprecation: malformed CBOR produces a stable diagnostic', () => {
+test('deprecation: malformed CBOR produces a stable diagnostic', () => {
   const {
     readBundleComponents,
     scanBundleDeprecations,
@@ -333,7 +333,7 @@ test('Story 13 deprecation: malformed CBOR produces a stable diagnostic', () => 
   }
 });
 
-test('Story 13 deprecation: formatDeprecationStderr produces multi-line text', () => {
+test('deprecation: formatDeprecationStderr produces multi-line text', () => {
   const { evaluateDeprecation, formatDeprecationStderr } = require('../src/cmds/deprecation');
   const dep = { since: '>=0.28.0', replacement: '@new/comp@1.0.0', reason: 'moved' };
   const w = evaluateDeprecation(dep, '@old/comp@1.0.0', 'component', '0.28.25');
@@ -346,7 +346,7 @@ test('Story 13 deprecation: formatDeprecationStderr produces multi-line text', (
 
 // ─── C: conflict-analysis trust_level annotation ──────────────────────────────
 
-test('Story 13 conflict: each entry carries trust_level_a / trust_level_b', () => {
+test('conflict: each entry carries trust_level_a / trust_level_b', () => {
   const { analyseConflicts } = require('../src/cmds/conflict-analysis');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s13-c-'));
   try {
@@ -366,7 +366,7 @@ test('Story 13 conflict: each entry carries trust_level_a / trust_level_b', () =
   }
 });
 
-test('Story 13 conflict: WARNING entry has community_warning=true when one side is community', () => {
+test('conflict: WARNING entry has community_warning=true when one side is community', () => {
   const { analyseConflicts } = require('../src/cmds/conflict-analysis');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s13-c-'));
   try {
@@ -385,7 +385,7 @@ test('Story 13 conflict: WARNING entry has community_warning=true when one side 
   }
 });
 
-test('Story 13 conflict: WARNING entry has community_warning=false when no side is community', () => {
+test('conflict: WARNING entry has community_warning=false when no side is community', () => {
   const { analyseConflicts } = require('../src/cmds/conflict-analysis');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s13-c-'));
   try {
@@ -405,7 +405,7 @@ test('Story 13 conflict: WARNING entry has community_warning=false when no side 
 
 // ─── D: validate-bundle trust_level validation + low_trust_warnings ───────────
 
-test('Story 13 validate --bundle: trust_level is accepted on component descriptor', () => {
+test('validate --bundle: trust_level is accepted on component descriptor', () => {
   const { validateBundle } = require('../src/cmds/validate-bundle');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s13-v-'));
   try {
@@ -428,7 +428,7 @@ test('Story 13 validate --bundle: trust_level is accepted on component descripto
   }
 });
 
-test('Story 13 validate --bundle: invalid trust_level value is an ERROR', () => {
+test('validate --bundle: invalid trust_level value is an ERROR', () => {
   const { validateBundle } = require('../src/cmds/validate-bundle');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s13-v-'));
   try {
@@ -446,7 +446,7 @@ test('Story 13 validate --bundle: invalid trust_level value is an ERROR', () => 
   }
 });
 
-test('Story 13 validate --bundle: low_trust_warnings surfaces WARNING with community', () => {
+test('validate --bundle: low_trust_warnings surfaces WARNING with community', () => {
   const { validateBundle } = require('../src/cmds/validate-bundle');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s13-v-'));
   try {
@@ -471,7 +471,7 @@ test('Story 13 validate --bundle: low_trust_warnings surfaces WARNING with commu
   }
 });
 
-test('Story 13 validate --bundle: ERROR-level conflict is NOT in low_trust_warnings (errors are errors)', () => {
+test('validate --bundle: ERROR-level conflict is NOT in low_trust_warnings (errors are errors)', () => {
   const { validateBundle } = require('../src/cmds/validate-bundle');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s13-v-'));
   try {
@@ -496,7 +496,7 @@ test('Story 13 validate --bundle: ERROR-level conflict is NOT in low_trust_warni
   }
 });
 
-test('Story 13 validate --bundle: deprecation_warnings is empty when nothing matches', () => {
+test('validate --bundle: deprecation_warnings is empty when nothing matches', () => {
   const { validateBundle } = require('../src/cmds/validate-bundle');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s13-v-'));
   try {
@@ -511,7 +511,7 @@ test('Story 13 validate --bundle: deprecation_warnings is empty when nothing mat
   }
 });
 
-test('Story 13 validate --bundle: deprecation.since matches → deprecation_warnings populated', () => {
+test('validate --bundle: deprecation.since matches → deprecation_warnings populated', () => {
   const { validateBundle } = require('../src/cmds/validate-bundle');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s13-v-'));
   try {
@@ -531,7 +531,7 @@ test('Story 13 validate --bundle: deprecation.since matches → deprecation_warn
 
 // ─── E: CLI load + plan-load print deprecation to stderr ──────────────────────
 
-test('Story 13 CLI plan-load: deprecated bundle prints Notice to stderr', () => {
+test('CLI plan-load: deprecated bundle prints Notice to stderr', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s13-cli-'));
   try {
     // Build a current bundle source dir.
@@ -577,14 +577,14 @@ test('Story 13 CLI plan-load: deprecated bundle prints Notice to stderr', () => 
   }
 });
 
-test('Story 13 CLI plan-load: non-deprecated bundle does NOT print deprecation', () => {
+test('CLI plan-load: non-deprecated bundle does NOT print deprecation', () => {
   // FIXTURE is a judgment dir (not a bundle) — scanBundleDeprecations
   // returns [], so no stderr notice.
   const r = run(['plan-load', RUNTIME_FIXTURE, '--json']);
   assert.doesNotMatch(r.stderr, /bundle deprecation signals/i);
 });
 
-test('Story 13 CLI load: deprecated bundle prints Notice to stderr', () => {
+test('CLI load: deprecated bundle prints Notice to stderr', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s13-cli-'));
   try {
     fs.copyFileSync(path.join(FIXTURE, 'mimetype'), path.join(tmp, 'mimetype'));
@@ -623,7 +623,7 @@ test('Story 13 CLI load: deprecated bundle prints Notice to stderr', () => {
   }
 });
 
-test('Story 13 CLI load: fresh bundle has no stderr deprecation', () => {
+test('CLI load: fresh bundle has no stderr deprecation', () => {
   const r = run(['load', RUNTIME_FIXTURE, '--as=json']);
   assert.equal(r.status, 0, `expected exit 0:\n${r.stderr}`);
   assert.doesNotMatch(r.stderr, /bundle deprecation signals/i);
@@ -631,7 +631,7 @@ test('Story 13 CLI load: fresh bundle has no stderr deprecation', () => {
 
 // ─── F: validate --bundle stderr text ─────────────────────────────────────────
 
-test('Story 13 CLI validate --bundle: deprecation matches → stderr text', () => {
+test('CLI validate --bundle: deprecation matches → stderr text', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s13-cli-'));
   try {
     const bundlePath = writeBundleFile(
@@ -653,7 +653,7 @@ test('Story 13 CLI validate --bundle: deprecation matches → stderr text', () =
   }
 });
 
-test('Story 13 CLI validate --bundle: deprecation does NOT match → no stderr', () => {
+test('CLI validate --bundle: deprecation does NOT match → no stderr', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s13-cli-'));
   try {
     const bundlePath = writeBundleFile(tmp, [

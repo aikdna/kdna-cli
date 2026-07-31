@@ -5,13 +5,6 @@ const { error, EXIT } = require('./_common');
 const { loadKdnaEval } = require('./_kdna-eval');
 
 function cmdComposeReview(args) {
-  const getFlag = (name) => {
-    const eq = args.find((a) => a.startsWith(name + '='));
-    if (eq) return eq.slice(name.length + 1);
-    const idx = args.indexOf(name);
-    return idx >= 0 ? args[idx + 1] : null;
-  };
-
   const posArgs = args.filter((a) => !a.startsWith('--'));
   const command = posArgs[0];
   const target = posArgs[1];
@@ -293,7 +286,7 @@ function cmdValidateDecisions(target, args) {
     for (const line of lines) {
       try {
         records.push(JSON.parse(line));
-      } catch (_) {}
+      } catch {}
     }
   } catch (e) {
     error(`Cannot read ledger: ${target} — ${e.message}`, EXIT.INPUT_ERROR);
@@ -307,7 +300,7 @@ function cmdValidateDecisions(target, args) {
   if (policyPath) {
     try {
       policies = JSON.parse(fs.readFileSync(policyPath, 'utf8'));
-    } catch (e) {
+    } catch {
       error(`Cannot read policy: ${policyPath}`, EXIT.INPUT_ERROR);
     }
   }
@@ -328,9 +321,9 @@ function cmdValidateDecisions(target, args) {
           const data = JSON.parse(fs.readFileSync(path.join(fixturesDir, f), 'utf8'));
           if (Array.isArray(data)) fixtures.push(...data);
           else fixtures.push(data);
-        } catch (_) {}
+        } catch {}
       }
-    } catch (_) {}
+    } catch {}
   }
 
   const allGates = [
@@ -450,7 +443,6 @@ function cmdApplyDecisions(target, args) {
 
   const consumerIndexPath = getFlag('--consumer-index');
   const outPath = getFlag('--out');
-  const force = args.includes('--force');
   const validationPath = getFlag('--validation');
 
   if (!validationPath) {
@@ -464,7 +456,7 @@ function cmdApplyDecisions(target, args) {
   let validationReport;
   try {
     validationReport = JSON.parse(fs.readFileSync(path.resolve(validationPath), 'utf8'));
-  } catch (e) {
+  } catch {
     error(`Cannot read validation report: ${validationPath}`, EXIT.INPUT_ERROR);
   }
 
@@ -480,7 +472,7 @@ function cmdApplyDecisions(target, args) {
     for (const line of lines) {
       try {
         records.push(JSON.parse(line));
-      } catch (_) {}
+      } catch {}
     }
   } catch (e) {
     error(`Cannot read ledger: ${target} — ${e.message}`, EXIT.INPUT_ERROR);
@@ -501,7 +493,7 @@ function cmdApplyDecisions(target, args) {
   if (consumerIndexPath) {
     try {
       consumerIndex = JSON.parse(fs.readFileSync(path.resolve(consumerIndexPath), 'utf8'));
-    } catch (e) {
+    } catch {
       error(`Cannot read consumer-index: ${consumerIndexPath}`, EXIT.INPUT_ERROR);
     }
   }

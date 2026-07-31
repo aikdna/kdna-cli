@@ -316,9 +316,7 @@ unpublished corrective source must not be described as already released.
 Protected assets are an optional authorization gate, not a requirement for
 every KDNA. A user-facing Host may obtain authorization from explicit password
 input, a system-secure store, or a Host authorization provider and must keep
-the secret off argv and ordinary logs. The private `pass` tool used by some
-project maintainers is not a product dependency and is never required of
-ordinary users.
+the secret off argv, environment variables, ordinary files, and ordinary logs.
 
 The source candidate's `--password-stdin` contract is bounded strict UTF-8. It
 removes at most one final transport LF or CRLF and preserves every other
@@ -328,6 +326,12 @@ provider diagnostics. The interactive prompt uses the same strict decoder;
 its Enter key is the transport terminator and therefore cannot represent an
 embedded newline. The protected-workspace source follow-up uses this same
 decoder rather than a second password interpretation.
+
+The published `0.35.1` package preserves its historical license surface. The
+unreleased `0.36.0` source candidate makes a deliberate safety correction:
+`license activate` rejects raw credentials supplied through `--key` or
+`--license-key`. Use browser activation, an external grant, or bounded
+`--credential-stdin`; never place a license credential in shell arguments.
 
 ## License
 

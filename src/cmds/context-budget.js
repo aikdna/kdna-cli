@@ -1,5 +1,5 @@
 /**
- * context-budget.js — Bundle context budget reporting (Story 8)
+ * context-budget.js — Bundle context budget reporting
  *
  * Computes a context_budget_report for kdna plan-load output when a
  * Bundle manifest declares a context_budget. Answers:

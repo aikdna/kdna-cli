@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { error, EXIT } = require('./_common');
+const { EXIT } = require('./_common');
 
 function cmdAssetEvidence(args) {
   const getFlag = (name) => {
@@ -53,14 +53,14 @@ function buildEvidence(abs) {
   try {
     const stat = fs.statSync(abs);
     isDir = stat.isDirectory();
-  } catch (_) {}
+  } catch {}
 
   if (isDir) {
     const mfPath = path.join(abs, 'kdna.json');
     if (fs.existsSync(mfPath)) {
       try {
         manifest = JSON.parse(fs.readFileSync(mfPath, 'utf8'));
-      } catch (_) {}
+      } catch {}
     }
 
     for (const entry of fs.readdirSync(abs)) {
@@ -70,7 +70,7 @@ function buildEvidence(abs) {
           const content = fs.readFileSync(path.join(abs, entry));
           const hash = crypto.createHash('sha256').update(content).digest('hex');
           checksums[entry] = `sha256:${hash}`;
-        } catch (_) {}
+        } catch {}
       }
     }
   } else {
@@ -83,8 +83,8 @@ function buildEvidence(abs) {
         const content = fs.readFileSync(abs);
         const hash = crypto.createHash('sha256').update(content).digest('hex');
         checksums[path.basename(abs)] = `sha256:${hash}`;
-      } catch (_) {}
-    } catch (_) {
+      } catch {}
+    } catch {
       sidecarFiles.push(path.basename(abs));
     }
   }
@@ -119,7 +119,7 @@ function buildEvidence(abs) {
 function getCliVersion() {
   try {
     return require(path.join(__dirname, '..', '..', 'package.json')).version;
-  } catch (_) {
+  } catch {
     return 'unknown';
   }
 }

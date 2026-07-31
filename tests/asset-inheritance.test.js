@@ -1,5 +1,5 @@
 /**
- * story12-asset-inheritance.test.js — Asset inheritance (Story 12)
+ * asset-inheritance.test.js — Asset inheritance
  *
  * Verifies:
  *   A) manifest.schema.json accepts 'extends' as string or object
@@ -11,7 +11,7 @@
  *   G) highest_question falls back to parent when child omits it
  *   H) kdna plan-load --json on single asset has no extends_chain
  *
- * Run: node --test tests/story12-asset-inheritance.test.js
+ * Run: node --test tests/asset-inheritance.test.js
  */
 
 'use strict';
@@ -43,7 +43,7 @@ function run(args, opts = {}) {
 
 // ─── A: Schema validation — 'extends' field ───────────────────────────────────
 
-test('Story 12 schema: validateManifest accepts extends as string', () => {
+test('schema: validateManifest accepts extends as string', () => {
   const core = require('@aikdna/kdna-core');
   if (typeof core.validateManifest !== 'function') return; // skip if not exposed
   const manifest = currentManifest({
@@ -64,7 +64,7 @@ test('Story 12 schema: validateManifest accepts extends as string', () => {
 
 // ─── B: planLoad — extends_chain when base resolvable ────────────────────────
 
-test('Story 12 planLoad: records extends_chain when base is resolvable', () => {
+test('planLoad: records extends_chain when base is resolvable', () => {
   const core = require('@aikdna/kdna-core');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s12-'));
   try {
@@ -112,7 +112,7 @@ test('Story 12 planLoad: records extends_chain when base is resolvable', () => {
 
 // ─── C: planLoad — warning when base not found ───────────────────────────────
 
-test('Story 12 planLoad: KDNA_EXTENDS_NOT_FOUND warning when base missing', () => {
+test('planLoad: KDNA_EXTENDS_NOT_FOUND warning when base missing', () => {
   const core = require('@aikdna/kdna-core');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s12-'));
   try {
@@ -145,7 +145,7 @@ test('Story 12 planLoad: KDNA_EXTENDS_NOT_FOUND warning when base missing', () =
 
 // ─── D: planLoad — warning when no resolver provided ─────────────────────────
 
-test('Story 12 planLoad: KDNA_EXTENDS_RESOLVER_MISSING warning when no resolver', () => {
+test('planLoad: KDNA_EXTENDS_RESOLVER_MISSING warning when no resolver', () => {
   const core = require('@aikdna/kdna-core');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s12-'));
   try {
@@ -182,7 +182,7 @@ test('Story 12 planLoad: KDNA_EXTENDS_RESOLVER_MISSING warning when no resolver'
 
 // ─── E+F: Inheritance merge — child axiom overrides parent ───────────────────
 
-test('Story 12 inheritance: child axioms override parent, parent unoverridden axioms inherited', () => {
+test('inheritance: child axioms override parent, parent unoverridden axioms inherited', () => {
   const core = require('@aikdna/kdna-core');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s12-'));
   try {
@@ -284,7 +284,7 @@ test('Story 12 inheritance: child axioms override parent, parent unoverridden ax
 
 // ─── H: CLI smoke — single asset plan-load has no extends_chain ──────────────
 
-test('Story 12 CLI: single asset plan-load has no extends_chain', () => {
+test('CLI: single asset plan-load has no extends_chain', () => {
   const r = run(['plan-load', RUNTIME_FIXTURE, '--json']);
   assert.ok(r.status !== 1, `unexpected exit 1:\n${r.stderr}`);
   const out = JSON.parse(r.stdout);

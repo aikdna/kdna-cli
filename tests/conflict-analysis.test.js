@@ -1,15 +1,15 @@
 /**
- * story9-conflict-analysis.test.js — validate --bundle conflict warnings (Story 9)
+ * conflict-analysis.test.js — validate --bundle conflict warnings
  *
  * Verifies that kdna validate <bundle.json> --bundle now performs
  * per-card-type static conflict analysis as defined in
- * docs/CONFLICT_RESOLUTION.md (Story 4).
+ * docs/CONFLICT_RESOLUTION.md.
  *
  * Tests are split into two groups:
  *   A) Unit tests for conflict-analysis.js (extractCards, analyseConflicts)
  *   B) CLI integration: validate --bundle emits real conflict entries
  *
- * Run: node --test tests/story9-conflict-analysis.test.js
+ * Run: node --test tests/conflict-analysis.test.js
  */
 
 'use strict';
@@ -37,14 +37,14 @@ function run(args, opts = {}) {
 
 // ─── A: Unit tests — extractCards ────────────────────────────────────────────
 
-test('Story 9 unit: extractCards handles empty/null payload', () => {
+test('unit: extractCards handles empty/null payload', () => {
   const { extractCards } = require('../src/cmds/conflict-analysis');
   const result = extractCards(null);
   assert.equal(result.axiom.length, 0);
   assert.equal(result.term.length, 0);
 });
 
-test('Story 9 unit: extractCards extracts axioms from core', () => {
+test('unit: extractCards extracts axioms from core', () => {
   const { extractCards } = require('../src/cmds/conflict-analysis');
   const payload = {
     core: { axioms: [{ id: 'ax1', one_sentence: 'Test axiom.' }] },
@@ -55,7 +55,7 @@ test('Story 9 unit: extractCards extracts axioms from core', () => {
   assert.equal(cards.axiom[0].id, 'ax1');
 });
 
-test('Story 9 unit: extractCards extracts terms from patterns array', () => {
+test('unit: extractCards extracts terms from patterns array', () => {
   const { extractCards } = require('../src/cmds/conflict-analysis');
   const payload = {
     core: {},
@@ -71,7 +71,7 @@ test('Story 9 unit: extractCards extracts terms from patterns array', () => {
   assert.equal(cards.banned_term[0].term, 'synergy');
 });
 
-test('Story 9 unit: extractCards extracts stances as strings', () => {
+test('unit: extractCards extracts stances as strings', () => {
   const { extractCards } = require('../src/cmds/conflict-analysis');
   const payload = {
     core: { stances: ['Clarity over cleverness.', 'Structure before style.'] },
@@ -84,8 +84,8 @@ test('Story 9 unit: extractCards extracts stances as strings', () => {
 
 // ─── A: Unit tests — analyseConflicts ────────────────────────────────────────
 
-test('Story 9 unit: no conflicts when components have distinct cards', () => {
-  const { analyseConflicts, extractCards } = require('../src/cmds/conflict-analysis');
+test('unit: no conflicts when components have distinct cards', () => {
+  const { analyseConflicts } = require('../src/cmds/conflict-analysis');
 
   // Monkeypatch: pass pre-extracted cards via a wrapper
   // We test analyseConflicts by passing component results with no payload
@@ -100,8 +100,8 @@ test('Story 9 unit: no conflicts when components have distinct cards', () => {
   assert.equal(info.length, 0);
 });
 
-test('Story 9 unit: malformed CBOR payload is diagnosed, not silently swallowed', () => {
-  const { loadPayload, analyseConflicts, extractCards } = require('../src/cmds/conflict-analysis');
+test('unit: malformed CBOR payload is diagnosed, not silently swallowed', () => {
+  const { loadPayload, analyseConflicts } = require('../src/cmds/conflict-analysis');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s9-mal-'));
   try {
     const dir = path.join(tmp, 'malformed');
@@ -121,7 +121,7 @@ test('Story 9 unit: malformed CBOR payload is diagnosed, not silently swallowed'
       { id: '@test/mal@1.0.0', path: dir, valid: true },
       { id: '@test/ok@1.0.0', path: emptyDir, valid: true },
     ];
-    const { info, errors, warnings } = analyseConflicts(compResults, {});
+    const { info } = analyseConflicts(compResults, {});
     const diagnostic = info.find((i) => i.note && i.note.includes('malformed'));
     assert.ok(diagnostic, 'malformed CBOR must produce a diagnostic INFO entry');
     assert.match(diagnostic.note, /could not be decoded as CBOR/);
@@ -130,7 +130,7 @@ test('Story 9 unit: malformed CBOR payload is diagnosed, not silently swallowed'
   }
 });
 
-test('Story 9 unit: term conflict → ERROR entry', () => {
+test('unit: term conflict → ERROR entry', () => {
   const { analyseConflicts } = require('../src/cmds/conflict-analysis');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s9-'));
   try {
@@ -170,7 +170,7 @@ test('Story 9 unit: term conflict → ERROR entry', () => {
       { id: '@test/b@1.0.0', path: dirB, valid: true },
     ];
 
-    const { errors, warnings } = analyseConflicts(compResults, {});
+    const { errors } = analyseConflicts(compResults, {});
     assert.equal(errors.length, 1, 'should detect 1 ERROR for term conflict');
     assert.equal(errors[0].conflict_type, 'term_conflict');
     assert.equal(errors[0].severity, 'ERROR');
@@ -183,7 +183,7 @@ test('Story 9 unit: term conflict → ERROR entry', () => {
   }
 });
 
-test('Story 9 unit: axiom id clash → WARNING entry', () => {
+test('unit: axiom id clash → WARNING entry', () => {
   const { analyseConflicts } = require('../src/cmds/conflict-analysis');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s9-'));
   try {
@@ -224,7 +224,7 @@ test('Story 9 unit: axiom id clash → WARNING entry', () => {
   }
 });
 
-test('Story 9 unit: banned_term replace_with conflict → WARNING', () => {
+test('unit: banned_term replace_with conflict → WARNING', () => {
   const { analyseConflicts } = require('../src/cmds/conflict-analysis');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s9-'));
   try {
@@ -260,7 +260,7 @@ test('Story 9 unit: banned_term replace_with conflict → WARNING', () => {
 
 // ─── B: CLI integration ────────────────────────────────────────────────────────
 
-test('Story 9 CLI: bundle with no conflicts → empty errors/warnings, no stub INFO', () => {
+test('CLI: bundle with no conflicts → empty errors/warnings, no stub INFO', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s9-cli-'));
   try {
     const bundlePath = path.join(tmp, 'bundle.json');
@@ -282,15 +282,16 @@ test('Story 9 CLI: bundle with no conflicts → empty errors/warnings, no stub I
     assert.equal(r.status, 0, `exit 0 expected:\n${r.stderr}`);
     const out = JSON.parse(r.stdout);
     assert.equal(out.bundle_valid, true);
-    // No stub INFO note any more — Story 9 replaced it
-    const stubNote = out.info.find((i) => i.note && i.note.includes('Story 9'));
-    assert.ok(!stubNote, 'stub INFO note should be gone after Story 9');
+    const stubNote = out.info.find(
+      (i) => i.note && /conflict analysis (?:pending|not implemented)/iu.test(i.note),
+    );
+    assert.ok(!stubNote, 'stub INFO note should be gone after conflict analysis ships');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
 
-test('Story 9 CLI: bundle with term conflict → ERROR, bundle_valid=false, exit 1', () => {
+test('CLI: bundle with term conflict → ERROR, bundle_valid=false, exit 1', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-s9-cli-'));
   try {
     // Build two source dirs with a term conflict

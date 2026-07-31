@@ -173,6 +173,25 @@ test('password argv policy distinguishes executable examples from safe syntax an
   assert.equal(isPasswordArgvExample(`Usage: kdna load asset.kdna [${legacyFlag} <value>]`), true);
 });
 
+test('license credential argv policy rejects executable examples without rejecting stdin', async () => {
+  const { isLicenseCredentialArgvExample } = await policy();
+  const keyFlag = ['--', 'key'].join('');
+  const longKeyFlag = ['--license', '-key'].join('');
+  assert.equal(
+    isLicenseCredentialArgvExample(`kdna license activate example ${keyFlag} secret`),
+    true,
+  );
+  assert.equal(
+    isLicenseCredentialArgvExample(`npx kdna license activate example ${longKeyFlag}=secret`),
+    true,
+  );
+  assert.equal(
+    isLicenseCredentialArgvExample('kdna license activate example --credential-stdin'),
+    false,
+  );
+  assert.equal(isLicenseCredentialArgvExample('kdna license status example'), false);
+});
+
 test('public-surface scan rejects password-bearing argv examples under hostile Git env', (t) => {
   const fixture = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-public-password-')));
   const poison = path.join(fixture, 'poison');
@@ -219,6 +238,105 @@ test('public-surface scan rejects password-bearing argv examples under hostile G
   });
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /password-in-argv-example/);
+});
+
+test('public-surface scan rejects license credentials in executable argv examples', (t) => {
+  const fixture = fs.realpathSync(
+    fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-public-license-credential-')),
+  );
+  t.after(() => fs.rmSync(fixture, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(fixture, 'scripts'), { recursive: true });
+  for (const file of [
+    'check-public-surface.mjs',
+    'public-surface-policy.mjs',
+    'public-surface.config.json',
+    'trusted-git.js',
+  ]) {
+    fs.copyFileSync(path.join(ROOT, 'scripts', file), path.join(fixture, 'scripts', file));
+  }
+  const keyFlag = ['--license', '-key'].join('');
+  fs.writeFileSync(
+    path.join(fixture, 'README.md'),
+    `npx kdna license activate example ${keyFlag}=exposed\n`,
+  );
+  const git = (args) => {
+    const result = spawnSync('git', ['-C', fixture, ...args], {
+      encoding: 'utf8',
+      env: trustedGitEnvironment(),
+      shell: false,
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+  };
+  git(['init', '--quiet']);
+  git(['config', 'user.email', 'test@example.invalid']);
+  git(['config', 'user.name', 'KDNA Test']);
+  git(['add', '--all']);
+  git(['commit', '--quiet', '-m', 'test: hostile license credential example']);
+
+  const result = spawnSync(process.execPath, ['scripts/check-public-surface.mjs'], {
+    cwd: fixture,
+    encoding: 'utf8',
+    env: trustedGitEnvironment(),
+    shell: false,
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /license-credential-in-argv-example/);
+});
+
+test('public-surface scan rejects internal work-package and maintainer credential narrative', (t) => {
+  const cases = [
+    {
+      content: `${['Sto', 'ry 42'].join('')}: internal milestone\n`,
+      rule: /internal-work-package-label/,
+    },
+    {
+      content: `${['private', 'pass', 'tool'].join(' ')} used by project maintainers\n`,
+      rule: /maintainer-credential-source/,
+    },
+    {
+      content: `${['owner', 'approved'].join('-')} adapter release\n`,
+      rule: /internal-release-governance/,
+    },
+  ];
+
+  for (const [index, candidate] of cases.entries()) {
+    const fixture = fs.realpathSync(
+      fs.mkdtempSync(path.join(os.tmpdir(), `kdna-public-narrative-${index}-`)),
+    );
+    t.after(() => fs.rmSync(fixture, { recursive: true, force: true }));
+    fs.mkdirSync(path.join(fixture, 'scripts'), { recursive: true });
+    for (const file of [
+      'check-public-surface.mjs',
+      'public-surface-policy.mjs',
+      'public-surface.config.json',
+      'trusted-git.js',
+    ]) {
+      fs.copyFileSync(path.join(ROOT, 'scripts', file), path.join(fixture, 'scripts', file));
+    }
+    fs.writeFileSync(path.join(fixture, 'README.md'), candidate.content);
+    const git = (args) => {
+      const result = spawnSync('git', ['-C', fixture, ...args], {
+        encoding: 'utf8',
+        env: trustedGitEnvironment(),
+        shell: false,
+      });
+      assert.equal(result.status, 0, result.stderr || result.stdout);
+    };
+    git(['init', '--quiet']);
+    git(['config', 'user.email', 'test@example.invalid']);
+    git(['config', 'user.name', 'KDNA Test']);
+    git(['add', '--all']);
+    git(['commit', '--quiet', '-m', 'test: public narrative rejection']);
+
+    const result = spawnSync(process.execPath, ['scripts/check-public-surface.mjs'], {
+      cwd: fixture,
+      encoding: 'utf8',
+      env: trustedGitEnvironment(),
+      shell: false,
+    });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, candidate.rule);
+  }
 });
 
 test('public-surface scan ignores hostile Git repository and index redirection', (t) => {

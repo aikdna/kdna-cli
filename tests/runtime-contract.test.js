@@ -111,7 +111,7 @@ process.stdin.on('end', () => {
   let request;
   try {
     request = core.parseRuntimeContractJson(Buffer.concat(chunks));
-  } catch (_) {
+  } catch {
     process.exit(20);
     return;
   }

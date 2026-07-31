@@ -581,8 +581,20 @@ function cmdLicenseInstall(args) {
 }
 
 async function cmdLicenseActivate(args = []) {
+  const secretArgument = args.find(
+    (arg) =>
+      arg === '--key' ||
+      arg.startsWith('--key=') ||
+      arg === '--license-key' ||
+      arg.startsWith('--license-key='),
+  );
+  if (secretArgument) {
+    error(
+      'License credentials are not accepted in process arguments. Use browser activation, an external grant, or --credential-stdin.',
+      EXIT.INPUT_ERROR,
+    );
+  }
   const domain = args.find((arg) => !arg.startsWith('--'));
-  const key = argValue(args, '--key') || argValue(args, '--license-key');
   const server = argValue(args, '--server');
   const jsonMode = args.includes('--json');
   if (!domain || !server) {
@@ -592,35 +604,7 @@ async function cmdLicenseActivate(args = []) {
     );
   }
 
-  if (!key) {
-    return activateExternalGrant({ domain, server, args, jsonMode });
-  }
-
-  process.stderr.write(
-    'Warning: --key is the legacy local-receipt flow and may be visible in shell history. ' +
-      'Account/device assets use browser activation or --credential-stdin.\n',
-  );
-
-  let activation;
-  try {
-    activation = await requestActivation(domain, key, server);
-  } catch (e) {
-    error(`License activation failed: ${redactLicenseKey(e.message, key)}`, EXIT.TRUST_FAILED);
-  }
-  const dest = writeInstalledLicense(activation);
-  recordLicenseTrace('activate', activation, { server });
-  const record = licenseStatusRecord(activation, dest);
-  if (jsonMode) {
-    console.log(JSON.stringify(record, null, 2));
-    return;
-  }
-  console.log(`License activated for ${domain}`);
-  console.log(`  License ID: ${activation.license_id}`);
-  console.log(`  Status: ${record.valid ? 'valid' : 'invalid'}`);
-  if (activation.offline_valid_until) {
-    console.log(`  Offline valid until: ${activation.offline_valid_until}`);
-  }
-  console.log(`  Saved to: ${dest}`);
+  return activateExternalGrant({ domain, server, args, jsonMode });
 }
 
 function accountApiUrl(server, resource) {

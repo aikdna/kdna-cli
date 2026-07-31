@@ -21,9 +21,9 @@ function loadManifest(absPath) {
         const core = require('@aikdna/kdna-core');
         const m = core.inspect(absPath);
         if (m) return m;
-      } catch (_) {}
+      } catch {}
     }
-  } catch (_) {}
+  } catch {}
   return null;
 }
 
@@ -35,7 +35,7 @@ function loadFixtures(dirPath) {
       try {
         const fixture = JSON.parse(fs.readFileSync(path.join(dirPath, f), 'utf8'));
         return fixture;
-      } catch (_) {
+      } catch {
         return null;
       }
     })
@@ -56,7 +56,7 @@ function loadObservations(inputPath) {
       const value = JSON.parse(fs.readFileSync(file, 'utf8'));
       const rows = Array.isArray(value) ? value : value.observations || value.results || [];
       if (Array.isArray(rows)) observations.push(...rows);
-    } catch (_) {}
+    } catch {}
   }
   return observations;
 }
@@ -101,7 +101,7 @@ async function cmdEvalAsset(args) {
     const { resolveAsset } = require('../package-store');
     const resolved = resolveAsset(assetPath);
     if (resolved?.asset_path) resolvedTarget = resolved.asset_path;
-  } catch (_) {}
+  } catch {}
   const abs = path.resolve(resolvedTarget);
   const manifest = loadManifest(abs);
 

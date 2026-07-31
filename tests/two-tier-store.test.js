@@ -1,6 +1,5 @@
 /**
- * two-tier-store.test.js — Project-local + user-global package
- * store (roadmap-2026.md §5.1 Story 2).
+ * two-tier-store.test.js — Project-local + user-global package store
  *
  * The package store now supports two roots:
  *   - global:   ~/.kdna/packages/ (default for `kdna install`)
@@ -9,10 +8,8 @@
  * On read, project wins on conflict. On remove, the entry is
  * removed from whichever root it lives in.
  *
- * The CLI commands `kdna list` and `kdna remove` (which display
- * the tier and drive the per-tier remove) ship in Story 1 (PR
- * aikdna/kdna-cli#70, v0.28.14) on a separate branch. Story 2
- * tests verify the underlying package-store behavior by reading
+ * The retired CLI commands that displayed the tier are not current
+ * public authority. These tests verify the underlying package-store behavior by reading
  * the index.json files and asset paths directly, so the test
  * suite stays branch-independent.
  *
