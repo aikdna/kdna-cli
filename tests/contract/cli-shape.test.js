@@ -2,7 +2,7 @@
  * cli-shape.test.js — Contract test for the current minimal CLI surface.
  *
  * Fails CI if any deleted command name appears in the CLI source
- * or if the help output exceeds the contracted line count.
+ * or if help differs from the closed machine-readable command surface.
  */
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -11,6 +11,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const cliBin = path.join(__dirname, '..', '..', 'src', 'cli.js');
+const commandPolicy = require('../../release-surface/cli-command-allowlist.json');
 
 function runCli(args) {
   return spawnSync(process.execPath, [cliBin, ...args], {
@@ -21,20 +22,20 @@ function runCli(args) {
 
 const DELETED_COMMANDS = ['install', 'list', 'setup', 'update', 'registry', 'available', 'match'];
 
-test('kdna --help is ≤12 lines', () => {
+test('kdna --help has exactly one line per closed command plus its header', () => {
   const r = runCli(['--help']);
   assert.equal(r.status, 0, r.stderr);
   const lines = r.stdout
     .trim()
     .split('\n')
     .filter((l) => l.length > 0);
-  assert.ok(lines.length <= 12, `help has ${lines.length} lines, expected ≤12`);
+  assert.equal(lines.length, commandPolicy.commands.length + 1);
 });
 
 test('kdna help legacy remains outside the default surface', () => {
   const r = runCli(['help', 'legacy']);
   assert.notEqual(r.status, 0, 'help legacy must exit non-zero');
-  assert.match(r.stderr + r.stdout, /Usage: kdna legacy|Unknown command/);
+  assert.match(r.stderr + r.stdout, /help does not accept a command argument/);
   assert.doesNotMatch(runCli(['--help']).stdout, /help legacy/);
 });
 

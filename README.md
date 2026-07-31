@@ -58,24 +58,38 @@ and resolve a task without writing its text to disk, use:
 
 ```bash
 node ./src/cli.js attach ./demo-judgment.kdna --cwd ./my-project \
-  --role article-writing --applies-to draft --does-not-apply-to code --yes
+  --attachment-stdin --yes
 node ./src/cli.js attachments --cwd ./my-project
 node ./src/cli.js resolve --cwd ./my-project --task-stdin
 ```
 
-For the last command, the invoking Agent or Host writes bounded UTF-8 task bytes
-to the child process stdin and then closes the stream. `--task-file` remains
-available only when the user already has an explicit task file; exactly one
-input mode is required.
+For `attach`, the invoking Agent writes one bounded strict-UTF-8 JSON object to
+stdin with exactly `role`, `applies_to`, and `does_not_apply_to`; each scope
+array must contain at least one deterministic hint. This keeps potentially
+private role and scope text out of argv, environment variables, and
+non-interactive diagnostics. Human terminal use may instead supply the three
+corresponding argv options explicitly. For `resolve`, the invoking process
+writes bounded UTF-8 task bytes to stdin and closes the stream. `--task-file`
+remains available only when the user already has an explicit task file;
+exactly one task input mode is required.
 
 `attach` copies the validated bytes to an immutable digest snapshot under
 `./my-project/.kdna/`. The source file may then move without changing the
-workspace fact. Omit `--yes` for an interactive approval prompt; non-interactive
-callers must provide it explicitly.
+workspace fact. Before approval, the preview binds the safe relative workspace
+root, final role and scope, exact asset digest, authorization need, and one
+consent digest. Any source, scope, or workspace-root drift before the write is
+rejected. A user's explicit request naming the file, workspace, and scope is
+one approval: an Agent carries that consent into this one command with
+`--yes`; the CLI must not ask a second time. Omit `--yes` only when direct
+interactive preview and confirmation is desired. Existing approved attachments
+do not require repeated approval for resolve or load.
 
-For direct CLI use, `--cwd` is also the explicit workspace root boundary, so
-lookup does not walk into its parent. A Host that launches from a nested
-directory must additionally pass its known root, for example
+For `attach`, `--cwd` is the exact workspace being approved, not a lookup
+start; a Host must pass its known workspace root there. For read, resolve, and
+lifecycle commands, direct CLI use without `--workspace-root` searches upward
+for the nearest record and stops at HOME or the filesystem root without ever
+adopting a record at those global-looking boundaries. A Host that launches from
+a nested directory must pass its known root, for example
 `resolve --cwd ./my-project/packages/app --workspace-root ./my-project ...`.
 Only the nearest record between those two coordinates can be selected. A start
 outside the boundary, a symlinked coordinate, or a home-level
@@ -114,8 +128,10 @@ The CLI reference implementation records that approval only in
 `<workspace>/.kdna/assets/`. It never falls back to a user-global package
 directory, searches above the explicit Host root, scans for unrelated assets,
 or merges parent and child workspace records. Within the boundary it selects
-only the nearest record. The record and snapshots are ignored by Git by default
-because they may expose private preferences and asset identity.
+only the nearest record. The record, snapshots, and `.kdna/.gitignore` control
+file itself are ignored by Git by default because they may expose private
+preferences and asset identity; a real Git worktree regression requires clean
+porcelain status after attach.
 
 Saving, discovery, attachment, authorization, applicability, and loading are
 separate events. A Host must expose active asset identity, version or digest,
