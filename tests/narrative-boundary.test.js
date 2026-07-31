@@ -21,6 +21,25 @@ test('current CLI narrative remains file-first and user-authorized', () => {
   assert.match(skill, /active asset identity/);
 });
 
+test('published quick start does not imply unreleased workspace commands are npm latest', () => {
+  const readme = read('README.md');
+  const publishedInstall = readme.indexOf('npm install -g @aikdna/kdna-cli');
+  const candidateBoundary = readme.indexOf('## Unreleased 0.36.0 source candidate');
+  const firstWorkspaceCommand = readme.indexOf('node ./src/cli.js attach');
+
+  assert.ok(publishedInstall >= 0, 'published install command must remain visible');
+  assert.ok(candidateBoundary > publishedInstall, 'candidate boundary must follow the published install');
+  assert.ok(firstWorkspaceCommand > candidateBoundary, 'workspace commands must follow the candidate boundary');
+  assert.doesNotMatch(
+    readme.slice(publishedInstall, candidateBoundary),
+    /\bkdna (?:attach|attachments|resolve|disable|enable|switch|rollback|remove)\b/,
+  );
+  assert.match(readme, /registry `latest` release is `0\.35\.1`/);
+  assert.match(readme, /not the npm `latest` surface/);
+  assert.match(readme, /detach at the fetched commit, record\s+that exact HEAD/i);
+  assert.match(readme, /candidate package supplied with an exact\s+SHA-256 receipt/i);
+});
+
 test('default authoring rubric does not require output uplift', () => {
   const rubric = read('templates/standard-domain/evals/scoring.json');
   const template = read('templates/standard-domain/README.md');
