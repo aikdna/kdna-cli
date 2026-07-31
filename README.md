@@ -65,13 +65,20 @@ node ./src/cli.js resolve --cwd ./my-project --task-stdin
 
 For `attach`, the invoking Agent writes one bounded strict-UTF-8 JSON object to
 stdin with `role`, `applies_to`, `does_not_apply_to`, and optional
-`scope_mode`. A positive task hint is required in the default `task_hints`
-mode; negative hints are optional. A user may instead explicitly approve
-`scope_mode: "all_workspace"` with no positive hints and optional exclusions.
+`scope_mode`/`matching_policy`. A positive task hint is required in the default
+`task_hints` mode; negative hints are optional. Task hints default to
+`matching_policy: "open_world_ask"`: no lexical match is unresolved rather than
+proof that the asset is outside scope. A user may explicitly approve
+`matching_policy: "closed_world_skip"` when the listed positive hints are a
+complete routing whitelist; only then may a clean unmatched task skip. A user
+may instead explicitly approve `scope_mode: "all_workspace"` with no positive
+hints and optional exclusions.
 Completely unspecified applicability is rejected. This keeps potentially
 private role and scope text out of argv, environment variables, and
-non-interactive diagnostics. Human terminal use may use `--applies-to` or the
-explicit `--all-workspace` switch and may omit `--does-not-apply-to`. For
+non-interactive diagnostics. Human terminal use may use `--applies-to`, add
+`--closed-world-scope` only after explicitly approving a complete whitelist,
+or use the explicit `--all-workspace` switch; `--does-not-apply-to` remains
+optional. For
 `resolve`, the invoking process writes bounded UTF-8 task bytes to stdin and
 closes the stream. `--task-file` remains available only when the user already
 has an explicit task file; exactly one task input mode is required.
@@ -204,16 +211,25 @@ do not belong in argv, environment variables, or an incidental task file.
 
 The source-candidate resolver is a conservative deterministic interpreter of
 user-approved scope hints, not an AI classifier for arbitrary natural
-language. `task_hints` are a positive whitelist: when no hint matches and there
-is no uncertain match or policy contradiction, the resolver returns
-`skip/outside_scope_or_no_match` without checking unrelated authorization,
-snapshot bytes, or LoadPlan. Latin and numeric phrases use token boundaries,
-hyphens and spaces are normalized as phrase separators, and CJK hints use
-normalized explicit phrase matching. Near matches, word-form overlap, empty
-hints, and contradictions ask instead of auto-loading. A matched phrase is
-also treated as uncertain when it appears in negation, quotation or
-meta-discussion, a contrastive multi-clause task, or an overly short or broad
-hint. Those cases ask for structured intent; this resolver does not claim to
+language. Latin and numeric phrases use token boundaries, hyphens and spaces
+are normalized as phrase separators, and CJK hints use normalized explicit
+phrase matching. Near matches, word-form overlap, empty hints, and
+contradictions ask instead of auto-loading. A matched phrase is also treated as
+uncertain when it appears in negation, quotation or meta-discussion, a
+contrastive multi-clause task, or an overly short or broad hint.
+
+An explicit negative match returns `skip/explicitly_outside_scope` without
+checking unrelated authorization, snapshot bytes, or a LoadPlan. A clean
+no-match under the default `open_world_ask` policy returns
+`ask/applicability_unresolved`, because synonyms, paraphrases, and another
+language may still express an applicable task. Its receipt-bound one-task
+selection is the safe continuation. Only a separately user-approved
+`closed_world_skip` policy makes no-match return
+`skip/closed_world_no_match`. With multiple attachments, one clear positive
+loads only when every other unmatched task-hint policy is closed-world; an
+open-world unmatched candidate keeps applicability unresolved.
+
+These cases ask for structured intent; this resolver does not claim to
 understand arbitrary natural language. The closed attachment record schema is
 still validated first, and every possible load/ask candidate receives full
 identity and integrity checks. Authorization is reported per candidate but is
@@ -226,9 +242,9 @@ role/scope. `--retain-scope` means the user explicitly reviewed reuse of the
 same hints for the new asset; reuse is never implicit. The preview binds old
 and new asset identity, version, digest, role, scope, authorization nature, and
 workspace. Rollback restores the complete previous asset and policy metadata.
-The earlier unreleased attachment schema `0.1.0` is intentionally rejected;
-evaluators re-attach under `0.2.0` rather than silently reinterpret incomplete
-history.
+The earlier unreleased attachment schemas `0.1.0` and `0.2.0` are intentionally
+rejected; evaluators re-attach under `0.3.0` rather than silently reinterpret
+incomplete history or invent an open/closed-world applicability decision.
 
 ```bash
 node ./src/cli.js switch att_<id> ./replacement.kdna \
@@ -303,6 +319,15 @@ input, a system-secure store, or a Host authorization provider and must keep
 the secret off argv and ordinary logs. The private `pass` tool used by some
 project maintainers is not a product dependency and is never required of
 ordinary users.
+
+The source candidate's `--password-stdin` contract is bounded strict UTF-8. It
+removes at most one final transport LF or CRLF and preserves every other
+character, including leading/trailing spaces and embedded newlines. Empty,
+oversized, or invalid input is rejected without echoing secret bytes or
+provider diagnostics. The interactive prompt uses the same strict decoder;
+its Enter key is the transport terminator and therefore cannot represent an
+embedded newline. The protected-workspace source follow-up uses this same
+decoder rather than a second password interpretation.
 
 ## License
 

@@ -13,6 +13,7 @@ const crypto = require('crypto');
 const http = require('http');
 const https = require('https');
 const { EXIT, error } = require('./_common');
+const { SecretInputError, readSecretStdin } = require('../secret-input');
 const { recordTrace } = require('./trace');
 const PATHS = require('../paths');
 const external = require('../external-entitlement');
@@ -699,9 +700,16 @@ async function activateExternalGrant({ domain, server, args, jsonMode }) {
         EXIT.INPUT_ERROR,
       );
     }
-    activationCredential = fs.readFileSync(0, 'utf8').trim();
-    if (!activationCredential)
-      error('No activation credential was received on stdin.', EXIT.INPUT_ERROR);
+    try {
+      activationCredential = readSecretStdin({ label: 'Activation credential' });
+    } catch (readError) {
+      error(
+        readError instanceof SecretInputError
+          ? readError.message
+          : 'Activation credential could not be read.',
+        EXIT.INPUT_ERROR,
+      );
+    }
   }
 
   const created = await postAccountJson(accountApiUrl(server, 'device-activations'), {

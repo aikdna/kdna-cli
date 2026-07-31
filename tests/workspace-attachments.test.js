@@ -105,6 +105,7 @@ function attach(root, asset, options = {}) {
     role: options.role || 'article-writing',
     appliesTo: options.appliesTo || ['draft'],
     doesNotApplyTo: options.doesNotApplyTo || ['code'],
+    matchingPolicy: options.matchingPolicy || 'open_world_ask',
     approve,
     now: options.now,
   });
@@ -154,7 +155,7 @@ test('attach snapshots exact bytes, writes the closed record, and survives sourc
   const result = attach(root, asset);
   const record = readRecord(root);
   assert.equal(record.document_type, 'kdna.workspace-attachments');
-  assert.equal(record.schema_version, '0.2.0');
+  assert.equal(record.schema_version, '0.3.0');
   assert.deepEqual(record.workspace, { root_marker: '.kdna/attachments.json' });
   assert.equal(record.attachments.length, 1);
   assert.deepEqual(record.attachments[0], result.attachment);
@@ -243,6 +244,7 @@ test('attachment approval previews the exact role, scope, boundary, and authoriz
   assert.deepEqual(preview.attachment.scope, {
     kind: 'workspace',
     application: 'task_hints',
+    matching_policy: 'open_world_ask',
     authority: 'user_approved_routing_hint',
     approval_source: 'preview_confirmed',
     applies_to: ['draft article'],
@@ -406,10 +408,10 @@ test('one positive scope loads and one explicit exclusion skips', () => {
   assert.equal(load.integrity, 'verified');
   const skip = resolve(root, 'Review this code change.');
   assert.equal(skip.decision, 'skip');
-  assert.equal(skip.reason_code, 'outside_scope_or_no_match');
+  assert.equal(skip.reason_code, 'explicitly_outside_scope');
 });
 
-test('negative scope is optional, all-workspace is explicit, and no executable scope is rejected', () => {
+test('open/closed-world matching, optional negative scope, and all-workspace scope are explicit', () => {
   const emptyRoot = temporaryRoot('empty-scope');
   const emptyAsset = buildAsset(emptyRoot);
   assert.throws(
@@ -424,10 +426,22 @@ test('negative scope is optional, all-workspace is explicit, and no executable s
   });
   assert.equal(resolve(positiveOnlyRoot, 'article writing').decision, 'load');
   const positiveOnlyMiss = resolve(positiveOnlyRoot, 'change code');
-  assert.equal(positiveOnlyMiss.decision, 'skip');
-  assert.equal(positiveOnlyMiss.reason_code, 'outside_scope_or_no_match');
-  assert.equal(positiveOnlyMiss.authorization, 'not_checked');
-  assert.equal(positiveOnlyMiss.integrity, 'not_checked');
+  assert.equal(positiveOnlyMiss.decision, 'ask');
+  assert.equal(positiveOnlyMiss.reason_code, 'applicability_unresolved');
+  assert.equal(positiveOnlyMiss.authorization, 'not_selected');
+  assert.equal(positiveOnlyMiss.integrity, 'verified');
+
+  const closedWorldRoot = temporaryRoot('closed-world-scope');
+  attach(closedWorldRoot, buildAsset(closedWorldRoot), {
+    appliesTo: ['article writing'],
+    doesNotApplyTo: [],
+    matchingPolicy: 'closed_world_skip',
+  });
+  const closedWorldMiss = resolve(closedWorldRoot, 'change code');
+  assert.equal(closedWorldMiss.decision, 'skip');
+  assert.equal(closedWorldMiss.reason_code, 'closed_world_no_match');
+  assert.equal(closedWorldMiss.authorization, 'not_checked');
+  assert.equal(closedWorldMiss.integrity, 'not_checked');
 
   const allWorkspaceRoot = temporaryRoot('all-workspace-scope');
   attachWorkspace({
@@ -440,14 +454,17 @@ test('negative scope is optional, all-workspace is explicit, and no executable s
     approve,
   });
   assert.equal(resolve(allWorkspaceRoot, 'draft a release note').decision, 'load');
-  assert.equal(resolve(allWorkspaceRoot, 'medical diagnosis').decision, 'skip');
+  assert.equal(
+    resolve(allWorkspaceRoot, 'medical diagnosis').reason_code,
+    'explicitly_outside_scope',
+  );
 
   const unmatchedRoot = temporaryRoot('unmatched-scope');
   attach(unmatchedRoot, buildAsset(unmatchedRoot), {
     appliesTo: ['headline'],
     doesNotApplyTo: ['administration'],
   });
-  assert.equal(resolve(unmatchedRoot, 'draft').reason_code, 'outside_scope_or_no_match');
+  assert.equal(resolve(unmatchedRoot, 'draft').reason_code, 'applicability_unresolved');
 
   const contradictoryRoot = temporaryRoot('contradictory-scope');
   attach(contradictoryRoot, buildAsset(contradictoryRoot), {
@@ -504,23 +521,62 @@ test('scope hints use deterministic token boundaries, normalized roles, and expl
   assert.equal(resolve(cjkRoot, '请检查文章。').decision, 'ask');
 });
 
-test('clean positive-whitelist misses skip without inspecting unrelated authorization or bytes', () => {
+test('open-world synonym and language variation ask while explicit closed boundaries can skip', () => {
+  for (const [hint, task] of [
+    ['article writing', 'compose a blog post'],
+    ['文章写作', '起草一篇推文'],
+  ]) {
+    const root = temporaryRoot('scope-open-world-holdout');
+    attach(root, buildAsset(root), {
+      appliesTo: [hint],
+      doesNotApplyTo: [],
+    });
+    const result = resolve(root, task);
+    assert.equal(result.decision, 'ask');
+    assert.equal(result.reason_code, 'applicability_unresolved');
+    assert.equal(result.authorization, 'not_selected');
+    assert.equal(result.integrity, 'verified');
+    assert.match(result.selection_plan.plan_digest, /^sha256:[0-9a-f]{64}$/u);
+  }
+
+  const explicitNegative = temporaryRoot('scope-explicit-negative-holdout');
+  attach(explicitNegative, buildAsset(explicitNegative), {
+    appliesTo: ['article writing'],
+    doesNotApplyTo: ['source code editing'],
+  });
+  assert.equal(
+    resolve(explicitNegative, 'review source code editing').reason_code,
+    'explicitly_outside_scope',
+  );
+
+  const closedWorld = temporaryRoot('scope-closed-world-holdout');
+  attach(closedWorld, buildAsset(closedWorld), {
+    appliesTo: ['article writing'],
+    doesNotApplyTo: [],
+    matchingPolicy: 'closed_world_skip',
+  });
+  assert.equal(resolve(closedWorld, 'reconcile invoices').reason_code, 'closed_world_no_match');
+});
+
+test('approved closed-world misses skip without inspecting unrelated authorization or bytes', () => {
   const root = temporaryRoot('scope-whitelist-miss');
   attach(root, buildProtectedAsset(root), {
     role: 'protected-writing',
     appliesTo: ['draft article'],
     doesNotApplyTo: [],
+    matchingPolicy: 'closed_world_skip',
   });
   const missing = attach(root, buildAsset(root), {
     role: 'design-review',
     appliesTo: ['review interface'],
     doesNotApplyTo: [],
+    matchingPolicy: 'closed_world_skip',
   });
   fs.unlinkSync(path.join(root, '.kdna', ...missing.attachment.asset.snapshot.split('/')));
 
   const result = resolve(root, 'reconcile quarterly invoices');
   assert.equal(result.decision, 'skip');
-  assert.equal(result.reason_code, 'outside_scope_or_no_match');
+  assert.equal(result.reason_code, 'closed_world_no_match');
   assert.equal(result.authorization, 'not_checked');
   assert.equal(result.integrity, 'not_checked');
   assert.equal(result.selected, null);
@@ -605,15 +661,33 @@ test('multiple positive attachments and same-role disagreement ask with attachme
     role: 'programming',
     appliesTo: ['change code'],
     doesNotApplyTo: [],
+    matchingPolicy: 'closed_world_skip',
   });
   attach(uniqueRoot, buildAsset(uniqueRoot), {
     role: 'administration',
     appliesTo: ['manage invoices'],
     doesNotApplyTo: [],
+    matchingPolicy: 'closed_world_skip',
   });
   const unique = resolve(uniqueRoot, 'draft article');
   assert.equal(unique.decision, 'load');
   assert.equal(unique.selected.attachment_id, writing.attachment.attachment_id);
+
+  const openWorldRoot = temporaryRoot('multi-open-world-unmatched');
+  attach(openWorldRoot, buildAsset(openWorldRoot), {
+    role: 'writing',
+    appliesTo: ['draft article'],
+    doesNotApplyTo: [],
+  });
+  attach(openWorldRoot, buildAsset(openWorldRoot), {
+    role: 'visual-design',
+    appliesTo: ['review interface'],
+    doesNotApplyTo: [],
+  });
+  const openWorld = resolve(openWorldRoot, 'draft article');
+  assert.equal(openWorld.decision, 'ask');
+  assert.equal(openWorld.reason_code, 'applicability_unresolved');
+  assert.equal(openWorld.candidates.length, 2);
 
   const multipleRoot = temporaryRoot('multi-conflict');
   attach(multipleRoot, buildAsset(multipleRoot), { role: 'writing' });
@@ -796,7 +870,18 @@ test('explicit attachment naming and cross-language scope variation have a safe 
     appliesTo: ['article writing'],
     doesNotApplyTo: ['code editing'],
   });
-  assert.equal(resolve(root, '写一篇推文').decision, 'skip');
+  const crossLanguage = resolve(root, '写一篇推文');
+  assert.equal(crossLanguage.decision, 'ask');
+  assert.equal(crossLanguage.reason_code, 'applicability_unresolved');
+  assert.match(crossLanguage.selection_plan.plan_digest, /^sha256:[0-9a-f]{64}$/u);
+  const selectedCrossLanguage = resolve(root, '写一篇推文', {
+    selectedAttachmentId: first.attachment.attachment_id,
+    selectionTaskDigest: crossLanguage.selection_plan.task_digest,
+    selectionPlanDigest: crossLanguage.selection_plan.plan_digest,
+    selectionApproved: true,
+  });
+  assert.equal(selectedCrossLanguage.decision, 'load');
+  assert.equal(selectedCrossLanguage.reason_code, 'explicit_task_attachment_selection');
 
   const exactTask = `本次任务请使用附件 ${first.attachment.attachment_id}。`;
   const exactDigest = sha256(Buffer.from(exactTask, 'utf8'));
@@ -889,7 +974,7 @@ test('explicitly outside-scope assets do not block on missing authorization or d
   });
   const encryptedOutside = resolve(encryptedRoot, 'review this code');
   assert.equal(encryptedOutside.decision, 'skip');
-  assert.equal(encryptedOutside.reason_code, 'outside_scope_or_no_match');
+  assert.equal(encryptedOutside.reason_code, 'explicitly_outside_scope');
   assert.equal(encryptedOutside.authorization, 'not_checked');
   assert.equal(encryptedOutside.integrity, 'not_checked');
   assert.equal(resolve(encryptedRoot, 'draft this').reason_code, 'authorization_required');
@@ -902,7 +987,7 @@ test('explicitly outside-scope assets do not block on missing authorization or d
   fs.unlinkSync(path.join(missingRoot, '.kdna', ...missing.attachment.asset.snapshot.split('/')));
   const missingOutside = resolve(missingRoot, 'review this code');
   assert.equal(missingOutside.decision, 'skip');
-  assert.equal(missingOutside.reason_code, 'outside_scope_or_no_match');
+  assert.equal(missingOutside.reason_code, 'explicitly_outside_scope');
   assert.equal(missingOutside.integrity, 'not_checked');
   assert.equal(resolve(missingRoot, 'draft this').reason_code, 'snapshot_missing');
 });
@@ -938,22 +1023,25 @@ test('unsupported schema, unknown fields, and path traversal fail closed', () =>
   }
 });
 
-test('the unreleased 0.1 attachment record is rejected with an explicit migration boundary', () => {
-  const root = temporaryRoot('schema-migration-boundary');
-  attach(root, buildAsset(root));
-  const record = readRecord(root);
-  record.schema_version = '0.1.0';
-  writeJson(recordPath(root), record);
-  assert.throws(
-    () => listWorkspaceAttachments(root, root),
-    (error) =>
-      error instanceof WorkspaceAttachmentError &&
-      error.code === 'attachment_schema_migration_required' &&
-      /re-attach under schema 0\.2\.0/u.test(error.message),
-  );
-  const resolution = resolve(root, 'draft');
-  assert.equal(resolution.decision, 'block');
-  assert.equal(resolution.reason_code, 'attachment_schema_unsupported');
+test('unreleased 0.1 and 0.2 attachment records require explicit re-attachment', () => {
+  for (const schemaVersion of ['0.1.0', '0.2.0']) {
+    const root = temporaryRoot('schema-migration-boundary');
+    attach(root, buildAsset(root));
+    const record = readRecord(root);
+    record.schema_version = schemaVersion;
+    writeJson(recordPath(root), record);
+    assert.throws(
+      () => listWorkspaceAttachments(root, root),
+      (error) =>
+        error instanceof WorkspaceAttachmentError &&
+        error.code === 'attachment_schema_migration_required' &&
+        error.message.includes(`schema ${schemaVersion}`) &&
+        error.message.includes('schema 0.3.0'),
+    );
+    const resolution = resolve(root, 'draft');
+    assert.equal(resolution.decision, 'block');
+    assert.equal(resolution.reason_code, 'attachment_schema_unsupported');
+  }
 });
 
 test(
@@ -1749,7 +1837,16 @@ test('task stdin is bounded, strict UTF-8, mutually exclusive, and leaves no wor
   result = runCli(['resolve', '--cwd', root, '--task-stdin'], {
     input: Buffer.alloc(64 * 1024 + 1, 0x61),
   });
-  assert.equal(result.status, 2);
+  assert.equal(
+    result.status,
+    2,
+    JSON.stringify({
+      status: result.status,
+      signal: result.signal,
+      error: result.error?.message,
+      stderr: result.stderr,
+    }),
+  );
   assert.match(result.stderr, /size limit/u);
 
   result = runCli(['resolve', '--cwd', root, '--task-stdin'], {
@@ -1831,7 +1928,7 @@ if (
     env: { NODE_OPTIONS: `${inherited}--require=${hook}` },
   });
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(JSON.parse(result.stdout).decision, 'skip');
+  assert.equal(JSON.parse(result.stdout).decision, 'ask');
   assert.doesNotMatch(result.stdout, new RegExp(task, 'u'));
   assert.doesNotMatch(result.stderr, new RegExp(task, 'u'));
 });
@@ -1899,6 +1996,7 @@ test('Agent-proposed scope requires one exact preview receipt before attachment'
   assert.equal(fs.existsSync(recordPath(root)), false);
   assert.equal(preview.preview.attachment.scope.authority, 'user_approved_routing_hint');
   assert.equal(preview.preview.attachment.scope.approval_source, 'preview_confirmed');
+  assert.equal(preview.preview.attachment.scope.matching_policy, 'open_world_ask');
   assert.equal(
     preview.preview.scope_contract.asset_declared_preload_boundary,
     'not_available_in_current_manifest_contract',
@@ -1922,6 +2020,7 @@ test('Agent-proposed scope requires one exact preview receipt before attachment'
   const stored = readRecord(root).attachments[0];
   assert.equal(stored.scope.approval_source, 'preview_confirmed');
   assert.equal(stored.scope.authority, 'user_approved_routing_hint');
+  assert.equal(stored.scope.matching_policy, 'open_world_ask');
 
   const changedRoot = temporaryRoot('scope-preview-drift');
   const changedAsset = buildAsset(changedRoot);
@@ -1930,6 +2029,7 @@ test('Agent-proposed scope requires one exact preview receipt before attachment'
       role: 'medical advice',
       applies_to: ['medical diagnosis'],
       does_not_apply_to: ['draft article'],
+      matching_policy: 'closed_world_skip',
     }),
   );
   result = runCli(
@@ -1989,6 +2089,7 @@ test('attachment stdin keeps private role and scope out of argv, env, and diagno
   assert.deepEqual(stored.scope.does_not_apply_to, [doesNotApplyTo]);
   assert.equal(stored.scope.authority, 'user_approved_routing_hint');
   assert.equal(stored.scope.approval_source, 'user_explicit');
+  assert.equal(stored.scope.matching_policy, 'open_world_ask');
 
   result = runCli(
     ['attach', asset, '--cwd', root, '--attachment-stdin', '--role', 'argv-role', '--yes'],
@@ -2008,6 +2109,61 @@ test('attachment stdin keeps private role and scope out of argv, env, and diagno
   });
   assert.equal(result.status, 2);
   assert.match(result.stderr, /size limit/u);
+});
+
+test('closed-world skip requires an explicit attachment policy and is bound by preview consent', () => {
+  const root = temporaryRoot('closed-world-cli');
+  const asset = buildAsset(root);
+  const proposal = Buffer.from(
+    JSON.stringify({
+      role: 'article writing',
+      applies_to: ['draft article'],
+      does_not_apply_to: [],
+      matching_policy: 'closed_world_skip',
+    }),
+  );
+  const previewResult = runCli(
+    ['attach', asset, '--cwd', root, '--attachment-stdin', '--preview'],
+    { input: proposal },
+  );
+  assert.equal(previewResult.status, 0, previewResult.stderr);
+  const preview = JSON.parse(previewResult.stdout);
+  assert.equal(preview.preview.attachment.scope.matching_policy, 'closed_world_skip');
+  const attached = runCli(
+    [
+      'attach',
+      asset,
+      '--cwd',
+      root,
+      '--attachment-stdin',
+      '--yes',
+      '--consent-digest',
+      preview.preview.consent_digest,
+    ],
+    { input: proposal },
+  );
+  assert.equal(attached.status, 0, attached.stderr);
+  const miss = runCli(['resolve', '--cwd', root, '--task-stdin'], {
+    input: Buffer.from('reconcile invoices'),
+  });
+  assert.equal(miss.status, 0, miss.stderr);
+  assert.equal(JSON.parse(miss.stdout).reason_code, 'closed_world_no_match');
+
+  const conflicting = runCli([
+    'switch',
+    JSON.parse(attached.stdout).attachment.attachment_id,
+    buildAsset(root),
+    '--cwd',
+    root,
+    '--all-workspace',
+    '--closed-world-scope',
+    '--role',
+    'invalid',
+    '--yes',
+    '--scope-user-approved',
+  ]);
+  assert.equal(conflicting.status, 2);
+  assert.match(conflicting.stderr, /mutually exclusive/u);
 });
 
 test('simple approved attachment has a deterministic related load and unrelated skip', () => {

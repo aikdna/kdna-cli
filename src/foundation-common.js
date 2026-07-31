@@ -1,6 +1,6 @@
 'use strict';
 
-const fs = require('node:fs');
+const { SecretInputError, readSecretStdin } = require('./secret-input');
 
 const EXIT = Object.freeze({
   OK: 0,
@@ -40,11 +40,11 @@ function resolvePassword(args) {
     error('--password-stdin requires the password to be piped in on stdin.', EXIT.INPUT_ERROR);
   }
   try {
-    const password = fs.readFileSync(0, 'utf8').trim();
-    if (!password) error('Password input is empty.', EXIT.INPUT_ERROR);
-    return password;
+    return readSecretStdin({ label: 'Password' });
   } catch (readError) {
-    if (readError instanceof CliError) throw readError;
+    if (readError instanceof SecretInputError) {
+      error(readError.message, EXIT.INPUT_ERROR);
+    }
     error('Could not read password from stdin.', EXIT.INPUT_ERROR);
   }
 }

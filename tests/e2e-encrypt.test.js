@@ -14,7 +14,7 @@ const core = require('@aikdna/kdna-core');
 const cliBin = path.join(__dirname, '..', 'src', 'cli.js');
 
 let tmpDir, demoDir, kdnaFile;
-const password = 'test-password-2026';
+const password = '  test-password-2026  ';
 
 function runCli(args, input) {
   return spawnSync(process.execPath, [cliBin, ...args], {
@@ -93,6 +93,54 @@ test('load encrypted asset with correct password as prompt', () => {
   const r = runWithPassword(['load', kdnaFile, '--profile=compact', '--as=prompt'], password);
   assert.equal(r.status, 0, `load prompt should succeed: ${r.stderr}`);
   assert.ok(r.stdout.length > 0, 'prompt output should not be empty');
+});
+
+test('password transport accepts no newline or one CRLF without trimming password spaces', () => {
+  for (const input of [password, `${password}\r\n`]) {
+    const r = runCli(
+      ['load', kdnaFile, '--profile=compact', '--as=json', '--password-stdin'],
+      input,
+    );
+    assert.equal(r.status, 0, `load should preserve the exact password: ${r.stderr}`);
+    assert.equal(JSON.parse(r.stdout).type, 'kdna.runtime-capsule');
+  }
+});
+
+test('password stdin rejects invalid UTF-8 and oversized input without echoing bytes', () => {
+  const invalid = runCli(
+    ['load', kdnaFile, '--profile=compact', '--as=json', '--password-stdin'],
+    Buffer.from([0xff]),
+  );
+  assert.equal(invalid.status, 2);
+  assert.match(invalid.stderr, /strict UTF-8/u);
+  assert.doesNotMatch(invalid.stdout + invalid.stderr, /ff|255/u);
+
+  const oversized = runCli(
+    ['load', kdnaFile, '--profile=compact', '--as=json', '--password-stdin'],
+    Buffer.alloc(16 * 1024 + 3, 0x61),
+  );
+  assert.equal(oversized.status, 2);
+  assert.match(oversized.stderr, /size limit/u);
+  assert.doesNotMatch(oversized.stdout + oversized.stderr, /aaaa/u);
+});
+
+test('an embedded newline is a password byte and only the final transport newline is removed', () => {
+  const embeddedPassword = 'line one\nline two';
+  const embeddedDemo = path.join(tmpDir, 'embedded-demo');
+  const embeddedAsset = path.join(tmpDir, 'embedded.kdna');
+  let result = runCli(
+    ['demo', 'minimal', embeddedDemo, '--password-stdin'],
+    `${embeddedPassword}\n`,
+  );
+  assert.equal(result.status, 0, result.stderr);
+  result = runCli(['pack', embeddedDemo, embeddedAsset]);
+  assert.equal(result.status, 0, result.stderr);
+  result = runCli(
+    ['load', embeddedAsset, '--profile=compact', '--as=json', '--password-stdin'],
+    `${embeddedPassword}\n`,
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).type, 'kdna.runtime-capsule');
 });
 
 // ─── Negative: no password ──────────────────────────────────────────────

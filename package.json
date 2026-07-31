@@ -34,6 +34,7 @@
     "src/runtime-entitlement.js",
     "src/runtime-host-command.js",
     "src/runtime-remote-transport.js",
+    "src/secret-input.js",
     "src/secret-store.js",
     "src/snapshot-asset.js",
     "src/workspace-attachments.js"

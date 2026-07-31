@@ -1,6 +1,12 @@
 const fs = require('fs');
 const { loadRegistry: loadCanonicalRegistry } = require('../registry');
 const { USER_KDNA_DIR, INSTALL_DIR } = require('../paths');
+const {
+  MAX_SECRET_BYTES,
+  SecretInputError,
+  decodeSecretBytes,
+  readSecretStdin,
+} = require('../secret-input');
 
 // ─── Global flags ──────────────────────────────────────────────────────
 
@@ -154,8 +160,15 @@ function promptPassword(question) {
 
   // Non-interactive: read from stdin pipe
   if (!tty.isatty(process.stdin.fd)) {
-    const data = fs.readFileSync(0, 'utf8').trim();
-    return data;
+    try {
+      return readSecretStdin({ label: 'Password' });
+    } catch (readError) {
+      const message =
+        readError instanceof SecretInputError
+          ? readError.message
+          : 'Password input could not be read.';
+      error(message, EXIT.INPUT_ERROR);
+    }
   }
 
   process.stdout.write(question);
@@ -167,38 +180,65 @@ function promptPassword(question) {
   }
   stdin.resume();
 
-  let password = '';
-  const buffer = Buffer.alloc(1);
-
-  while (true) {
-    fs.readSync(stdin.fd, buffer, 0, 1);
-    const ch = buffer[0];
-    if (ch === 0x0d || ch === 0x0a) {
-      process.stdout.write('\n');
-      break;
-    }
-    if (ch === 0x03) {
-      // Ctrl+C
-      if (stdin.setRawMode) stdin.setRawMode(!!wasRaw);
-      stdin.pause();
-      process.exit(130);
-    }
-    if (ch === 0x7f) {
-      // Backspace
-      if (password.length > 0) {
-        password = password.slice(0, -1);
-        process.stdout.write('\b \b');
+  const secretBytes = Buffer.alloc(MAX_SECRET_BYTES);
+  const readBuffer = Buffer.alloc(1);
+  let length = 0;
+  let decodedPassword;
+  let failureMessage = null;
+  try {
+    while (true) {
+      const count = fs.readSync(stdin.fd, readBuffer, 0, 1);
+      if (count === 0) break;
+      const ch = readBuffer[0];
+      if (ch === 0x0d || ch === 0x0a) {
+        process.stdout.write('\n');
+        break;
       }
-      continue;
+      if (ch === 0x03) {
+        // Ctrl+C
+        if (stdin.setRawMode) stdin.setRawMode(!!wasRaw);
+        stdin.pause();
+        secretBytes.fill(0);
+        readBuffer.fill(0);
+        process.exit(130);
+      }
+      if (ch === 0x7f) {
+        // Backspace removes one complete UTF-8 code point.
+        if (length > 0) {
+          let start = length - 1;
+          while (start > 0 && (secretBytes[start] & 0xc0) === 0x80) start -= 1;
+          secretBytes.fill(0, start, length);
+          length = start;
+          process.stdout.write('\b \b');
+        }
+        continue;
+      }
+      if (length >= MAX_SECRET_BYTES) {
+        throw new SecretInputError(
+          'secret_input_too_large',
+          'Password input exceeds the size limit.',
+        );
+      }
+      secretBytes[length] = ch;
+      length += 1;
     }
-    password += String.fromCharCode(ch);
+    decodedPassword = decodeSecretBytes(Buffer.from(secretBytes.subarray(0, length)), {
+      label: 'Password',
+      stripTransportLineEnding: false,
+    });
+  } catch (readError) {
+    failureMessage =
+      readError instanceof SecretInputError
+        ? readError.message
+        : 'Password input could not be read.';
+  } finally {
+    secretBytes.fill(0);
+    readBuffer.fill(0);
+    if (stdin.setRawMode) stdin.setRawMode(!!wasRaw);
+    stdin.pause();
   }
-
-  if (stdin.setRawMode) {
-    stdin.setRawMode(!!wasRaw);
-  }
-  stdin.pause();
-  return password;
+  if (failureMessage !== null) error(failureMessage, EXIT.INPUT_ERROR);
+  return decodedPassword;
 }
 
 function rejectPasswordArgv(args) {
@@ -235,9 +275,13 @@ function resolvePassword(args, { prompt = 'Password: ' } = {}) {
       );
     }
     try {
-      return fs.readFileSync(0, 'utf8').trim();
-    } catch (e) {
-      error(`Could not read password from stdin: ${e.message}`, EXIT.INPUT_ERROR);
+      return readSecretStdin({ label: 'Password' });
+    } catch (readError) {
+      const message =
+        readError instanceof SecretInputError
+          ? readError.message
+          : 'Password input could not be read.';
+      error(message, EXIT.INPUT_ERROR);
     }
   }
   return promptPassword(prompt);

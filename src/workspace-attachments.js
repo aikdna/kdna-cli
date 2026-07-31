@@ -12,8 +12,8 @@ const { snapshotAssetFile } = require('./snapshot-asset');
 
 const DOCUMENT_TYPE = 'kdna.workspace-attachments';
 const RESOLUTION_TYPE = 'kdna.workspace-resolution';
-const SCHEMA_VERSION = '0.2.0';
-const LEGACY_SCHEMA_VERSION = '0.1.0';
+const SCHEMA_VERSION = '0.3.0';
+const LEGACY_SCHEMA_VERSIONS = new Set(['0.1.0', '0.2.0']);
 const MAX_RECORD_BYTES = 1024 * 1024;
 const MAX_TASK_BYTES = 64 * 1024;
 const MAX_ATTACHMENTS = 1024;
@@ -242,7 +242,15 @@ function validateAttachment(attachment, index) {
   assertText(attachment.role, `${label}.role`);
   assertExactKeys(
     attachment.scope,
-    ['kind', 'application', 'authority', 'approval_source', 'applies_to', 'does_not_apply_to'],
+    [
+      'kind',
+      'application',
+      'matching_policy',
+      'authority',
+      'approval_source',
+      'applies_to',
+      'does_not_apply_to',
+    ],
     `${label}.scope`,
   );
   if (attachment.scope.kind !== 'workspace') {
@@ -260,11 +268,22 @@ function validateAttachment(attachment, index) {
   if (!['task_hints', 'all_workspace'].includes(attachment.scope.application)) {
     fail('attachment_schema_unsupported', `${label}.scope.application is unsupported.`);
   }
+  if (
+    !['open_world_ask', 'closed_world_skip', 'all_workspace'].includes(
+      attachment.scope.matching_policy,
+    )
+  ) {
+    fail('attachment_schema_unsupported', `${label}.scope.matching_policy is unsupported.`);
+  }
   validateScopeTerms(attachment.scope.applies_to, `${label}.scope.applies_to`);
   validateScopeTerms(attachment.scope.does_not_apply_to, `${label}.scope.does_not_apply_to`);
   if (
     (attachment.scope.application === 'task_hints' && attachment.scope.applies_to.length === 0) ||
-    (attachment.scope.application === 'all_workspace' && attachment.scope.applies_to.length !== 0)
+    (attachment.scope.application === 'all_workspace' &&
+      (attachment.scope.applies_to.length !== 0 ||
+        attachment.scope.matching_policy !== 'all_workspace')) ||
+    (attachment.scope.application === 'task_hints' &&
+      attachment.scope.matching_policy === 'all_workspace')
   ) {
     fail(
       'attachment_schema_unsupported',
@@ -322,10 +341,10 @@ function validateRecord(record) {
     ['document_type', 'schema_version', 'workspace', 'attachments'],
     'record',
   );
-  if (record.document_type === DOCUMENT_TYPE && record.schema_version === LEGACY_SCHEMA_VERSION) {
+  if (record.document_type === DOCUMENT_TYPE && LEGACY_SCHEMA_VERSIONS.has(record.schema_version)) {
     fail(
       'attachment_schema_migration_required',
-      'Workspace attachment schema 0.1.0 is an unreleased historical candidate; re-attach under schema 0.2.0 so switch history can preserve exact policy.',
+      `Workspace attachment schema ${record.schema_version} is an unreleased historical candidate; re-attach under schema 0.3.0 so switch history preserves exact policy and open/closed-world applicability.`,
     );
   }
   if (record.document_type !== DOCUMENT_TYPE || record.schema_version !== SCHEMA_VERSION) {
@@ -925,6 +944,21 @@ function prepareAttachmentPolicy(options, fallback = null) {
       'Attachment scope requires positive task hints or an explicit all-workspace authorization.',
     );
   }
+  const matchingPolicy = retain
+    ? fallback.scope.matching_policy
+    : application === 'all_workspace'
+      ? 'all_workspace'
+      : options.matchingPolicy || 'open_world_ask';
+  if (
+    (application === 'task_hints' &&
+      !['open_world_ask', 'closed_world_skip'].includes(matchingPolicy)) ||
+    (application === 'all_workspace' && matchingPolicy !== 'all_workspace')
+  ) {
+    fail(
+      'input_invalid',
+      'Attachment matching policy must be open-world ask, explicitly approved closed-world skip, or all-workspace.',
+    );
+  }
   const derivedRole = application === 'all_workspace' ? 'workspace-wide' : appliesTo[0];
   const role = String(retain ? fallback.role : options.role || derivedRole)
     .trim()
@@ -945,6 +979,7 @@ function prepareAttachmentPolicy(options, fallback = null) {
     scope: {
       kind: 'workspace',
       application,
+      matching_policy: matchingPolicy,
       authority: 'user_approved_routing_hint',
       approval_source: scopeApproval,
       applies_to: appliesTo,
@@ -2106,6 +2141,7 @@ function resolveWorkspace(options) {
       positives,
       negatives,
       uncertain,
+      openWorld: attachment.scope.matching_policy === 'open_world_ask',
     };
   });
   const uncertainScope = evaluated.filter((item) => item.uncertain);
@@ -2115,6 +2151,8 @@ function resolveWorkspace(options) {
   const positive = evaluated.filter((item) => item.positives && !item.negatives);
   const negative = evaluated.filter((item) => item.negatives && !item.positives);
   const unmatched = evaluated.filter((item) => !item.positives && !item.negatives);
+  const openWorldUnmatched = unmatched.filter((item) => item.openWorld);
+  const closedWorldUnmatched = unmatched.filter((item) => !item.openWorld);
   const verifyScopedCandidates = (items, { requireAuthorization = false } = {}) => {
     const verified = [];
     for (const item of items) {
@@ -2153,7 +2191,11 @@ function resolveWorkspace(options) {
 
   if (uncertainScope.length > 0) {
     const checked = verifyScopedCandidates(
-      evaluated.filter((item) => item.positives || item.negatives),
+      evaluated.filter(
+        (item) =>
+          (item.positives || item.negatives || (item.openWorld && !item.negatives)) &&
+          !(item.negatives && !item.positives && !item.uncertain),
+      ),
     );
     if (checked.blocked) return finish(checked.blocked);
     return finish(
@@ -2169,7 +2211,11 @@ function resolveWorkspace(options) {
   }
 
   if (internallyAmbiguous.length > 0) {
-    const checked = verifyScopedCandidates(internallyAmbiguous);
+    const checked = verifyScopedCandidates([
+      ...internallyAmbiguous,
+      ...positive.filter((item) => !internallyAmbiguous.includes(item)),
+      ...openWorldUnmatched,
+    ]);
     if (checked.blocked) return finish(checked.blocked);
     return finish(
       resolutionResult({
@@ -2190,12 +2236,30 @@ function resolveWorkspace(options) {
     ),
   );
   if (positive.length > 1 || contradictoryNegative.length > 0) {
-    const checked = verifyScopedCandidates([...positive, ...contradictoryNegative]);
+    const checked = verifyScopedCandidates([
+      ...positive,
+      ...contradictoryNegative,
+      ...openWorldUnmatched,
+    ]);
     if (checked.blocked) return finish(checked.blocked);
     return finish(
       resolutionResult({
         decision: 'ask',
         reasonCode: 'attachment_conflict',
+        workspaceRoot,
+        candidates: checked.verified.map((item) => item.candidate),
+        authorization: 'not_selected',
+        integrity: 'verified',
+      }),
+    );
+  }
+  if (positive.length === 1 && openWorldUnmatched.length > 0) {
+    const checked = verifyScopedCandidates([...positive, ...openWorldUnmatched]);
+    if (checked.blocked) return finish(checked.blocked);
+    return finish(
+      resolutionResult({
+        decision: 'ask',
+        reasonCode: 'applicability_unresolved',
         workspaceRoot,
         candidates: checked.verified.map((item) => item.candidate),
         authorization: 'not_selected',
@@ -2220,13 +2284,33 @@ function resolveWorkspace(options) {
       }),
     );
   }
-  if (positive.length === 0 && (negative.length > 0 || unmatched.length > 0)) {
+  if (positive.length === 0 && openWorldUnmatched.length > 0) {
+    const checked = verifyScopedCandidates(openWorldUnmatched);
+    if (checked.blocked) return finish(checked.blocked);
+    return finish(
+      resolutionResult({
+        decision: 'ask',
+        reasonCode: 'applicability_unresolved',
+        workspaceRoot,
+        candidates: checked.verified.map((item) => item.candidate),
+        authorization: 'not_selected',
+        integrity: 'verified',
+      }),
+    );
+  }
+  if (positive.length === 0 && (negative.length > 0 || closedWorldUnmatched.length > 0)) {
+    const reasonCode =
+      negative.length > 0 && closedWorldUnmatched.length === 0
+        ? 'explicitly_outside_scope'
+        : negative.length === 0
+          ? 'closed_world_no_match'
+          : 'no_applicable_attachment';
     return finish(
       resolutionResult({
         decision: 'skip',
-        reasonCode: 'outside_scope_or_no_match',
+        reasonCode,
         workspaceRoot,
-        candidates: [...negative, ...unmatched].map((item) => item.candidate),
+        candidates: [...negative, ...closedWorldUnmatched].map((item) => item.candidate),
         authorization: 'not_checked',
         integrity: 'not_checked',
       }),

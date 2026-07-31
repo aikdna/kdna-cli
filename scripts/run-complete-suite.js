@@ -13,6 +13,7 @@ const UNIT_TEST_FILES = Object.freeze([
   'tests/e2e-encrypt.test.js',
   'tests/story10-audit-log.test.js',
   'tests/external-entitlement.test.js',
+  'tests/secret-input.test.js',
   'tests/secret-store.test.js',
   'tests/runtime-contract.test.js',
   'tests/runtime-remote-transport.test.js',

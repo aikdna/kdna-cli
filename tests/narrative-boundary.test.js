@@ -90,6 +90,9 @@ test('source-candidate task examples prefer stdin and keep file input explicit',
   assert.match(candidate, /user_approved_routing_hint/);
   assert.match(candidate, /Runtime and payload boundaries remain authoritative/);
   assert.match(candidate, /negative hints are optional/);
+  assert.match(candidate, /`matching_policy: "open_world_ask"`/);
+  assert.match(candidate, /`matching_policy: "closed_world_skip"`/);
+  assert.match(candidate, /no lexical match is unresolved/);
   assert.match(candidate, /explicitly approve\s+`scope_mode: "all_workspace"`/);
   assert.match(candidate, /Completely unspecified applicability is rejected/);
 });
@@ -103,6 +106,18 @@ test('scope narrative does not present phrase matching as natural-language under
     readme,
     /(?:(?:this\s+)?resolver\s+)?does not claim\s+to\s+understand arbitrary\s+natural language/,
   );
+  assert.match(readme, /ask\/applicability_unresolved/);
+  assert.match(readme, /skip\/explicitly_outside_scope/);
+  assert.match(readme, /receipt-bound one-task\s+selection is the safe continuation/);
+});
+
+test('protected authorization documents one bounded byte-preserving stdin contract', () => {
+  const readme = read('README.md');
+  assert.match(readme, /`--password-stdin` contract is bounded strict UTF-8/);
+  assert.match(readme, /at most one final transport LF or CRLF/);
+  assert.match(readme, /preserves every other\s+character, including leading\/trailing spaces/);
+  assert.match(readme, /Empty,\s+oversized, or invalid input is rejected/);
+  assert.doesNotMatch(readme, /#14[01]/u);
 });
 
 test('ask has an official receipt-bound one-task continuation without generic-load bypass', () => {
