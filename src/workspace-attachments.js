@@ -108,6 +108,14 @@ function normalizedPhrase(value) {
   return String(value).normalize('NFKC').trim().replace(/\s+/gu, ' ').toLocaleLowerCase('und');
 }
 
+function normalizedLatinRoutingText(value) {
+  return normalizedPhrase(value)
+    .replace(/[\u2018\u2019\u02bc\uff07]/gu, "'")
+    .replace(/\b[\p{L}]+n't\b/gu, ' not ')
+    .replace(/\s+/gu, ' ')
+    .trim();
+}
+
 function scopeTermAssessment(task, term) {
   const normalizedTask = normalizedPhrase(task);
   const normalizedTerm = normalizedPhrase(term);
@@ -137,9 +145,11 @@ function scopeTermAssessment(task, term) {
       );
     return { matched: true, uncertain };
   }
+  const latinTask = normalizedLatinRoutingText(normalizedTask);
+  const latinTerm = normalizedLatinRoutingText(normalizedTerm);
   const tokens = (value) => value.match(/[\p{L}\p{N}]+/gu) || [];
-  const taskTokens = tokens(normalizedTask);
-  const termTokens = tokens(normalizedTerm);
+  const taskTokens = tokens(latinTask);
+  const termTokens = tokens(latinTerm);
   if (termTokens.length === 0 || termTokens.length > taskTokens.length) {
     return { matched: false, uncertain: false };
   }
@@ -168,11 +178,20 @@ function scopeTermAssessment(task, term) {
     );
     return { matched: approximate, uncertain: approximate };
   }
-  const preceding = taskTokens.slice(Math.max(0, start - 4), start);
+  const preceding = taskTokens.slice(Math.max(0, start - 6), start);
+  const negationTokens = new Set([
+    'no',
+    'not',
+    'never',
+    'avoid',
+    'without',
+    'dont',
+  ]);
   const broadTerms = new Set(['all', 'any', 'general', 'help', 'task', 'thing', 'work']);
   const uncertain =
     (termTokens.length === 1 && (termTokens[0].length < 4 || broadTerms.has(termTokens[0]))) ||
-    preceding.some((token) => ['no', 'not', 'never', 'avoid', 'without', 'dont'].includes(token)) ||
+    termTokens.some((token) => negationTokens.has(token)) ||
+    preceding.some((token) => negationTokens.has(token)) ||
     taskTokens.some((token) =>
       [
         'discuss',
@@ -186,8 +205,15 @@ function scopeTermAssessment(task, term) {
         'whether',
       ].includes(token),
     ) ||
-    /(?:^|[;\s])(?:but|only|instead)(?:[;\s]|$)|\brather\s+than\b/iu.test(normalizedTask) ||
-    [`"${normalizedTerm}"`, `'${normalizedTerm}'`, `“${normalizedTerm}”`].some((quoted) =>
+    /(?:^|[;\s])(?:but|only|instead)(?:[;\s]|$)|\brather\s+than\b|\b(?:do\s+not|not\s+for|instead\s+of)\b/iu.test(
+      latinTask,
+    ) ||
+    [
+      `"${normalizedTerm}"`,
+      `'${normalizedTerm}'`,
+      `“${normalizedTerm}”`,
+      `‘${normalizedTerm}’`,
+    ].some((quoted) =>
       normalizedTask.includes(quoted),
     );
   return { matched: true, uncertain };

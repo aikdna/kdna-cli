@@ -600,8 +600,16 @@ test('negation, quotation, broad hints, and contrastive clauses never auto-load'
     'Do not draft article; only edit code.',
     'Do not draft an article; only edit code.',
     'Do not draft an article; only change code.',
+    "Don't draft article; only fact-check.",
+    "Doesn't draft article; only fact-check.",
+    "Can't draft article; only fact-check.",
+    "Won't draft article; only fact-check.",
+    'Don’t draft article; only fact-check.',
+    'This task is not for draft article.',
+    'Use fact-checking instead of draft article.',
     'Explain the phrase draft article.',
     'Discuss whether "draft article" is a useful label.',
+    'Discuss whether ‘draft article’ is a useful label.',
   ]) {
     const result = resolve(ordinary, task);
     assert.equal(result.decision, 'ask');
@@ -625,6 +633,21 @@ test('negation, quotation, broad hints, and contrastive clauses never auto-load'
   const multiClause = resolve(contrasted, 'Draft this; but only edit code.');
   assert.equal(multiClause.decision, 'ask');
   assert.equal(multiClause.reason_code, 'ambiguous_scope');
+
+  const rewrite = temporaryRoot('scope-contracted-negation');
+  attach(rewrite, buildAsset(rewrite), {
+    appliesTo: ['rewrite'],
+    doesNotApplyTo: [],
+  });
+  for (const task of [
+    "Shouldn't rewrite.",
+    'Shouldn’t rewrite.',
+    "Isn't rewrite the requested action?",
+  ]) {
+    const result = resolve(rewrite, task);
+    assert.equal(result.decision, 'ask');
+    assert.equal(result.reason_code, 'ambiguous_scope');
+  }
 
   const cjk = temporaryRoot('scope-cjk-negation');
   attach(cjk, buildAsset(cjk), {
