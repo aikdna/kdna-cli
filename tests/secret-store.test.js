@@ -1,9 +1,8 @@
 /**
- * secret-store.test.js — Tests for the cross-platform SecretStore (B7).
+ * Tests for encrypted credential storage selection and transport.
  *
- * These tests exercise the file backend (cross-platform) and the env
- * backend. The macOS keychain backend is not unit-tested here (no
- * macOS CI); it's verified manually.
+ * Compatibility backends are explicit and fail closed for writes. Tests use
+ * the in-memory backend only with NODE_ENV=test.
  */
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -45,62 +44,71 @@ function withEnv(name, value, fn) {
   });
 }
 
-test('file backend: set / get / list / delete round-trip', async () => {
+test('explicit legacy file backend is migration-read-only and never writes plaintext', async () => {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-secret-store-'));
   await withEnv('KDNA_HOME', tmpHome, async () => {
     await withEnv('KDNA_SECRET_STORE_BACKEND', 'file', async () => {
+      const legacyDirectory = path.join(tmpHome, 'secrets');
+      fs.mkdirSync(legacyDirectory, { recursive: true, mode: 0o700 });
+      fs.writeFileSync(path.join(legacyDirectory, 'legacy-name'), 'legacy-value\n', {
+        mode: 0o600,
+      });
       const ss = freshSecretStore();
-      await ss.set('api-token', 'secret-value-123');
-      const v = await ss.get('api-token');
-      assert.equal(v, 'secret-value-123');
-      const list = await ss.list();
-      assert.ok(
-        list.includes('api-token'),
-        `expected 'api-token' in list, got ${JSON.stringify(list)}`,
-      );
-      // Permissions check: file should be 0600
-      const p = path.join(tmpHome, 'secrets', 'api-token');
-      const st = fs.statSync(p);
-      assert.equal(
-        st.mode & 0o777,
-        0o600,
-        `file mode should be 0600, got ${(st.mode & 0o777).toString(8)}`,
-      );
-      await ss.delete('api-token');
-      assert.equal(await ss.get('api-token'), null, 'get after delete should be null');
+      assert.equal(ss.backendName(), 'legacy-file-readonly');
+      assert.deepEqual(ss.backendStatus(), {
+        name: 'legacy-file-readonly',
+        secure_for_secrets: false,
+        writable: false,
+        classification: 'legacy-readonly-migration',
+      });
+      assert.equal(await ss.get('legacy-name'), 'legacy-value');
+      await assert.rejects(() => ss.set('new-name', 'must-not-reach-disk'), {
+        name: 'SecretStoreError',
+        code: 'BACKEND_UNAVAILABLE',
+      });
+      assert.equal(fs.existsSync(path.join(legacyDirectory, 'new-name')), false);
+      await ss.delete('legacy-name');
+      assert.equal(await ss.get('legacy-name'), null);
     });
   });
-  fs.rmSync(tmpHome, { recursive: true });
+  fs.rmSync(tmpHome, { recursive: true, force: true });
 });
 
-test('file backend: get returns null for missing secrets', async () => {
-  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-secret-store-'));
+test('memory backend is explicit, test-only, and leaves no filesystem bytes', async () => {
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-secret-store-memory-'));
   await withEnv('KDNA_HOME', tmpHome, async () => {
-    await withEnv('KDNA_SECRET_STORE_BACKEND', 'file', async () => {
-      const ss = freshSecretStore();
-      assert.equal(await ss.get('does-not-exist'), null);
+    await withEnv('NODE_ENV', 'test', async () => {
+      await withEnv('KDNA_SECRET_STORE_BACKEND', 'memory', async () => {
+        const ss = freshSecretStore();
+        await ss.set('test-value', 'memory-only');
+        assert.equal(await ss.get('test-value'), 'memory-only');
+        assert.deepEqual(await ss.list(), ['test-value']);
+        await ss.delete('test-value');
+        assert.equal(await ss.get('test-value'), null);
+        assert.equal(fs.existsSync(path.join(tmpHome, 'secrets')), false);
+      });
     });
   });
-  fs.rmSync(tmpHome, { recursive: true });
+  fs.rmSync(tmpHome, { recursive: true, force: true });
 });
 
-test('file backend: encodes secret names with non-alphanumeric characters', async () => {
-  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-secret-store-'));
-  await withEnv('KDNA_HOME', tmpHome, async () => {
-    await withEnv('KDNA_SECRET_STORE_BACKEND', 'file', async () => {
+test('memory backend refuses production use and unavailable backend fails closed', async () => {
+  await withEnv('NODE_ENV', 'production', async () => {
+    await withEnv('KDNA_SECRET_STORE_BACKEND', 'memory', async () => {
       const ss = freshSecretStore();
-      await ss.set('npm:token@aikdna', 'value-1');
-      assert.equal(await ss.get('npm:token@aikdna'), 'value-1');
-      // Verify the on-disk file name does not contain : or @
-      const dir = path.join(tmpHome, 'secrets');
-      const files = fs.readdirSync(dir);
-      assert.equal(files.length, 1);
-      assert.ok(!files[0].includes(':'), `filename should not contain ':', got ${files[0]}`);
-      assert.ok(!files[0].includes('@'), `filename should not contain '@', got ${files[0]}`);
-      await ss.delete('npm:token@aikdna');
+      await assert.rejects(() => ss.set('credential', 'value'), {
+        name: 'SecretStoreError',
+        code: 'BACKEND_UNAVAILABLE',
+      });
     });
   });
-  fs.rmSync(tmpHome, { recursive: true });
+  await withEnv('KDNA_SECRET_STORE_BACKEND', 'unavailable', async () => {
+    const ss = freshSecretStore();
+    await assert.rejects(() => ss.get('credential'), {
+      name: 'SecretStoreError',
+      code: 'BACKEND_UNAVAILABLE',
+    });
+  });
 });
 
 test('env backend: get reads from process.env, set/delete throw', async () => {
@@ -123,7 +131,7 @@ test('env backend: get reads from process.env, set/delete throw', async () => {
 test('backend selection: KDNA_SECRET_STORE_BACKEND overrides default', async () => {
   await withEnv('KDNA_SECRET_STORE_BACKEND', 'file', async () => {
     const ss = freshSecretStore();
-    assert.equal(ss._internals.backend, 'file');
+    assert.equal(ss._internals.backend, 'legacy-file-readonly');
   });
   await withEnv('KDNA_SECRET_STORE_BACKEND', 'env', async () => {
     const ss = freshSecretStore();
@@ -179,13 +187,36 @@ process.exit(2);
   }
 });
 
-test('backend selection: defaults to an encrypted system backend when available', () => {
+test('backend selection defaults only to an encrypted system backend or unavailable', () => {
   delete process.env.KDNA_SECRET_STORE_BACKEND;
   const ss = freshSecretStore();
   if (os.platform() === 'darwin') {
     assert.equal(ss._internals.backend, 'keychain');
   } else {
-    assert.ok(['secret-service', 'pass', 'file'].includes(ss._internals.backend));
+    assert.ok(['secret-service', 'pass', 'unavailable'].includes(ss._internals.backend));
+  }
+  assert.notEqual(ss._internals.backend, 'legacy-file-readonly');
+});
+
+test('packaged authorization callers reject plaintext, env, and non-test memory backends', async () => {
+  const previousNodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'production';
+  try {
+    for (const backend of ['file', 'env', 'memory']) {
+      await withEnv('KDNA_SECRET_STORE_BACKEND', backend, async () => {
+        const secretStore = freshSecretStore();
+        delete require.cache[require.resolve('../src/external-entitlement')];
+        const externalEntitlement = require('../src/external-entitlement');
+        assert.throws(() => externalEntitlement.assertSecureSecretStore(), (error) => {
+          assert.equal(error.code, 'KDNA_SECRET_STORE_REQUIRED');
+          assert.equal(secretStore.backendStatus().secure_for_secrets, false);
+          return true;
+        });
+      });
+    }
+  } finally {
+    if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previousNodeEnv;
   }
 });
 

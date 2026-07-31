@@ -42,7 +42,7 @@ function assertSecureSecretStore() {
   if (backend === 'memory' && process.env.NODE_ENV === 'test') return;
   throw new RuntimeEntitlementError(
     'KDNA_SECRET_STORE_REQUIRED',
-    'Account/device grants require an approved encrypted secret backend.',
+    'Account/device grants require an approved encrypted credential backend.',
   );
 }
 
