@@ -22,6 +22,15 @@ commands to choose an asset, infer consent from file presence, or activate from
 broad task keywords. If no exact approved asset is available, continue without
 KDNA or ask the user to choose one.
 
+A user request that names the exact file, workspace, role, and positive and
+negative scope is one approval for that attachment operation. Carry the same
+facts through bounded `--attachment-stdin` JSON and pass `--yes` once; do not
+ask the user to repeat the same consent in a second CLI prompt. The CLI preview
+and consent digest bind the exact workspace root, asset digest, role, scope,
+and authorization need. Existing approved attachments require no new approval
+for each resolve or load. Ask again only for an ambiguous choice, conflicting
+scope, an unclear switch target, or an explicit cleanup deletion.
+
 ## Validate and plan
 
 Use only the official toolchain:

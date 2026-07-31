@@ -191,6 +191,126 @@ test('.kdna/.gitignore protects records, locks, immutable assets, and record tem
   for (const pattern of GITIGNORE_PATTERNS) assert.ok(lines.includes(pattern), pattern);
 });
 
+test('attaching in a real Git worktree leaves no untracked .kdna path', () => {
+  const fixtureRoot = temporaryRoot('gitignore-source');
+  const project = temporaryRoot('gitignore-project');
+  const initialized = spawnSync('git', ['init', '--quiet'], {
+    cwd: project,
+    encoding: 'utf8',
+  });
+  assert.equal(initialized.status, 0, initialized.stderr);
+  attach(project, buildAsset(fixtureRoot));
+  const status = spawnSync('git', ['status', '--porcelain=v1', '--untracked-files=all'], {
+    cwd: project,
+    encoding: 'utf8',
+  });
+  assert.equal(status.status, 0, status.stderr);
+  assert.equal(status.stdout, '');
+});
+
+test('attachment approval previews the exact role, scope, boundary, and authorization need', () => {
+  const root = temporaryRoot('approval-preview');
+  const asset = buildAsset(root);
+  let preview = null;
+  const result = attachWorkspace({
+    cwd: root,
+    sourcePath: asset,
+    role: 'private editorial preference',
+    appliesTo: ['draft article'],
+    doesNotApplyTo: ['change code'],
+    approve(value) {
+      preview = value;
+      return true;
+    },
+    now: '2026-07-31T00:00:00.000Z',
+  });
+  assert.equal(preview.operation, 'attach');
+  assert.deepEqual(preview.workspace_boundary, {
+    kind: 'exact_workspace',
+    root: (path.relative(process.cwd(), fs.realpathSync(root)) || '.')
+      .split(path.sep)
+      .join('/'),
+  });
+  assert.match(preview.consent_digest, /^sha256:[0-9a-f]{64}$/u);
+  assert.deepEqual(preview.attachment, result.attachment);
+  assert.equal(preview.attachment.role, 'private editorial preference');
+  assert.deepEqual(preview.attachment.scope, {
+    kind: 'workspace',
+    applies_to: ['draft article'],
+    does_not_apply_to: ['change code'],
+  });
+  assert.deepEqual(preview.authorization, {
+    access: 'public',
+    required_before_load: false,
+    load_plan_state: 'ready',
+  });
+});
+
+test('attachment approval fails closed on workspace, scope, or source drift', () => {
+  const scopeRoot = temporaryRoot('approval-scope-drift');
+  const scopeAsset = buildAsset(scopeRoot);
+  assert.throws(
+    () =>
+      attachWorkspace({
+        cwd: scopeRoot,
+        sourcePath: scopeAsset,
+        role: 'writing',
+        appliesTo: ['draft'],
+        doesNotApplyTo: ['code'],
+        approve(preview) {
+          preview.attachment.scope.applies_to[0] = 'changed-after-preview';
+          return true;
+        },
+      }),
+    (error) =>
+      error instanceof WorkspaceAttachmentError && error.code === 'approval_binding_changed',
+  );
+  assert.equal(fs.existsSync(recordPath(scopeRoot)), false);
+
+  const sourceRoot = temporaryRoot('approval-source-drift');
+  const sourceAsset = buildAsset(sourceRoot);
+  assert.throws(
+    () =>
+      attachWorkspace({
+        cwd: sourceRoot,
+        sourcePath: sourceAsset,
+        role: 'writing',
+        appliesTo: ['draft'],
+        doesNotApplyTo: ['code'],
+        approve() {
+          fs.appendFileSync(sourceAsset, 'changed');
+          return true;
+        },
+      }),
+    (error) =>
+      error instanceof WorkspaceAttachmentError && error.code === 'approval_binding_changed',
+  );
+  assert.equal(fs.existsSync(recordPath(sourceRoot)), false);
+
+  const container = temporaryRoot('approval-root-drift');
+  const workspace = path.join(container, 'project');
+  fs.mkdirSync(workspace);
+  const rootAsset = buildAsset(container);
+  assert.throws(
+    () =>
+      attachWorkspace({
+        cwd: workspace,
+        sourcePath: rootAsset,
+        role: 'writing',
+        appliesTo: ['draft'],
+        doesNotApplyTo: ['code'],
+        approve() {
+          fs.renameSync(workspace, path.join(container, 'project-before-approval'));
+          fs.mkdirSync(workspace);
+          return true;
+        },
+      }),
+    (error) =>
+      error instanceof WorkspaceAttachmentError && error.code === 'workspace_binding_changed',
+  );
+  assert.equal(fs.existsSync(path.join(workspace, '.kdna')), false);
+});
+
 test('attachment record contains no source path, task, authorization material, or judgment text', () => {
   const root = temporaryRoot('privacy');
   const asset = buildAsset(root);
@@ -220,8 +340,8 @@ test(
           cwd: root,
           sourcePath: asset,
           role: 'writing',
-          appliesTo: [],
-          doesNotApplyTo: [],
+          appliesTo: ['draft'],
+          doesNotApplyTo: ['code'],
           approve: () => false,
         }),
       (error) => error instanceof WorkspaceAttachmentError && error.code === 'approval_required',
@@ -275,9 +395,18 @@ test('one positive scope loads and one explicit exclusion skips', () => {
   assert.equal(skip.reason_code, 'outside_scope');
 });
 
-test('empty, unmatched, and internally contradictory scope asks rather than infers', () => {
+test('new empty scope is rejected while legacy ambiguous scope still asks', () => {
   const emptyRoot = temporaryRoot('empty-scope');
-  attach(emptyRoot, buildAsset(emptyRoot), { appliesTo: [], doesNotApplyTo: [] });
+  const emptyAsset = buildAsset(emptyRoot);
+  assert.throws(
+    () => attach(emptyRoot, emptyAsset, { appliesTo: [], doesNotApplyTo: [] }),
+    /requires at least one applies-to and one does-not-apply-to/u,
+  );
+  attach(emptyRoot, emptyAsset);
+  const legacyRecord = readRecord(emptyRoot);
+  legacyRecord.attachments[0].scope.applies_to = [];
+  legacyRecord.attachments[0].scope.does_not_apply_to = [];
+  writeJson(recordPath(emptyRoot), legacyRecord);
   assert.equal(resolve(emptyRoot, 'draft').reason_code, 'ambiguous_scope');
 
   const unmatchedRoot = temporaryRoot('unmatched-scope');
@@ -303,7 +432,10 @@ test('scope hints use deterministic token boundaries, normalized roles, and expl
     ['draft', 'redraft this paragraph'],
   ]) {
     const root = temporaryRoot('scope-token-boundary');
-    attach(root, buildAsset(root), { appliesTo: [term], doesNotApplyTo: [] });
+    attach(root, buildAsset(root), {
+      appliesTo: [term],
+      doesNotApplyTo: ['not-applicable'],
+    });
     const result = resolve(root, task);
     assert.equal(result.decision, 'ask');
     assert.equal(result.reason_code, 'ambiguous_scope');
@@ -312,7 +444,7 @@ test('scope hints use deterministic token boundaries, normalized roles, and expl
   const phraseRoot = temporaryRoot('scope-phrase-boundary');
   attach(phraseRoot, buildAsset(phraseRoot), {
     appliesTo: ['code-review'],
-    doesNotApplyTo: [],
+    doesNotApplyTo: ['not-applicable'],
   });
   assert.equal(resolve(phraseRoot, 'Please perform a code review.').decision, 'load');
 
@@ -320,11 +452,11 @@ test('scope hints use deterministic token boundaries, normalized roles, and expl
   attach(roleRoot, buildAsset(roleRoot), {
     role: 'Writing Review',
     appliesTo: ['draft'],
-    doesNotApplyTo: [],
+    doesNotApplyTo: ['code'],
   });
   attach(roleRoot, buildAsset(roleRoot), {
     role: 'writing   review',
-    appliesTo: [],
+    appliesTo: ['headline'],
     doesNotApplyTo: ['draft'],
   });
   assert.equal(resolve(roleRoot, 'draft this').reason_code, 'attachment_conflict');
@@ -332,7 +464,7 @@ test('scope hints use deterministic token boundaries, normalized roles, and expl
   const cjkRoot = temporaryRoot('scope-cjk');
   attach(cjkRoot, buildAsset(cjkRoot), {
     appliesTo: ['文章起草'],
-    doesNotApplyTo: [],
+    doesNotApplyTo: ['代码'],
   });
   assert.equal(resolve(cjkRoot, '请完成文章起草。').decision, 'load');
   assert.equal(resolve(cjkRoot, '请解释“文章起草”这个标签。').decision, 'ask');
@@ -343,7 +475,7 @@ test('negation, quotation, broad hints, and contrastive clauses never auto-load'
   const ordinary = temporaryRoot('scope-clear-phrase');
   attach(ordinary, buildAsset(ordinary), {
     appliesTo: ['draft article'],
-    doesNotApplyTo: [],
+    doesNotApplyTo: ['code'],
   });
   assert.equal(resolve(ordinary, 'Please draft article now.').decision, 'load');
   for (const task of [
@@ -360,7 +492,10 @@ test('negation, quotation, broad hints, and contrastive clauses never auto-load'
 
   for (const term of ['go', 'work']) {
     const root = temporaryRoot('scope-broad-term');
-    attach(root, buildAsset(root), { appliesTo: [term], doesNotApplyTo: [] });
+    attach(root, buildAsset(root), {
+      appliesTo: [term],
+      doesNotApplyTo: ['not-applicable'],
+    });
     assert.equal(resolve(root, `Please ${term} now.`).decision, 'ask');
   }
 
@@ -376,7 +511,7 @@ test('negation, quotation, broad hints, and contrastive clauses never auto-load'
   const cjk = temporaryRoot('scope-cjk-negation');
   attach(cjk, buildAsset(cjk), {
     appliesTo: ['写文章'],
-    doesNotApplyTo: [],
+    doesNotApplyTo: ['代码'],
   });
   assert.equal(resolve(cjk, '请写文章。').decision, 'load');
   for (const task of [
@@ -392,7 +527,7 @@ test('negation, quotation, broad hints, and contrastive clauses never auto-load'
   const shortCjk = temporaryRoot('scope-cjk-short');
   attach(shortCjk, buildAsset(shortCjk), {
     appliesTo: ['文章'],
-    doesNotApplyTo: [],
+    doesNotApplyTo: ['代码'],
   });
   assert.equal(resolve(shortCjk, '处理文章。').decision, 'ask');
 });
@@ -410,11 +545,11 @@ test('multiple positive attachments and same-role disagreement ask with attachme
   attach(roleRoot, buildAsset(roleRoot), {
     role: 'writing',
     appliesTo: ['draft'],
-    doesNotApplyTo: [],
+    doesNotApplyTo: ['code'],
   });
   attach(roleRoot, buildAsset(roleRoot), {
     role: 'writing',
-    appliesTo: [],
+    appliesTo: ['headline'],
     doesNotApplyTo: ['draft'],
   });
   assert.equal(resolve(roleRoot, 'draft this').reason_code, 'attachment_conflict');
@@ -648,7 +783,7 @@ test(
   },
 );
 
-test('CLI treats --cwd as the default boundary and requires an explicit root for nested lookup', () => {
+test('direct CLI finds the nearest parent by default while an explicit Host root stays strict', () => {
   const root = temporaryRoot('cli-boundary');
   const nested = path.join(root, 'packages', 'app');
   fs.mkdirSync(nested, { recursive: true });
@@ -658,14 +793,68 @@ test('CLI treats --cwd as the default boundary and requires an explicit root for
   let result = runCli(['resolve', '--cwd', nested, '--task-file', taskFile]);
   assert.equal(result.status, 0);
   let resolution = JSON.parse(result.stdout);
-  assert.equal(resolution.decision, 'skip');
-  assert.equal(resolution.reason_code, 'no_approved_attachment');
+  assert.equal(resolution.decision, 'load');
+  assert.equal(resolution.selected.role, 'article-writing');
 
   result = runCli(['resolve', '--cwd', nested, '--workspace-root', root, '--task-file', taskFile]);
   assert.equal(result.status, 0);
   resolution = JSON.parse(result.stdout);
   assert.equal(resolution.decision, 'load');
   assert.equal(resolution.selected.role, 'article-writing');
+
+  const outsideBoundary = path.join(root, 'outside-boundary');
+  fs.mkdirSync(outsideBoundary);
+  result = runCli([
+    'resolve',
+    '--cwd',
+    nested,
+    '--workspace-root',
+    outsideBoundary,
+    '--task-file',
+    taskFile,
+  ]);
+  assert.equal(result.status, 0);
+  assert.equal(JSON.parse(result.stdout).decision, 'block');
+});
+
+test('direct CLI lookup stops at HOME, never scans siblings, and selects only the nearest record', () => {
+  const root = temporaryRoot('cli-lookup-hostile');
+  const fakeHome = path.join(root, 'home');
+  const project = path.join(fakeHome, 'project');
+  const nestedWorkspace = path.join(project, 'packages', 'app');
+  const start = path.join(nestedWorkspace, 'src');
+  const sibling = path.join(fakeHome, 'sibling');
+  fs.mkdirSync(start, { recursive: true });
+  fs.mkdirSync(sibling);
+
+  attach(project, buildAsset(root, { assetId: 'kdna:test:parent-record' }));
+  attach(nestedWorkspace, buildAsset(root, { assetId: 'kdna:test:nearest-record' }));
+  attach(sibling, buildAsset(root, { assetId: 'kdna:test:sibling-record' }));
+  const taskFile = writeTask(root, 'draft this');
+  const env = { HOME: fakeHome };
+
+  let result = runCli(['resolve', '--cwd', start, '--task-file', taskFile], { env });
+  assert.equal(result.status, 0, result.stderr);
+  let resolution = JSON.parse(result.stdout);
+  assert.equal(resolution.decision, 'load');
+  assert.equal(resolution.selected.asset_id, 'kdna:test:nearest-record');
+  assert.deepEqual(
+    resolution.candidates.map(({ asset_id }) => asset_id),
+    ['kdna:test:nearest-record'],
+  );
+
+  const unrelated = path.join(fakeHome, 'unrelated');
+  fs.mkdirSync(unrelated);
+  result = runCli(['resolve', '--cwd', unrelated, '--task-file', taskFile], { env });
+  assert.equal(result.status, 0, result.stderr);
+  resolution = JSON.parse(result.stdout);
+  assert.equal(resolution.decision, 'skip');
+  assert.equal(resolution.reason_code, 'no_approved_attachment');
+
+  attach(fakeHome, buildAsset(root, { assetId: 'kdna:test:home-record' }));
+  result = runCli(['resolve', '--cwd', unrelated, '--task-file', taskFile], { env });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).decision, 'block');
 });
 
 test('disable and enable are atomic state changes and enable re-verifies its snapshot', () => {
@@ -1083,7 +1272,7 @@ test('task stdin is bounded, strict UTF-8, mutually exclusive, and leaves no wor
 
   result = runCli(['resolve', '--cwd', root, '--task-stdin'], { input: Buffer.alloc(0) });
   assert.equal(result.status, 2);
-  assert.match(result.stderr, /non-empty UTF-8 text/u);
+  assert.match(result.stderr, /must not be empty|non-empty UTF-8 text/u);
 
   const taskFile = writeTask(root, 'draft this', 'mutually-exclusive-task.txt');
   result = runCli(['resolve', '--cwd', root, '--task-file', taskFile, '--task-stdin'], {
@@ -1162,7 +1351,18 @@ if (
 test('CLI approval is mandatory off-TTY and --yes performs the exact approved mutation', () => {
   const root = temporaryRoot('cli-approval');
   const asset = buildAsset(root);
-  const denied = runCli(['attach', asset, '--cwd', root]);
+  const denied = runCli([
+    'attach',
+    asset,
+    '--cwd',
+    root,
+    '--role',
+    'writing',
+    '--applies-to',
+    'draft',
+    '--does-not-apply-to',
+    'code',
+  ]);
   assert.equal(denied.status, 2);
   assert.match(denied.stderr, /requires --yes/);
   assert.ok(!fs.existsSync(recordPath(root)));
@@ -1175,10 +1375,98 @@ test('CLI approval is mandatory off-TTY and --yes performs the exact approved mu
     'writing',
     '--applies-to',
     'draft',
+    '--does-not-apply-to',
+    'code',
     '--yes',
   ]);
   assert.equal(approved.status, 0, approved.stderr);
   assert.equal(JSON.parse(approved.stdout).operation, 'attach');
+});
+
+test('attachment stdin keeps private role and scope out of argv, env, and diagnostics', () => {
+  const root = temporaryRoot('attachment-stdin');
+  const asset = buildAsset(root);
+  const role = `private-role-${crypto.randomBytes(8).toString('hex')}`;
+  const appliesTo = `private-scope-${crypto.randomBytes(8).toString('hex')}`;
+  const doesNotApplyTo = `private-exclusion-${crypto.randomBytes(8).toString('hex')}`;
+  const input = Buffer.from(
+    JSON.stringify({
+      role,
+      applies_to: [appliesTo],
+      does_not_apply_to: [doesNotApplyTo],
+    }),
+    'utf8',
+  );
+  const commandArgs = ['attach', asset, '--cwd', root, '--attachment-stdin', '--yes'];
+  let result = runCli(commandArgs, { input });
+  assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(result.stderr, new RegExp(`${role}|${appliesTo}|${doesNotApplyTo}`, 'u'));
+  assert.doesNotMatch(
+    JSON.stringify(commandArgs),
+    new RegExp(`${role}|${appliesTo}|${doesNotApplyTo}`, 'u'),
+  );
+  for (const value of Object.values(process.env)) {
+    assert.doesNotMatch(String(value), new RegExp(`${role}|${appliesTo}|${doesNotApplyTo}`, 'u'));
+  }
+  const stored = readRecord(root).attachments[0];
+  assert.equal(stored.role, role);
+  assert.deepEqual(stored.scope.applies_to, [appliesTo]);
+  assert.deepEqual(stored.scope.does_not_apply_to, [doesNotApplyTo]);
+
+  result = runCli(
+    [
+      'attach',
+      asset,
+      '--cwd',
+      root,
+      '--attachment-stdin',
+      '--role',
+      'argv-role',
+      '--yes',
+    ],
+    { input },
+  );
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /mutually exclusive/u);
+
+  result = runCli(['attach', asset, '--cwd', root, '--attachment-stdin', '--yes'], {
+    input: Buffer.from([0xff]),
+  });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /strict UTF-8 JSON/u);
+
+  result = runCli(['attach', asset, '--cwd', root, '--attachment-stdin', '--yes'], {
+    input: Buffer.alloc(64 * 1024 + 1, 0x61),
+  });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /size limit/u);
+});
+
+test('simple approved attachment has a deterministic related load and unrelated skip', () => {
+  const root = temporaryRoot('simple-vertical');
+  const asset = buildAsset(root);
+  const input = Buffer.from(
+    JSON.stringify({
+      role: 'article writing',
+      applies_to: ['draft article'],
+      does_not_apply_to: ['change code'],
+    }),
+  );
+  const attached = runCli(
+    ['attach', asset, '--cwd', root, '--attachment-stdin', '--yes'],
+    { input },
+  );
+  assert.equal(attached.status, 0, attached.stderr);
+  const related = runCli(['resolve', '--cwd', root, '--task-stdin'], {
+    input: Buffer.from('Please draft article now.'),
+  });
+  assert.equal(related.status, 0, related.stderr);
+  assert.equal(JSON.parse(related.stdout).decision, 'load');
+  const unrelated = runCli(['resolve', '--cwd', root, '--task-stdin'], {
+    input: Buffer.from('Please change code now.'),
+  });
+  assert.equal(unrelated.status, 0, unrelated.stderr);
+  assert.equal(JSON.parse(unrelated.stdout).decision, 'skip');
 });
 
 test('CLI exposes the workspace attachment operations and resolver closed JSON', () => {
@@ -1186,7 +1474,17 @@ test('CLI exposes the workspace attachment operations and resolver closed JSON',
   const first = buildAsset(root, { version: '1.0.0' });
   const second = buildAsset(root, { version: '1.1.0' });
   const task = writeTask(root, 'draft this');
-  let result = runCli(['attach', first, '--cwd', root, '--applies-to', 'draft', '--yes']);
+  let result = runCli([
+    'attach',
+    first,
+    '--cwd',
+    root,
+    '--applies-to',
+    'draft',
+    '--does-not-apply-to',
+    'code',
+    '--yes',
+  ]);
   assert.equal(result.status, 0, result.stderr);
   const id = JSON.parse(result.stdout).attachment.attachment_id;
   result = runCli(['attachments', '--cwd', root]);
@@ -1270,6 +1568,8 @@ test('plain public asset completes one-shot, multi-attachment selection, and rev
     'writing-one',
     '--applies-to',
     'draft',
+    '--does-not-apply-to',
+    'code',
     '--yes',
   ]);
   assert.equal(result.status, 0, result.stderr);
@@ -1284,6 +1584,8 @@ test('plain public asset completes one-shot, multi-attachment selection, and rev
     'writing-two',
     '--applies-to',
     'draft',
+    '--does-not-apply-to',
+    'code',
     '--yes',
   ]);
   assert.equal(result.status, 0, result.stderr);

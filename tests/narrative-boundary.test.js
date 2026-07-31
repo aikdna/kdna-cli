@@ -22,6 +22,8 @@ test('current CLI narrative remains file-first and user-authorized', () => {
   );
   assert.match(skill, /Do not discover, install, auto-select, or silently apply assets/);
   assert.match(skill, /active asset identity/);
+  assert.match(skill, /is one approval for that attachment operation/);
+  assert.match(skill, /do not\s+ask the user to repeat the same consent/);
 });
 
 test('published quick start does not imply unreleased workspace commands are npm latest', () => {
@@ -56,7 +58,8 @@ test('workspace narrative requires a bounded Host root and rejects home authorit
   const allowlist = JSON.parse(read('release-surface/cli-command-allowlist.json'));
   const resolve = allowlist.commands.find((entry) => entry.command === 'resolve');
 
-  assert.match(readme, /`--cwd` is also the explicit workspace root boundary/);
+  assert.match(readme, /For `attach`, `--cwd` is the exact workspace being approved/);
+  assert.match(readme, /direct CLI use without `--workspace-root` searches upward/);
   assert.match(readme, /--workspace-root/);
   assert.match(readme, /home-level\s+`~\/\.kdna\/attachments\.json` fails closed/);
   assert.match(readme, /never falls back to a user-global package\s+directory/);
@@ -69,12 +72,15 @@ test('source-candidate task examples prefer stdin and keep file input explicit',
   const readme = read('README.md');
   const candidate = readme.slice(readme.indexOf('## Unreleased 0.36.0 source candidate'));
   assert.match(candidate, /resolve --cwd \.\/my-project --task-stdin/);
-  assert.match(candidate, /writes bounded UTF-8 task bytes\s+to the child process stdin/);
+  assert.match(candidate, /writes bounded UTF-8 task bytes to stdin/);
   assert.match(
     candidate,
-    /`--task-file` remains\s+available only when the user already has an explicit task file/,
+    /`--task-file`\s+remains available only when the user already has an explicit task file/,
   );
   assert.doesNotMatch(candidate, /save the current task text in a regular file/iu);
+  assert.match(candidate, /--attachment-stdin/);
+  assert.match(candidate, /role`, `applies_to`, and `does_not_apply_to/);
+  assert.match(candidate, /explicit request naming the file, workspace, and scope is\s+one approval/);
 });
 
 test('scope narrative does not present phrase matching as natural-language understanding', () => {

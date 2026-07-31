@@ -23,6 +23,7 @@ const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
 const SNAPSHOT_FILE_PATTERN = /^sha256-([0-9a-f]{64})\.kdna$/;
 const UTC_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const GITIGNORE_PATTERNS = Object.freeze([
+  '/.gitignore',
   '/assets/',
   '/attachments.json',
   '/attachments.lock',
@@ -347,20 +348,26 @@ function withinOrEqual(candidate, boundary) {
   );
 }
 
-function findWorkspace(cwd = process.cwd(), workspaceRoot = cwd) {
+function findWorkspace(cwd = process.cwd(), workspaceRoot = null) {
   const start = assertDirectory(cwd, 'Working directory');
-  const boundary = assertDirectory(workspaceRoot, 'Workspace root boundary');
-  if (!withinOrEqual(start, boundary)) {
-    fail(
-      'workspace_boundary_escape',
-      'Working directory must stay inside the explicit workspace root boundary.',
-    );
-  }
   let home = null;
   try {
     home = fs.realpathSync(os.homedir());
   } catch {
     home = null;
+  }
+  const explicitBoundary = workspaceRoot !== null && workspaceRoot !== undefined;
+  const implicitBoundary =
+    home !== null && withinOrEqual(start, home) ? home : path.parse(start).root;
+  const boundary = assertDirectory(
+    explicitBoundary ? workspaceRoot : implicitBoundary,
+    explicitBoundary ? 'Workspace root boundary' : 'Implicit lookup boundary',
+  );
+  if (!withinOrEqual(start, boundary)) {
+    fail(
+      'workspace_boundary_escape',
+      'Working directory must stay inside the explicit workspace root boundary.',
+    );
   }
   let current = start;
   while (true) {
@@ -383,6 +390,12 @@ function findWorkspace(cwd = process.cwd(), workspaceRoot = cwd) {
           'The home-level .kdna directory cannot act as project attachment authority.',
         );
       }
+      if (!explicitBoundary && current === boundary) {
+        fail(
+          'workspace_boundary_ambiguous',
+          'An implicit HOME or filesystem-root record cannot act as project attachment authority.',
+        );
+      }
       return { start, boundary, root: current, paths: candidate };
     } catch (error) {
       if (error instanceof WorkspaceAttachmentError) throw error;
@@ -401,6 +414,7 @@ function findWorkspace(cwd = process.cwd(), workspaceRoot = cwd) {
 
 function mutationWorkspace(cwd = process.cwd()) {
   const root = assertDirectory(cwd, 'Working directory');
+  const rootStat = fs.statSync(root);
   let home = null;
   try {
     home = fs.realpathSync(os.homedir());
@@ -413,7 +427,34 @@ function mutationWorkspace(cwd = process.cwd()) {
       'The home-level .kdna directory cannot act as project attachment authority.',
     );
   }
-  return { start: root, root, paths: pathsForRoot(root) };
+  return {
+    start: root,
+    root,
+    rootBinding: { dev: rootStat.dev, ino: rootStat.ino },
+    paths: pathsForRoot(root),
+  };
+}
+
+function assertMutationWorkspaceBinding(workspace) {
+  try {
+    const lstat = fs.lstatSync(workspace.root);
+    const real = fs.realpathSync(workspace.root);
+    const stat = fs.statSync(real);
+    if (
+      lstat.isSymbolicLink() ||
+      !lstat.isDirectory() ||
+      real !== workspace.root ||
+      stat.dev !== workspace.rootBinding.dev ||
+      stat.ino !== workspace.rootBinding.ino
+    ) {
+      throw new Error('Workspace root changed');
+    }
+  } catch {
+    fail(
+      'workspace_binding_changed',
+      'The exact workspace root changed after attachment approval.',
+    );
+  }
 }
 
 function ensurePrivateDirectory(directory) {
@@ -767,9 +808,20 @@ function requireApproval(prepared, approve) {
   }
 }
 
+function assertApprovedSourceBinding(sourcePath, expectedDigest) {
+  try {
+    const current = snapshotAssetFile(path.resolve(sourcePath));
+    if (sha256(current) !== expectedDigest) throw new Error('Asset digest changed');
+  } catch {
+    fail(
+      'approval_binding_changed',
+      'The exact attachment asset changed after approval.',
+    );
+  }
+}
+
 function attachWorkspace(options) {
   const prepared = inspectPreparedAsset(options.sourcePath);
-  requireApproval(prepared, options.approve);
   const workspace = mutationWorkspace(options.cwd);
   const role = String(options.role || prepared.asset.id)
     .trim()
@@ -777,6 +829,12 @@ function attachWorkspace(options) {
   if (!role || role.length > MAX_TEXT_LENGTH) fail('input_invalid', 'Attachment role is invalid.');
   const appliesTo = cleanScopeTerms(options.appliesTo);
   const doesNotApplyTo = cleanScopeTerms(options.doesNotApplyTo);
+  if (appliesTo.length === 0 || doesNotApplyTo.length === 0) {
+    fail(
+      'input_invalid',
+      'Attachment scope requires at least one applies-to and one does-not-apply-to phrase.',
+    );
+  }
   const now = options.now || new Date().toISOString();
   const attachment = {
     attachment_id: `att_${crypto.randomBytes(12).toString('hex')}`,
@@ -793,7 +851,37 @@ function attachWorkspace(options) {
     update_policy: 'explicit_switch_only',
     history: [],
   };
+  const consentFacts = {
+    workspace_root: displayWorkspaceRoot(process.cwd(), workspace.root),
+    attachment,
+    authorization: {
+      access: prepared.plan.access,
+      required_before_load: prepared.plan.can_load_now !== true,
+      load_plan_state: prepared.plan.state,
+    },
+  };
+  const consentDigest = sha256(Buffer.from(JSON.stringify(consentFacts), 'utf8'));
+  const preview = {
+    operation: 'attach',
+    consent_digest: consentDigest,
+    workspace_boundary: {
+      kind: 'exact_workspace',
+      root: consentFacts.workspace_root,
+    },
+    attachment,
+    authorization: consentFacts.authorization,
+  };
+  requireApproval({ preview }, options.approve);
+  assertMutationWorkspaceBinding(workspace);
+  assertApprovedSourceBinding(options.sourcePath, prepared.digest);
+  if (sha256(Buffer.from(JSON.stringify(consentFacts), 'utf8')) !== consentDigest) {
+    fail(
+      'approval_binding_changed',
+      'The attachment role, scope, asset, or authorization facts changed after approval.',
+    );
+  }
   return withWorkspaceLock(workspace.paths, () => {
+    assertMutationWorkspaceBinding(workspace);
     const record = readRecord(workspace.paths, { optional: true }) || emptyRecord();
     if (record.attachments.length >= MAX_ATTACHMENTS) {
       fail('input_invalid', 'Workspace attachment limit reached.');
@@ -801,11 +889,11 @@ function attachWorkspace(options) {
     storeSnapshot(workspace.paths, prepared);
     record.attachments.push(attachment);
     atomicWriteRecord(workspace.paths, record);
-    return { workspace_root: workspace.root, attachment, preview: prepared.preview };
+    return { workspace_root: workspace.root, attachment, preview };
   });
 }
 
-function listWorkspaceAttachments(cwd = process.cwd(), workspaceRoot = cwd) {
+function listWorkspaceAttachments(cwd = process.cwd(), workspaceRoot = null) {
   const workspace = findWorkspace(cwd, workspaceRoot);
   if (!workspace.root) return { workspace_root: null, record: null };
   return { workspace_root: workspace.root, record: readRecord(workspace.paths) };
@@ -892,7 +980,7 @@ function setAttachmentState(options) {
   if (!['enabled', 'disabled'].includes(options.state)) fail('input_invalid', 'Invalid state.');
   return mutateAttachment(
     options.cwd,
-    options.workspaceRoot || options.cwd,
+    options.workspaceRoot,
     options.attachmentId,
     ({ attachment, workspace }) => {
       if (options.state === 'enabled') verifyAssetReference(workspace.paths, attachment.asset);
@@ -908,7 +996,7 @@ function switchWorkspaceAttachment(options) {
   const now = options.now || new Date().toISOString();
   return mutateAttachment(
     options.cwd,
-    options.workspaceRoot || options.cwd,
+    options.workspaceRoot,
     options.attachmentId,
     ({ attachment, workspace }) => {
       storeSnapshot(workspace.paths, prepared);
@@ -923,7 +1011,7 @@ function switchWorkspaceAttachment(options) {
 function rollbackWorkspaceAttachment(options) {
   return mutateAttachment(
     options.cwd,
-    options.workspaceRoot || options.cwd,
+    options.workspaceRoot,
     options.attachmentId,
     ({ attachment, workspace }) => {
       if (attachment.history.length === 0)
@@ -941,7 +1029,7 @@ function rollbackWorkspaceAttachment(options) {
 function removeWorkspaceAttachment(options) {
   return mutateAttachment(
     options.cwd,
-    options.workspaceRoot || options.cwd,
+    options.workspaceRoot,
     options.attachmentId,
     ({ attachment, record, workspace }) => {
       record.attachments = record.attachments.filter(
@@ -1213,7 +1301,7 @@ function recoverInterruptedCleanup(paths) {
 }
 
 function cleanupWorkspaceSnapshots(options) {
-  const workspace = findWorkspace(options.cwd, options.workspaceRoot || options.cwd);
+  const workspace = findWorkspace(options.cwd, options.workspaceRoot);
   if (!workspace.root) fail('attachment_not_found', 'No workspace attachment record was found.');
   return withWorkspaceLock(workspace.paths, () => {
     const recovered = recoverInterruptedCleanup(workspace.paths);
@@ -1471,7 +1559,7 @@ function resolveWorkspace(options) {
   if (!task) fail('input_invalid', 'Task input must contain non-empty UTF-8 text.');
   let workspace;
   try {
-    workspace = findWorkspace(start, options.workspaceRoot || start);
+    workspace = findWorkspace(start, options.workspaceRoot);
   } catch {
     return blockResult('attachment_schema_unsupported', '.', [], 'not_checked', 'not_checked');
   }
