@@ -29,6 +29,18 @@ const CLI = path.resolve(__dirname, '..', 'src', 'cli.js');
 const FIXTURE = path.resolve(__dirname, '..', 'fixtures', 'minimal');
 const temporaryRoots = [];
 
+test('attachWorkspace persists its approved record exactly once', () => {
+  const source = fs.readFileSync(
+    path.resolve(__dirname, '..', 'src', 'workspace-attachments.js'),
+    'utf8',
+  );
+  const start = source.indexOf('function attachWorkspace(');
+  const end = source.indexOf('function listWorkspaceAttachments(', start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  assert.equal((source.slice(start, end).match(/atomicWriteRecord\(/gu) || []).length, 1);
+});
+
 after(() => {
   for (const root of temporaryRoots) fs.rmSync(root, { recursive: true, force: true });
 });
@@ -337,6 +349,8 @@ test('negation, quotation, broad hints, and contrastive clauses never auto-load'
   for (const task of [
     'Do not draft article; only edit code.',
     'Do not draft an article; only edit code.',
+    'Do not draft an article; only change code.',
+    'Explain the phrase draft article.',
     'Discuss whether "draft article" is a useful label.',
   ]) {
     const result = resolve(ordinary, task);
@@ -365,7 +379,11 @@ test('negation, quotation, broad hints, and contrastive clauses never auto-load'
     doesNotApplyTo: [],
   });
   assert.equal(resolve(cjk, '请写文章。').decision, 'load');
-  for (const task of ['不要写文章，只改代码。', '请讨论“写文章”这个标签。']) {
+  for (const task of [
+    '不要写文章，只改代码。',
+    '请讨论“写文章”这个标签。',
+    '请讨论‘写文章’这个词。',
+  ]) {
     const result = resolve(cjk, task);
     assert.equal(result.decision, 'ask');
     assert.equal(result.reason_code, 'ambiguous_scope');
