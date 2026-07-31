@@ -5,7 +5,7 @@
     {
       "command": "attach",
       "usage": "attach <file.kdna> --cwd <workspace> --attachment-stdin [--preview | (--yes (--scope-user-approved | --consent-digest <sha256:...>))]",
-      "purpose": "Approve one exact asset and an executable positive or explicit all-workspace scope, with optional exclusions, for one workspace."
+      "purpose": "Approve one exact asset and an executable open-world, explicitly closed-world, or all-workspace routing scope, with optional exclusions, for one workspace."
     },
     {
       "command": "attachments",
@@ -30,7 +30,7 @@
     {
       "command": "switch",
       "usage": "switch <attachment-id> <file.kdna> [--cwd <start>] [--workspace-root <boundary>] (--retain-scope | --attachment-stdin | <reviewed-scope>) [--preview | (--yes (--scope-user-approved | --consent-digest <sha256:...>))]",
-      "purpose": "Approve one exact replacement together with its reviewed role, scope, authorization facts, and rollback policy."
+      "purpose": "Approve one exact replacement together with its reviewed role, open/closed-world scope policy, authorization facts, and rollback policy."
     },
     {
       "command": "rollback",

@@ -125,15 +125,20 @@ function printJson(value) {
 function readBoundedStdin(maximum, label) {
   const chunks = [];
   let total = 0;
+  let exceeded = false;
   const buffer = Buffer.allocUnsafe(16 * 1024);
   try {
     while (true) {
       const count = fs.readSync(process.stdin.fd, buffer, 0, buffer.length);
       if (count === 0) break;
+      if (exceeded || total + count > maximum) {
+        exceeded = true;
+        continue;
+      }
       total += count;
-      if (total > maximum) inputError(`${label} exceeds the size limit.`);
       chunks.push(Buffer.from(buffer.subarray(0, count)));
     }
+    if (exceeded) inputError(`${label} exceeds the size limit.`);
     if (total === 0) inputError(`${label} must not be empty.`);
     return Buffer.concat(chunks, total);
   } finally {
@@ -153,7 +158,13 @@ function readAttachmentInput() {
     }
     const keys =
       value && typeof value === 'object' && !Array.isArray(value) ? Object.keys(value).sort() : [];
-    const allowedKeys = new Set(['role', 'applies_to', 'does_not_apply_to', 'scope_mode']);
+    const allowedKeys = new Set([
+      'role',
+      'applies_to',
+      'does_not_apply_to',
+      'scope_mode',
+      'matching_policy',
+    ]);
     if (
       !value ||
       typeof value !== 'object' ||
@@ -166,11 +177,16 @@ function readAttachmentInput() {
       !Array.isArray(value.applies_to) ||
       !Array.isArray(value.does_not_apply_to) ||
       (value.scope_mode !== undefined &&
-        !['task_hints', 'all_workspace'].includes(value.scope_mode))
+        !['task_hints', 'all_workspace'].includes(value.scope_mode)) ||
+      (value.matching_policy !== undefined &&
+        !['open_world_ask', 'closed_world_skip'].includes(value.matching_policy))
     ) {
       inputError(
-        'Attachment stdin must contain role, applies_to, does_not_apply_to, and optional scope_mode.',
+        'Attachment stdin must contain role, applies_to, does_not_apply_to, and optional scope_mode/matching_policy.',
       );
+    }
+    if (value.scope_mode === 'all_workspace' && value.matching_policy !== undefined) {
+      inputError('All-workspace scope does not accept a task-hint matching policy.');
     }
     return value;
   } finally {
@@ -213,6 +229,7 @@ function cmdAttach(args) {
       '--applies-to',
       '--does-not-apply-to',
       '--all-workspace',
+      '--closed-world-scope',
       '--attachment-stdin',
       '--yes',
       '--preview',
@@ -222,7 +239,7 @@ function cmdAttach(args) {
   );
   if (parsed.positional.length !== 1) {
     inputError(
-      'Usage: kdna attach <file.kdna> [--cwd <workspace>] (--attachment-stdin | [--role <text>] (--applies-to <text>... | --all-workspace) [--does-not-apply-to <text>...]) [--preview | (--yes (--scope-user-approved | --consent-digest <sha256:...>))]',
+      'Usage: kdna attach <file.kdna> [--cwd <workspace>] (--attachment-stdin | [--role <text>] (--applies-to <text>... [--closed-world-scope] | --all-workspace) [--does-not-apply-to <text>...]) [--preview | (--yes (--scope-user-approved | --consent-digest <sha256:...>))]',
     );
   }
   const attachmentStdin = parsed.has('--attachment-stdin');
@@ -230,14 +247,19 @@ function cmdAttach(args) {
   const argumentAppliesTo = parsed.many('--applies-to');
   const argumentDoesNotApplyTo = parsed.many('--does-not-apply-to');
   const allWorkspace = parsed.has('--all-workspace');
+  const closedWorldScope = parsed.has('--closed-world-scope');
   if (
     attachmentStdin &&
     (argumentRole !== null ||
       argumentAppliesTo.length > 0 ||
       argumentDoesNotApplyTo.length > 0 ||
-      allWorkspace)
+      allWorkspace ||
+      closedWorldScope)
   ) {
     inputError('Attachment stdin and role/scope argv options are mutually exclusive.');
+  }
+  if (allWorkspace && closedWorldScope) {
+    inputError('--all-workspace and --closed-world-scope are mutually exclusive.');
   }
   const attachmentInput = attachmentStdin
     ? readAttachmentInput()
@@ -246,6 +268,7 @@ function cmdAttach(args) {
         applies_to: argumentAppliesTo,
         does_not_apply_to: argumentDoesNotApplyTo,
         scope_mode: allWorkspace ? 'all_workspace' : 'task_hints',
+        matching_policy: closedWorldScope ? 'closed_world_skip' : 'open_world_ask',
       };
   const previewOnly = parsed.has('--preview');
   const yes = parsed.has('--yes');
@@ -271,6 +294,7 @@ function cmdAttach(args) {
     appliesTo: attachmentInput.applies_to,
     doesNotApplyTo: attachmentInput.does_not_apply_to,
     scopeApplication: attachmentInput.scope_mode || 'task_hints',
+    matchingPolicy: attachmentInput.matching_policy || 'open_world_ask',
     scopeApproval: scopeUserApproved ? 'user_explicit' : 'preview_confirmed',
     previewOnly,
     expectedConsentDigest: consentDigest === null ? undefined : consentDigest,
@@ -321,7 +345,7 @@ function cmdResolve(args) {
   );
   if (parsed.positional.length !== 0) {
     inputError(
-      'Usage: kdna resolve --cwd <start> [--workspace-root <boundary>] (--task-stdin | --task-file <file>) [--adapter-schema 0.1.0] [--select-attachment <id> --selection-task-digest <sha256:...> [--selection-plan-digest <sha256:...>] --selection-approved]',
+      'Usage: kdna resolve --cwd <start> [--workspace-root <boundary>] (--task-stdin | --task-file <file>) [--adapter-schema 0.3.0] [--select-attachment <id> --selection-task-digest <sha256:...> [--selection-plan-digest <sha256:...>] --selection-approved]',
     );
   }
   const cwd = parsed.one('--cwd');
@@ -380,6 +404,7 @@ function cmdSwitch(args) {
       '--applies-to',
       '--does-not-apply-to',
       '--all-workspace',
+      '--closed-world-scope',
       '--attachment-stdin',
       '--retain-scope',
       '--preview',
@@ -390,7 +415,7 @@ function cmdSwitch(args) {
   );
   if (parsed.positional.length !== 2) {
     inputError(
-      'Usage: kdna switch <attachment-id> <file.kdna> [--cwd <start>] [--workspace-root <boundary>] (--retain-scope | --attachment-stdin | [--role <text>] (--applies-to <text>... | --all-workspace) [--does-not-apply-to <text>...]) [--preview | (--yes (--scope-user-approved | --consent-digest <sha256:...>))]',
+      'Usage: kdna switch <attachment-id> <file.kdna> [--cwd <start>] [--workspace-root <boundary>] (--retain-scope | --attachment-stdin | [--role <text>] (--applies-to <text>... [--closed-world-scope] | --all-workspace) [--does-not-apply-to <text>...]) [--preview | (--yes (--scope-user-approved | --consent-digest <sha256:...>))]',
     );
   }
   const attachmentStdin = parsed.has('--attachment-stdin');
@@ -399,11 +424,16 @@ function cmdSwitch(args) {
   const argumentAppliesTo = parsed.many('--applies-to');
   const argumentDoesNotApplyTo = parsed.many('--does-not-apply-to');
   const allWorkspace = parsed.has('--all-workspace');
+  const closedWorldScope = parsed.has('--closed-world-scope');
+  if (allWorkspace && closedWorldScope) {
+    inputError('--all-workspace and --closed-world-scope are mutually exclusive.');
+  }
   const hasArgumentPolicy =
     argumentRole !== null ||
     argumentAppliesTo.length > 0 ||
     argumentDoesNotApplyTo.length > 0 ||
-    allWorkspace;
+    allWorkspace ||
+    closedWorldScope;
   if (Number(attachmentStdin) + Number(retainScope) + Number(hasArgumentPolicy) !== 1) {
     inputError(
       'Switch requires exactly one reviewed policy source: --retain-scope, --attachment-stdin, or role/scope argv options.',
@@ -416,6 +446,7 @@ function cmdSwitch(args) {
         applies_to: argumentAppliesTo,
         does_not_apply_to: argumentDoesNotApplyTo,
         scope_mode: allWorkspace ? 'all_workspace' : 'task_hints',
+        matching_policy: closedWorldScope ? 'closed_world_skip' : 'open_world_ask',
       };
   const previewOnly = parsed.has('--preview');
   const yes = parsed.has('--yes');
@@ -443,6 +474,7 @@ function cmdSwitch(args) {
     appliesTo: attachmentInput.applies_to,
     doesNotApplyTo: attachmentInput.does_not_apply_to,
     scopeApplication: attachmentInput.scope_mode || 'task_hints',
+    matchingPolicy: attachmentInput.matching_policy || 'open_world_ask',
     retainPolicy: retainScope,
     scopeApproval: scopeUserApproved ? 'user_explicit' : 'preview_confirmed',
     previewOnly,

@@ -10,6 +10,7 @@
 const fs = require('fs');
 const cbor = require('cbor-x');
 const { EXIT, error, promptPassword, resolvePassword } = require('./_common');
+const { SecretInputError, readSecretPairStdin, readSecretStdin } = require('../secret-input');
 const {
   createKdnaAssetReader,
   createPasswordDecryptEntry,
@@ -353,11 +354,19 @@ function cmdRecover(args) {
         EXIT.INPUT_ERROR,
       );
     }
-    const [codeLine = '', passwordLine = ''] = fs.readFileSync(0, 'utf8').split(/\r?\n/);
-    recoveryCode = codeLine.trim();
-    newPassword = passwordLine.trim();
-    if (!recoveryCode) error('No recovery code provided on stdin.', EXIT.INPUT_ERROR);
-    if (!newPassword) error('No new password provided on stdin.', EXIT.INPUT_ERROR);
+    try {
+      [recoveryCode, newPassword] = readSecretPairStdin({
+        firstLabel: 'Recovery code',
+        secondLabel: 'New password',
+      });
+    } catch (readError) {
+      error(
+        readError instanceof SecretInputError
+          ? readError.message
+          : 'Recovery credentials could not be read.',
+        EXIT.INPUT_ERROR,
+      );
+    }
   } else if (codeFromStdin) {
     // Same TTY-hang guard as --password-stdin: refuse up front rather
     // than blocking on stdin in an interactive session.
@@ -368,9 +377,16 @@ function cmdRecover(args) {
         EXIT.INPUT_ERROR,
       );
     }
-    const stdinData = fs.readFileSync(0, 'utf8').trim();
-    if (!stdinData) error('No recovery code provided on stdin.', EXIT.INPUT_ERROR);
-    recoveryCode = stdinData;
+    try {
+      recoveryCode = readSecretStdin({ label: 'Recovery code' });
+    } catch (readError) {
+      error(
+        readError instanceof SecretInputError
+          ? readError.message
+          : 'Recovery code could not be read.',
+        EXIT.INPUT_ERROR,
+      );
+    }
   } else {
     recoveryCode = promptPassword('Recovery code: ');
     if (!recoveryCode) error('Recovery code is required.', EXIT.INPUT_ERROR);
