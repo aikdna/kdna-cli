@@ -1051,6 +1051,39 @@ test('adapter-only deferred password authorization resolves scope without claimi
   assert.equal(JSON.parse(cliResult.stdout).authorization, 'required');
 });
 
+test('receipt-bound one-task selection can defer but never claim protected authorization', () => {
+  const root = temporaryRoot('deferred-selection-authorization');
+  const protectedAttachment = attach(root, buildProtectedAsset(root), {
+    role: 'protected-writing',
+  });
+  attach(root, buildAsset(root), { role: 'ordinary-writing' });
+  const initial = resolve(root, 'draft this', {
+    deferPasswordAuthorization: true,
+  });
+  assert.equal(initial.decision, 'ask');
+  const selection = {
+    selectedAttachmentId: protectedAttachment.attachment.attachment_id,
+    selectionTaskDigest: initial.selection_plan.task_digest,
+    selectionPlanDigest: initial.selection_plan.plan_digest,
+    selectionApproved: true,
+  };
+  const withoutDeferral = resolve(root, 'draft this', selection);
+  assert.equal(withoutDeferral.decision, 'block');
+  assert.equal(withoutDeferral.reason_code, 'authorization_required');
+  const deferred = resolve(root, 'draft this', {
+    ...selection,
+    deferPasswordAuthorization: true,
+  });
+  assert.equal(deferred.decision, 'load');
+  assert.equal(deferred.reason_code, 'explicit_task_attachment_selection');
+  assert.equal(
+    deferred.selected.attachment_id,
+    protectedAttachment.attachment.attachment_id,
+  );
+  assert.equal(deferred.authorization, 'required');
+  assert.equal(deferred.integrity, 'verified');
+});
+
 test('adapter schema mismatch blocks with a closed adapter_incompatible result', () => {
   const root = temporaryRoot('adapter');
   const result = resolve(root, 'draft', { adapterSchema: '0.0.1' });
