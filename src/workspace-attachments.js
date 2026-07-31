@@ -12,7 +12,8 @@ const { snapshotAssetFile } = require('./snapshot-asset');
 
 const DOCUMENT_TYPE = 'kdna.workspace-attachments';
 const RESOLUTION_TYPE = 'kdna.workspace-resolution';
-const SCHEMA_VERSION = '0.1.0';
+const SCHEMA_VERSION = '0.2.0';
+const LEGACY_SCHEMA_VERSION = '0.1.0';
 const MAX_RECORD_BYTES = 1024 * 1024;
 const MAX_TASK_BYTES = 64 * 1024;
 const MAX_ATTACHMENTS = 1024;
@@ -215,7 +216,7 @@ function validateAttachment(attachment, index) {
   assertText(attachment.role, `${label}.role`);
   assertExactKeys(
     attachment.scope,
-    ['kind', 'authority', 'approval_source', 'applies_to', 'does_not_apply_to'],
+    ['kind', 'application', 'authority', 'approval_source', 'applies_to', 'does_not_apply_to'],
     `${label}.scope`,
   );
   if (attachment.scope.kind !== 'workspace') {
@@ -230,8 +231,20 @@ function validateAttachment(attachment, index) {
   if (!['user_explicit', 'preview_confirmed'].includes(attachment.scope.approval_source)) {
     fail('attachment_schema_unsupported', `${label}.scope.approval_source is unsupported.`);
   }
+  if (!['task_hints', 'all_workspace'].includes(attachment.scope.application)) {
+    fail('attachment_schema_unsupported', `${label}.scope.application is unsupported.`);
+  }
   validateScopeTerms(attachment.scope.applies_to, `${label}.scope.applies_to`);
   validateScopeTerms(attachment.scope.does_not_apply_to, `${label}.scope.does_not_apply_to`);
+  if (
+    (attachment.scope.application === 'task_hints' && attachment.scope.applies_to.length === 0) ||
+    (attachment.scope.application === 'all_workspace' && attachment.scope.applies_to.length !== 0)
+  ) {
+    fail(
+      'attachment_schema_unsupported',
+      `${label}.scope.application and applies_to do not form an executable scope.`,
+    );
+  }
   if (attachment.resolution_policy !== 'load_when_clear_ask_when_ambiguous') {
     fail('attachment_schema_unsupported', `${label}.resolution_policy is unsupported.`);
   }
@@ -244,8 +257,35 @@ function validateAttachment(attachment, index) {
   }
   attachment.history.forEach((entry, historyIndex) => {
     const historyLabel = `${label}.history[${historyIndex}]`;
-    assertExactKeys(entry, ['asset', 'replaced_at'], historyLabel);
+    assertExactKeys(
+      entry,
+      [
+        'asset',
+        'role',
+        'scope',
+        'resolution_policy',
+        'approved_at',
+        'update_policy',
+        'replaced_at',
+      ],
+      historyLabel,
+    );
     validateAssetReference(entry.asset, `${historyLabel}.asset`);
+    assertText(entry.role, `${historyLabel}.role`);
+    validateAttachment(
+      {
+        attachment_id: `att_${'0'.repeat(24)}`,
+        asset: entry.asset,
+        state: 'enabled',
+        role: entry.role,
+        scope: entry.scope,
+        resolution_policy: entry.resolution_policy,
+        approved_at: entry.approved_at,
+        update_policy: entry.update_policy,
+        history: [],
+      },
+      `${index}.history.${historyIndex}`,
+    );
     assertTimestamp(entry.replaced_at, `${historyLabel}.replaced_at`);
   });
 }
@@ -256,6 +296,12 @@ function validateRecord(record) {
     ['document_type', 'schema_version', 'workspace', 'attachments'],
     'record',
   );
+  if (record.document_type === DOCUMENT_TYPE && record.schema_version === LEGACY_SCHEMA_VERSION) {
+    fail(
+      'attachment_schema_migration_required',
+      'Workspace attachment schema 0.1.0 is an unreleased historical candidate; re-attach under schema 0.2.0 so switch history can preserve exact policy.',
+    );
+  }
   if (record.document_type !== DOCUMENT_TYPE || record.schema_version !== SCHEMA_VERSION) {
     fail('attachment_schema_unsupported', 'Unsupported workspace attachment document or schema.');
   }
@@ -823,6 +869,60 @@ function cleanScopeTerms(values) {
   return output;
 }
 
+function prepareAttachmentPolicy(options, fallback = null) {
+  const retain = options.retainPolicy === true;
+  if (retain && !fallback) {
+    fail('input_invalid', 'No existing attachment policy is available to retain.');
+  }
+  const appliesTo = cleanScopeTerms(retain ? fallback.scope.applies_to : options.appliesTo);
+  const doesNotApplyTo = cleanScopeTerms(
+    retain ? fallback.scope.does_not_apply_to : options.doesNotApplyTo,
+  );
+  const application = retain
+    ? fallback.scope.application
+    : options.scopeApplication || 'task_hints';
+  if (!['task_hints', 'all_workspace'].includes(application)) {
+    fail('input_invalid', 'Attachment scope application mode is invalid.');
+  }
+  if (
+    (application === 'task_hints' && appliesTo.length === 0) ||
+    (application === 'all_workspace' && appliesTo.length !== 0)
+  ) {
+    fail(
+      'input_invalid',
+      'Attachment scope requires positive task hints or an explicit all-workspace authorization.',
+    );
+  }
+  const derivedRole = application === 'all_workspace' ? 'workspace-wide' : appliesTo[0];
+  const role = String(retain ? fallback.role : options.role || derivedRole)
+    .trim()
+    .replace(/\s+/gu, ' ');
+  if (!role || role.length > MAX_TEXT_LENGTH) {
+    fail(
+      'input_invalid',
+      'Attachment role must be a meaningful bounded value approved for this workspace.',
+    );
+  }
+  const scopeApproval =
+    options.scopeApproval === undefined ? 'preview_confirmed' : options.scopeApproval;
+  if (!['user_explicit', 'preview_confirmed'].includes(scopeApproval)) {
+    fail('input_invalid', 'Attachment scope approval source is invalid.');
+  }
+  return {
+    role,
+    scope: {
+      kind: 'workspace',
+      application,
+      authority: 'user_approved_routing_hint',
+      approval_source: scopeApproval,
+      applies_to: appliesTo,
+      does_not_apply_to: doesNotApplyTo,
+    },
+    resolution_policy: 'load_when_clear_ask_when_ambiguous',
+    update_policy: 'explicit_switch_only',
+  };
+}
+
 function requireApproval(prepared, approve) {
   if (typeof approve !== 'function' || approve(prepared.preview) !== true) {
     fail('approval_required', 'Attachment approval was not granted.');
@@ -834,47 +934,18 @@ function assertApprovedSourceBinding(sourcePath, expectedDigest) {
     const current = snapshotAssetFile(path.resolve(sourcePath));
     if (sha256(current) !== expectedDigest) throw new Error('Asset digest changed');
   } catch {
-    fail(
-      'approval_binding_changed',
-      'The exact attachment asset changed after approval.',
-    );
+    fail('approval_binding_changed', 'The exact attachment asset changed after approval.');
   }
 }
 
 function attachWorkspace(options) {
   const prepared = inspectPreparedAsset(options.sourcePath);
   const workspace = mutationWorkspace(options.cwd);
-  const role = String(options.role || prepared.asset.id)
-    .trim()
-    .replace(/\s+/gu, ' ');
-  if (!role || role.length > MAX_TEXT_LENGTH) fail('input_invalid', 'Attachment role is invalid.');
-  const appliesTo = cleanScopeTerms(options.appliesTo);
-  const doesNotApplyTo = cleanScopeTerms(options.doesNotApplyTo);
-  if (appliesTo.length === 0 || doesNotApplyTo.length === 0) {
-    fail(
-      'input_invalid',
-      'Attachment scope requires at least one applies-to and one does-not-apply-to phrase.',
-    );
-  }
-  const scopeApproval =
-    options.scopeApproval === undefined ? 'preview_confirmed' : options.scopeApproval;
-  if (!['user_explicit', 'preview_confirmed'].includes(scopeApproval)) {
-    fail('input_invalid', 'Attachment scope approval source is invalid.');
-  }
-  const scope = {
-    kind: 'workspace',
-    authority: 'user_approved_routing_hint',
-    approval_source: scopeApproval,
-    applies_to: appliesTo,
-    does_not_apply_to: doesNotApplyTo,
-  };
+  const policy = prepareAttachmentPolicy(options);
   const attachmentProposal = {
     asset: prepared.asset,
     state: 'enabled',
-    role,
-    scope,
-    resolution_policy: 'load_when_clear_ask_when_ambiguous',
-    update_policy: 'explicit_switch_only',
+    ...policy,
   };
   const consentFacts = {
     workspace_root: workspace.root,
@@ -1044,22 +1115,120 @@ function setAttachmentState(options) {
   );
 }
 
+function attachmentPolicyState(attachment) {
+  return {
+    asset: { ...attachment.asset },
+    role: attachment.role,
+    scope: {
+      ...attachment.scope,
+      applies_to: [...attachment.scope.applies_to],
+      does_not_apply_to: [...attachment.scope.does_not_apply_to],
+    },
+    resolution_policy: attachment.resolution_policy,
+    approved_at: attachment.approved_at,
+    update_policy: attachment.update_policy,
+  };
+}
+
+function authorizationFacts(plan) {
+  return {
+    access: plan.access,
+    required_before_load: plan.can_load_now !== true,
+    load_plan_state: plan.state,
+  };
+}
+
 function switchWorkspaceAttachment(options) {
   const prepared = inspectPreparedAsset(options.sourcePath);
-  requireApproval(prepared, options.approve);
+  const found = findWorkspace(options.cwd, options.workspaceRoot);
+  if (!found.root) fail('attachment_not_found', 'No workspace attachment record was found.');
+  const workspace = mutationWorkspace(found.root);
+  const initialRecord = readRecord(workspace.paths);
+  const initialAttachment = findAttachment(initialRecord, options.attachmentId);
+  const existing = verifyAssetReference(workspace.paths, initialAttachment.asset);
+  const policy = prepareAttachmentPolicy(options, initialAttachment);
   const now = options.now || new Date().toISOString();
-  return mutateAttachment(
-    options.cwd,
-    options.workspaceRoot,
-    options.attachmentId,
-    ({ attachment, workspace }) => {
-      storeSnapshot(workspace.paths, prepared);
-      attachment.history.push({ asset: attachment.asset, replaced_at: now });
-      attachment.asset = prepared.asset;
-      attachment.approved_at = now;
-      return { workspace_root: workspace.root, attachment, preview: prepared.preview };
+  const proposal = {
+    asset: prepared.asset,
+    state: initialAttachment.state,
+    ...policy,
+    approved_at: now,
+  };
+  const consentFacts = {
+    workspace_root: workspace.root,
+    attachment_id: initialAttachment.attachment_id,
+    old_attachment: attachmentPolicyState(initialAttachment),
+    new_attachment: proposal,
+    authorization: {
+      old: authorizationFacts(existing.plan),
+      new: authorizationFacts(prepared.plan),
     },
-  );
+  };
+  const consentDigest = sha256(Buffer.from(JSON.stringify(consentFacts), 'utf8'));
+  const preview = {
+    operation: 'switch',
+    consent_digest: consentDigest,
+    workspace_boundary: {
+      kind: 'exact_workspace',
+      root: displayWorkspaceRoot(process.cwd(), workspace.root),
+    },
+    attachment_id: initialAttachment.attachment_id,
+    old_attachment: consentFacts.old_attachment,
+    new_attachment: proposal,
+    authorization: consentFacts.authorization,
+    scope_contract: {
+      inherited_without_review: false,
+      asset_declared_preload_boundary: 'not_available_in_current_manifest_contract',
+      runtime_boundary_remains_authoritative: true,
+    },
+  };
+  if (options.previewOnly === true) {
+    return {
+      workspace_root: workspace.root,
+      attachment: null,
+      preview,
+      preview_only: true,
+    };
+  }
+  if (
+    options.expectedConsentDigest !== undefined &&
+    options.expectedConsentDigest !== consentDigest
+  ) {
+    fail(
+      'approval_binding_changed',
+      'The switch workspace, old/new asset, role, scope, or authorization facts changed after preview.',
+    );
+  }
+  requireApproval({ preview }, options.approve);
+  assertMutationWorkspaceBinding(workspace);
+  assertApprovedSourceBinding(options.sourcePath, prepared.digest);
+  const initialBinding = JSON.stringify(initialAttachment);
+  return withWorkspaceLock(workspace.paths, () => {
+    assertMutationWorkspaceBinding(workspace);
+    const record = readRecord(workspace.paths);
+    const attachment = findAttachment(record, options.attachmentId);
+    if (JSON.stringify(attachment) !== initialBinding) {
+      fail(
+        'approval_binding_changed',
+        'The attachment record or policy changed after switch approval.',
+      );
+    }
+    verifyAssetReference(workspace.paths, attachment.asset);
+    assertApprovedSourceBinding(options.sourcePath, prepared.digest);
+    storeSnapshot(workspace.paths, prepared);
+    attachment.history.push({
+      ...attachmentPolicyState(attachment),
+      replaced_at: now,
+    });
+    attachment.asset = prepared.asset;
+    attachment.role = policy.role;
+    attachment.scope = policy.scope;
+    attachment.resolution_policy = policy.resolution_policy;
+    attachment.approved_at = now;
+    attachment.update_policy = policy.update_policy;
+    atomicWriteRecord(workspace.paths, record);
+    return { workspace_root: workspace.root, attachment, preview };
+  });
 }
 
 function rollbackWorkspaceAttachment(options) {
@@ -1071,10 +1240,15 @@ function rollbackWorkspaceAttachment(options) {
       if (attachment.history.length === 0)
         fail('history_empty', 'Attachment has no retained version.');
       const previous = attachment.history[attachment.history.length - 1];
+      verifyAssetReference(workspace.paths, attachment.asset);
       verifyAssetReference(workspace.paths, previous.asset);
       attachment.asset = previous.asset;
+      attachment.role = previous.role;
+      attachment.scope = previous.scope;
+      attachment.resolution_policy = previous.resolution_policy;
+      attachment.approved_at = previous.approved_at;
+      attachment.update_policy = previous.update_policy;
       attachment.history.pop();
-      attachment.approved_at = options.now || new Date().toISOString();
       return { workspace_root: workspace.root, attachment };
     },
   );
@@ -1528,14 +1702,21 @@ function cleanupWorkspaceSnapshots(options) {
   });
 }
 
-function candidateFor(attachment) {
+function candidateFor(attachment, authorization = 'not_checked', integrity = 'not_checked') {
   return {
     attachment_id: attachment.attachment_id,
     asset_id: attachment.asset.id,
     version: attachment.asset.version,
     digest: attachment.asset.digest,
     role: attachment.role,
+    authorization,
+    integrity,
   };
+}
+
+function taskNamesExactAttachmentIdentifier(taskText, attachmentId) {
+  const escaped = attachmentId.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+  return new RegExp(`(?:^|[^\\p{L}\\p{N}_])${escaped}(?:$|[^\\p{L}\\p{N}_])`, 'u').test(taskText);
 }
 
 function displayWorkspaceRoot(start, root) {
@@ -1661,9 +1842,7 @@ function resolveWorkspace(options) {
   ) {
     fail('input_invalid', 'Selection task and plan digests must be lowercase SHA-256 digests.');
   }
-  const taskBytes = Buffer.from(
-    hasTaskFile ? readTaskFile(options.taskFile) : options.taskBytes,
-  );
+  const taskBytes = Buffer.from(hasTaskFile ? readTaskFile(options.taskFile) : options.taskBytes);
   let taskText;
   let task;
   try {
@@ -1754,9 +1933,10 @@ function resolveWorkspace(options) {
           'not_checked',
         );
       }
-      const exactIdentifierNamed =
-        taskText.includes(selectedCandidate.attachment_id) ||
-        taskText.includes(selectedCandidate.asset_id);
+      const exactIdentifierNamed = taskNamesExactAttachmentIdentifier(
+        taskText,
+        selectedCandidate.attachment_id,
+      );
       if (
         result.decision === 'ask' &&
         options.selectionPlanDigest === undefined &&
@@ -1849,24 +2029,30 @@ function resolveWorkspace(options) {
   };
   const enabled = record.attachments.filter((attachment) => attachment.state === 'enabled');
   if (enabled.length === 0) {
-    return finish(resolutionResult({
-      decision: 'skip',
-      reasonCode: 'no_approved_attachment',
-      workspaceRoot,
-      authorization: 'not_checked',
-      integrity: 'not_checked',
-    }));
+    return finish(
+      resolutionResult({
+        decision: 'skip',
+        reasonCode: 'no_approved_attachment',
+        workspaceRoot,
+        authorization: 'not_checked',
+        integrity: 'not_checked',
+      }),
+    );
   }
 
   const evaluated = enabled.map((attachment) => {
-    const positiveAssessments = attachment.scope.applies_to.map((term) =>
-      scopeTermAssessment(task, term),
-    );
+    const positiveAssessments =
+      attachment.scope.application === 'all_workspace'
+        ? [{ matched: true, uncertain: false }]
+        : attachment.scope.applies_to.map((term) => scopeTermAssessment(task, term));
     const negativeAssessments = attachment.scope.does_not_apply_to.map((term) =>
       scopeTermAssessment(task, term),
     );
-    const positives = positiveAssessments.some(({ matched }) => matched);
     const negatives = negativeAssessments.some(({ matched }) => matched);
+    const positives =
+      attachment.scope.application === 'all_workspace'
+        ? !negatives
+        : positiveAssessments.some(({ matched }) => matched);
     const uncertain = [...positiveAssessments, ...negativeAssessments].some(
       ({ matched, uncertain: assessmentUncertain }) => matched && assessmentUncertain,
     );
@@ -1885,7 +2071,7 @@ function resolveWorkspace(options) {
   const positive = evaluated.filter((item) => item.positives && !item.negatives);
   const negative = evaluated.filter((item) => item.negatives && !item.positives);
   const unmatched = evaluated.filter((item) => !item.positives && !item.negatives);
-  const verifyScopedCandidates = (items) => {
+  const verifyScopedCandidates = (items, { requireAuthorization = false } = {}) => {
     const verified = [];
     for (const item of items) {
       let asset;
@@ -1901,18 +2087,22 @@ function resolveWorkspace(options) {
           blocked: blockResult(code, workspaceRoot, [item.candidate], 'not_checked', 'failed'),
         };
       }
-      if (asset.plan.can_load_now !== true) {
+      const authorization = asset.plan.can_load_now === true ? 'satisfied' : 'required';
+      if (requireAuthorization && authorization === 'required') {
         return {
           blocked: blockResult(
             'authorization_required',
             workspaceRoot,
-            [item.candidate],
+            [candidateFor(item.attachment, authorization, 'verified')],
             'required',
             'verified',
           ),
         };
       }
-      verified.push(item);
+      verified.push({
+        ...item,
+        candidate: candidateFor(item.attachment, authorization, 'verified'),
+      });
     }
     return { verified };
   };
@@ -1922,27 +2112,31 @@ function resolveWorkspace(options) {
       evaluated.filter((item) => item.positives || item.negatives),
     );
     if (checked.blocked) return finish(checked.blocked);
-    return finish(resolutionResult({
-      decision: 'ask',
-      reasonCode: 'ambiguous_scope',
-      workspaceRoot,
-      candidates: checked.verified.map((item) => item.candidate),
-      authorization: 'satisfied',
-      integrity: 'verified',
-    }));
+    return finish(
+      resolutionResult({
+        decision: 'ask',
+        reasonCode: 'ambiguous_scope',
+        workspaceRoot,
+        candidates: checked.verified.map((item) => item.candidate),
+        authorization: 'not_selected',
+        integrity: 'verified',
+      }),
+    );
   }
 
   if (internallyAmbiguous.length > 0) {
     const checked = verifyScopedCandidates(internallyAmbiguous);
     if (checked.blocked) return finish(checked.blocked);
-    return finish(resolutionResult({
-      decision: 'ask',
-      reasonCode: 'ambiguous_scope',
-      workspaceRoot,
-      candidates: checked.verified.map((item) => item.candidate),
-      authorization: 'satisfied',
-      integrity: 'verified',
-    }));
+    return finish(
+      resolutionResult({
+        decision: 'ask',
+        reasonCode: 'ambiguous_scope',
+        workspaceRoot,
+        candidates: checked.verified.map((item) => item.candidate),
+        authorization: 'not_selected',
+        integrity: 'verified',
+      }),
+    );
   }
   const contradictoryNegative = negative.filter((negativeItem) =>
     positive.some(
@@ -1954,48 +2148,58 @@ function resolveWorkspace(options) {
   if (positive.length > 1 || contradictoryNegative.length > 0) {
     const checked = verifyScopedCandidates([...positive, ...contradictoryNegative]);
     if (checked.blocked) return finish(checked.blocked);
-    return finish(resolutionResult({
-      decision: 'ask',
-      reasonCode: 'attachment_conflict',
-      workspaceRoot,
-      candidates: checked.verified.map((item) => item.candidate),
-      authorization: 'satisfied',
-      integrity: 'verified',
-    }));
+    return finish(
+      resolutionResult({
+        decision: 'ask',
+        reasonCode: 'attachment_conflict',
+        workspaceRoot,
+        candidates: checked.verified.map((item) => item.candidate),
+        authorization: 'not_selected',
+        integrity: 'verified',
+      }),
+    );
   }
   if (positive.length === 1 && unmatched.length === 0) {
-    const checked = verifyScopedCandidates(positive);
+    const checked = verifyScopedCandidates(positive, {
+      requireAuthorization: true,
+    });
     if (checked.blocked) return finish(checked.blocked);
-    return finish(resolutionResult({
-      decision: 'load',
-      reasonCode: 'single_approved_attachment_clearly_applies',
-      workspaceRoot,
-      selected: checked.verified[0].candidate,
-      candidates: [checked.verified[0].candidate],
-      authorization: 'satisfied',
-      integrity: 'verified',
-    }));
+    return finish(
+      resolutionResult({
+        decision: 'load',
+        reasonCode: 'single_approved_attachment_clearly_applies',
+        workspaceRoot,
+        selected: checked.verified[0].candidate,
+        candidates: [checked.verified[0].candidate],
+        authorization: 'satisfied',
+        integrity: 'verified',
+      }),
+    );
   }
   if (positive.length === 0 && unmatched.length === 0 && negative.length > 0) {
-    return finish(resolutionResult({
-      decision: 'skip',
-      reasonCode: 'outside_scope',
-      workspaceRoot,
-      candidates: negative.map((item) => item.candidate),
-      authorization: 'not_checked',
-      integrity: 'not_checked',
-    }));
+    return finish(
+      resolutionResult({
+        decision: 'skip',
+        reasonCode: 'outside_scope',
+        workspaceRoot,
+        candidates: negative.map((item) => item.candidate),
+        authorization: 'not_checked',
+        integrity: 'not_checked',
+      }),
+    );
   }
   const checked = verifyScopedCandidates([...positive, ...unmatched]);
   if (checked.blocked) return finish(checked.blocked);
-  return finish(resolutionResult({
-    decision: 'ask',
-    reasonCode: 'ambiguous_scope',
-    workspaceRoot,
-    candidates: checked.verified.map((item) => item.candidate),
-    authorization: 'satisfied',
-    integrity: 'verified',
-  }));
+  return finish(
+    resolutionResult({
+      decision: 'ask',
+      reasonCode: 'ambiguous_scope',
+      workspaceRoot,
+      candidates: checked.verified.map((item) => item.candidate),
+      authorization: 'not_selected',
+      integrity: 'verified',
+    }),
+  );
 }
 
 module.exports = {

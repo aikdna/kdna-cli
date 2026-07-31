@@ -64,14 +64,17 @@ node ./src/cli.js resolve --cwd ./my-project --task-stdin
 ```
 
 For `attach`, the invoking Agent writes one bounded strict-UTF-8 JSON object to
-stdin with exactly `role`, `applies_to`, and `does_not_apply_to`; each scope
-array must contain at least one deterministic hint. This keeps potentially
+stdin with `role`, `applies_to`, `does_not_apply_to`, and optional
+`scope_mode`. A positive task hint is required in the default `task_hints`
+mode; negative hints are optional. A user may instead explicitly approve
+`scope_mode: "all_workspace"` with no positive hints and optional exclusions.
+Completely unspecified applicability is rejected. This keeps potentially
 private role and scope text out of argv, environment variables, and
-non-interactive diagnostics. Human terminal use may instead supply the three
-corresponding argv options explicitly. For `resolve`, the invoking process
-writes bounded UTF-8 task bytes to stdin and closes the stream. `--task-file`
-remains available only when the user already has an explicit task file;
-exactly one task input mode is required.
+non-interactive diagnostics. Human terminal use may use `--applies-to` or the
+explicit `--all-workspace` switch and may omit `--does-not-apply-to`. For
+`resolve`, the invoking process writes bounded UTF-8 task bytes to stdin and
+closes the stream. `--task-file` remains available only when the user already
+has an explicit task file; exactly one task input mode is required.
 
 `attach` copies the validated bytes to an immutable digest snapshot under
 `./my-project/.kdna/`. The source file may then move without changing the
@@ -160,6 +163,13 @@ separate events. A Host must expose active asset identity, version or digest,
 scope, and reason, and provide controls to disable it, switch it, or roll it
 back.
 
+These low-level flags are an integration surface, not a field questionnaire
+for ordinary users. A qualified Host collects one meaningful approval in
+natural language, keeps private task and scope bytes off argv, and supplies
+the exact workspace, scope mode, digests, approval source, and internal
+attachment ID. It asks again only for a genuinely ambiguous choice, a
+caller-proposed scope, a policy-changing switch, or destructive cleanup.
+
 A workspace may retain multiple independently approved attachments, but one
 task resolves to zero or one selected asset. Conflicts ask; this source
 candidate does not silently combine assets or define an explicit composition
@@ -172,11 +182,12 @@ with the selected attachment ID, the task and plan digests from that response,
 and `--selection-approved`. The resolver rechecks every bound fact and returns
 `load` only for that attachment; any drift rejects the continuation. This
 approval is consumed for this task only, does not change stored scope, and is
-not reused for a later task. If the task itself contains the exact attachment
-ID or asset ID, that explicit naming can serve as the one-task selection
-without a prior plan, but the task digest, Host root, and approval remain
-mandatory. A generic `kdna load <file>` is an explicit-file operation and is
-not a workspace-selection continuation: a Host must not use it to bypass the
+not reused for a later task. If the task itself contains the complete canonical
+attachment ID at a strict token boundary, that exact naming can serve as the
+one-task selection without a prior plan; an asset-ID substring never can. The
+task digest, Host root, and approval remain mandatory. A generic
+`kdna load <file>` is an explicit-file operation and is not a
+workspace-selection continuation: a Host must not use it to bypass the
 attachment record or adoption controls.
 
 ```bash
@@ -203,7 +214,28 @@ ask for structured intent; this resolver does not claim to understand arbitrary
 natural language. Scope metadata is evaluated before snapshot authorization or
 integrity only to exclude an explicitly out-of-scope attachment; the closed
 attachment record schema is still validated first, and every possible load/ask
-candidate receives full checks.
+candidate receives full identity and integrity checks. Authorization is
+reported per candidate but is required only after one candidate is selected;
+an unauthorized candidate cannot prevent selection of another verified public
+candidate.
+
+`switch` is a policy change, not an asset-path edit. It requires a preview or
+an already explicit user instruction covering the new asset and exact
+role/scope. `--retain-scope` means the user explicitly reviewed reuse of the
+same hints for the new asset; reuse is never implicit. The preview binds old
+and new asset identity, version, digest, role, scope, authorization nature, and
+workspace. Rollback restores the complete previous asset and policy metadata.
+The earlier unreleased attachment schema `0.1.0` is intentionally rejected;
+evaluators re-attach under `0.2.0` rather than silently reinterpret incomplete
+history.
+
+```bash
+node ./src/cli.js switch att_<id> ./replacement.kdna \
+  --cwd ./my-project --retain-scope --preview
+node ./src/cli.js switch att_<id> ./replacement.kdna \
+  --cwd ./my-project --retain-scope --yes \
+  --consent-digest sha256:<digest-from-preview>
+```
 
 ## Closed release surface
 
@@ -263,6 +295,13 @@ Shared schemas, conformance vectors, and protocol documents live in
 [`aikdna/kdna`](https://github.com/aikdna/kdna), including LoadPlan and Runtime
 Capsule contracts. Published coordinates retain their own contracts;
 unpublished corrective source must not be described as already released.
+
+Protected assets are an optional authorization gate, not a requirement for
+every KDNA. A user-facing Host may obtain authorization from explicit password
+input, a system-secure store, or a Host authorization provider and must keep
+the secret off argv and ordinary logs. The private `pass` tool used by some
+project maintainers is not a product dependency and is never required of
+ordinary users.
 
 ## License
 

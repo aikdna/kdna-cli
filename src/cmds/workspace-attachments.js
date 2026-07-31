@@ -151,18 +151,25 @@ function readAttachmentInput() {
     } catch {
       inputError('Attachment stdin must be strict UTF-8 JSON.');
     }
+    const keys =
+      value && typeof value === 'object' && !Array.isArray(value) ? Object.keys(value).sort() : [];
+    const allowedKeys = new Set(['role', 'applies_to', 'does_not_apply_to', 'scope_mode']);
     if (
       !value ||
       typeof value !== 'object' ||
       Array.isArray(value) ||
-      Object.keys(value).sort().join(',') !==
-        ['applies_to', 'does_not_apply_to', 'role'].sort().join(',') ||
+      keys.some((key) => !allowedKeys.has(key)) ||
+      !keys.includes('role') ||
+      !keys.includes('applies_to') ||
+      !keys.includes('does_not_apply_to') ||
       typeof value.role !== 'string' ||
       !Array.isArray(value.applies_to) ||
-      !Array.isArray(value.does_not_apply_to)
+      !Array.isArray(value.does_not_apply_to) ||
+      (value.scope_mode !== undefined &&
+        !['task_hints', 'all_workspace'].includes(value.scope_mode))
     ) {
       inputError(
-        'Attachment stdin must contain exactly role, applies_to, and does_not_apply_to.',
+        'Attachment stdin must contain role, applies_to, does_not_apply_to, and optional scope_mode.',
       );
     }
     return value;
@@ -205,6 +212,7 @@ function cmdAttach(args) {
       '--role',
       '--applies-to',
       '--does-not-apply-to',
+      '--all-workspace',
       '--attachment-stdin',
       '--yes',
       '--preview',
@@ -214,18 +222,20 @@ function cmdAttach(args) {
   );
   if (parsed.positional.length !== 1) {
     inputError(
-      'Usage: kdna attach <file.kdna> [--cwd <workspace>] (--attachment-stdin | --role <text> --applies-to <text> --does-not-apply-to <text>) [--preview | (--yes (--scope-user-approved | --consent-digest <sha256:...>))]',
+      'Usage: kdna attach <file.kdna> [--cwd <workspace>] (--attachment-stdin | [--role <text>] (--applies-to <text>... | --all-workspace) [--does-not-apply-to <text>...]) [--preview | (--yes (--scope-user-approved | --consent-digest <sha256:...>))]',
     );
   }
   const attachmentStdin = parsed.has('--attachment-stdin');
   const argumentRole = parsed.one('--role');
   const argumentAppliesTo = parsed.many('--applies-to');
   const argumentDoesNotApplyTo = parsed.many('--does-not-apply-to');
+  const allWorkspace = parsed.has('--all-workspace');
   if (
     attachmentStdin &&
     (argumentRole !== null ||
       argumentAppliesTo.length > 0 ||
-      argumentDoesNotApplyTo.length > 0)
+      argumentDoesNotApplyTo.length > 0 ||
+      allWorkspace)
   ) {
     inputError('Attachment stdin and role/scope argv options are mutually exclusive.');
   }
@@ -235,6 +245,7 @@ function cmdAttach(args) {
         role: argumentRole,
         applies_to: argumentAppliesTo,
         does_not_apply_to: argumentDoesNotApplyTo,
+        scope_mode: allWorkspace ? 'all_workspace' : 'task_hints',
       };
   const previewOnly = parsed.has('--preview');
   const yes = parsed.has('--yes');
@@ -259,6 +270,7 @@ function cmdAttach(args) {
     role: attachmentInput.role,
     appliesTo: attachmentInput.applies_to,
     doesNotApplyTo: attachmentInput.does_not_apply_to,
+    scopeApplication: attachmentInput.scope_mode || 'task_hints',
     scopeApproval: scopeUserApproved ? 'user_explicit' : 'preview_confirmed',
     previewOnly,
     expectedConsentDigest: consentDigest === null ? undefined : consentDigest,
@@ -359,11 +371,67 @@ function cmdSetState(args, state) {
 }
 
 function cmdSwitch(args) {
-  const parsed = parseArgs(args, new Set(['--cwd', '--workspace-root', '--yes']));
+  const parsed = parseArgs(
+    args,
+    new Set([
+      '--cwd',
+      '--workspace-root',
+      '--role',
+      '--applies-to',
+      '--does-not-apply-to',
+      '--all-workspace',
+      '--attachment-stdin',
+      '--retain-scope',
+      '--preview',
+      '--yes',
+      '--scope-user-approved',
+      '--consent-digest',
+    ]),
+  );
   if (parsed.positional.length !== 2) {
     inputError(
-      'Usage: kdna switch <attachment-id> <file.kdna> [--cwd <start>] [--workspace-root <boundary>] [--yes]',
+      'Usage: kdna switch <attachment-id> <file.kdna> [--cwd <start>] [--workspace-root <boundary>] (--retain-scope | --attachment-stdin | [--role <text>] (--applies-to <text>... | --all-workspace) [--does-not-apply-to <text>...]) [--preview | (--yes (--scope-user-approved | --consent-digest <sha256:...>))]',
     );
+  }
+  const attachmentStdin = parsed.has('--attachment-stdin');
+  const retainScope = parsed.has('--retain-scope');
+  const argumentRole = parsed.one('--role');
+  const argumentAppliesTo = parsed.many('--applies-to');
+  const argumentDoesNotApplyTo = parsed.many('--does-not-apply-to');
+  const allWorkspace = parsed.has('--all-workspace');
+  const hasArgumentPolicy =
+    argumentRole !== null ||
+    argumentAppliesTo.length > 0 ||
+    argumentDoesNotApplyTo.length > 0 ||
+    allWorkspace;
+  if (Number(attachmentStdin) + Number(retainScope) + Number(hasArgumentPolicy) !== 1) {
+    inputError(
+      'Switch requires exactly one reviewed policy source: --retain-scope, --attachment-stdin, or role/scope argv options.',
+    );
+  }
+  const attachmentInput = attachmentStdin
+    ? readAttachmentInput()
+    : {
+        role: argumentRole,
+        applies_to: argumentAppliesTo,
+        does_not_apply_to: argumentDoesNotApplyTo,
+        scope_mode: allWorkspace ? 'all_workspace' : 'task_hints',
+      };
+  const previewOnly = parsed.has('--preview');
+  const yes = parsed.has('--yes');
+  const scopeUserApproved = parsed.has('--scope-user-approved');
+  const consentDigest = parsed.one('--consent-digest');
+  if (
+    (previewOnly && (yes || scopeUserApproved || consentDigest !== null)) ||
+    (yes && scopeUserApproved === Boolean(consentDigest)) ||
+    (!yes && (scopeUserApproved || consentDigest !== null))
+  ) {
+    inputError(
+      'Switch requires either --preview, interactive confirmation, --yes --scope-user-approved, or --yes --consent-digest <preview digest>.',
+    );
+  }
+  if (consentDigest !== null && !/^sha256:[0-9a-f]{64}$/u.test(consentDigest)) {
+    inputError('--consent-digest must be a lowercase SHA-256 digest.');
   }
   const cwd = parsed.one('--cwd', process.cwd());
   const result = switchWorkspaceAttachment({
@@ -371,8 +439,26 @@ function cmdSwitch(args) {
     workspaceRoot: parsed.one('--workspace-root'),
     attachmentId: parsed.positional[0],
     sourcePath: parsed.positional[1],
-    approve: approvalCallback(parsed.has('--yes')),
+    role: attachmentInput.role,
+    appliesTo: attachmentInput.applies_to,
+    doesNotApplyTo: attachmentInput.does_not_apply_to,
+    scopeApplication: attachmentInput.scope_mode || 'task_hints',
+    retainPolicy: retainScope,
+    scopeApproval: scopeUserApproved ? 'user_explicit' : 'preview_confirmed',
+    previewOnly,
+    expectedConsentDigest: consentDigest === null ? undefined : consentDigest,
+    approve: approvalCallback(yes),
   });
+  if (previewOnly) {
+    printJson({
+      operation: 'switch',
+      mode: 'preview',
+      workspace_root: displayRoot(cwd, result.workspace_root),
+      confirmation_required: true,
+      preview: result.preview,
+    });
+    return;
+  }
   mutationOutput('switch', cwd, result);
 }
 

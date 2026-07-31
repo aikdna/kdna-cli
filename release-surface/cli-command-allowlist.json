@@ -5,7 +5,7 @@
     {
       "command": "attach",
       "usage": "attach <file.kdna> --cwd <workspace> --attachment-stdin [--preview | (--yes (--scope-user-approved | --consent-digest <sha256:...>))]",
-      "purpose": "Approve one explicit asset snapshot and its user-authorized routing hints for a workspace."
+      "purpose": "Approve one exact asset and an executable positive or explicit all-workspace scope, with optional exclusions, for one workspace."
     },
     {
       "command": "attachments",
@@ -29,13 +29,13 @@
     },
     {
       "command": "switch",
-      "usage": "switch <attachment-id> <file.kdna> [--cwd <start>] [--workspace-root <boundary>]",
-      "purpose": "Approve an explicit replacement for one workspace attachment."
+      "usage": "switch <attachment-id> <file.kdna> [--cwd <start>] [--workspace-root <boundary>] (--retain-scope | --attachment-stdin | <reviewed-scope>) [--preview | (--yes (--scope-user-approved | --consent-digest <sha256:...>))]",
+      "purpose": "Approve one exact replacement together with its reviewed role, scope, authorization facts, and rollback policy."
     },
     {
       "command": "rollback",
       "usage": "rollback <attachment-id> [--cwd <start>] [--workspace-root <boundary>]",
-      "purpose": "Restore the preceding snapshot for one workspace attachment."
+      "purpose": "Restore the preceding exact asset and complete approved policy for one workspace attachment."
     },
     {
       "command": "remove",
