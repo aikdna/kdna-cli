@@ -16,7 +16,10 @@ test('current CLI narrative remains file-first and user-authorized', () => {
   const skill = read('skills/kdna-loader/SKILL.md');
 
   assert.match(readme, /one explicit file/i);
-  assert.match(readme, /Saving, discovery, attachment, authorization, applicability, and loading are\s+separate events/);
+  assert.match(
+    readme,
+    /Saving, discovery, attachment, authorization, applicability, and loading are\s+separate events/,
+  );
   assert.match(skill, /Do not discover, install, auto-select, or silently apply assets/);
   assert.match(skill, /active asset identity/);
 });
@@ -28,16 +31,24 @@ test('published quick start does not imply unreleased workspace commands are npm
   const firstWorkspaceCommand = readme.indexOf('node ./src/cli.js attach');
 
   assert.ok(publishedInstall >= 0, 'published install command must remain visible');
-  assert.ok(candidateBoundary > publishedInstall, 'candidate boundary must follow the published install');
-  assert.ok(firstWorkspaceCommand > candidateBoundary, 'workspace commands must follow the candidate boundary');
+  assert.ok(
+    candidateBoundary > publishedInstall,
+    'candidate boundary must follow the published install',
+  );
+  assert.ok(
+    firstWorkspaceCommand > candidateBoundary,
+    'workspace commands must follow the candidate boundary',
+  );
   assert.doesNotMatch(
     readme.slice(publishedInstall, candidateBoundary),
     /\bkdna (?:attach|attachments|resolve|disable|enable|switch|rollback|remove)\b/,
   );
   assert.match(readme, /registry `latest` release is `0\.35\.1`/);
   assert.match(readme, /not the npm `latest` surface/);
-  assert.match(readme, /detach at the fetched commit, record\s+that exact HEAD/i);
+  assert.match(readme, /exact candidate commit from a\s+machine-readable source receipt/i);
+  assert.match(readme, /detach at that immutable commit, verify the\s+recorded HEAD/i);
   assert.match(readme, /candidate package supplied with an exact\s+SHA-256 receipt/i);
+  assert.doesNotMatch(readme, /\bpull\/[0-9]+\/head\b|\bPR\s*#?[0-9]+\b/iu);
 });
 
 test('default authoring rubric does not require output uplift', () => {
