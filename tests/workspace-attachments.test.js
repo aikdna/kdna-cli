@@ -117,6 +117,10 @@ function resolve(root, text, options = {}) {
     workspaceRoot: options.workspaceRoot || options.cwd || root,
     taskFile,
     adapterSchema: options.adapterSchema,
+    selectedAttachmentId: options.selectedAttachmentId,
+    selectionTaskDigest: options.selectionTaskDigest,
+    selectionPlanDigest: options.selectionPlanDigest,
+    selectionApproved: options.selectionApproved,
   });
 }
 
@@ -553,6 +557,170 @@ test('multiple positive attachments and same-role disagreement ask with attachme
     doesNotApplyTo: ['draft'],
   });
   assert.equal(resolve(roleRoot, 'draft this').reason_code, 'attachment_conflict');
+});
+
+test('ask produces a bound one-task selection plan and approved continuation loads exactly one candidate', () => {
+  const root = temporaryRoot('selection-continuation');
+  const first = attach(root, buildAsset(root), { role: 'writing-one' });
+  const second = attach(root, buildAsset(root), { role: 'writing-two' });
+  const initial = resolve(root, 'draft this');
+  assert.equal(initial.decision, 'ask');
+  assert.equal(initial.candidates.length, 2);
+  assert.deepEqual(Object.keys(initial.selection_plan), [
+    'document_type',
+    'schema_version',
+    'workspace_root',
+    'task_digest',
+    'record_digest',
+    'candidate_set_digest',
+    'plan_digest',
+  ]);
+  assert.match(initial.selection_plan.task_digest, /^sha256:[0-9a-f]{64}$/u);
+  assert.match(initial.selection_plan.record_digest, /^sha256:[0-9a-f]{64}$/u);
+  assert.match(initial.selection_plan.candidate_set_digest, /^sha256:[0-9a-f]{64}$/u);
+  assert.match(initial.selection_plan.plan_digest, /^sha256:[0-9a-f]{64}$/u);
+
+  const selected = resolve(root, 'draft this', {
+    selectedAttachmentId: first.attachment.attachment_id,
+    selectionTaskDigest: initial.selection_plan.task_digest,
+    selectionPlanDigest: initial.selection_plan.plan_digest,
+    selectionApproved: true,
+  });
+  assert.equal(selected.decision, 'load');
+  assert.equal(selected.reason_code, 'explicit_task_attachment_selection');
+  assert.equal(selected.selected.attachment_id, first.attachment.attachment_id);
+  assert.equal(selected.candidates.length, 2);
+  assert.equal(selected.authorization, 'satisfied');
+  assert.equal(selected.integrity, 'verified');
+
+  const nextTask = resolve(root, 'review this code');
+  assert.notEqual(nextTask.reason_code, 'explicit_task_attachment_selection');
+  assert.equal(nextTask.decision, 'skip');
+  const replayForNextTask = resolve(root, 'review this code', {
+    selectedAttachmentId: first.attachment.attachment_id,
+    selectionTaskDigest: initial.selection_plan.task_digest,
+    selectionPlanDigest: initial.selection_plan.plan_digest,
+    selectionApproved: true,
+  });
+  assert.equal(replayForNextTask.decision, 'block');
+  assert.equal(replayForNextTask.reason_code, 'selection_binding_changed');
+  assert.notEqual(first.attachment.attachment_id, second.attachment.attachment_id);
+});
+
+test('selection continuation rejects task, record, asset, and candidate-set drift', () => {
+  const makeConflict = (label) => {
+    const root = temporaryRoot(label);
+    const first = attach(root, buildAsset(root), { role: `${label}-one` });
+    attach(root, buildAsset(root), { role: `${label}-two` });
+    const initial = resolve(root, 'draft this');
+    assert.equal(initial.decision, 'ask');
+    return { root, first, initial };
+  };
+  const selectionOptions = ({ first, initial }) => ({
+    selectedAttachmentId: first.attachment.attachment_id,
+    selectionTaskDigest: initial.selection_plan.task_digest,
+    selectionPlanDigest: initial.selection_plan.plan_digest,
+    selectionApproved: true,
+  });
+
+  const taskDrift = makeConflict('selection-task-drift');
+  let result = resolve(taskDrift.root, 'draft something else', selectionOptions(taskDrift));
+  assert.equal(result.decision, 'block');
+  assert.equal(result.reason_code, 'selection_binding_changed');
+
+  const recordDrift = makeConflict('selection-record-drift');
+  const changed = readRecord(recordDrift.root);
+  changed.attachments[0].role = 'changed-after-user-saw-plan';
+  writeJson(recordPath(recordDrift.root), changed);
+  result = resolve(recordDrift.root, 'draft this', selectionOptions(recordDrift));
+  assert.equal(result.decision, 'block');
+  assert.equal(result.reason_code, 'selection_binding_changed');
+
+  const assetDrift = makeConflict('selection-asset-drift');
+  const snapshot = path.join(
+    assetDrift.root,
+    '.kdna',
+    ...assetDrift.first.attachment.asset.snapshot.split('/'),
+  );
+  fs.appendFileSync(snapshot, 'drift');
+  result = resolve(assetDrift.root, 'draft this', selectionOptions(assetDrift));
+  assert.equal(result.decision, 'block');
+  assert.equal(result.reason_code, 'snapshot_digest_mismatch');
+
+  const candidateDrift = makeConflict('selection-candidate-drift');
+  attach(candidateDrift.root, buildAsset(candidateDrift.root), { role: 'third-candidate' });
+  result = resolve(candidateDrift.root, 'draft this', selectionOptions(candidateDrift));
+  assert.equal(result.decision, 'block');
+  assert.equal(result.reason_code, 'selection_binding_changed');
+});
+
+test('explicit attachment naming and cross-language scope variation have a safe one-task exit', () => {
+  const root = temporaryRoot('selection-language-variation');
+  const first = attach(root, buildAsset(root), {
+    role: 'article-writing',
+    appliesTo: ['article writing'],
+    doesNotApplyTo: ['code editing'],
+  });
+  attach(root, buildAsset(root), {
+    role: 'headline-writing',
+    appliesTo: ['article writing'],
+    doesNotApplyTo: ['code editing'],
+  });
+  const chineseTask = '写一篇推文';
+  const initial = resolve(root, chineseTask);
+  assert.equal(initial.decision, 'ask');
+  const selected = resolve(root, chineseTask, {
+    selectedAttachmentId: first.attachment.attachment_id,
+    selectionTaskDigest: initial.selection_plan.task_digest,
+    selectionPlanDigest: initial.selection_plan.plan_digest,
+    selectionApproved: true,
+  });
+  assert.equal(selected.decision, 'load');
+  assert.equal(selected.selected.attachment_id, first.attachment.attachment_id);
+
+  const exactTask = `For this task, use attachment ${first.attachment.attachment_id}.`;
+  const exactDigest = sha256(Buffer.from(exactTask, 'utf8'));
+  const exact = resolve(root, exactTask, {
+    selectedAttachmentId: first.attachment.attachment_id,
+    selectionTaskDigest: exactDigest,
+    selectionApproved: true,
+  });
+  assert.equal(exact.decision, 'load');
+  assert.equal(exact.reason_code, 'explicit_task_attachment_selection');
+});
+
+test('one-task selection requires explicit Host root, exact task digest, approval, and ask receipt', () => {
+  const root = temporaryRoot('selection-input');
+  const first = attach(root, buildAsset(root), { role: 'one' });
+  attach(root, buildAsset(root), { role: 'two' });
+  const initial = resolve(root, 'draft this');
+  const taskFile = writeTask(root, 'draft this');
+  assert.throws(
+    () =>
+      resolveWorkspace({
+        cwd: root,
+        taskFile,
+        selectedAttachmentId: first.attachment.attachment_id,
+        selectionTaskDigest: initial.selection_plan.task_digest,
+        selectionApproved: true,
+      }),
+    /explicit workspace root/u,
+  );
+  const missingReceipt = resolve(root, 'draft this', {
+    selectedAttachmentId: first.attachment.attachment_id,
+    selectionTaskDigest: initial.selection_plan.task_digest,
+    selectionApproved: true,
+  });
+  assert.equal(missingReceipt.decision, 'block');
+  assert.equal(missingReceipt.reason_code, 'selection_receipt_required');
+  assert.throws(
+    () =>
+      resolve(root, 'draft this', {
+        selectedAttachmentId: first.attachment.attachment_id,
+        selectionTaskDigest: initial.selection_plan.task_digest,
+      }),
+    /explicit approval/u,
+  );
 });
 
 test('in-scope protected or remote assets block when authorization is not satisfied', () => {
@@ -1601,6 +1769,29 @@ test('plain public asset completes one-shot, multi-attachment selection, and rev
   assert.equal(resolution.reason_code, 'attachment_conflict');
   assert.equal(resolution.selected, null);
   assert.equal(resolution.candidates.length, 2);
+  result = runCli(
+    [
+      'resolve',
+      '--cwd',
+      root,
+      '--workspace-root',
+      root,
+      '--task-stdin',
+      '--select-attachment',
+      firstId,
+      '--selection-task-digest',
+      resolution.selection_plan.task_digest,
+      '--selection-plan-digest',
+      resolution.selection_plan.plan_digest,
+      '--selection-approved',
+    ],
+    { input: 'draft this' },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  resolution = JSON.parse(result.stdout);
+  assert.equal(resolution.decision, 'load');
+  assert.equal(resolution.reason_code, 'explicit_task_attachment_selection');
+  assert.equal(resolution.selected.attachment_id, firstId);
 
   assert.equal(runCli(['disable', secondId, '--cwd', root]).status, 0);
   result = runCli(['resolve', '--cwd', root, '--task-file', task]);
