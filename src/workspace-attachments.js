@@ -20,6 +20,7 @@ const MAX_SCOPE_TERMS = 256;
 const MAX_TEXT_LENGTH = 4096;
 const ATTACHMENT_ID_PATTERN = /^att_[0-9a-f]{24}$/;
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
+const SNAPSHOT_FILE_PATTERN = /^sha256-([0-9a-f]{64})\.kdna$/;
 const UTC_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const GITIGNORE_PATTERNS = Object.freeze([
   '/assets/',
@@ -835,9 +836,146 @@ function removeWorkspaceAttachment(options) {
       record.attachments = record.attachments.filter(
         (item) => item.attachment_id !== attachment.attachment_id,
       );
-      return { workspace_root: workspace.root, removed: attachment };
+      const retainedSnapshotCount = fs
+        .readdirSync(workspace.paths.assetsDirectory, { withFileTypes: true })
+        .filter((entry) => !entry.name.startsWith('.snapshot-')).length;
+      return {
+        workspace_root: workspace.root,
+        attachment_removed: true,
+        removed_attachment: attachment,
+        snapshot_retained: {
+          count: retainedSnapshotCount,
+          reason:
+            'remove_preserves_workspace_snapshots_for_other_references_and_explicit_cleanup',
+        },
+      };
     },
   );
+}
+
+function referencedSnapshotPaths(record) {
+  const referenced = new Set();
+  for (const attachment of record.attachments) {
+    referenced.add(attachment.asset.snapshot);
+    for (const history of attachment.history) referenced.add(history.asset.snapshot);
+  }
+  return referenced;
+}
+
+function inspectCleanupCandidates(paths, record) {
+  const referenced = referencedSnapshotPaths(record);
+  const eligible = [];
+  const retained = [];
+  const entries = fs.readdirSync(paths.assetsDirectory, { withFileTypes: true });
+  for (const entry of entries) {
+    const absolute = path.join(paths.assetsDirectory, entry.name);
+    const stat = fs.lstatSync(absolute);
+    if (stat.isSymbolicLink() || !stat.isFile()) {
+      fail(
+        'cleanup_unsafe_path',
+        'Workspace snapshot cleanup requires every storage entry to be a regular non-symlink file.',
+      );
+    }
+    const match = entry.name.match(SNAPSHOT_FILE_PATTERN);
+    if (!match) {
+      retained.push({ name: entry.name, reason: 'unrecognized_storage_entry' });
+      continue;
+    }
+    const relative = `assets/${entry.name}`;
+    const expectedDigest = `sha256:${match[1]}`;
+    const bytes = safeReadRegular(absolute, 256 * 1024 * 1024, 'Workspace cleanup snapshot');
+    if (sha256(bytes) !== expectedDigest) {
+      fail(
+        'snapshot_digest_mismatch',
+        'Workspace cleanup snapshot digest differs from its managed filename.',
+      );
+    }
+    if (referenced.has(relative)) {
+      retained.push({ name: entry.name, reason: 'attachment_or_rollback_reference' });
+    } else {
+      eligible.push({ name: entry.name, digest: expectedDigest, absolute });
+    }
+  }
+  return { eligible, retained };
+}
+
+function cleanupWorkspaceSnapshots(options) {
+  const workspace = findWorkspace(options.cwd);
+  if (!workspace.root) fail('attachment_not_found', 'No workspace attachment record was found.');
+  return withWorkspaceLock(workspace.paths, () => {
+    const record = readRecord(workspace.paths);
+    const recordBefore = safeReadRegular(
+      workspace.paths.record,
+      MAX_RECORD_BYTES,
+      'Workspace attachment record',
+    );
+    const inspection = inspectCleanupCandidates(workspace.paths, record);
+    const execute = options.execute === true;
+    const deletedDigests = [];
+    if (execute) {
+      for (const candidate of inspection.eligible) {
+        const before = fs.lstatSync(candidate.absolute);
+        if (before.isSymbolicLink() || !before.isFile()) {
+          fail('cleanup_unsafe_path', 'Workspace cleanup candidate changed before deletion.');
+        }
+        const bytes = safeReadRegular(
+          candidate.absolute,
+          256 * 1024 * 1024,
+          'Workspace cleanup snapshot',
+        );
+        if (sha256(bytes) !== candidate.digest) {
+          fail('snapshot_digest_mismatch', 'Workspace cleanup candidate changed before deletion.');
+        }
+        const after = fs.lstatSync(candidate.absolute);
+        if (
+          before.dev !== after.dev ||
+          before.ino !== after.ino ||
+          before.size !== after.size ||
+          before.mtimeMs !== after.mtimeMs ||
+          before.ctimeMs !== after.ctimeMs
+        ) {
+          fail('cleanup_unsafe_path', 'Workspace cleanup candidate changed before deletion.');
+        }
+      }
+      const recordImmediatelyBeforeDelete = safeReadRegular(
+        workspace.paths.record,
+        MAX_RECORD_BYTES,
+        'Workspace attachment record',
+      );
+      if (!recordBefore.equals(recordImmediatelyBeforeDelete)) {
+        fail('workspace_binding_changed', 'Workspace attachment record changed during cleanup.');
+      }
+      for (const candidate of inspection.eligible) {
+        fs.unlinkSync(candidate.absolute);
+        deletedDigests.push(candidate.digest);
+      }
+      fsyncDirectory(workspace.paths.assetsDirectory);
+    }
+
+    const retainedReasonCounts = {};
+    for (const entry of inspection.retained) {
+      retainedReasonCounts[entry.reason] = (retainedReasonCounts[entry.reason] || 0) + 1;
+    }
+    return {
+      workspace_root: workspace.root,
+      mode: execute ? 'execute' : 'preview',
+      attachment_record_changed: false,
+      eligible_snapshot_count: inspection.eligible.length,
+      deleted_snapshot_count: deletedDigests.length,
+      deleted_snapshot_digests: deletedDigests,
+      retained_snapshot_count:
+        inspection.retained.length + (execute ? 0 : inspection.eligible.length),
+      retained_reason_counts: {
+        ...retainedReasonCounts,
+        ...(execute || inspection.eligible.length === 0
+          ? {}
+          : { awaiting_explicit_cleanup: inspection.eligible.length }),
+      },
+      projection_cache_deleted_count: 0,
+      projection_cache_retained_count: 0,
+      projection_cache_reason: 'no_workspace_projection_cache_surface',
+    };
+  });
 }
 
 function candidateFor(attachment) {
@@ -1047,6 +1185,7 @@ module.exports = {
   SCHEMA_VERSION,
   WorkspaceAttachmentError,
   attachWorkspace,
+  cleanupWorkspaceSnapshots,
   emptyRecord,
   findWorkspace,
   inspectPreparedAsset,

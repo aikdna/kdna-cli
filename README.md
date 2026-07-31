@@ -79,6 +79,7 @@ callers must provide it explicitly.
 | `kdna resolve`                        | Return `load`, `ask`, `skip`, or `block` without projecting content |
 | `kdna disable` / `enable`             | Retain an attachment while controlling eligibility                  |
 | `kdna switch` / `rollback` / `remove` | Replace, restore, or remove only the workspace relation             |
+| `kdna cleanup`                        | Preview or explicitly delete only unreferenced workspace snapshots  |
 
 Successful loading proves technical delivery of a named projection. It does
 not prove that an Agent followed the judgment or that the result became better.
@@ -122,8 +123,14 @@ and a process-bound capability registration; it never resolves a package name
 or consults a global Store. Development and historical modules that remain in
 the source repository are not callable and are not distributed.
 
-`remove` means only removal of one workspace attachment relation. It never
-selects a package by name and never deletes an immutable asset snapshot.
+`remove` means only removal of one workspace attachment relation. Its JSON
+distinguishes `attachment_removed` from `snapshot_retained` and reports the
+retained count and reason; it never implies that private asset bytes were
+deleted. `cleanup` is the separate explicit storage action: without `--yes` it
+only previews eligible and retained counts, and with `--yes` it deletes only
+unreferenced workspace snapshots. It never selects a package by name, touches
+the source file or attachment record, removes rollback-referenced bytes, or
+runs as automatic garbage collection.
 
 ## Authoring
 

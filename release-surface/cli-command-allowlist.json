@@ -40,7 +40,12 @@
     {
       "command": "remove",
       "usage": "remove <attachment-id>",
-      "purpose": "Remove only one workspace attachment relation."
+      "purpose": "Remove one relation while explicitly reporting retained snapshots."
+    },
+    {
+      "command": "cleanup",
+      "usage": "cleanup",
+      "purpose": "Preview or explicitly delete only unreferenced workspace snapshots."
     },
     {
       "command": "inspect",

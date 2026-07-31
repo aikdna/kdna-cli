@@ -41,7 +41,7 @@ test('published quick start does not imply unreleased workspace commands are npm
   );
   assert.doesNotMatch(
     readme.slice(publishedInstall, candidateBoundary),
-    /\bkdna (?:attach|attachments|resolve|disable|enable|switch|rollback|remove)\b/,
+    /\bkdna (?:attach|attachments|resolve|disable|enable|switch|rollback|remove|cleanup)\b/,
   );
   assert.match(readme, /registry `latest` release is `0\.35\.1`/);
   assert.match(readme, /not the npm `latest` surface/);

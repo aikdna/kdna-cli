@@ -17,6 +17,7 @@ const {
   WorkspaceCommandInputError,
   cmdAttach,
   cmdAttachments,
+  cmdCleanup,
   cmdRemove,
   cmdResolve,
   cmdRollback,
@@ -53,6 +54,7 @@ function runWorkspaceCommand(command, args) {
 const handlers = Object.freeze({
   attach: (args) => runWorkspaceCommand(cmdAttach, args),
   attachments: (args) => runWorkspaceCommand(cmdAttachments, args),
+  cleanup: (args) => runWorkspaceCommand(cmdCleanup, args),
   resolve: (args) => runWorkspaceCommand(cmdResolve, args),
   disable: (args) =>
     runWorkspaceCommand((commandArgs) => cmdSetState(commandArgs, 'disabled'), args),

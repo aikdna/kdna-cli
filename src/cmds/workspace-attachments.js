@@ -6,6 +6,7 @@ const path = require('node:path');
 const {
   WorkspaceAttachmentError,
   attachWorkspace,
+  cleanupWorkspaceSnapshots,
   listWorkspaceAttachments,
   removeWorkspaceAttachment,
   resolveWorkspace,
@@ -119,7 +120,11 @@ function mutationOutput(operation, cwd, result) {
     workspace_root: displayRoot(cwd, result.workspace_root),
   };
   if (result.attachment) output.attachment = result.attachment;
-  if (result.removed) output.removed = result.removed;
+  if (result.attachment_removed !== undefined) {
+    output.attachment_removed = result.attachment_removed;
+  }
+  if (result.removed_attachment) output.removed_attachment = result.removed_attachment;
+  if (result.snapshot_retained) output.snapshot_retained = result.snapshot_retained;
   printJson(output);
 }
 
@@ -229,11 +234,40 @@ function cmdRemove(args) {
   mutationOutput('remove', cwd, result);
 }
 
+function cmdCleanup(args) {
+  const parsed = parseArgs(args, new Set(['--cwd', '--yes']));
+  if (parsed.positional.length !== 0) {
+    inputError('Usage: kdna cleanup [--cwd <workspace>] [--yes]');
+  }
+  const cwd = parsed.one('--cwd', process.cwd());
+  const result = cleanupWorkspaceSnapshots({
+    cwd,
+    execute: parsed.has('--yes'),
+  });
+  printJson({
+    operation: 'cleanup',
+    workspace_root: displayRoot(cwd, result.workspace_root),
+    mode: result.mode,
+    confirmation_required:
+      result.mode === 'preview' && result.eligible_snapshot_count > 0,
+    attachment_record_changed: result.attachment_record_changed,
+    eligible_snapshot_count: result.eligible_snapshot_count,
+    deleted_snapshot_count: result.deleted_snapshot_count,
+    deleted_snapshot_digests: result.deleted_snapshot_digests,
+    retained_snapshot_count: result.retained_snapshot_count,
+    retained_reason_counts: result.retained_reason_counts,
+    projection_cache_deleted_count: result.projection_cache_deleted_count,
+    projection_cache_retained_count: result.projection_cache_retained_count,
+    projection_cache_reason: result.projection_cache_reason,
+  });
+}
+
 module.exports = {
   WorkspaceAttachmentError,
   WorkspaceCommandInputError,
   cmdAttach,
   cmdAttachments,
+  cmdCleanup,
   cmdRemove,
   cmdResolve,
   cmdRollback,
