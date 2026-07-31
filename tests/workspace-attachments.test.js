@@ -322,8 +322,61 @@ test('scope hints use deterministic token boundaries, normalized roles, and expl
     appliesTo: ['文章起草'],
     doesNotApplyTo: [],
   });
-  assert.equal(resolve(cjkRoot, '请完成“文章起草”。').decision, 'load');
+  assert.equal(resolve(cjkRoot, '请完成文章起草。').decision, 'load');
+  assert.equal(resolve(cjkRoot, '请解释“文章起草”这个标签。').decision, 'ask');
   assert.equal(resolve(cjkRoot, '请检查文章。').decision, 'ask');
+});
+
+test('negation, quotation, broad hints, and contrastive clauses never auto-load', () => {
+  const ordinary = temporaryRoot('scope-clear-phrase');
+  attach(ordinary, buildAsset(ordinary), {
+    appliesTo: ['draft article'],
+    doesNotApplyTo: [],
+  });
+  assert.equal(resolve(ordinary, 'Please draft article now.').decision, 'load');
+  for (const task of [
+    'Do not draft article; only edit code.',
+    'Do not draft an article; only edit code.',
+    'Discuss whether "draft article" is a useful label.',
+  ]) {
+    const result = resolve(ordinary, task);
+    assert.equal(result.decision, 'ask');
+    assert.equal(result.reason_code, 'ambiguous_scope');
+  }
+
+  for (const term of ['go', 'work']) {
+    const root = temporaryRoot('scope-broad-term');
+    attach(root, buildAsset(root), { appliesTo: [term], doesNotApplyTo: [] });
+    assert.equal(resolve(root, `Please ${term} now.`).decision, 'ask');
+  }
+
+  const contrasted = temporaryRoot('scope-contrast');
+  attach(contrasted, buildAsset(contrasted), {
+    appliesTo: ['draft'],
+    doesNotApplyTo: ['code'],
+  });
+  const multiClause = resolve(contrasted, 'Draft this; but only edit code.');
+  assert.equal(multiClause.decision, 'ask');
+  assert.equal(multiClause.reason_code, 'ambiguous_scope');
+
+  const cjk = temporaryRoot('scope-cjk-negation');
+  attach(cjk, buildAsset(cjk), {
+    appliesTo: ['写文章'],
+    doesNotApplyTo: [],
+  });
+  assert.equal(resolve(cjk, '请写文章。').decision, 'load');
+  for (const task of ['不要写文章，只改代码。', '请讨论“写文章”这个标签。']) {
+    const result = resolve(cjk, task);
+    assert.equal(result.decision, 'ask');
+    assert.equal(result.reason_code, 'ambiguous_scope');
+  }
+
+  const shortCjk = temporaryRoot('scope-cjk-short');
+  attach(shortCjk, buildAsset(shortCjk), {
+    appliesTo: ['文章'],
+    doesNotApplyTo: [],
+  });
+  assert.equal(resolve(shortCjk, '处理文章。').decision, 'ask');
 });
 
 test('multiple positive attachments and same-role disagreement ask with attachment_conflict', () => {

@@ -64,6 +64,14 @@ test('workspace narrative requires a bounded Host root and rejects home authorit
   assert.match(resolve.purpose, /explicit Host workspace boundary/);
 });
 
+test('scope narrative does not present phrase matching as natural-language understanding', () => {
+  const readme = read('README.md');
+  assert.match(readme, /negation, quotation or meta-discussion/);
+  assert.match(readme, /contrastive multi-clause task/);
+  assert.match(readme, /overly short or broad hint/);
+  assert.match(readme, /does not claim to understand arbitrary\s+natural language/);
+});
+
 test('default authoring rubric does not require output uplift', () => {
   const rubric = read('templates/standard-domain/evals/scoring.json');
   const template = read('templates/standard-domain/README.md');

@@ -106,24 +106,67 @@ function normalizedPhrase(value) {
   return String(value).normalize('NFKC').trim().replace(/\s+/gu, ' ').toLocaleLowerCase('und');
 }
 
-function scopeTermMatches(task, term) {
+function scopeTermAssessment(task, term) {
   const normalizedTask = normalizedPhrase(task);
   const normalizedTerm = normalizedPhrase(term);
   if (
     /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(normalizedTerm)
   ) {
     const cjkComparable = (value) => value.replace(/[\p{P}\p{Z}\s]+/gu, '');
-    return cjkComparable(normalizedTask).includes(cjkComparable(normalizedTerm));
+    const comparableTask = cjkComparable(normalizedTask);
+    const comparableTerm = cjkComparable(normalizedTerm);
+    const start = comparableTask.indexOf(comparableTerm);
+    if (start < 0) return { matched: false, uncertain: false };
+    const preceding = comparableTask.slice(Math.max(0, start - 6), start);
+    const uncertain =
+      comparableTerm.length < 3 ||
+      /(?:不要|不应|不能|不可|别|勿|禁止|避免|无需|不用)$/u.test(preceding) ||
+      /(?:讨论|解释|引用|提到|标签|词语|示例|是否)/u.test(comparableTask) ||
+      /(?:只|而不是|但|但是|不过|改为|改成)/u.test(comparableTask) ||
+      [`“${normalizedTerm}”`, `「${normalizedTerm}」`, `『${normalizedTerm}』`].some((quoted) =>
+        normalizedTask.includes(quoted),
+      );
+    return { matched: true, uncertain };
   }
   const tokens = (value) => value.match(/[\p{L}\p{N}]+/gu) || [];
   const taskTokens = tokens(normalizedTask);
   const termTokens = tokens(normalizedTerm);
-  if (termTokens.length === 0 || termTokens.length > taskTokens.length) return false;
-  return taskTokens.some(
-    (_, start) =>
-      start + termTokens.length <= taskTokens.length &&
-      termTokens.every((token, offset) => taskTokens[start + offset] === token),
+  if (termTokens.length === 0 || termTokens.length > taskTokens.length) {
+    return { matched: false, uncertain: false };
+  }
+  const start = taskTokens.findIndex(
+    (_, index) =>
+      index + termTokens.length <= taskTokens.length &&
+      termTokens.every((token, offset) => taskTokens[index + offset] === token),
   );
+  if (start < 0) return { matched: false, uncertain: false };
+  const preceding = taskTokens.slice(Math.max(0, start - 4), start);
+  const broadTerms = new Set(['all', 'any', 'general', 'help', 'task', 'thing', 'work']);
+  const uncertain =
+    (termTokens.length === 1 && (termTokens[0].length < 4 || broadTerms.has(termTokens[0]))) ||
+    preceding.some((token) => ['no', 'not', 'never', 'avoid', 'without', 'dont'].includes(token)) ||
+    taskTokens.some((token) =>
+      [
+        'discuss',
+        'explain',
+        'mention',
+        'quote',
+        'label',
+        'term',
+        'phrase',
+        'example',
+        'whether',
+      ].includes(token),
+    ) ||
+    /(?:^|[;\s])(?:but|only|instead)(?:[;\s]|$)|\brather\s+than\b/iu.test(normalizedTask) ||
+    [`"${normalizedTerm}"`, `'${normalizedTerm}'`, `“${normalizedTerm}”`].some((quoted) =>
+      normalizedTask.includes(quoted),
+    );
+  return { matched: true, uncertain };
+}
+
+function scopeTermMatches(task, term) {
+  return scopeTermAssessment(task, term).matched;
 }
 
 function validateScopeTerms(terms, label) {
@@ -1447,13 +1490,29 @@ function resolveWorkspace(options) {
   }
 
   const evaluated = enabled.map((attachment) => {
-    const positives = attachment.scope.applies_to.some((term) => scopeTermMatches(task, term));
-    const negatives = attachment.scope.does_not_apply_to.some((term) =>
-      scopeTermMatches(task, term),
+    const positiveAssessments = attachment.scope.applies_to.map((term) =>
+      scopeTermAssessment(task, term),
     );
-    return { attachment, candidate: candidateFor(attachment), positives, negatives };
+    const negativeAssessments = attachment.scope.does_not_apply_to.map((term) =>
+      scopeTermAssessment(task, term),
+    );
+    const positives = positiveAssessments.some(({ matched }) => matched);
+    const negatives = negativeAssessments.some(({ matched }) => matched);
+    const uncertain = [...positiveAssessments, ...negativeAssessments].some(
+      ({ matched, uncertain: assessmentUncertain }) => matched && assessmentUncertain,
+    );
+    return {
+      attachment,
+      candidate: candidateFor(attachment),
+      positives,
+      negatives,
+      uncertain,
+    };
   });
-  const internallyAmbiguous = evaluated.filter((item) => item.positives && item.negatives);
+  const uncertainScope = evaluated.filter((item) => item.uncertain);
+  const internallyAmbiguous = evaluated.filter(
+    (item) => item.positives && item.negatives && !item.uncertain,
+  );
   const positive = evaluated.filter((item) => item.positives && !item.negatives);
   const negative = evaluated.filter((item) => item.negatives && !item.positives);
   const unmatched = evaluated.filter((item) => !item.positives && !item.negatives);
@@ -1488,6 +1547,21 @@ function resolveWorkspace(options) {
     }
     return { verified };
   };
+
+  if (uncertainScope.length > 0) {
+    const checked = verifyScopedCandidates(
+      evaluated.filter((item) => item.positives || item.negatives),
+    );
+    if (checked.blocked) return checked.blocked;
+    return resolutionResult({
+      decision: 'ask',
+      reasonCode: 'ambiguous_scope',
+      workspaceRoot,
+      candidates: checked.verified.map((item) => item.candidate),
+      authorization: authorizationFor(checked.verified),
+      integrity: 'verified',
+    });
+  }
 
   if (internallyAmbiguous.length > 0) {
     const checked = verifyScopedCandidates(internallyAmbiguous);

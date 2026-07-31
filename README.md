@@ -122,10 +122,15 @@ user-approved scope hints, not an AI classifier for arbitrary natural
 language. Latin and numeric phrases use token boundaries, hyphens and spaces
 are normalized as phrase separators, and CJK hints use normalized explicit
 phrase matching. Near matches, word-form overlap, empty hints, and
-contradictions ask instead of auto-loading. Scope metadata is evaluated before
-snapshot authorization or integrity only to exclude an explicitly
-out-of-scope attachment; the closed attachment record schema is still validated
-first, and every possible load/ask candidate receives full checks.
+contradictions ask instead of auto-loading. A matched phrase is also treated as
+uncertain when it appears in negation, quotation or meta-discussion, a
+contrastive multi-clause task, or an overly short or broad hint. Those cases
+ask for structured intent; this resolver does not claim to understand arbitrary
+natural language. Scope metadata is evaluated before snapshot authorization or
+integrity only to exclude an explicitly out-of-scope attachment; the closed
+attachment record schema is still validated first, and every possible load/ask
+candidate receives full checks.
+
 ## Closed release surface
 
 The npm package has one executable, `kdna`, and one machine-readable top-level
