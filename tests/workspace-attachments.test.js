@@ -1040,7 +1040,7 @@ test('adapter-only deferred password authorization resolves scope without claimi
     deferPasswordAuthorization: true,
   });
   assert.equal(outsideScope.decision, 'skip');
-  assert.equal(outsideScope.reason_code, 'outside_scope');
+  assert.equal(outsideScope.reason_code, 'outside_scope_or_no_match');
   assert.equal(outsideScope.authorization, 'not_checked');
 
   const cliResult = runCli(
@@ -1076,10 +1076,7 @@ test('receipt-bound one-task selection can defer but never claim protected autho
   });
   assert.equal(deferred.decision, 'load');
   assert.equal(deferred.reason_code, 'explicit_task_attachment_selection');
-  assert.equal(
-    deferred.selected.attachment_id,
-    protectedAttachment.attachment.attachment_id,
-  );
+  assert.equal(deferred.selected.attachment_id, protectedAttachment.attachment.attachment_id);
   assert.equal(deferred.authorization, 'required');
   assert.equal(deferred.integrity, 'verified');
 });
