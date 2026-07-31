@@ -2159,7 +2159,7 @@ function resolveWorkspace(options) {
       }),
     );
   }
-  if (positive.length === 1 && unmatched.length === 0) {
+  if (positive.length === 1) {
     const checked = verifyScopedCandidates(positive, {
       requireAuthorization: true,
     });
