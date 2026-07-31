@@ -2085,7 +2085,9 @@ function resolveWorkspace(options) {
       }
       let asset;
       try {
-        asset = verifyAssetReference(workspace.paths, attachment.asset);
+        asset = verifyAssetReference(workspace.paths, attachment.asset, {
+          deferPasswordAuthorization: options.deferPasswordAuthorization,
+        });
       } catch (error) {
         const code =
           error instanceof WorkspaceAttachmentError &&
@@ -2094,7 +2096,7 @@ function resolveWorkspace(options) {
             : 'asset_invalid';
         return blockResult(code, workspaceRoot, [selectedCandidate], 'not_checked', 'failed');
       }
-      if (asset.plan.can_load_now !== true) {
+      if (asset.plan.can_load_now !== true && asset.passwordAuthorizationDeferred !== true) {
         return blockResult(
           'authorization_required',
           workspaceRoot,
@@ -2130,7 +2132,7 @@ function resolveWorkspace(options) {
         workspaceRoot,
         selected: selectedCandidate,
         candidates: result.candidates,
-        authorization: 'satisfied',
+        authorization: asset.plan.can_load_now === true ? 'satisfied' : 'required',
         integrity: 'verified',
       });
     } finally {
