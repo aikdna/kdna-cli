@@ -154,7 +154,7 @@ test('attach snapshots exact bytes, writes the closed record, and survives sourc
   const result = attach(root, asset);
   const record = readRecord(root);
   assert.equal(record.document_type, 'kdna.workspace-attachments');
-  assert.equal(record.schema_version, '0.1.0');
+  assert.equal(record.schema_version, '0.2.0');
   assert.deepEqual(record.workspace, { root_marker: '.kdna/attachments.json' });
   assert.equal(record.attachments.length, 1);
   assert.deepEqual(record.attachments[0], result.attachment);
@@ -231,9 +231,7 @@ test('attachment approval previews the exact role, scope, boundary, and authoriz
   assert.equal(preview.operation, 'attach');
   assert.deepEqual(preview.workspace_boundary, {
     kind: 'exact_workspace',
-    root: (path.relative(process.cwd(), fs.realpathSync(root)) || '.')
-      .split(path.sep)
-      .join('/'),
+    root: (path.relative(process.cwd(), fs.realpathSync(root)) || '.').split(path.sep).join('/'),
   });
   assert.match(preview.consent_digest, /^sha256:[0-9a-f]{64}$/u);
   assert.deepEqual(preview.attachment.asset, result.attachment.asset);
@@ -244,6 +242,7 @@ test('attachment approval previews the exact role, scope, boundary, and authoriz
   assert.equal(preview.attachment.role, 'private editorial preference');
   assert.deepEqual(preview.attachment.scope, {
     kind: 'workspace',
+    application: 'task_hints',
     authority: 'user_approved_routing_hint',
     approval_source: 'preview_confirmed',
     applies_to: ['draft article'],
@@ -410,19 +409,34 @@ test('one positive scope loads and one explicit exclusion skips', () => {
   assert.equal(skip.reason_code, 'outside_scope');
 });
 
-test('new empty scope is rejected while legacy ambiguous scope still asks', () => {
+test('negative scope is optional, all-workspace is explicit, and no executable scope is rejected', () => {
   const emptyRoot = temporaryRoot('empty-scope');
   const emptyAsset = buildAsset(emptyRoot);
   assert.throws(
     () => attach(emptyRoot, emptyAsset, { appliesTo: [], doesNotApplyTo: [] }),
-    /requires at least one applies-to and one does-not-apply-to/u,
+    /positive task hints or an explicit all-workspace authorization/u,
   );
-  attach(emptyRoot, emptyAsset);
-  const legacyRecord = readRecord(emptyRoot);
-  legacyRecord.attachments[0].scope.applies_to = [];
-  legacyRecord.attachments[0].scope.does_not_apply_to = [];
-  writeJson(recordPath(emptyRoot), legacyRecord);
-  assert.equal(resolve(emptyRoot, 'draft').reason_code, 'ambiguous_scope');
+
+  const positiveOnlyRoot = temporaryRoot('positive-only-scope');
+  attach(positiveOnlyRoot, buildAsset(positiveOnlyRoot), {
+    appliesTo: ['article writing'],
+    doesNotApplyTo: [],
+  });
+  assert.equal(resolve(positiveOnlyRoot, 'article writing').decision, 'load');
+  assert.equal(resolve(positiveOnlyRoot, 'change code').decision, 'ask');
+
+  const allWorkspaceRoot = temporaryRoot('all-workspace-scope');
+  attachWorkspace({
+    cwd: allWorkspaceRoot,
+    sourcePath: buildAsset(allWorkspaceRoot),
+    role: 'workspace writing policy',
+    scopeApplication: 'all_workspace',
+    appliesTo: [],
+    doesNotApplyTo: ['medical diagnosis'],
+    approve,
+  });
+  assert.equal(resolve(allWorkspaceRoot, 'draft a release note').decision, 'load');
+  assert.equal(resolve(allWorkspaceRoot, 'medical diagnosis').decision, 'skip');
 
   const unmatchedRoot = temporaryRoot('unmatched-scope');
   attach(unmatchedRoot, buildAsset(unmatchedRoot), {
@@ -570,6 +584,58 @@ test('multiple positive attachments and same-role disagreement ask with attachme
   assert.equal(resolve(roleRoot, 'draft this').reason_code, 'attachment_conflict');
 });
 
+test('an unauthorized candidate cannot block selection of a verified public candidate', () => {
+  const root = temporaryRoot('mixed-authorization-conflict');
+  const publicAttachment = attach(root, buildAsset(root), {
+    role: 'public-writing',
+  });
+  const protectedAttachment = attach(root, buildProtectedAsset(root), {
+    role: 'protected-writing',
+  });
+  const initial = resolve(root, 'draft this');
+  assert.equal(initial.decision, 'ask');
+  assert.equal(initial.authorization, 'not_selected');
+  assert.equal(initial.integrity, 'verified');
+  assert.deepEqual(
+    initial.candidates.map(({ attachment_id, authorization, integrity }) => ({
+      attachment_id,
+      authorization,
+      integrity,
+    })),
+    [
+      {
+        attachment_id: publicAttachment.attachment.attachment_id,
+        authorization: 'satisfied',
+        integrity: 'verified',
+      },
+      {
+        attachment_id: protectedAttachment.attachment.attachment_id,
+        authorization: 'required',
+        integrity: 'verified',
+      },
+    ],
+  );
+  const selection = {
+    selectionTaskDigest: initial.selection_plan.task_digest,
+    selectionPlanDigest: initial.selection_plan.plan_digest,
+    selectionApproved: true,
+  };
+  const selectedPublic = resolve(root, 'draft this', {
+    ...selection,
+    selectedAttachmentId: publicAttachment.attachment.attachment_id,
+  });
+  assert.equal(selectedPublic.decision, 'load');
+  assert.equal(selectedPublic.authorization, 'satisfied');
+  const selectedProtected = resolve(root, 'draft this', {
+    ...selection,
+    selectedAttachmentId: protectedAttachment.attachment.attachment_id,
+  });
+  assert.equal(selectedProtected.decision, 'block');
+  assert.equal(selectedProtected.reason_code, 'authorization_required');
+  assert.equal(selectedProtected.authorization, 'required');
+  assert.doesNotMatch(JSON.stringify(initial), /workspace-test-password/u);
+});
+
 test('ask produces a bound one-task selection plan and approved continuation loads exactly one candidate', () => {
   const root = temporaryRoot('selection-continuation');
   const first = attach(root, buildAsset(root), { role: 'writing-one' });
@@ -698,6 +764,29 @@ test('explicit attachment naming and cross-language scope variation have a safe 
   });
   assert.equal(exact.decision, 'load');
   assert.equal(exact.reason_code, 'explicit_task_attachment_selection');
+
+  const substringTask = `Do not treat ${first.attachment.attachment_id}suffix as an exact selection.`;
+  const substring = resolve(root, substringTask, {
+    selectedAttachmentId: first.attachment.attachment_id,
+    selectionTaskDigest: sha256(Buffer.from(substringTask, 'utf8')),
+    selectionApproved: true,
+  });
+  assert.equal(substring.decision, 'block');
+  assert.equal(substring.reason_code, 'selection_receipt_required');
+
+  const shortAssetRoot = temporaryRoot('selection-short-asset-id');
+  const short = attach(shortAssetRoot, buildAsset(shortAssetRoot, { assetId: 'kdna:test:art' }), {
+    role: 'short-art',
+  });
+  attach(shortAssetRoot, buildAsset(shortAssetRoot), { role: 'other-art' });
+  const articleTask = 'Draft with kdna:test:article guidance.';
+  const assetSubstring = resolve(shortAssetRoot, articleTask, {
+    selectedAttachmentId: short.attachment.attachment_id,
+    selectionTaskDigest: sha256(Buffer.from(articleTask, 'utf8')),
+    selectionApproved: true,
+  });
+  assert.equal(assetSubstring.decision, 'block');
+  assert.equal(assetSubstring.reason_code, 'selection_receipt_required');
 });
 
 test('one-task selection requires explicit Host root, exact task digest, approval, and ask receipt', () => {
@@ -804,6 +893,24 @@ test('unsupported schema, unknown fields, and path traversal fail closed', () =>
     assert.equal(result.decision, 'block');
     assert.equal(result.reason_code, 'attachment_schema_unsupported');
   }
+});
+
+test('the unreleased 0.1 attachment record is rejected with an explicit migration boundary', () => {
+  const root = temporaryRoot('schema-migration-boundary');
+  attach(root, buildAsset(root));
+  const record = readRecord(root);
+  record.schema_version = '0.1.0';
+  writeJson(recordPath(root), record);
+  assert.throws(
+    () => listWorkspaceAttachments(root, root),
+    (error) =>
+      error instanceof WorkspaceAttachmentError &&
+      error.code === 'attachment_schema_migration_required' &&
+      /re-attach under schema 0\.2\.0/u.test(error.message),
+  );
+  const resolution = resolve(root, 'draft');
+  assert.equal(resolution.decision, 'block');
+  assert.equal(resolution.reason_code, 'attachment_schema_unsupported');
 });
 
 test(
@@ -1046,7 +1153,7 @@ test('disable and enable are atomic state changes and enable re-verifies its sna
   assert.equal(readRecord(root).attachments[0].state, 'enabled');
 });
 
-test('switch retains scope, snapshots the replacement, and rollback works offline', () => {
+test('switch binds a reviewed replacement policy and rollback restores the exact prior policy', () => {
   const root = temporaryRoot('history');
   const first = buildAsset(root, { version: '1.0.0' });
   const second = buildAsset(root, { version: '1.1.0' });
@@ -1056,17 +1163,60 @@ test('switch retains scope, snapshots the replacement, and rollback works offlin
     doesNotApplyTo: ['code'],
   });
   const id = attached.attachment.attachment_id;
+  const priorPolicy = {
+    asset: attached.attachment.asset,
+    role: attached.attachment.role,
+    scope: attached.attachment.scope,
+    resolution_policy: attached.attachment.resolution_policy,
+    approved_at: attached.attachment.approved_at,
+    update_policy: attached.attachment.update_policy,
+  };
+  assert.throws(
+    () =>
+      switchWorkspaceAttachment({
+        cwd: root,
+        attachmentId: id,
+        sourcePath: second,
+        approve,
+      }),
+    /positive task hints|reviewed policy source/u,
+  );
+  const previewed = switchWorkspaceAttachment({
+    cwd: root,
+    attachmentId: id,
+    sourcePath: second,
+    role: 'medical',
+    appliesTo: ['medical diagnosis'],
+    doesNotApplyTo: ['draft'],
+    previewOnly: true,
+    now: '2026-07-23T01:00:00.000Z',
+  });
+  assert.equal(previewed.preview.old_attachment.asset.version, '1.0.0');
+  assert.equal(previewed.preview.new_attachment.asset.version, '1.1.0');
+  assert.equal(previewed.preview.new_attachment.role, 'medical');
+  assert.equal(previewed.preview.scope_contract.inherited_without_review, false);
+  assert.equal(readRecord(root).attachments[0].history.length, 0);
   switchWorkspaceAttachment({
     cwd: root,
     attachmentId: id,
     sourcePath: second,
+    role: 'medical',
+    appliesTo: ['medical diagnosis'],
+    doesNotApplyTo: ['draft'],
+    expectedConsentDigest: previewed.preview.consent_digest,
     approve,
     now: '2026-07-23T01:00:00.000Z',
   });
   let record = readRecord(root);
   assert.equal(record.attachments[0].asset.version, '1.1.0');
   assert.equal(record.attachments[0].history.length, 1);
-  assert.deepEqual(record.attachments[0].scope, attached.attachment.scope);
+  assert.equal(record.attachments[0].role, 'medical');
+  assert.deepEqual(record.attachments[0].history[0], {
+    ...priorPolicy,
+    replaced_at: '2026-07-23T01:00:00.000Z',
+  });
+  assert.equal(resolve(root, 'medical diagnosis').decision, 'load');
+  assert.equal(resolve(root, 'draft this').decision, 'skip');
   fs.unlinkSync(first);
   fs.unlinkSync(second);
   rollbackWorkspaceAttachment({
@@ -1077,7 +1227,87 @@ test('switch retains scope, snapshots the replacement, and rollback works offlin
   record = readRecord(root);
   assert.equal(record.attachments[0].asset.version, '1.0.0');
   assert.equal(record.attachments[0].history.length, 0);
+  assert.deepEqual(
+    {
+      asset: record.attachments[0].asset,
+      role: record.attachments[0].role,
+      scope: record.attachments[0].scope,
+      resolution_policy: record.attachments[0].resolution_policy,
+      approved_at: record.attachments[0].approved_at,
+      update_policy: record.attachments[0].update_policy,
+    },
+    priorPolicy,
+  );
   assert.equal(resolve(root, 'draft this').decision, 'load');
+});
+
+test('switch consent rejects asset, record, and proposed-policy drift without a partial authority write', () => {
+  const makePreview = (label) => {
+    const root = temporaryRoot(label);
+    const attached = attach(root, buildAsset(root), {
+      role: 'writing',
+      appliesTo: ['draft'],
+      doesNotApplyTo: [],
+    });
+    const replacement = buildAsset(root, { version: '1.1.0' });
+    const options = {
+      cwd: root,
+      attachmentId: attached.attachment.attachment_id,
+      sourcePath: replacement,
+      role: 'editing',
+      appliesTo: ['edit article'],
+      doesNotApplyTo: [],
+      now: '2026-07-31T01:00:00.000Z',
+    };
+    const preview = switchWorkspaceAttachment({ ...options, previewOnly: true });
+    return { root, replacement, options, preview };
+  };
+
+  const assetDrift = makePreview('switch-asset-drift');
+  const changedAsset = buildAsset(assetDrift.root, { version: '1.2.0' });
+  fs.copyFileSync(changedAsset, assetDrift.replacement);
+  const assetRecordBefore = fs.readFileSync(recordPath(assetDrift.root));
+  assert.throws(
+    () =>
+      switchWorkspaceAttachment({
+        ...assetDrift.options,
+        expectedConsentDigest: assetDrift.preview.preview.consent_digest,
+        approve,
+      }),
+    /changed after preview/u,
+  );
+  assert.deepEqual(fs.readFileSync(recordPath(assetDrift.root)), assetRecordBefore);
+
+  const recordDrift = makePreview('switch-record-drift');
+  const changedRecord = readRecord(recordDrift.root);
+  changedRecord.attachments[0].state = 'disabled';
+  writeJson(recordPath(recordDrift.root), changedRecord);
+  const changedRecordBytes = fs.readFileSync(recordPath(recordDrift.root));
+  assert.throws(
+    () =>
+      switchWorkspaceAttachment({
+        ...recordDrift.options,
+        expectedConsentDigest: recordDrift.preview.preview.consent_digest,
+        approve,
+      }),
+    /changed after preview/u,
+  );
+  assert.deepEqual(fs.readFileSync(recordPath(recordDrift.root)), changedRecordBytes);
+
+  const policyDrift = makePreview('switch-policy-drift');
+  const policyRecordBefore = fs.readFileSync(recordPath(policyDrift.root));
+  assert.throws(
+    () =>
+      switchWorkspaceAttachment({
+        ...policyDrift.options,
+        role: 'expanded medical role',
+        appliesTo: ['medical diagnosis'],
+        expectedConsentDigest: policyDrift.preview.preview.consent_digest,
+        approve,
+      }),
+    /changed after preview/u,
+  );
+  assert.deepEqual(fs.readFileSync(recordPath(policyDrift.root)), policyRecordBefore);
 });
 
 test('remove deletes only the relation and retains immutable snapshots', () => {
@@ -1127,6 +1357,7 @@ test('explicit cleanup previews, preserves rollback references, and deletes only
     cwd: root,
     attachmentId: primary.attachment.attachment_id,
     sourcePath: replacement,
+    retainPolicy: true,
     approve,
   });
   const removable = attach(root, unreferencedSource);
@@ -1573,39 +1804,28 @@ test('Agent-proposed scope requires one exact preview receipt before attachment'
       does_not_apply_to: ['medical diagnosis'],
     }),
   );
-  let result = runCli(
-    ['attach', asset, '--cwd', root, '--attachment-stdin', '--yes'],
-    { input: proposal },
-  );
+  let result = runCli(['attach', asset, '--cwd', root, '--attachment-stdin', '--yes'], {
+    input: proposal,
+  });
   assert.equal(result.status, 2);
   assert.match(result.stderr, /--scope-user-approved|--consent-digest/u);
   assert.equal(fs.existsSync(recordPath(root)), false);
 
-  result = runCli(
-    ['attach', asset, '--cwd', root, '--attachment-stdin', '--preview'],
-    { input: proposal },
-  );
+  result = runCli(['attach', asset, '--cwd', root, '--attachment-stdin', '--preview'], {
+    input: proposal,
+  });
   assert.equal(result.status, 0, result.stderr);
   const preview = JSON.parse(result.stdout);
   assert.equal(preview.mode, 'preview');
   assert.equal(preview.confirmation_required, true);
   assert.equal(fs.existsSync(recordPath(root)), false);
-  assert.equal(
-    preview.preview.attachment.scope.authority,
-    'user_approved_routing_hint',
-  );
-  assert.equal(
-    preview.preview.attachment.scope.approval_source,
-    'preview_confirmed',
-  );
+  assert.equal(preview.preview.attachment.scope.authority, 'user_approved_routing_hint');
+  assert.equal(preview.preview.attachment.scope.approval_source, 'preview_confirmed');
   assert.equal(
     preview.preview.scope_contract.asset_declared_preload_boundary,
     'not_available_in_current_manifest_contract',
   );
-  assert.equal(
-    preview.preview.scope_contract.runtime_boundary_remains_authoritative,
-    true,
-  );
+  assert.equal(preview.preview.scope_contract.runtime_boundary_remains_authoritative, true);
 
   result = runCli(
     [
@@ -1693,16 +1913,7 @@ test('attachment stdin keeps private role and scope out of argv, env, and diagno
   assert.equal(stored.scope.approval_source, 'user_explicit');
 
   result = runCli(
-    [
-      'attach',
-      asset,
-      '--cwd',
-      root,
-      '--attachment-stdin',
-      '--role',
-      'argv-role',
-      '--yes',
-    ],
+    ['attach', asset, '--cwd', root, '--attachment-stdin', '--role', 'argv-role', '--yes'],
     { input },
   );
   assert.equal(result.status, 2);
@@ -1732,15 +1943,7 @@ test('simple approved attachment has a deterministic related load and unrelated 
     }),
   );
   const attached = runCli(
-    [
-      'attach',
-      asset,
-      '--cwd',
-      root,
-      '--attachment-stdin',
-      '--yes',
-      '--scope-user-approved',
-    ],
+    ['attach', asset, '--cwd', root, '--attachment-stdin', '--yes', '--scope-user-approved'],
     { input },
   );
   assert.equal(attached.status, 0, attached.stderr);
@@ -1793,7 +1996,19 @@ test('CLI exposes the workspace attachment operations and resolver closed JSON',
   assert.equal(resolution.decision, 'load');
   assert.equal(runCli(['disable', id, '--cwd', root]).status, 0);
   assert.equal(runCli(['enable', id, '--cwd', root]).status, 0);
-  assert.equal(runCli(['switch', id, second, '--cwd', root, '--yes']).status, 0);
+  assert.equal(
+    runCli([
+      'switch',
+      id,
+      second,
+      '--cwd',
+      root,
+      '--retain-scope',
+      '--yes',
+      '--scope-user-approved',
+    ]).status,
+    0,
+  );
   assert.equal(runCli(['rollback', id, '--cwd', root]).status, 0);
   result = runCli(['remove', id, '--cwd', root]);
   assert.equal(result.status, 0);
@@ -1926,7 +2141,19 @@ test('plain public asset completes one-shot, multi-attachment selection, and rev
   assert.equal(JSON.parse(result.stdout).decision, 'skip');
   assert.equal(runCli(['enable', firstId, '--cwd', root]).status, 0);
 
-  assert.equal(runCli(['switch', firstId, replacement, '--cwd', root, '--yes']).status, 0);
+  assert.equal(
+    runCli([
+      'switch',
+      firstId,
+      replacement,
+      '--cwd',
+      root,
+      '--retain-scope',
+      '--yes',
+      '--scope-user-approved',
+    ]).status,
+    0,
+  );
   result = runCli(['attachments', '--cwd', root]);
   assert.equal(
     JSON.parse(result.stdout).attachments.find((entry) => entry.attachment_id === firstId).asset
