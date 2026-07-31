@@ -217,6 +217,11 @@ phrase matching. Near matches, word-form overlap, empty hints, and
 contradictions ask instead of auto-loading. A matched phrase is also treated as
 uncertain when it appears in negation, quotation or meta-discussion, a
 contrastive multi-clause task, or an overly short or broad hint.
+Common English negative contractions, including straight or Unicode
+apostrophes, are normalized only far enough to prevent silent loading;
+`do not`, `not for`, and `instead of` remain conservative uncertainty signals.
+This is a routing safety rule, not a claim of general natural-language
+understanding.
 
 An explicit negative match returns `skip/explicitly_outside_scope` without
 checking unrelated authorization, snapshot bytes, or a LoadPlan. A clean
