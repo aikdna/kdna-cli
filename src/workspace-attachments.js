@@ -1434,14 +1434,23 @@ function blockResult(reasonCode, workspaceRoot, candidates, authorization, integ
   });
 }
 
-function decodeTaskFile(taskFile) {
-  const absolute = path.resolve(taskFile);
-  const bytes = safeReadRegular(absolute, MAX_TASK_BYTES, 'Task file');
+function decodeTaskBytes(bytes, label) {
+  if (!Buffer.isBuffer(bytes) || bytes.length === 0) {
+    fail('input_invalid', `${label} must contain non-empty UTF-8 text.`);
+  }
+  if (bytes.length > MAX_TASK_BYTES) {
+    fail('input_invalid', `${label} exceeds the size limit.`);
+  }
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   } catch {
-    fail('input_invalid', 'Task file must contain valid UTF-8 text.');
+    fail('input_invalid', `${label} must contain valid UTF-8 text.`);
   }
+}
+
+function decodeTaskFile(taskFile) {
+  const absolute = path.resolve(taskFile);
+  return decodeTaskBytes(safeReadRegular(absolute, MAX_TASK_BYTES, 'Task file'), 'Task file');
 }
 
 function resolveWorkspace(options) {
@@ -1449,7 +1458,17 @@ function resolveWorkspace(options) {
   if ((options.adapterSchema || SCHEMA_VERSION) !== SCHEMA_VERSION) {
     return blockResult('adapter_incompatible', '.', [], 'not_checked', 'not_checked');
   }
-  const task = normalizedPhrase(decodeTaskFile(options.taskFile));
+  const hasTaskFile = typeof options.taskFile === 'string';
+  const hasTaskBytes = options.taskBytes !== undefined;
+  if (hasTaskFile === hasTaskBytes) {
+    fail('input_invalid', 'Resolve requires exactly one task file or task stdin input.');
+  }
+  const task = normalizedPhrase(
+    hasTaskFile
+      ? decodeTaskFile(options.taskFile)
+      : decodeTaskBytes(options.taskBytes, 'Task stdin'),
+  );
+  if (!task) fail('input_invalid', 'Task input must contain non-empty UTF-8 text.');
   let workspace;
   try {
     workspace = findWorkspace(start, options.workspaceRoot || start);

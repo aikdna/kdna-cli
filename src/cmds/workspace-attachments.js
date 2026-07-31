@@ -5,6 +5,7 @@ const path = require('node:path');
 
 const {
   WorkspaceAttachmentError,
+  MAX_TASK_BYTES,
   attachWorkspace,
   cleanupWorkspaceSnapshots,
   listWorkspaceAttachments,
@@ -182,25 +183,39 @@ function cmdAttachments(args) {
 function cmdResolve(args) {
   const parsed = parseArgs(
     args,
-    new Set(['--cwd', '--workspace-root', '--task-file', '--adapter-schema']),
+    new Set(['--cwd', '--workspace-root', '--task-file', '--task-stdin', '--adapter-schema']),
   );
   if (parsed.positional.length !== 0) {
     inputError(
-      'Usage: kdna resolve --cwd <start> [--workspace-root <boundary>] --task-file <file> [--adapter-schema 0.1.0]',
+      'Usage: kdna resolve --cwd <start> [--workspace-root <boundary>] (--task-stdin | --task-file <file>) [--adapter-schema 0.1.0]',
     );
   }
   const cwd = parsed.one('--cwd');
   const taskFile = parsed.one('--task-file');
-  if (!cwd || !taskFile) {
-    inputError(
-      'Usage: kdna resolve --cwd <start> [--workspace-root <boundary>] --task-file <file> [--adapter-schema 0.1.0]',
-    );
+  const taskStdin = parsed.has('--task-stdin');
+  if (!cwd || Boolean(taskFile) === taskStdin) {
+    inputError('Resolve requires exactly one of --task-stdin or --task-file.');
+  }
+  let taskBytes;
+  if (taskStdin) {
+    const chunks = [];
+    let total = 0;
+    const buffer = Buffer.allocUnsafe(16 * 1024);
+    while (true) {
+      const count = fs.readSync(process.stdin.fd, buffer, 0, buffer.length);
+      if (count === 0) break;
+      total += count;
+      if (total > MAX_TASK_BYTES) inputError('Task stdin exceeds the size limit.');
+      chunks.push(Buffer.from(buffer.subarray(0, count)));
+    }
+    taskBytes = Buffer.concat(chunks, total);
   }
   printJson(
     resolveWorkspace({
       cwd,
       workspaceRoot: parsed.one('--workspace-root', cwd),
       taskFile,
+      taskBytes,
       adapterSchema: parsed.one('--adapter-schema'),
     }),
   );
