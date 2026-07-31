@@ -75,11 +75,11 @@ test('source-candidate task examples prefer stdin and keep file input explicit',
   assert.match(candidate, /writes bounded UTF-8 task bytes to stdin/);
   assert.match(
     candidate,
-    /`--task-file`\s+remains available only when the user already has an explicit task file/,
+    /`--task-file`\s+remains\s+available\s+only\s+when\s+the\s+user\s+already\s+has\s+an\s+explicit\s+task\s+file/,
   );
   assert.doesNotMatch(candidate, /save the current task text in a regular file/iu);
   assert.match(candidate, /--attachment-stdin/);
-  assert.match(candidate, /role`, `applies_to`, and `does_not_apply_to/);
+  assert.match(candidate, /`role`,\s+`applies_to`,\s+`does_not_apply_to`/);
   assert.match(
     candidate,
     /explicit request naming the file, workspace,\s+role, and scope is one approval/,
@@ -89,6 +89,9 @@ test('source-candidate task examples prefer stdin and keep file input explicit',
   assert.match(candidate, /Approval of only “attach this KDNA to this project” does not authorize/);
   assert.match(candidate, /user_approved_routing_hint/);
   assert.match(candidate, /Runtime and payload boundaries remain authoritative/);
+  assert.match(candidate, /negative hints are optional/);
+  assert.match(candidate, /explicitly approve\s+`scope_mode: "all_workspace"`/);
+  assert.match(candidate, /Completely unspecified applicability is rejected/);
 });
 
 test('scope narrative does not present phrase matching as natural-language understanding', () => {
@@ -106,7 +109,15 @@ test('ask has an official receipt-bound one-task continuation without generic-lo
   assert.match(readme, /one-task `selection_plan` binding the exact task\s+bytes/);
   assert.match(readme, /does not change stored scope/);
   assert.match(readme, /not reused for a later task/);
-  assert.match(readme, /generic `kdna load <file>`.*not a workspace-selection continuation/su);
+  assert.match(
+    readme,
+    /generic\s+`kdna load <file>`[\s\S]*?not\s+a\s+workspace-selection\s+continuation/u,
+  );
+  assert.match(readme, /an asset-ID substring never can/);
+  assert.match(readme, /Authorization is\s+reported per candidate/);
+  assert.match(readme, /unauthorized candidate cannot prevent selection/);
+  assert.match(readme, /`switch` is a policy change/);
+  assert.match(readme, /Rollback restores the complete previous asset and policy metadata/);
   assert.match(readme, /--selection-task-digest/);
   assert.match(readme, /--selection-plan-digest/);
   assert.match(readme, /--selection-approved/);
