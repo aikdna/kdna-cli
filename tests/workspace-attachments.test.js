@@ -612,6 +612,105 @@ test('CLI exposes the eight attachment operations and resolver closed JSON', () 
   assert.equal(runCli(['remove', id, '--cwd', root]).status, 0);
 });
 
+test('plain public asset completes one-shot, multi-attachment selection, and reversible workspace lifecycle', () => {
+  const root = temporaryRoot('plain-public-lifecycle');
+  const assetId = 'kdna:test:plain-public-lifecycle';
+  const first = buildAsset(root, { assetId, version: '1.0.0', suffix: 'plain-v1' });
+  const replacement = buildAsset(root, { assetId, version: '1.1.0', suffix: 'plain-v11' });
+  const independent = buildAsset(root, {
+    assetId: 'kdna:test:independent-approved-attachment',
+    version: '1.0.0',
+    suffix: 'independent',
+  });
+  const task = writeTask(root, 'draft this');
+
+  let result = runCli(['inspect', first, '--json']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).asset_id, assetId);
+
+  result = runCli(['plan-load', first, '--json']);
+  assert.equal(result.status, 0, result.stderr);
+  const plan = JSON.parse(result.stdout);
+  assert.equal(plan.state, 'ready');
+  assert.equal(plan.can_load_now, true);
+
+  result = runCli(['load', first, '--profile=compact', '--as=json']);
+  assert.equal(result.status, 0, result.stderr);
+  const oneShot = JSON.parse(result.stdout);
+  assert.equal(oneShot.profile, 'compact');
+  assert.ok(oneShot.context && Object.keys(oneShot.context).length > 0);
+
+  result = runCli([
+    'attach',
+    first,
+    '--cwd',
+    root,
+    '--role',
+    'writing-one',
+    '--applies-to',
+    'draft',
+    '--yes',
+  ]);
+  assert.equal(result.status, 0, result.stderr);
+  const firstId = JSON.parse(result.stdout).attachment.attachment_id;
+
+  result = runCli([
+    'attach',
+    independent,
+    '--cwd',
+    root,
+    '--role',
+    'writing-two',
+    '--applies-to',
+    'draft',
+    '--yes',
+  ]);
+  assert.equal(result.status, 0, result.stderr);
+  const secondId = JSON.parse(result.stdout).attachment.attachment_id;
+
+  result = runCli(['attachments', '--cwd', root]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).attachments.length, 2);
+
+  result = runCli(['resolve', '--cwd', root, '--task-file', task]);
+  let resolution = JSON.parse(result.stdout);
+  assert.equal(resolution.decision, 'ask');
+  assert.equal(resolution.reason_code, 'attachment_conflict');
+  assert.equal(resolution.selected, null);
+  assert.equal(resolution.candidates.length, 2);
+
+  assert.equal(runCli(['disable', secondId, '--cwd', root]).status, 0);
+  result = runCli(['resolve', '--cwd', root, '--task-file', task]);
+  resolution = JSON.parse(result.stdout);
+  assert.equal(resolution.decision, 'load');
+  assert.equal(resolution.selected.attachment_id, firstId);
+
+  assert.equal(runCli(['disable', firstId, '--cwd', root]).status, 0);
+  result = runCli(['resolve', '--cwd', root, '--task-file', task]);
+  assert.equal(JSON.parse(result.stdout).decision, 'skip');
+  assert.equal(runCli(['enable', firstId, '--cwd', root]).status, 0);
+
+  assert.equal(runCli(['switch', firstId, replacement, '--cwd', root, '--yes']).status, 0);
+  result = runCli(['attachments', '--cwd', root]);
+  assert.equal(
+    JSON.parse(result.stdout).attachments.find((entry) => entry.attachment_id === firstId).asset
+      .version,
+    '1.1.0',
+  );
+  assert.equal(runCli(['rollback', firstId, '--cwd', root]).status, 0);
+  result = runCli(['attachments', '--cwd', root]);
+  assert.equal(
+    JSON.parse(result.stdout).attachments.find((entry) => entry.attachment_id === firstId).asset
+      .version,
+    '1.0.0',
+  );
+
+  assert.equal(runCli(['remove', secondId, '--cwd', root]).status, 0);
+  assert.equal(runCli(['remove', firstId, '--cwd', root]).status, 0);
+  assert.equal(readRecord(root).attachments.length, 0);
+  assert.ok(fs.readdirSync(path.join(root, '.kdna', 'assets')).length >= 3);
+});
+
 test('old global store routes are unknown and absent from default help', () => {
   for (const command of ['available', 'match', 'install', 'update', 'list', 'registry', 'setup']) {
     const result = runCli([command]);
