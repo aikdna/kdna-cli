@@ -68,6 +68,15 @@ node ./src/cli.js resolve --cwd ./my-project --task-file ./current-task.txt
 workspace fact. Omit `--yes` for an interactive approval prompt; non-interactive
 callers must provide it explicitly.
 
+For direct CLI use, `--cwd` is also the explicit workspace root boundary, so
+lookup does not walk into its parent. A Host that launches from a nested
+directory must additionally pass its known root, for example
+`resolve --cwd ./my-project/packages/app --workspace-root ./my-project ...`.
+Only the nearest record between those two coordinates can be selected. A start
+outside the boundary, a symlinked coordinate, or a home-level
+`~/.kdna/attachments.json` fails closed; the latter is never treated as
+project authority.
+
 | Command                               | Responsibility                                                      |
 | ------------------------------------- | ------------------------------------------------------------------- |
 | `kdna inspect <file>`                 | Read container metadata without adopting its judgment               |
@@ -98,15 +107,25 @@ A consuming Host must start from:
 The CLI reference implementation records that approval only in
 `<workspace>/.kdna/attachments.json`, with immutable snapshots in
 `<workspace>/.kdna/assets/`. It never falls back to a user-global package
-directory, scans for unrelated assets, or merges parent and child workspace
-records. The record and snapshots are ignored by Git by default because they
-may expose private preferences and asset identity.
+directory, searches above the explicit Host root, scans for unrelated assets,
+or merges parent and child workspace records. Within the boundary it selects
+only the nearest record. The record and snapshots are ignored by Git by default
+because they may expose private preferences and asset identity.
 
 Saving, discovery, attachment, authorization, applicability, and loading are
 separate events. A Host must expose active asset identity, version or digest,
 scope, and reason, and provide controls to disable it, switch it, or roll it
 back.
 
+The source-candidate resolver is a conservative deterministic interpreter of
+user-approved scope hints, not an AI classifier for arbitrary natural
+language. Latin and numeric phrases use token boundaries, hyphens and spaces
+are normalized as phrase separators, and CJK hints use normalized explicit
+phrase matching. Near matches, word-form overlap, empty hints, and
+contradictions ask instead of auto-loading. Scope metadata is evaluated before
+snapshot authorization or integrity only to exclude an explicitly
+out-of-scope attachment; the closed attachment record schema is still validated
+first, and every possible load/ask candidate receives full checks.
 ## Closed release surface
 
 The npm package has one executable, `kdna`, and one machine-readable top-level
@@ -127,10 +146,18 @@ the source repository are not callable and are not distributed.
 distinguishes `attachment_removed` from `snapshot_retained` and reports the
 retained count and reason; it never implies that private asset bytes were
 deleted. `cleanup` is the separate explicit storage action: without `--yes` it
-only previews eligible and retained counts, and with `--yes` it deletes only
-unreferenced workspace snapshots. It never selects a package by name, touches
-the source file or attachment record, removes rollback-referenced bytes, or
-runs as automatic garbage collection.
+only previews eligible and retained counts plus a plan digest. Execution
+requires both that exact digest and `--yes`; a changed record or candidate set
+requires a new preview. It deletes only unreferenced workspace snapshots and
+writes exact partial/recovery facts if a multi-file deletion is interrupted. It
+never selects a package by name, touches the source file or attachment record,
+removes rollback-referenced bytes, or runs as automatic garbage collection.
+
+```bash
+node ./src/cli.js cleanup --cwd ./my-project
+node ./src/cli.js cleanup --cwd ./my-project \
+  --plan-digest sha256:<digest-from-preview> --yes
+```
 
 ## Authoring
 
