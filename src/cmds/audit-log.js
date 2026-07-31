@@ -72,7 +72,7 @@ function appendAuditEntry(entry) {
       duration_ms: typeof entry.duration_ms === 'number' ? entry.duration_ms : null,
     };
     fs.appendFileSync(AUDIT_FILE, JSON.stringify(record) + '\n');
-  } catch (_) {
+  } catch {
     // Audit write failure must never surface to the user
   }
 }
@@ -122,11 +122,11 @@ function readAuditLog(opts = {}) {
         if (resultFilter && entry.result !== resultFilter) continue;
         if (assetId && !(entry.asset_id || '').includes(assetId)) continue;
         entries.push(entry);
-      } catch (_) {
+      } catch {
         // skip malformed lines
       }
     }
-  } catch (_) {
+  } catch {
     // unreadable audit file — return what we have
   }
 
