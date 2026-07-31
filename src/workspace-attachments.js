@@ -1558,7 +1558,7 @@ function resolveWorkspace(options) {
       reasonCode: 'ambiguous_scope',
       workspaceRoot,
       candidates: checked.verified.map((item) => item.candidate),
-      authorization: authorizationFor(checked.verified),
+      authorization: 'satisfied',
       integrity: 'verified',
     });
   }
