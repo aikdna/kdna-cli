@@ -13,6 +13,7 @@ const {
   GITIGNORE_PATTERNS,
   WorkspaceAttachmentError,
   attachWorkspace,
+  cleanupWorkspaceSnapshots,
   listWorkspaceAttachments,
   removeWorkspaceAttachment,
   resolveWorkspace,
@@ -459,11 +460,126 @@ test('remove deletes only the relation and retains immutable snapshots', () => {
   const root = temporaryRoot('remove');
   const attached = attach(root, buildAsset(root));
   const snapshot = path.join(root, '.kdna', ...attached.attachment.asset.snapshot.split('/'));
-  removeWorkspaceAttachment({ cwd: root, attachmentId: attached.attachment.attachment_id });
+  const removal = removeWorkspaceAttachment({
+    cwd: root,
+    attachmentId: attached.attachment.attachment_id,
+  });
+  assert.equal(removal.attachment_removed, true);
+  assert.equal(removal.removed_attachment.attachment_id, attached.attachment.attachment_id);
+  assert.deepEqual(removal.snapshot_retained, {
+    count: 1,
+    reason: 'remove_preserves_workspace_snapshots_for_other_references_and_explicit_cleanup',
+  });
   assert.equal(readRecord(root).attachments.length, 0);
   assert.ok(fs.existsSync(snapshot));
   assert.equal(resolve(root, 'draft').reason_code, 'no_approved_attachment');
 });
+
+test('explicit cleanup previews, preserves rollback references, and deletes only unreferenced ordinary snapshots', () => {
+  const root = temporaryRoot('cleanup-ordinary');
+  const assetId = 'kdna:test:cleanup-ordinary';
+  const first = buildAsset(root, { assetId, version: '1.0.0', suffix: 'cleanup-v1' });
+  const replacement = buildAsset(root, {
+    assetId,
+    version: '1.1.0',
+    suffix: 'cleanup-v11',
+  });
+  const unreferencedSource = buildAsset(root, {
+    assetId: 'kdna:test:cleanup-unreferenced',
+    suffix: 'cleanup-unreferenced',
+  });
+  const primary = attach(root, first);
+  switchWorkspaceAttachment({
+    cwd: root,
+    attachmentId: primary.attachment.attachment_id,
+    sourcePath: replacement,
+    approve,
+  });
+  const removable = attach(root, unreferencedSource);
+  const removableSnapshot = path.join(
+    root,
+    '.kdna',
+    ...removable.attachment.asset.snapshot.split('/'),
+  );
+  removeWorkspaceAttachment({
+    cwd: root,
+    attachmentId: removable.attachment.attachment_id,
+  });
+  const recordBefore = fs.readFileSync(recordPath(root));
+
+  const preview = cleanupWorkspaceSnapshots({ cwd: root, execute: false });
+  assert.equal(preview.mode, 'preview');
+  assert.equal(preview.eligible_snapshot_count, 1);
+  assert.equal(preview.deleted_snapshot_count, 0);
+  assert.equal(preview.retained_snapshot_count, 3);
+  assert.equal(preview.retained_reason_counts.attachment_or_rollback_reference, 2);
+  assert.equal(preview.retained_reason_counts.awaiting_explicit_cleanup, 1);
+  assert.ok(fs.existsSync(removableSnapshot));
+
+  const cleaned = cleanupWorkspaceSnapshots({ cwd: root, execute: true });
+  assert.equal(cleaned.mode, 'execute');
+  assert.equal(cleaned.eligible_snapshot_count, 1);
+  assert.equal(cleaned.deleted_snapshot_count, 1);
+  assert.equal(cleaned.retained_snapshot_count, 2);
+  assert.equal(cleaned.attachment_record_changed, false);
+  assert.equal(fs.existsSync(removableSnapshot), false);
+  assert.ok(fs.existsSync(first), 'cleanup must not touch the original source file');
+  assert.ok(fs.existsSync(replacement), 'cleanup must not touch replacement source files');
+  assert.deepEqual(fs.readFileSync(recordPath(root)), recordBefore);
+
+  rollbackWorkspaceAttachment({
+    cwd: root,
+    attachmentId: primary.attachment.attachment_id,
+  });
+  assert.equal(readRecord(root).attachments[0].asset.version, '1.0.0');
+});
+
+test('explicit cleanup deletes an unreferenced encrypted snapshot without touching its source', () => {
+  const root = temporaryRoot('cleanup-encrypted');
+  const protectedAsset = buildProtectedAsset(root, 'cleanup-protected-password');
+  const attached = attach(root, protectedAsset);
+  const snapshot = path.join(root, '.kdna', ...attached.attachment.asset.snapshot.split('/'));
+  removeWorkspaceAttachment({ cwd: root, attachmentId: attached.attachment.attachment_id });
+  const cleaned = cleanupWorkspaceSnapshots({ cwd: root, execute: true });
+  assert.equal(cleaned.deleted_snapshot_count, 1);
+  assert.equal(fs.existsSync(snapshot), false);
+  assert.equal(fs.existsSync(protectedAsset), true);
+  assert.equal(readRecord(root).attachments.length, 0);
+});
+
+test(
+  'cleanup fails closed for symlinks and a concurrent live workspace mutation lock',
+  {
+    skip: process.platform === 'win32',
+  },
+  () => {
+    const root = temporaryRoot('cleanup-hostile');
+    attach(root, buildAsset(root));
+    const outside = path.join(root, 'outside.kdna');
+    fs.writeFileSync(outside, 'outside');
+    const hostile = path.join(
+      root,
+      '.kdna',
+      'assets',
+      `sha256-${'0'.repeat(64)}.kdna`,
+    );
+    fs.symlinkSync(outside, hostile);
+    assert.throws(
+      () => cleanupWorkspaceSnapshots({ cwd: root, execute: true }),
+      (error) => error instanceof WorkspaceAttachmentError && error.code === 'cleanup_unsafe_path',
+    );
+    assert.equal(fs.readFileSync(outside, 'utf8'), 'outside');
+    fs.unlinkSync(hostile);
+
+    const lock = path.join(root, '.kdna', 'attachments.lock');
+    writeJson(lock, { pid: process.pid, created_at: new Date().toISOString() });
+    assert.throws(
+      () => cleanupWorkspaceSnapshots({ cwd: root, execute: true }),
+      (error) => error instanceof WorkspaceAttachmentError && error.code === 'workspace_locked',
+    );
+    fs.unlinkSync(lock);
+  },
+);
 
 test('exclusive lock contention leaves the complete record unchanged', () => {
   const root = temporaryRoot('lock');
@@ -581,7 +697,7 @@ test('CLI approval is mandatory off-TTY and --yes performs the exact approved mu
   assert.equal(JSON.parse(approved.stdout).operation, 'attach');
 });
 
-test('CLI exposes the eight attachment operations and resolver closed JSON', () => {
+test('CLI exposes the workspace attachment operations and resolver closed JSON', () => {
   const root = temporaryRoot('cli-chain');
   const first = buildAsset(root, { version: '1.0.0' });
   const second = buildAsset(root, { version: '1.1.0' });
@@ -609,7 +725,22 @@ test('CLI exposes the eight attachment operations and resolver closed JSON', () 
   assert.equal(runCli(['enable', id, '--cwd', root]).status, 0);
   assert.equal(runCli(['switch', id, second, '--cwd', root, '--yes']).status, 0);
   assert.equal(runCli(['rollback', id, '--cwd', root]).status, 0);
-  assert.equal(runCli(['remove', id, '--cwd', root]).status, 0);
+  result = runCli(['remove', id, '--cwd', root]);
+  assert.equal(result.status, 0);
+  const removal = JSON.parse(result.stdout);
+  assert.equal(removal.attachment_removed, true);
+  assert.equal(removal.snapshot_retained.count, 2);
+  assert.match(removal.snapshot_retained.reason, /explicit_cleanup/u);
+  result = runCli(['cleanup', '--cwd', root]);
+  const preview = JSON.parse(result.stdout);
+  assert.equal(preview.mode, 'preview');
+  assert.equal(preview.deleted_snapshot_count, 0);
+  assert.equal(preview.confirmation_required, true);
+  result = runCli(['cleanup', '--cwd', root, '--yes']);
+  const cleaned = JSON.parse(result.stdout);
+  assert.equal(cleaned.mode, 'execute');
+  assert.equal(cleaned.deleted_snapshot_count, 2);
+  assert.equal(cleaned.retained_snapshot_count, 0);
 });
 
 test('plain public asset completes one-shot, multi-attachment selection, and reversible workspace lifecycle', () => {
@@ -721,6 +852,7 @@ test('old global store routes are unknown and absent from default help', () => {
   assert.equal(help.status, 0, help.stderr);
   assert.match(help.stdout, /attach <file\.kdna>/);
   assert.match(help.stdout, /resolve --cwd/);
+  assert.match(help.stdout, /cleanup/);
   assert.doesNotMatch(help.stdout, /\b(?:available|match|install|update|registry|setup)\b/);
 });
 
