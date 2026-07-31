@@ -1040,7 +1040,7 @@ test('adapter-only deferred password authorization resolves scope without claimi
     deferPasswordAuthorization: true,
   });
   assert.equal(outsideScope.decision, 'skip');
-  assert.equal(outsideScope.reason_code, 'outside_scope_or_no_match');
+  assert.equal(outsideScope.reason_code, 'explicitly_outside_scope');
   assert.equal(outsideScope.authorization, 'not_checked');
 
   const cliResult = runCli(
@@ -1942,7 +1942,16 @@ test('task stdin is bounded, strict UTF-8, mutually exclusive, and leaves no wor
   result = runCli(['resolve', '--cwd', root, '--task-stdin'], {
     input: Buffer.from([0xff]),
   });
-  assert.equal(result.status, 2);
+  assert.equal(
+    result.status,
+    2,
+    JSON.stringify({
+      status: result.status,
+      signal: result.signal,
+      error: result.error?.message,
+      stderr: result.stderr,
+    }),
+  );
   assert.match(result.stderr, /UTF-8/u);
 
   result = runCli(['resolve', '--cwd', root, '--task-stdin'], { input: Buffer.alloc(0) });
@@ -2197,7 +2206,16 @@ test('attachment stdin keeps private role and scope out of argv, env, and diagno
   result = runCli(['attach', asset, '--cwd', root, '--attachment-stdin', '--yes'], {
     input: Buffer.alloc(64 * 1024 + 1, 0x61),
   });
-  assert.equal(result.status, 2);
+  assert.equal(
+    result.status,
+    2,
+    JSON.stringify({
+      status: result.status,
+      signal: result.signal,
+      error: result.error?.message,
+      stderr: result.stderr,
+    }),
+  );
   assert.match(result.stderr, /size limit/u);
 });
 
