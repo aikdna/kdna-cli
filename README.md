@@ -58,7 +58,7 @@ and resolve a task without writing its text to disk, use:
 
 ```bash
 node ./src/cli.js attach ./demo-judgment.kdna --cwd ./my-project \
-  --attachment-stdin --yes
+  --attachment-stdin --yes --scope-user-approved
 node ./src/cli.js attachments --cwd ./my-project
 node ./src/cli.js resolve --cwd ./my-project --task-stdin
 ```
@@ -76,13 +76,35 @@ exactly one task input mode is required.
 `attach` copies the validated bytes to an immutable digest snapshot under
 `./my-project/.kdna/`. The source file may then move without changing the
 workspace fact. Before approval, the preview binds the safe relative workspace
-root, final role and scope, exact asset digest, authorization need, and one
-consent digest. Any source, scope, or workspace-root drift before the write is
-rejected. A user's explicit request naming the file, workspace, and scope is
-one approval: an Agent carries that consent into this one command with
-`--yes`; the CLI must not ask a second time. Omit `--yes` only when direct
-interactive preview and confirmation is desired. Existing approved attachments
-do not require repeated approval for resolve or load.
+root, final role and positive/negative scope, exact asset digest, authorization
+need, and one consent digest. Any source, scope, or workspace-root drift before
+the write is rejected. A user's explicit request naming the file, workspace,
+role, and scope is one approval: an Agent carries that exact consent into this
+one command with `--yes --scope-user-approved`; the CLI must not ask a second
+time.
+
+Approval of only “attach this KDNA to this project” does not authorize an Agent
+to invent its role or scope. When the caller proposes or rewrites those routing
+hints, it first runs the same command with `--preview`, shows the resulting
+workspace, asset, role, positive/negative scope, and authorization nature once,
+then executes only after the user confirms that exact proposal:
+
+```bash
+node ./src/cli.js attach ./demo-judgment.kdna --cwd ./my-project \
+  --attachment-stdin --preview
+node ./src/cli.js attach ./demo-judgment.kdna --cwd ./my-project \
+  --attachment-stdin --yes \
+  --consent-digest sha256:<digest-from-preview>
+```
+
+The current public manifest contract has no protocolized asset-wide pre-load
+scope that the CLI can safely derive without reading judgment payload. It
+therefore records attachment scope only as a `user_approved_routing_hint`;
+summary text, keywords, filenames, and encrypted content are never treated as
+scope authority. A future verified public asset boundary may be used only
+unchanged or narrowed. Runtime and payload boundaries remain authoritative
+after loading and cannot be widened by an attachment hint. Existing approved
+attachments do not require repeated approval for resolve or load.
 
 For `attach`, `--cwd` is the exact workspace being approved, not a lookup
 start; a Host must pass its known workspace root there. For read, resolve, and

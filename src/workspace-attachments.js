@@ -213,9 +213,22 @@ function validateAttachment(attachment, index) {
     fail('attachment_schema_unsupported', `${label}.state must be enabled or disabled.`);
   }
   assertText(attachment.role, `${label}.role`);
-  assertExactKeys(attachment.scope, ['kind', 'applies_to', 'does_not_apply_to'], `${label}.scope`);
+  assertExactKeys(
+    attachment.scope,
+    ['kind', 'authority', 'approval_source', 'applies_to', 'does_not_apply_to'],
+    `${label}.scope`,
+  );
   if (attachment.scope.kind !== 'workspace') {
     fail('attachment_schema_unsupported', `${label}.scope.kind must be workspace.`);
+  }
+  if (attachment.scope.authority !== 'user_approved_routing_hint') {
+    fail(
+      'attachment_schema_unsupported',
+      `${label}.scope.authority must remain a user-approved routing hint.`,
+    );
+  }
+  if (!['user_explicit', 'preview_confirmed'].includes(attachment.scope.approval_source)) {
+    fail('attachment_schema_unsupported', `${label}.scope.approval_source is unsupported.`);
   }
   validateScopeTerms(attachment.scope.applies_to, `${label}.scope.applies_to`);
   validateScopeTerms(attachment.scope.does_not_apply_to, `${label}.scope.does_not_apply_to`);
@@ -843,25 +856,29 @@ function attachWorkspace(options) {
       'Attachment scope requires at least one applies-to and one does-not-apply-to phrase.',
     );
   }
-  const now = options.now || new Date().toISOString();
-  const attachment = {
-    attachment_id: `att_${crypto.randomBytes(12).toString('hex')}`,
+  const scopeApproval =
+    options.scopeApproval === undefined ? 'preview_confirmed' : options.scopeApproval;
+  if (!['user_explicit', 'preview_confirmed'].includes(scopeApproval)) {
+    fail('input_invalid', 'Attachment scope approval source is invalid.');
+  }
+  const scope = {
+    kind: 'workspace',
+    authority: 'user_approved_routing_hint',
+    approval_source: scopeApproval,
+    applies_to: appliesTo,
+    does_not_apply_to: doesNotApplyTo,
+  };
+  const attachmentProposal = {
     asset: prepared.asset,
     state: 'enabled',
     role,
-    scope: {
-      kind: 'workspace',
-      applies_to: appliesTo,
-      does_not_apply_to: doesNotApplyTo,
-    },
+    scope,
     resolution_policy: 'load_when_clear_ask_when_ambiguous',
-    approved_at: now,
     update_policy: 'explicit_switch_only',
-    history: [],
   };
   const consentFacts = {
-    workspace_root: displayWorkspaceRoot(process.cwd(), workspace.root),
-    attachment,
+    workspace_root: workspace.root,
+    attachment: attachmentProposal,
     authorization: {
       access: prepared.plan.access,
       required_before_load: prepared.plan.can_load_now !== true,
@@ -874,11 +891,33 @@ function attachWorkspace(options) {
     consent_digest: consentDigest,
     workspace_boundary: {
       kind: 'exact_workspace',
-      root: consentFacts.workspace_root,
+      root: displayWorkspaceRoot(process.cwd(), workspace.root),
     },
-    attachment,
+    attachment: attachmentProposal,
     authorization: consentFacts.authorization,
+    scope_contract: {
+      authority: 'user_approved_routing_hint',
+      asset_declared_preload_boundary: 'not_available_in_current_manifest_contract',
+      runtime_boundary_remains_authoritative: true,
+    },
   };
+  if (options.previewOnly === true) {
+    return {
+      workspace_root: workspace.root,
+      attachment: null,
+      preview,
+      preview_only: true,
+    };
+  }
+  if (
+    options.expectedConsentDigest !== undefined &&
+    options.expectedConsentDigest !== consentDigest
+  ) {
+    fail(
+      'approval_binding_changed',
+      'The attachment workspace, asset, role, scope, or authorization facts changed after preview.',
+    );
+  }
   requireApproval({ preview }, options.approve);
   assertMutationWorkspaceBinding(workspace);
   assertApprovedSourceBinding(options.sourcePath, prepared.digest);
@@ -888,6 +927,13 @@ function attachWorkspace(options) {
       'The attachment role, scope, asset, or authorization facts changed after approval.',
     );
   }
+  const now = options.now || new Date().toISOString();
+  const attachment = {
+    attachment_id: `att_${crypto.randomBytes(12).toString('hex')}`,
+    ...attachmentProposal,
+    approved_at: now,
+    history: [],
+  };
   return withWorkspaceLock(workspace.paths, () => {
     assertMutationWorkspaceBinding(workspace);
     const record = readRecord(workspace.paths, { optional: true }) || emptyRecord();

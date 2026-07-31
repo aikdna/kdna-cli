@@ -29,6 +29,7 @@ const VALUE_FLAGS = new Set([
   '--select-attachment',
   '--selection-task-digest',
   '--selection-plan-digest',
+  '--consent-digest',
 ]);
 
 class WorkspaceCommandInputError extends Error {
@@ -206,11 +207,14 @@ function cmdAttach(args) {
       '--does-not-apply-to',
       '--attachment-stdin',
       '--yes',
+      '--preview',
+      '--scope-user-approved',
+      '--consent-digest',
     ]),
   );
   if (parsed.positional.length !== 1) {
     inputError(
-      'Usage: kdna attach <file.kdna> [--cwd <workspace>] (--attachment-stdin | --role <text> --applies-to <text> --does-not-apply-to <text>) [--yes]',
+      'Usage: kdna attach <file.kdna> [--cwd <workspace>] (--attachment-stdin | --role <text> --applies-to <text> --does-not-apply-to <text>) [--preview | (--yes (--scope-user-approved | --consent-digest <sha256:...>))]',
     );
   }
   const attachmentStdin = parsed.has('--attachment-stdin');
@@ -232,6 +236,22 @@ function cmdAttach(args) {
         applies_to: argumentAppliesTo,
         does_not_apply_to: argumentDoesNotApplyTo,
       };
+  const previewOnly = parsed.has('--preview');
+  const yes = parsed.has('--yes');
+  const scopeUserApproved = parsed.has('--scope-user-approved');
+  const consentDigest = parsed.one('--consent-digest');
+  if (
+    (previewOnly && (yes || scopeUserApproved || consentDigest !== null)) ||
+    (yes && scopeUserApproved === Boolean(consentDigest)) ||
+    (!yes && (scopeUserApproved || consentDigest !== null))
+  ) {
+    inputError(
+      'Attach requires either --preview, interactive confirmation, --yes --scope-user-approved, or --yes --consent-digest <preview digest>.',
+    );
+  }
+  if (consentDigest !== null && !/^sha256:[0-9a-f]{64}$/u.test(consentDigest)) {
+    inputError('--consent-digest must be a lowercase SHA-256 digest.');
+  }
   const cwd = parsed.one('--cwd', process.cwd());
   const result = attachWorkspace({
     sourcePath: parsed.positional[0],
@@ -239,8 +259,21 @@ function cmdAttach(args) {
     role: attachmentInput.role,
     appliesTo: attachmentInput.applies_to,
     doesNotApplyTo: attachmentInput.does_not_apply_to,
-    approve: approvalCallback(parsed.has('--yes')),
+    scopeApproval: scopeUserApproved ? 'user_explicit' : 'preview_confirmed',
+    previewOnly,
+    expectedConsentDigest: consentDigest === null ? undefined : consentDigest,
+    approve: approvalCallback(yes),
   });
+  if (previewOnly) {
+    printJson({
+      operation: 'attach',
+      mode: 'preview',
+      workspace_root: displayRoot(cwd, result.workspace_root),
+      confirmation_required: true,
+      preview: result.preview,
+    });
+    return;
+  }
   mutationOutput('attach', cwd, result);
 }
 

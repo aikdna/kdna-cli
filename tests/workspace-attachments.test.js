@@ -236,10 +236,16 @@ test('attachment approval previews the exact role, scope, boundary, and authoriz
       .join('/'),
   });
   assert.match(preview.consent_digest, /^sha256:[0-9a-f]{64}$/u);
-  assert.deepEqual(preview.attachment, result.attachment);
+  assert.deepEqual(preview.attachment.asset, result.attachment.asset);
+  assert.equal(preview.attachment.role, result.attachment.role);
+  assert.deepEqual(preview.attachment.scope, result.attachment.scope);
+  assert.equal(preview.attachment.resolution_policy, result.attachment.resolution_policy);
+  assert.equal(preview.attachment.update_policy, result.attachment.update_policy);
   assert.equal(preview.attachment.role, 'private editorial preference');
   assert.deepEqual(preview.attachment.scope, {
     kind: 'workspace',
+    authority: 'user_approved_routing_hint',
+    approval_source: 'preview_confirmed',
     applies_to: ['draft article'],
     does_not_apply_to: ['change code'],
   });
@@ -247,6 +253,11 @@ test('attachment approval previews the exact role, scope, boundary, and authoriz
     access: 'public',
     required_before_load: false,
     load_plan_state: 'ready',
+  });
+  assert.deepEqual(preview.scope_contract, {
+    authority: 'user_approved_routing_hint',
+    asset_declared_preload_boundary: 'not_available_in_current_manifest_contract',
+    runtime_boundary_remains_authoritative: true,
   });
 });
 
@@ -1546,9 +1557,99 @@ test('CLI approval is mandatory off-TTY and --yes performs the exact approved mu
     '--does-not-apply-to',
     'code',
     '--yes',
+    '--scope-user-approved',
   ]);
   assert.equal(approved.status, 0, approved.stderr);
   assert.equal(JSON.parse(approved.stdout).operation, 'attach');
+});
+
+test('Agent-proposed scope requires one exact preview receipt before attachment', () => {
+  const root = temporaryRoot('scope-preview');
+  const asset = buildAsset(root);
+  const proposal = Buffer.from(
+    JSON.stringify({
+      role: 'article writing',
+      applies_to: ['draft article'],
+      does_not_apply_to: ['medical diagnosis'],
+    }),
+  );
+  let result = runCli(
+    ['attach', asset, '--cwd', root, '--attachment-stdin', '--yes'],
+    { input: proposal },
+  );
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /--scope-user-approved|--consent-digest/u);
+  assert.equal(fs.existsSync(recordPath(root)), false);
+
+  result = runCli(
+    ['attach', asset, '--cwd', root, '--attachment-stdin', '--preview'],
+    { input: proposal },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  const preview = JSON.parse(result.stdout);
+  assert.equal(preview.mode, 'preview');
+  assert.equal(preview.confirmation_required, true);
+  assert.equal(fs.existsSync(recordPath(root)), false);
+  assert.equal(
+    preview.preview.attachment.scope.authority,
+    'user_approved_routing_hint',
+  );
+  assert.equal(
+    preview.preview.attachment.scope.approval_source,
+    'preview_confirmed',
+  );
+  assert.equal(
+    preview.preview.scope_contract.asset_declared_preload_boundary,
+    'not_available_in_current_manifest_contract',
+  );
+  assert.equal(
+    preview.preview.scope_contract.runtime_boundary_remains_authoritative,
+    true,
+  );
+
+  result = runCli(
+    [
+      'attach',
+      asset,
+      '--cwd',
+      root,
+      '--attachment-stdin',
+      '--yes',
+      '--consent-digest',
+      preview.preview.consent_digest,
+    ],
+    { input: proposal },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  const stored = readRecord(root).attachments[0];
+  assert.equal(stored.scope.approval_source, 'preview_confirmed');
+  assert.equal(stored.scope.authority, 'user_approved_routing_hint');
+
+  const changedRoot = temporaryRoot('scope-preview-drift');
+  const changedAsset = buildAsset(changedRoot);
+  const changedProposal = Buffer.from(
+    JSON.stringify({
+      role: 'medical advice',
+      applies_to: ['medical diagnosis'],
+      does_not_apply_to: ['draft article'],
+    }),
+  );
+  result = runCli(
+    [
+      'attach',
+      changedAsset,
+      '--cwd',
+      changedRoot,
+      '--attachment-stdin',
+      '--yes',
+      '--consent-digest',
+      preview.preview.consent_digest,
+    ],
+    { input: changedProposal },
+  );
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /changed after preview/u);
+  assert.equal(fs.existsSync(recordPath(changedRoot)), false);
 });
 
 test('attachment stdin keeps private role and scope out of argv, env, and diagnostics', () => {
@@ -1565,7 +1666,15 @@ test('attachment stdin keeps private role and scope out of argv, env, and diagno
     }),
     'utf8',
   );
-  const commandArgs = ['attach', asset, '--cwd', root, '--attachment-stdin', '--yes'];
+  const commandArgs = [
+    'attach',
+    asset,
+    '--cwd',
+    root,
+    '--attachment-stdin',
+    '--yes',
+    '--scope-user-approved',
+  ];
   let result = runCli(commandArgs, { input });
   assert.equal(result.status, 0, result.stderr);
   assert.doesNotMatch(result.stderr, new RegExp(`${role}|${appliesTo}|${doesNotApplyTo}`, 'u'));
@@ -1580,6 +1689,8 @@ test('attachment stdin keeps private role and scope out of argv, env, and diagno
   assert.equal(stored.role, role);
   assert.deepEqual(stored.scope.applies_to, [appliesTo]);
   assert.deepEqual(stored.scope.does_not_apply_to, [doesNotApplyTo]);
+  assert.equal(stored.scope.authority, 'user_approved_routing_hint');
+  assert.equal(stored.scope.approval_source, 'user_explicit');
 
   result = runCli(
     [
@@ -1621,7 +1732,15 @@ test('simple approved attachment has a deterministic related load and unrelated 
     }),
   );
   const attached = runCli(
-    ['attach', asset, '--cwd', root, '--attachment-stdin', '--yes'],
+    [
+      'attach',
+      asset,
+      '--cwd',
+      root,
+      '--attachment-stdin',
+      '--yes',
+      '--scope-user-approved',
+    ],
     { input },
   );
   assert.equal(attached.status, 0, attached.stderr);
@@ -1652,6 +1771,7 @@ test('CLI exposes the workspace attachment operations and resolver closed JSON',
     '--does-not-apply-to',
     'code',
     '--yes',
+    '--scope-user-approved',
   ]);
   assert.equal(result.status, 0, result.stderr);
   const id = JSON.parse(result.stdout).attachment.attachment_id;
@@ -1739,6 +1859,7 @@ test('plain public asset completes one-shot, multi-attachment selection, and rev
     '--does-not-apply-to',
     'code',
     '--yes',
+    '--scope-user-approved',
   ]);
   assert.equal(result.status, 0, result.stderr);
   const firstId = JSON.parse(result.stdout).attachment.attachment_id;
@@ -1755,6 +1876,7 @@ test('plain public asset completes one-shot, multi-attachment selection, and rev
     '--does-not-apply-to',
     'code',
     '--yes',
+    '--scope-user-approved',
   ]);
   assert.equal(result.status, 0, result.stderr);
   const secondId = JSON.parse(result.stdout).attachment.attachment_id;

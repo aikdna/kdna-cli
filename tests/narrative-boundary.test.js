@@ -80,7 +80,15 @@ test('source-candidate task examples prefer stdin and keep file input explicit',
   assert.doesNotMatch(candidate, /save the current task text in a regular file/iu);
   assert.match(candidate, /--attachment-stdin/);
   assert.match(candidate, /role`, `applies_to`, and `does_not_apply_to/);
-  assert.match(candidate, /explicit request naming the file, workspace, and scope is\s+one approval/);
+  assert.match(
+    candidate,
+    /explicit request naming the file, workspace,\s+role, and scope is one approval/,
+  );
+  assert.match(candidate, /--scope-user-approved/);
+  assert.match(candidate, /--consent-digest/);
+  assert.match(candidate, /Approval of only “attach this KDNA to this project” does not authorize/);
+  assert.match(candidate, /user_approved_routing_hint/);
+  assert.match(candidate, /Runtime and payload boundaries remain authoritative/);
 });
 
 test('scope narrative does not present phrase matching as natural-language understanding', () => {

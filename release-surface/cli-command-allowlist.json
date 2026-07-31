@@ -4,8 +4,8 @@
   "commands": [
     {
       "command": "attach",
-      "usage": "attach <file.kdna> --cwd <workspace> --attachment-stdin --yes",
-      "purpose": "Approve one explicit asset snapshot for a workspace."
+      "usage": "attach <file.kdna> --cwd <workspace> --attachment-stdin [--preview | (--yes (--scope-user-approved | --consent-digest <sha256:...>))]",
+      "purpose": "Approve one explicit asset snapshot and its user-authorized routing hints for a workspace."
     },
     {
       "command": "attachments",
