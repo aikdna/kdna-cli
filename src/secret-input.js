@@ -5,6 +5,8 @@ const { TextDecoder } = require('node:util');
 
 const MAX_SECRET_BYTES = 16 * 1024;
 const READ_BUFFER_BYTES = 4 * 1024;
+const MAX_TRANSIENT_READ_RETRIES = 1000;
+const READ_RETRY_STATE = new Int32Array(new SharedArrayBuffer(4));
 
 class SecretInputError extends Error {
   constructor(code, message) {
@@ -65,7 +67,20 @@ function readBoundedStdinBytes({
   let exceeded = false;
   try {
     while (true) {
-      const count = fileSystem.readSync(fd, readBuffer, 0, readBuffer.length);
+      let count;
+      let retries = 0;
+      while (true) {
+        try {
+          count = fileSystem.readSync(fd, readBuffer, 0, readBuffer.length);
+          break;
+        } catch (readError) {
+          if (readError?.code !== 'EAGAIN' || retries >= MAX_TRANSIENT_READ_RETRIES) {
+            throw readError;
+          }
+          retries += 1;
+          Atomics.wait(READ_RETRY_STATE, 0, 0, 1);
+        }
+      }
       if (count === 0) break;
       if (exceeded || total + count > maximum) {
         exceeded = true;
