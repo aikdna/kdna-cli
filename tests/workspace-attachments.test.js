@@ -14,6 +14,7 @@ const {
   WorkspaceAttachmentError,
   attachWorkspace,
   cleanupWorkspaceSnapshots,
+  findWorkspace,
   listWorkspaceAttachments,
   removeWorkspaceAttachment,
   resolveWorkspace,
@@ -64,6 +65,17 @@ function buildAsset(root, options = {}) {
   return asset;
 }
 
+function buildProtectedAsset(root, password = 'workspace-test-password') {
+  const suffix = crypto.randomBytes(4).toString('hex');
+  const source = path.join(root, `protected-source-${suffix}`);
+  const protectedAsset = path.join(root, `protected-${suffix}.kdna`);
+  const demo = runCli(['demo', 'minimal', source, '--password-stdin'], { input: `${password}\n` });
+  assert.equal(demo.status, 0, demo.stderr);
+  const packed = runCli(['pack', source, protectedAsset]);
+  assert.equal(packed.status, 0, packed.stderr);
+  return protectedAsset;
+}
+
 function writeTask(root, text, name = `task-${crypto.randomBytes(4).toString('hex')}.txt`) {
   const task = path.join(root, name);
   fs.writeFileSync(task, text, { mode: 0o600 });
@@ -90,6 +102,7 @@ function resolve(root, text, options = {}) {
   const taskFile = writeTask(root, text);
   return resolveWorkspace({
     cwd: options.cwd || root,
+    workspaceRoot: options.workspaceRoot || options.cwd || root,
     taskFile,
     adapterSchema: options.adapterSchema,
   });
@@ -101,6 +114,11 @@ function recordPath(root) {
 
 function readRecord(root) {
   return JSON.parse(fs.readFileSync(recordPath(root), 'utf8'));
+}
+
+function executeCleanup(root) {
+  const preview = cleanupWorkspaceSnapshots({ cwd: root });
+  return cleanupWorkspaceSnapshots({ cwd: root, planDigest: preview.plan_digest });
 }
 
 function runCli(args, options = {}) {
@@ -267,6 +285,47 @@ test('empty, unmatched, and internally contradictory scope asks rather than infe
   assert.equal(contradiction.reason_code, 'ambiguous_scope');
 });
 
+test('scope hints use deterministic token boundaries, normalized roles, and explicit CJK matching', () => {
+  for (const [term, task] of [
+    ['code', 'decode this payload'],
+    ['draft', 'redraft this paragraph'],
+  ]) {
+    const root = temporaryRoot('scope-token-boundary');
+    attach(root, buildAsset(root), { appliesTo: [term], doesNotApplyTo: [] });
+    const result = resolve(root, task);
+    assert.equal(result.decision, 'ask');
+    assert.equal(result.reason_code, 'ambiguous_scope');
+  }
+
+  const phraseRoot = temporaryRoot('scope-phrase-boundary');
+  attach(phraseRoot, buildAsset(phraseRoot), {
+    appliesTo: ['code-review'],
+    doesNotApplyTo: [],
+  });
+  assert.equal(resolve(phraseRoot, 'Please perform a code review.').decision, 'load');
+
+  const roleRoot = temporaryRoot('scope-normalized-role');
+  attach(roleRoot, buildAsset(roleRoot), {
+    role: 'Writing Review',
+    appliesTo: ['draft'],
+    doesNotApplyTo: [],
+  });
+  attach(roleRoot, buildAsset(roleRoot), {
+    role: 'writing   review',
+    appliesTo: [],
+    doesNotApplyTo: ['draft'],
+  });
+  assert.equal(resolve(roleRoot, 'draft this').reason_code, 'attachment_conflict');
+
+  const cjkRoot = temporaryRoot('scope-cjk');
+  attach(cjkRoot, buildAsset(cjkRoot), {
+    appliesTo: ['文章起草'],
+    doesNotApplyTo: [],
+  });
+  assert.equal(resolve(cjkRoot, '请完成“文章起草”。').decision, 'load');
+  assert.equal(resolve(cjkRoot, '请检查文章。').decision, 'ask');
+});
+
 test('multiple positive attachments and same-role disagreement ask with attachment_conflict', () => {
   const multipleRoot = temporaryRoot('multi-conflict');
   attach(multipleRoot, buildAsset(multipleRoot), { role: 'writing' });
@@ -290,7 +349,7 @@ test('multiple positive attachments and same-role disagreement ask with attachme
   assert.equal(resolve(roleRoot, 'draft this').reason_code, 'attachment_conflict');
 });
 
-test('protected or remote assets block before scope when authorization is not satisfied', () => {
+test('in-scope protected or remote assets block when authorization is not satisfied', () => {
   const root = temporaryRoot('authorization');
   const attached = attach(root, buildAsset(root, { access: 'remote' }));
   const recordBefore = fs.readFileSync(recordPath(root));
@@ -305,6 +364,31 @@ test('protected or remote assets block before scope when authorization is not sa
   assert.deepEqual(fs.readFileSync(snapshot), snapshotBefore);
 });
 
+test('explicitly outside-scope assets do not block on missing authorization or damaged snapshots', () => {
+  const encryptedRoot = temporaryRoot('outside-encrypted');
+  attach(encryptedRoot, buildProtectedAsset(encryptedRoot), {
+    appliesTo: ['draft'],
+    doesNotApplyTo: ['code'],
+  });
+  const encryptedOutside = resolve(encryptedRoot, 'review this code');
+  assert.equal(encryptedOutside.decision, 'skip');
+  assert.equal(encryptedOutside.reason_code, 'outside_scope');
+  assert.equal(encryptedOutside.authorization, 'not_checked');
+  assert.equal(encryptedOutside.integrity, 'not_checked');
+  assert.equal(resolve(encryptedRoot, 'draft this').reason_code, 'authorization_required');
+
+  const missingRoot = temporaryRoot('outside-missing');
+  const missing = attach(missingRoot, buildAsset(missingRoot), {
+    appliesTo: ['draft'],
+    doesNotApplyTo: ['code'],
+  });
+  fs.unlinkSync(path.join(missingRoot, '.kdna', ...missing.attachment.asset.snapshot.split('/')));
+  const missingOutside = resolve(missingRoot, 'review this code');
+  assert.equal(missingOutside.decision, 'skip');
+  assert.equal(missingOutside.reason_code, 'outside_scope');
+  assert.equal(missingOutside.integrity, 'not_checked');
+  assert.equal(resolve(missingRoot, 'draft this').reason_code, 'snapshot_missing');
+});
 test('adapter schema mismatch blocks with a closed adapter_incompatible result', () => {
   const root = temporaryRoot('adapter');
   const result = resolve(root, 'draft', { adapterSchema: '0.0.1' });
@@ -397,7 +481,7 @@ test(
   },
 );
 
-test('nearest nested workspace wins and parent and child records are never merged', () => {
+test('explicit Host boundary contains lookup and nearest nested workspace wins without merging', () => {
   const root = temporaryRoot('nested');
   const child = path.join(root, 'packages', 'child');
   const deep = path.join(child, 'src');
@@ -405,11 +489,112 @@ test('nearest nested workspace wins and parent and child records are never merge
   attach(root, buildAsset(root), { role: 'parent' });
   attach(child, buildAsset(root), { role: 'child' });
   const taskFile = writeTask(root, 'draft this');
-  const result = resolveWorkspace({ cwd: deep, taskFile });
+  const result = resolveWorkspace({ cwd: deep, workspaceRoot: root, taskFile });
   assert.equal(result.decision, 'load');
   assert.equal(result.selected.role, 'child');
   assert.equal(result.candidates.length, 1);
   assert.equal(result.workspace_root, '..');
+});
+
+test('home and out-of-boundary parent records never become implicit project authority', () => {
+  const fakeHome = temporaryRoot('fake-home');
+  const homeAttachment = attach(fakeHome, buildAsset(fakeHome), { role: 'home-record' });
+  const project = path.join(fakeHome, 'projects', 'unrelated');
+  const deep = path.join(project, 'src');
+  fs.mkdirSync(deep, { recursive: true });
+  const taskFile = writeTask(project, 'draft this');
+  const originalHome = os.homedir;
+  os.homedir = () => fakeHome;
+  try {
+    const bounded = resolveWorkspace({
+      cwd: deep,
+      workspaceRoot: project,
+      taskFile,
+    });
+    assert.equal(bounded.decision, 'skip');
+    assert.equal(bounded.reason_code, 'no_approved_attachment');
+    assert.equal(bounded.candidates.length, 0);
+    assert.throws(
+      () => listWorkspaceAttachments(fakeHome, fakeHome),
+      (error) =>
+        error instanceof WorkspaceAttachmentError && error.code === 'home_workspace_ambiguous',
+    );
+    assert.throws(
+      () =>
+        setAttachmentState({
+          cwd: fakeHome,
+          attachmentId: homeAttachment.attachment.attachment_id,
+          state: 'disabled',
+        }),
+      (error) =>
+        error instanceof WorkspaceAttachmentError && error.code === 'home_workspace_ambiguous',
+    );
+  } finally {
+    os.homedir = originalHome;
+  }
+
+  const outer = temporaryRoot('outside-host-root');
+  attach(outer, buildAsset(outer), { role: 'outside-boundary' });
+  const hostRoot = path.join(outer, 'workspace');
+  const hostStart = path.join(hostRoot, 'nested');
+  fs.mkdirSync(hostStart, { recursive: true });
+  const outsideResult = resolveWorkspace({
+    cwd: hostStart,
+    workspaceRoot: hostRoot,
+    taskFile: writeTask(hostRoot, 'draft this'),
+  });
+  assert.equal(outsideResult.decision, 'skip');
+  assert.equal(outsideResult.reason_code, 'no_approved_attachment');
+});
+
+test(
+  'workspace boundary rejects relative escapes and symlinked launch coordinates',
+  { skip: process.platform === 'win32' },
+  () => {
+    const root = temporaryRoot('boundary-hostile');
+    const child = path.join(root, 'child');
+    const outside = temporaryRoot('boundary-outside');
+    fs.mkdirSync(child);
+    assert.throws(
+      () => findWorkspace(child, path.join(child, '..', '..', path.basename(outside))),
+      (error) =>
+        error instanceof WorkspaceAttachmentError && error.code === 'workspace_boundary_escape',
+    );
+
+    const linkedBoundary = path.join(root, 'linked-boundary');
+    fs.symlinkSync(outside, linkedBoundary);
+    assert.throws(
+      () => findWorkspace(outside, linkedBoundary),
+      (error) => error instanceof WorkspaceAttachmentError && error.code === 'workspace_invalid',
+    );
+
+    const linkedStart = path.join(root, 'linked-start');
+    fs.symlinkSync(outside, linkedStart);
+    assert.throws(
+      () => findWorkspace(linkedStart, root),
+      (error) => error instanceof WorkspaceAttachmentError && error.code === 'workspace_invalid',
+    );
+  },
+);
+
+test('CLI treats --cwd as the default boundary and requires an explicit root for nested lookup', () => {
+  const root = temporaryRoot('cli-boundary');
+  const nested = path.join(root, 'packages', 'app');
+  fs.mkdirSync(nested, { recursive: true });
+  attach(root, buildAsset(root));
+  const taskFile = writeTask(root, 'draft this');
+
+  let result = runCli(['resolve', '--cwd', nested, '--task-file', taskFile]);
+  assert.equal(result.status, 0);
+  let resolution = JSON.parse(result.stdout);
+  assert.equal(resolution.decision, 'skip');
+  assert.equal(resolution.reason_code, 'no_approved_attachment');
+
+  result = runCli(['resolve', '--cwd', nested, '--workspace-root', root, '--task-file', taskFile]);
+  assert.equal(result.status, 0);
+  resolution = JSON.parse(result.stdout);
+  assert.equal(resolution.decision, 'load');
+  assert.equal(resolution.selected.role, 'article-writing');
 });
 
 test('disable and enable are atomic state changes and enable re-verifies its snapshot', () => {
@@ -460,16 +645,26 @@ test('remove deletes only the relation and retains immutable snapshots', () => {
   const root = temporaryRoot('remove');
   const attached = attach(root, buildAsset(root));
   const snapshot = path.join(root, '.kdna', ...attached.attachment.asset.snapshot.split('/'));
+  fs.writeFileSync(path.join(root, '.kdna', 'assets', 'unrecognized.txt'), 'retain');
+  fs.mkdirSync(path.join(root, '.kdna', 'assets', 'unrecognized-directory'));
+  fs.writeFileSync(
+    path.join(root, '.kdna', 'assets', `sha256-${'0'.repeat(64)}.kdna`),
+    'not-the-named-digest',
+  );
   const removal = removeWorkspaceAttachment({
     cwd: root,
     attachmentId: attached.attachment.attachment_id,
   });
   assert.equal(removal.attachment_removed, true);
   assert.equal(removal.removed_attachment.attachment_id, attached.attachment.attachment_id);
-  assert.deepEqual(removal.snapshot_retained, {
-    count: 1,
-    reason: 'remove_preserves_workspace_snapshots_for_other_references_and_explicit_cleanup',
-  });
+  assert.equal(removal.snapshot_retained, true);
+  assert.equal(removal.retained_snapshot_count, 1);
+  assert.equal(
+    removal.retained_snapshot_reason,
+    'remove_preserves_managed_workspace_snapshots_for_references_and_explicit_cleanup',
+  );
+  assert.equal(removal.unknown_storage_entry_count, 2);
+  assert.equal(removal.blocked_storage_entry_count, 2);
   assert.equal(readRecord(root).attachments.length, 0);
   assert.ok(fs.existsSync(snapshot));
   assert.equal(resolve(root, 'draft').reason_code, 'no_approved_attachment');
@@ -507,7 +702,7 @@ test('explicit cleanup previews, preserves rollback references, and deletes only
   });
   const recordBefore = fs.readFileSync(recordPath(root));
 
-  const preview = cleanupWorkspaceSnapshots({ cwd: root, execute: false });
+  const preview = cleanupWorkspaceSnapshots({ cwd: root });
   assert.equal(preview.mode, 'preview');
   assert.equal(preview.eligible_snapshot_count, 1);
   assert.equal(preview.deleted_snapshot_count, 0);
@@ -516,7 +711,7 @@ test('explicit cleanup previews, preserves rollback references, and deletes only
   assert.equal(preview.retained_reason_counts.awaiting_explicit_cleanup, 1);
   assert.ok(fs.existsSync(removableSnapshot));
 
-  const cleaned = cleanupWorkspaceSnapshots({ cwd: root, execute: true });
+  const cleaned = cleanupWorkspaceSnapshots({ cwd: root, planDigest: preview.plan_digest });
   assert.equal(cleaned.mode, 'execute');
   assert.equal(cleaned.eligible_snapshot_count, 1);
   assert.equal(cleaned.deleted_snapshot_count, 1);
@@ -540,7 +735,7 @@ test('explicit cleanup deletes an unreferenced encrypted snapshot without touchi
   const attached = attach(root, protectedAsset);
   const snapshot = path.join(root, '.kdna', ...attached.attachment.asset.snapshot.split('/'));
   removeWorkspaceAttachment({ cwd: root, attachmentId: attached.attachment.attachment_id });
-  const cleaned = cleanupWorkspaceSnapshots({ cwd: root, execute: true });
+  const cleaned = executeCleanup(root);
   assert.equal(cleaned.deleted_snapshot_count, 1);
   assert.equal(fs.existsSync(snapshot), false);
   assert.equal(fs.existsSync(protectedAsset), true);
@@ -557,15 +752,10 @@ test(
     attach(root, buildAsset(root));
     const outside = path.join(root, 'outside.kdna');
     fs.writeFileSync(outside, 'outside');
-    const hostile = path.join(
-      root,
-      '.kdna',
-      'assets',
-      `sha256-${'0'.repeat(64)}.kdna`,
-    );
+    const hostile = path.join(root, '.kdna', 'assets', `sha256-${'0'.repeat(64)}.kdna`);
     fs.symlinkSync(outside, hostile);
     assert.throws(
-      () => cleanupWorkspaceSnapshots({ cwd: root, execute: true }),
+      () => cleanupWorkspaceSnapshots({ cwd: root }),
       (error) => error instanceof WorkspaceAttachmentError && error.code === 'cleanup_unsafe_path',
     );
     assert.equal(fs.readFileSync(outside, 'utf8'), 'outside');
@@ -574,12 +764,129 @@ test(
     const lock = path.join(root, '.kdna', 'attachments.lock');
     writeJson(lock, { pid: process.pid, created_at: new Date().toISOString() });
     assert.throws(
-      () => cleanupWorkspaceSnapshots({ cwd: root, execute: true }),
+      () => cleanupWorkspaceSnapshots({ cwd: root }),
       (error) => error instanceof WorkspaceAttachmentError && error.code === 'workspace_locked',
     );
     fs.unlinkSync(lock);
   },
 );
+
+test('cleanup confirmation is bound to the exact preview and rejects a newly appeared orphan', () => {
+  const root = temporaryRoot('cleanup-plan-drift');
+  const first = attach(
+    root,
+    buildAsset(root, {
+      assetId: 'kdna:test:cleanup-plan-first',
+      suffix: 'cleanup-plan-first',
+    }),
+  );
+  const firstSnapshot = path.join(root, '.kdna', ...first.attachment.asset.snapshot.split('/'));
+  removeWorkspaceAttachment({ cwd: root, attachmentId: first.attachment.attachment_id });
+  const preview = cleanupWorkspaceSnapshots({ cwd: root });
+  assert.equal(preview.eligible_snapshot_count, 1);
+
+  const second = attach(
+    root,
+    buildAsset(root, {
+      assetId: 'kdna:test:cleanup-plan-second',
+      suffix: 'cleanup-plan-second',
+    }),
+  );
+  const secondSnapshot = path.join(root, '.kdna', ...second.attachment.asset.snapshot.split('/'));
+  removeWorkspaceAttachment({ cwd: root, attachmentId: second.attachment.attachment_id });
+  assert.throws(
+    () => cleanupWorkspaceSnapshots({ cwd: root, planDigest: preview.plan_digest }),
+    (error) => error instanceof WorkspaceAttachmentError && error.code === 'cleanup_plan_changed',
+  );
+  assert.equal(fs.existsSync(firstSnapshot), true);
+  assert.equal(fs.existsSync(secondSnapshot), true);
+
+  const refreshed = cleanupWorkspaceSnapshots({ cwd: root });
+  assert.equal(refreshed.eligible_snapshot_count, 2);
+  assert.notEqual(refreshed.plan_digest, preview.plan_digest);
+});
+
+test('cleanup recovery rejects a path-traversal staging plan without touching outside bytes', () => {
+  const root = temporaryRoot('cleanup-recovery-traversal');
+  attach(root, buildAsset(root));
+  const outside = path.join(root, 'outside.kdna');
+  fs.writeFileSync(outside, 'outside');
+  const digest = `sha256:${'0'.repeat(64)}`;
+  const plan = {
+    document_type: 'kdna.workspace-cleanup-plan',
+    schema_version: '0.1.0',
+    record_digest: digest,
+    eligible_snapshots: [{ snapshot: '../../outside.kdna', digest }],
+  };
+  plan.plan_digest = sha256(
+    Buffer.from(
+      JSON.stringify({
+        record_digest: plan.record_digest,
+        eligible_snapshots: plan.eligible_snapshots,
+      }),
+      'utf8',
+    ),
+  );
+  const staging = path.join(
+    root,
+    '.kdna',
+    `.cleanup-staging-${plan.plan_digest.slice('sha256:'.length)}`,
+  );
+  fs.mkdirSync(staging, { mode: 0o700 });
+  writeJson(path.join(staging, 'plan.json'), plan);
+  assert.throws(
+    () => cleanupWorkspaceSnapshots({ cwd: root }),
+    (error) =>
+      error instanceof WorkspaceAttachmentError && error.code === 'cleanup_recovery_required',
+  );
+  assert.equal(fs.readFileSync(outside, 'utf8'), 'outside');
+});
+
+test('cleanup partial failure writes exact deletion facts and restores every undeleted staged snapshot', () => {
+  const root = temporaryRoot('cleanup-partial');
+  for (const suffix of ['partial-one', 'partial-two']) {
+    const attached = attach(root, buildAsset(root, { assetId: `kdna:test:${suffix}`, suffix }));
+    removeWorkspaceAttachment({ cwd: root, attachmentId: attached.attachment.attachment_id });
+  }
+  const preview = cleanupWorkspaceSnapshots({ cwd: root });
+  assert.equal(preview.eligible_snapshot_count, 2);
+  const originalUnlink = fs.unlinkSync;
+  let stagedDeletes = 0;
+  fs.unlinkSync = (file) => {
+    if (
+      String(file).includes('.cleanup-staging-') &&
+      /^sha256-[a-f0-9]{64}\.kdna$/.test(path.basename(String(file)))
+    ) {
+      stagedDeletes += 1;
+      if (stagedDeletes === 2) {
+        const error = new Error('simulated cleanup deletion failure');
+        error.code = 'EIO';
+        throw error;
+      }
+    }
+    return originalUnlink(file);
+  };
+  try {
+    assert.throws(
+      () => cleanupWorkspaceSnapshots({ cwd: root, planDigest: preview.plan_digest }),
+      (error) => error instanceof WorkspaceAttachmentError && error.code === 'cleanup_partial',
+    );
+  } finally {
+    fs.unlinkSync = originalUnlink;
+  }
+  const receipt = JSON.parse(
+    fs.readFileSync(path.join(root, '.kdna', 'cleanup-last-receipt.json'), 'utf8'),
+  );
+  assert.equal(receipt.status, 'PARTIAL');
+  assert.equal(receipt.plan_digest, preview.plan_digest);
+  assert.equal(receipt.deleted_snapshot_count, 1);
+  assert.equal(receipt.restored_snapshot_count, 1);
+  assert.equal(
+    fs.readdirSync(path.join(root, '.kdna')).some((entry) => entry.startsWith('.cleanup-staging-')),
+    false,
+  );
+  assert.equal(fs.readdirSync(path.join(root, '.kdna', 'assets')).length, 1);
+});
 
 test('exclusive lock contention leaves the complete record unchanged', () => {
   const root = temporaryRoot('lock');
@@ -729,14 +1036,20 @@ test('CLI exposes the workspace attachment operations and resolver closed JSON',
   assert.equal(result.status, 0);
   const removal = JSON.parse(result.stdout);
   assert.equal(removal.attachment_removed, true);
-  assert.equal(removal.snapshot_retained.count, 2);
-  assert.match(removal.snapshot_retained.reason, /explicit_cleanup/u);
+  assert.equal(removal.snapshot_retained, true);
+  assert.equal(removal.retained_snapshot_count, 2);
+  assert.match(removal.retained_snapshot_reason, /explicit_cleanup/u);
+  assert.equal(removal.unknown_storage_entry_count, 0);
+  assert.equal(removal.blocked_storage_entry_count, 0);
   result = runCli(['cleanup', '--cwd', root]);
   const preview = JSON.parse(result.stdout);
   assert.equal(preview.mode, 'preview');
   assert.equal(preview.deleted_snapshot_count, 0);
   assert.equal(preview.confirmation_required, true);
   result = runCli(['cleanup', '--cwd', root, '--yes']);
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /requires both --plan-digest and --yes/u);
+  result = runCli(['cleanup', '--cwd', root, '--plan-digest', preview.plan_digest, '--yes']);
   const cleaned = JSON.parse(result.stdout);
   assert.equal(cleaned.mode, 'execute');
   assert.equal(cleaned.deleted_snapshot_count, 2);
@@ -889,7 +1202,7 @@ test('attachments reads the nearest record without loading or exposing judgment 
   const child = path.join(root, 'nested');
   fs.mkdirSync(child);
   attach(root, buildAsset(root));
-  const view = listWorkspaceAttachments(child);
+  const view = listWorkspaceAttachments(child, root);
   assert.equal(view.workspace_root, fs.realpathSync(root));
   assert.equal(view.record.attachments.length, 1);
   assert.equal(Object.hasOwn(view.record.attachments[0], 'content'), false);

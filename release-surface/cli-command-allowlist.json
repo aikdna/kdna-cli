@@ -9,43 +9,43 @@
     },
     {
       "command": "attachments",
-      "usage": "attachments",
-      "purpose": "List the explicit attachment record for a workspace."
+      "usage": "attachments [--cwd <start>] [--workspace-root <boundary>]",
+      "purpose": "List the nearest explicit attachment record without crossing the Host workspace boundary."
     },
     {
       "command": "resolve",
-      "usage": "resolve --cwd <workspace> --task-file <file>",
-      "purpose": "Resolve one task file against approved workspace attachments."
+      "usage": "resolve --cwd <start> [--workspace-root <boundary>] --task-file <file>",
+      "purpose": "Resolve one task file against approved attachments inside the explicit Host workspace boundary."
     },
     {
       "command": "disable",
-      "usage": "disable <attachment-id>",
+      "usage": "disable <attachment-id> [--cwd <start>] [--workspace-root <boundary>]",
       "purpose": "Disable one approved workspace attachment."
     },
     {
       "command": "enable",
-      "usage": "enable <attachment-id>",
+      "usage": "enable <attachment-id> [--cwd <start>] [--workspace-root <boundary>]",
       "purpose": "Re-enable one approved workspace attachment."
     },
     {
       "command": "switch",
-      "usage": "switch <attachment-id> <file.kdna>",
+      "usage": "switch <attachment-id> <file.kdna> [--cwd <start>] [--workspace-root <boundary>]",
       "purpose": "Approve an explicit replacement for one workspace attachment."
     },
     {
       "command": "rollback",
-      "usage": "rollback <attachment-id>",
+      "usage": "rollback <attachment-id> [--cwd <start>] [--workspace-root <boundary>]",
       "purpose": "Restore the preceding snapshot for one workspace attachment."
     },
     {
       "command": "remove",
-      "usage": "remove <attachment-id>",
+      "usage": "remove <attachment-id> [--cwd <start>] [--workspace-root <boundary>]",
       "purpose": "Remove one relation while explicitly reporting retained snapshots."
     },
     {
       "command": "cleanup",
-      "usage": "cleanup",
-      "purpose": "Preview or explicitly delete only unreferenced workspace snapshots."
+      "usage": "cleanup [--cwd <start>] [--workspace-root <boundary>] [--plan-digest <sha256:...> --yes]",
+      "purpose": "Preview or confirm one exact plan for unreferenced workspace snapshots."
     },
     {
       "command": "inspect",

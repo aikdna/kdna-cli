@@ -17,11 +17,13 @@ const {
 
 const VALUE_FLAGS = new Set([
   '--cwd',
+  '--workspace-root',
   '--role',
   '--applies-to',
   '--does-not-apply-to',
   '--task-file',
   '--adapter-schema',
+  '--plan-digest',
 ]);
 
 class WorkspaceCommandInputError extends Error {
@@ -124,7 +126,19 @@ function mutationOutput(operation, cwd, result) {
     output.attachment_removed = result.attachment_removed;
   }
   if (result.removed_attachment) output.removed_attachment = result.removed_attachment;
-  if (result.snapshot_retained) output.snapshot_retained = result.snapshot_retained;
+  if (result.snapshot_retained !== undefined) output.snapshot_retained = result.snapshot_retained;
+  if (result.retained_snapshot_count !== undefined) {
+    output.retained_snapshot_count = result.retained_snapshot_count;
+  }
+  if (result.retained_snapshot_reason) {
+    output.retained_snapshot_reason = result.retained_snapshot_reason;
+  }
+  if (result.unknown_storage_entry_count !== undefined) {
+    output.unknown_storage_entry_count = result.unknown_storage_entry_count;
+  }
+  if (result.blocked_storage_entry_count !== undefined) {
+    output.blocked_storage_entry_count = result.blocked_storage_entry_count;
+  }
   printJson(output);
 }
 
@@ -151,12 +165,13 @@ function cmdAttach(args) {
 }
 
 function cmdAttachments(args) {
-  const parsed = parseArgs(args, new Set(['--cwd']));
+  const parsed = parseArgs(args, new Set(['--cwd', '--workspace-root']));
   if (parsed.positional.length !== 0) {
-    inputError('Usage: kdna attachments [--cwd <workspace>]');
+    inputError('Usage: kdna attachments [--cwd <start>] [--workspace-root <boundary>]');
   }
   const cwd = parsed.one('--cwd', process.cwd());
-  const result = listWorkspaceAttachments(cwd);
+  const workspaceRoot = parsed.one('--workspace-root', cwd);
+  const result = listWorkspaceAttachments(cwd, workspaceRoot);
   if (!result.record) {
     printJson(null);
     return;
@@ -165,18 +180,26 @@ function cmdAttachments(args) {
 }
 
 function cmdResolve(args) {
-  const parsed = parseArgs(args, new Set(['--cwd', '--task-file', '--adapter-schema']));
+  const parsed = parseArgs(
+    args,
+    new Set(['--cwd', '--workspace-root', '--task-file', '--adapter-schema']),
+  );
   if (parsed.positional.length !== 0) {
-    inputError('Usage: kdna resolve --cwd <workspace> --task-file <file> [--adapter-schema 0.1.0]');
+    inputError(
+      'Usage: kdna resolve --cwd <start> [--workspace-root <boundary>] --task-file <file> [--adapter-schema 0.1.0]',
+    );
   }
   const cwd = parsed.one('--cwd');
   const taskFile = parsed.one('--task-file');
   if (!cwd || !taskFile) {
-    inputError('Usage: kdna resolve --cwd <workspace> --task-file <file> [--adapter-schema 0.1.0]');
+    inputError(
+      'Usage: kdna resolve --cwd <start> [--workspace-root <boundary>] --task-file <file> [--adapter-schema 0.1.0]',
+    );
   }
   printJson(
     resolveWorkspace({
       cwd,
+      workspaceRoot: parsed.one('--workspace-root', cwd),
       taskFile,
       adapterSchema: parsed.one('--adapter-schema'),
     }),
@@ -184,15 +207,16 @@ function cmdResolve(args) {
 }
 
 function cmdSetState(args, state) {
-  const parsed = parseArgs(args, new Set(['--cwd']));
+  const parsed = parseArgs(args, new Set(['--cwd', '--workspace-root']));
   if (parsed.positional.length !== 1) {
     inputError(
-      `Usage: kdna ${state === 'enabled' ? 'enable' : 'disable'} <attachment-id> [--cwd <workspace>]`,
+      `Usage: kdna ${state === 'enabled' ? 'enable' : 'disable'} <attachment-id> [--cwd <start>] [--workspace-root <boundary>]`,
     );
   }
   const cwd = parsed.one('--cwd', process.cwd());
   const result = setAttachmentState({
     cwd,
+    workspaceRoot: parsed.one('--workspace-root', cwd),
     attachmentId: parsed.positional[0],
     state,
   });
@@ -200,13 +224,16 @@ function cmdSetState(args, state) {
 }
 
 function cmdSwitch(args) {
-  const parsed = parseArgs(args, new Set(['--cwd', '--yes']));
+  const parsed = parseArgs(args, new Set(['--cwd', '--workspace-root', '--yes']));
   if (parsed.positional.length !== 2) {
-    inputError('Usage: kdna switch <attachment-id> <file.kdna> [--cwd <workspace>] [--yes]');
+    inputError(
+      'Usage: kdna switch <attachment-id> <file.kdna> [--cwd <start>] [--workspace-root <boundary>] [--yes]',
+    );
   }
   const cwd = parsed.one('--cwd', process.cwd());
   const result = switchWorkspaceAttachment({
     cwd,
+    workspaceRoot: parsed.one('--workspace-root', cwd),
     attachmentId: parsed.positional[0],
     sourcePath: parsed.positional[1],
     approve: approvalCallback(parsed.has('--yes')),
@@ -215,41 +242,60 @@ function cmdSwitch(args) {
 }
 
 function cmdRollback(args) {
-  const parsed = parseArgs(args, new Set(['--cwd']));
+  const parsed = parseArgs(args, new Set(['--cwd', '--workspace-root']));
   if (parsed.positional.length !== 1) {
-    inputError('Usage: kdna rollback <attachment-id> [--cwd <workspace>]');
+    inputError(
+      'Usage: kdna rollback <attachment-id> [--cwd <start>] [--workspace-root <boundary>]',
+    );
   }
   const cwd = parsed.one('--cwd', process.cwd());
-  const result = rollbackWorkspaceAttachment({ cwd, attachmentId: parsed.positional[0] });
+  const result = rollbackWorkspaceAttachment({
+    cwd,
+    workspaceRoot: parsed.one('--workspace-root', cwd),
+    attachmentId: parsed.positional[0],
+  });
   mutationOutput('rollback', cwd, result);
 }
 
 function cmdRemove(args) {
-  const parsed = parseArgs(args, new Set(['--cwd']));
+  const parsed = parseArgs(args, new Set(['--cwd', '--workspace-root']));
   if (parsed.positional.length !== 1) {
-    inputError('Usage: kdna remove <attachment-id> [--cwd <workspace>]');
+    inputError('Usage: kdna remove <attachment-id> [--cwd <start>] [--workspace-root <boundary>]');
   }
   const cwd = parsed.one('--cwd', process.cwd());
-  const result = removeWorkspaceAttachment({ cwd, attachmentId: parsed.positional[0] });
+  const result = removeWorkspaceAttachment({
+    cwd,
+    workspaceRoot: parsed.one('--workspace-root', cwd),
+    attachmentId: parsed.positional[0],
+  });
   mutationOutput('remove', cwd, result);
 }
 
 function cmdCleanup(args) {
-  const parsed = parseArgs(args, new Set(['--cwd', '--yes']));
+  const parsed = parseArgs(args, new Set(['--cwd', '--workspace-root', '--plan-digest', '--yes']));
   if (parsed.positional.length !== 0) {
-    inputError('Usage: kdna cleanup [--cwd <workspace>] [--yes]');
+    inputError(
+      'Usage: kdna cleanup [--cwd <start>] [--workspace-root <boundary>] [--plan-digest <sha256:...> --yes]',
+    );
   }
   const cwd = parsed.one('--cwd', process.cwd());
+  const planDigest = parsed.one('--plan-digest');
+  if (parsed.has('--yes') !== Boolean(planDigest)) {
+    inputError('Cleanup execution requires both --plan-digest and --yes.');
+  }
   const result = cleanupWorkspaceSnapshots({
     cwd,
-    execute: parsed.has('--yes'),
+    workspaceRoot: parsed.one('--workspace-root', cwd),
+    planDigest,
   });
   printJson({
     operation: 'cleanup',
     workspace_root: displayRoot(cwd, result.workspace_root),
     mode: result.mode,
-    confirmation_required:
-      result.mode === 'preview' && result.eligible_snapshot_count > 0,
+    confirmation_required: result.mode === 'preview' && result.eligible_snapshot_count > 0,
+    plan_digest: result.plan_digest,
+    record_digest: result.record_digest,
+    eligible_snapshots: result.eligible_snapshots,
     attachment_record_changed: result.attachment_record_changed,
     eligible_snapshot_count: result.eligible_snapshot_count,
     deleted_snapshot_count: result.deleted_snapshot_count,

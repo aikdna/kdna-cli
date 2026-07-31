@@ -51,6 +51,19 @@ test('published quick start does not imply unreleased workspace commands are npm
   assert.doesNotMatch(readme, /\bpull\/[0-9]+\/head\b|\bPR\s*#?[0-9]+\b/iu);
 });
 
+test('workspace narrative requires a bounded Host root and rejects home authority', () => {
+  const readme = read('README.md');
+  const allowlist = JSON.parse(read('release-surface/cli-command-allowlist.json'));
+  const resolve = allowlist.commands.find((entry) => entry.command === 'resolve');
+
+  assert.match(readme, /`--cwd` is also the explicit workspace root boundary/);
+  assert.match(readme, /--workspace-root/);
+  assert.match(readme, /home-level\s+`~\/\.kdna\/attachments\.json` fails closed/);
+  assert.match(readme, /never falls back to a user-global package\s+directory/);
+  assert.match(resolve.usage, /--workspace-root <boundary>/);
+  assert.match(resolve.purpose, /explicit Host workspace boundary/);
+});
+
 test('default authoring rubric does not require output uplift', () => {
   const rubric = read('templates/standard-domain/evals/scoring.json');
   const template = read('templates/standard-domain/README.md');

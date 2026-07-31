@@ -27,6 +27,8 @@ const GITIGNORE_PATTERNS = Object.freeze([
   '/attachments.json',
   '/attachments.lock',
   '/.attachments-*.tmp',
+  '/cleanup-last-receipt.json',
+  '/.cleanup-staging-*/',
 ]);
 
 class WorkspaceAttachmentError extends Error {
@@ -101,7 +103,27 @@ function validateAssetReference(asset, label) {
 }
 
 function normalizedPhrase(value) {
-  return String(value).trim().replace(/\s+/gu, ' ').toLocaleLowerCase('und');
+  return String(value).normalize('NFKC').trim().replace(/\s+/gu, ' ').toLocaleLowerCase('und');
+}
+
+function scopeTermMatches(task, term) {
+  const normalizedTask = normalizedPhrase(task);
+  const normalizedTerm = normalizedPhrase(term);
+  if (
+    /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(normalizedTerm)
+  ) {
+    const cjkComparable = (value) => value.replace(/[\p{P}\p{Z}\s]+/gu, '');
+    return cjkComparable(normalizedTask).includes(cjkComparable(normalizedTerm));
+  }
+  const tokens = (value) => value.match(/[\p{L}\p{N}]+/gu) || [];
+  const taskTokens = tokens(normalizedTask);
+  const termTokens = tokens(normalizedTerm);
+  if (termTokens.length === 0 || termTokens.length > taskTokens.length) return false;
+  return taskTokens.some(
+    (_, start) =>
+      start + termTokens.length <= taskTokens.length &&
+      termTokens.every((token, offset) => taskTokens[start + offset] === token),
+  );
 }
 
 function validateScopeTerms(terms, label) {
@@ -282,24 +304,43 @@ function withinOrEqual(candidate, boundary) {
   );
 }
 
-function findWorkspace(cwd = process.cwd()) {
+function findWorkspace(cwd = process.cwd(), workspaceRoot = cwd) {
   const start = assertDirectory(cwd, 'Working directory');
+  const boundary = assertDirectory(workspaceRoot, 'Workspace root boundary');
+  if (!withinOrEqual(start, boundary)) {
+    fail(
+      'workspace_boundary_escape',
+      'Working directory must stay inside the explicit workspace root boundary.',
+    );
+  }
   let home = null;
   try {
     home = fs.realpathSync(os.homedir());
   } catch {
     home = null;
   }
-  const startInsideHome = home !== null && withinOrEqual(start, home);
   let current = start;
   while (true) {
     const candidate = pathsForRoot(current);
     try {
+      const kdnaStat = fs.lstatSync(candidate.kdnaDirectory);
+      if (kdnaStat.isSymbolicLink() || !kdnaStat.isDirectory()) {
+        fail(
+          'attachment_schema_unsupported',
+          'Workspace attachment directory is not a regular directory.',
+        );
+      }
       const stat = fs.lstatSync(candidate.record);
       if (stat.isSymbolicLink() || !stat.isFile()) {
         fail('attachment_schema_unsupported', 'Workspace attachment record is not a regular file.');
       }
-      return { start, root: current, paths: candidate };
+      if (home !== null && current === home) {
+        fail(
+          'home_workspace_ambiguous',
+          'The home-level .kdna directory cannot act as project attachment authority.',
+        );
+      }
+      return { start, boundary, root: current, paths: candidate };
     } catch (error) {
       if (error instanceof WorkspaceAttachmentError) throw error;
       if (!error || error.code !== 'ENOENT') {
@@ -307,17 +348,28 @@ function findWorkspace(cwd = process.cwd()) {
       }
     }
 
-    if (startInsideHome && current === home) break;
+    if (current === boundary) break;
     const parent = path.dirname(current);
-    if (parent === current) break;
-    if (startInsideHome && !withinOrEqual(parent, home)) break;
+    if (parent === current || !withinOrEqual(parent, boundary)) break;
     current = parent;
   }
-  return { start, root: null, paths: null };
+  return { start, boundary, root: null, paths: null };
 }
 
 function mutationWorkspace(cwd = process.cwd()) {
   const root = assertDirectory(cwd, 'Working directory');
+  let home = null;
+  try {
+    home = fs.realpathSync(os.homedir());
+  } catch {
+    home = null;
+  }
+  if (home !== null && root === home) {
+    fail(
+      'home_workspace_ambiguous',
+      'The home-level .kdna directory cannot act as project attachment authority.',
+    );
+  }
   return { start: root, root, paths: pathsForRoot(root) };
 }
 
@@ -710,8 +762,8 @@ function attachWorkspace(options) {
   });
 }
 
-function listWorkspaceAttachments(cwd = process.cwd()) {
-  const workspace = findWorkspace(cwd);
+function listWorkspaceAttachments(cwd = process.cwd(), workspaceRoot = cwd) {
+  const workspace = findWorkspace(cwd, workspaceRoot);
   if (!workspace.root) return { workspace_root: null, record: null };
   return { workspace_root: workspace.root, record: readRecord(workspace.paths) };
 }
@@ -781,8 +833,8 @@ function verifyAssetReference(paths, asset) {
   return { bytes, manifest, plan };
 }
 
-function mutateAttachment(cwd, attachmentId, mutation) {
-  const workspace = findWorkspace(cwd);
+function mutateAttachment(cwd, workspaceRoot, attachmentId, mutation) {
+  const workspace = findWorkspace(cwd, workspaceRoot);
   if (!workspace.root) fail('attachment_not_found', 'No workspace attachment record was found.');
   return withWorkspaceLock(workspace.paths, () => {
     const record = readRecord(workspace.paths);
@@ -795,62 +847,117 @@ function mutateAttachment(cwd, attachmentId, mutation) {
 
 function setAttachmentState(options) {
   if (!['enabled', 'disabled'].includes(options.state)) fail('input_invalid', 'Invalid state.');
-  return mutateAttachment(options.cwd, options.attachmentId, ({ attachment, workspace }) => {
-    if (options.state === 'enabled') verifyAssetReference(workspace.paths, attachment.asset);
-    attachment.state = options.state;
-    return { workspace_root: workspace.root, attachment };
-  });
+  return mutateAttachment(
+    options.cwd,
+    options.workspaceRoot || options.cwd,
+    options.attachmentId,
+    ({ attachment, workspace }) => {
+      if (options.state === 'enabled') verifyAssetReference(workspace.paths, attachment.asset);
+      attachment.state = options.state;
+      return { workspace_root: workspace.root, attachment };
+    },
+  );
 }
 
 function switchWorkspaceAttachment(options) {
   const prepared = inspectPreparedAsset(options.sourcePath);
   requireApproval(prepared, options.approve);
   const now = options.now || new Date().toISOString();
-  return mutateAttachment(options.cwd, options.attachmentId, ({ attachment, workspace }) => {
-    storeSnapshot(workspace.paths, prepared);
-    attachment.history.push({ asset: attachment.asset, replaced_at: now });
-    attachment.asset = prepared.asset;
-    attachment.approved_at = now;
-    return { workspace_root: workspace.root, attachment, preview: prepared.preview };
-  });
+  return mutateAttachment(
+    options.cwd,
+    options.workspaceRoot || options.cwd,
+    options.attachmentId,
+    ({ attachment, workspace }) => {
+      storeSnapshot(workspace.paths, prepared);
+      attachment.history.push({ asset: attachment.asset, replaced_at: now });
+      attachment.asset = prepared.asset;
+      attachment.approved_at = now;
+      return { workspace_root: workspace.root, attachment, preview: prepared.preview };
+    },
+  );
 }
 
 function rollbackWorkspaceAttachment(options) {
-  return mutateAttachment(options.cwd, options.attachmentId, ({ attachment, workspace }) => {
-    if (attachment.history.length === 0)
-      fail('history_empty', 'Attachment has no retained version.');
-    const previous = attachment.history[attachment.history.length - 1];
-    verifyAssetReference(workspace.paths, previous.asset);
-    attachment.asset = previous.asset;
-    attachment.history.pop();
-    attachment.approved_at = options.now || new Date().toISOString();
-    return { workspace_root: workspace.root, attachment };
-  });
+  return mutateAttachment(
+    options.cwd,
+    options.workspaceRoot || options.cwd,
+    options.attachmentId,
+    ({ attachment, workspace }) => {
+      if (attachment.history.length === 0)
+        fail('history_empty', 'Attachment has no retained version.');
+      const previous = attachment.history[attachment.history.length - 1];
+      verifyAssetReference(workspace.paths, previous.asset);
+      attachment.asset = previous.asset;
+      attachment.history.pop();
+      attachment.approved_at = options.now || new Date().toISOString();
+      return { workspace_root: workspace.root, attachment };
+    },
+  );
 }
 
 function removeWorkspaceAttachment(options) {
   return mutateAttachment(
     options.cwd,
+    options.workspaceRoot || options.cwd,
     options.attachmentId,
     ({ attachment, record, workspace }) => {
       record.attachments = record.attachments.filter(
         (item) => item.attachment_id !== attachment.attachment_id,
       );
-      const retainedSnapshotCount = fs
-        .readdirSync(workspace.paths.assetsDirectory, { withFileTypes: true })
-        .filter((entry) => !entry.name.startsWith('.snapshot-')).length;
+      const storage = summarizeSnapshotStorage(workspace.paths);
       return {
         workspace_root: workspace.root,
         attachment_removed: true,
         removed_attachment: attachment,
-        snapshot_retained: {
-          count: retainedSnapshotCount,
-          reason:
-            'remove_preserves_workspace_snapshots_for_other_references_and_explicit_cleanup',
-        },
+        snapshot_retained: storage.managed_snapshot_count > 0,
+        retained_snapshot_count: storage.managed_snapshot_count,
+        retained_snapshot_reason:
+          'remove_preserves_managed_workspace_snapshots_for_references_and_explicit_cleanup',
+        unknown_storage_entry_count: storage.unknown_storage_entry_count,
+        blocked_storage_entry_count: storage.blocked_storage_entry_count,
       };
     },
   );
+}
+
+function summarizeSnapshotStorage(paths) {
+  let managedSnapshotCount = 0;
+  let unknownStorageEntryCount = 0;
+  let blockedStorageEntryCount = 0;
+  for (const entry of fs.readdirSync(paths.assetsDirectory, { withFileTypes: true })) {
+    const managed = SNAPSHOT_FILE_PATTERN.test(entry.name);
+    const absolute = path.join(paths.assetsDirectory, entry.name);
+    let stat;
+    try {
+      stat = fs.lstatSync(absolute);
+    } catch {
+      blockedStorageEntryCount += 1;
+      continue;
+    }
+    if (managed && stat.isFile() && !stat.isSymbolicLink()) {
+      try {
+        const match = entry.name.match(SNAPSHOT_FILE_PATTERN);
+        const bytes = safeReadRegular(absolute, 256 * 1024 * 1024, 'Workspace managed snapshot');
+        if (match && sha256(bytes) === `sha256:${match[1]}`) {
+          managedSnapshotCount += 1;
+        } else {
+          blockedStorageEntryCount += 1;
+        }
+      } catch {
+        blockedStorageEntryCount += 1;
+      }
+    } else if (managed) {
+      blockedStorageEntryCount += 1;
+    } else {
+      unknownStorageEntryCount += 1;
+      if (stat.isSymbolicLink() || !stat.isFile()) blockedStorageEntryCount += 1;
+    }
+  }
+  return {
+    managed_snapshot_count: managedSnapshotCount,
+    unknown_storage_entry_count: unknownStorageEntryCount,
+    blocked_storage_entry_count: blockedStorageEntryCount,
+  };
 }
 
 function referencedSnapshotPaths(record) {
@@ -899,81 +1006,339 @@ function inspectCleanupCandidates(paths, record) {
   return { eligible, retained };
 }
 
+function cleanupPlan(recordBytes, inspection) {
+  const eligibleSnapshots = inspection.eligible
+    .map((entry) => ({
+      snapshot: `assets/${entry.name}`,
+      digest: entry.digest,
+    }))
+    .sort((left, right) => left.snapshot.localeCompare(right.snapshot));
+  const recordDigest = sha256(recordBytes);
+  const planDigest = sha256(
+    Buffer.from(
+      JSON.stringify({
+        record_digest: recordDigest,
+        eligible_snapshots: eligibleSnapshots,
+      }),
+      'utf8',
+    ),
+  );
+  return {
+    document_type: 'kdna.workspace-cleanup-plan',
+    schema_version: SCHEMA_VERSION,
+    record_digest: recordDigest,
+    eligible_snapshots: eligibleSnapshots,
+    plan_digest: planDigest,
+  };
+}
+
+function cleanupReceiptPath(paths) {
+  return path.join(paths.kdnaDirectory, 'cleanup-last-receipt.json');
+}
+
+function validateRecoveryPlan(plan, stagingName) {
+  const keys = [
+    'document_type',
+    'schema_version',
+    'record_digest',
+    'eligible_snapshots',
+    'plan_digest',
+  ];
+  if (
+    !isPlainObject(plan) ||
+    Object.keys(plan).sort().join('\n') !== keys.sort().join('\n') ||
+    plan.document_type !== 'kdna.workspace-cleanup-plan' ||
+    plan.schema_version !== SCHEMA_VERSION ||
+    !DIGEST_PATTERN.test(plan.record_digest) ||
+    !DIGEST_PATTERN.test(plan.plan_digest) ||
+    !Array.isArray(plan.eligible_snapshots) ||
+    stagingName !== `.cleanup-staging-${plan.plan_digest.slice('sha256:'.length)}`
+  ) {
+    fail('cleanup_recovery_required', 'Cleanup staging plan is unsupported.');
+  }
+  const seen = new Set();
+  for (const candidate of plan.eligible_snapshots) {
+    if (
+      !isPlainObject(candidate) ||
+      Object.keys(candidate).sort().join('\n') !== ['digest', 'snapshot'].join('\n') ||
+      !DIGEST_PATTERN.test(candidate.digest) ||
+      candidate.snapshot !== snapshotPathForDigest(candidate.digest) ||
+      seen.has(candidate.snapshot)
+    ) {
+      fail('cleanup_recovery_required', 'Cleanup staging plan contains an unsafe snapshot.');
+    }
+    seen.add(candidate.snapshot);
+  }
+  const expectedPlanDigest = sha256(
+    Buffer.from(
+      JSON.stringify({
+        record_digest: plan.record_digest,
+        eligible_snapshots: plan.eligible_snapshots,
+      }),
+      'utf8',
+    ),
+  );
+  if (expectedPlanDigest !== plan.plan_digest) {
+    fail('cleanup_recovery_required', 'Cleanup staging plan digest is invalid.');
+  }
+  return plan;
+}
+
+function writeCleanupReceipt(paths, receipt) {
+  atomicWriteFile(
+    cleanupReceiptPath(paths),
+    Buffer.from(`${JSON.stringify(receipt, null, 2)}\n`, 'utf8'),
+    0o600,
+    '.cleanup-receipt-',
+  );
+}
+
+function restoreStagedSnapshots(paths, staging, candidates) {
+  const restored = [];
+  const missing = [];
+  for (const candidate of candidates) {
+    const staged = path.join(staging, path.basename(candidate.snapshot));
+    const original = path.join(paths.kdnaDirectory, ...candidate.snapshot.split('/'));
+    if (!fs.existsSync(staged)) {
+      missing.push(candidate.digest);
+      continue;
+    }
+    if (fs.existsSync(original)) {
+      fail('cleanup_recovery_required', 'Cleanup recovery found a snapshot path collision.');
+    }
+    const bytes = safeReadRegular(staged, 256 * 1024 * 1024, 'Staged cleanup snapshot');
+    if (sha256(bytes) !== candidate.digest) {
+      fail('cleanup_recovery_required', 'Staged cleanup snapshot failed digest verification.');
+    }
+    fs.renameSync(staged, original);
+    restored.push(candidate.digest);
+  }
+  return { restored, missing };
+}
+
+function removeEmptyStaging(staging) {
+  const planFile = path.join(staging, 'plan.json');
+  unlinkIfPresent(planFile);
+  try {
+    fs.rmdirSync(staging);
+  } catch (error) {
+    if (!error || error.code !== 'ENOENT') throw error;
+  }
+}
+
+function recoverInterruptedCleanup(paths) {
+  const stagingEntries = fs
+    .readdirSync(paths.kdnaDirectory, { withFileTypes: true })
+    .filter((entry) => entry.name.startsWith('.cleanup-staging-'));
+  if (stagingEntries.length > 1) {
+    fail('cleanup_recovery_required', 'Multiple cleanup staging directories require review.');
+  }
+  if (stagingEntries.length === 0) return null;
+  const entry = stagingEntries[0];
+  const staging = path.join(paths.kdnaDirectory, entry.name);
+  const stat = fs.lstatSync(staging);
+  if (stat.isSymbolicLink() || !stat.isDirectory()) {
+    fail('cleanup_recovery_required', 'Cleanup staging path is not a regular directory.');
+  }
+  const planBytes = safeReadRegular(
+    path.join(staging, 'plan.json'),
+    MAX_RECORD_BYTES,
+    'Cleanup staging plan',
+  );
+  let plan;
+  try {
+    plan = JSON.parse(planBytes.toString('utf8'));
+  } catch {
+    fail('cleanup_recovery_required', 'Cleanup staging plan is invalid.');
+  }
+  validateRecoveryPlan(plan, entry.name);
+  const recovery = restoreStagedSnapshots(paths, staging, plan.eligible_snapshots);
+  removeEmptyStaging(staging);
+  fsyncDirectory(paths.assetsDirectory);
+  const receipt = {
+    document_type: 'kdna.workspace-cleanup-receipt',
+    schema_version: SCHEMA_VERSION,
+    status: 'RECOVERED_AFTER_INTERRUPTION',
+    plan_digest: plan.plan_digest,
+    deleted_snapshot_count: recovery.missing.length,
+    deleted_snapshot_digests: recovery.missing,
+    restored_snapshot_count: recovery.restored.length,
+    restored_snapshot_digests: recovery.restored,
+  };
+  writeCleanupReceipt(paths, receipt);
+  return receipt;
+}
+
 function cleanupWorkspaceSnapshots(options) {
-  const workspace = findWorkspace(options.cwd);
+  const workspace = findWorkspace(options.cwd, options.workspaceRoot || options.cwd);
   if (!workspace.root) fail('attachment_not_found', 'No workspace attachment record was found.');
   return withWorkspaceLock(workspace.paths, () => {
-    const record = readRecord(workspace.paths);
+    const recovered = recoverInterruptedCleanup(workspace.paths);
     const recordBefore = safeReadRegular(
       workspace.paths.record,
       MAX_RECORD_BYTES,
       'Workspace attachment record',
     );
-    const inspection = inspectCleanupCandidates(workspace.paths, record);
-    const execute = options.execute === true;
-    const deletedDigests = [];
-    if (execute) {
-      for (const candidate of inspection.eligible) {
-        const before = fs.lstatSync(candidate.absolute);
-        if (before.isSymbolicLink() || !before.isFile()) {
-          fail('cleanup_unsafe_path', 'Workspace cleanup candidate changed before deletion.');
-        }
-        const bytes = safeReadRegular(
-          candidate.absolute,
-          256 * 1024 * 1024,
-          'Workspace cleanup snapshot',
-        );
-        if (sha256(bytes) !== candidate.digest) {
-          fail('snapshot_digest_mismatch', 'Workspace cleanup candidate changed before deletion.');
-        }
-        const after = fs.lstatSync(candidate.absolute);
-        if (
-          before.dev !== after.dev ||
-          before.ino !== after.ino ||
-          before.size !== after.size ||
-          before.mtimeMs !== after.mtimeMs ||
-          before.ctimeMs !== after.ctimeMs
-        ) {
-          fail('cleanup_unsafe_path', 'Workspace cleanup candidate changed before deletion.');
-        }
-      }
-      const recordImmediatelyBeforeDelete = safeReadRegular(
-        workspace.paths.record,
-        MAX_RECORD_BYTES,
-        'Workspace attachment record',
-      );
-      if (!recordBefore.equals(recordImmediatelyBeforeDelete)) {
-        fail('workspace_binding_changed', 'Workspace attachment record changed during cleanup.');
-      }
-      for (const candidate of inspection.eligible) {
-        fs.unlinkSync(candidate.absolute);
-        deletedDigests.push(candidate.digest);
-      }
-      fsyncDirectory(workspace.paths.assetsDirectory);
+    let record;
+    try {
+      record = validateRecord(JSON.parse(recordBefore.toString('utf8')));
+    } catch (error) {
+      if (error instanceof WorkspaceAttachmentError) throw error;
+      fail('attachment_schema_unsupported', 'Workspace attachment record is not valid JSON.');
     }
-
+    const inspection = inspectCleanupCandidates(workspace.paths, record);
+    const plan = cleanupPlan(recordBefore, inspection);
+    const execute = typeof options.planDigest === 'string';
+    const deletedDigests = [];
     const retainedReasonCounts = {};
     for (const entry of inspection.retained) {
       retainedReasonCounts[entry.reason] = (retainedReasonCounts[entry.reason] || 0) + 1;
     }
+    if (!execute) {
+      return {
+        workspace_root: workspace.root,
+        mode: 'preview',
+        recovered_interrupted_cleanup: recovered,
+        attachment_record_changed: false,
+        ...plan,
+        eligible_snapshot_count: inspection.eligible.length,
+        deleted_snapshot_count: 0,
+        deleted_snapshot_digests: [],
+        retained_snapshot_count: inspection.retained.length + inspection.eligible.length,
+        retained_reason_counts: {
+          ...retainedReasonCounts,
+          ...(inspection.eligible.length === 0
+            ? {}
+            : { awaiting_explicit_cleanup: inspection.eligible.length }),
+        },
+        projection_cache_deleted_count: 0,
+        projection_cache_retained_count: 0,
+        projection_cache_reason: 'no_workspace_projection_cache_surface',
+      };
+    }
+    if (!DIGEST_PATTERN.test(options.planDigest) || options.planDigest !== plan.plan_digest) {
+      fail(
+        'cleanup_plan_changed',
+        'Cleanup plan changed or was not the exact preview; run cleanup preview again.',
+      );
+    }
+    const staging = path.join(
+      workspace.paths.kdnaDirectory,
+      `.cleanup-staging-${plan.plan_digest.slice('sha256:'.length)}`,
+    );
+    if (fs.existsSync(staging)) {
+      fail('cleanup_recovery_required', 'Cleanup staging path already exists.');
+    }
+    fs.mkdirSync(staging, { mode: 0o700 });
+    atomicWriteFile(
+      path.join(staging, 'plan.json'),
+      Buffer.from(`${JSON.stringify(plan, null, 2)}\n`, 'utf8'),
+      0o600,
+      '.plan-',
+    );
+    const staged = [];
+    if (execute) {
+      try {
+        for (const candidate of inspection.eligible) {
+          const before = fs.lstatSync(candidate.absolute);
+          if (before.isSymbolicLink() || !before.isFile()) {
+            fail('cleanup_unsafe_path', 'Workspace cleanup candidate changed before staging.');
+          }
+          const bytes = safeReadRegular(
+            candidate.absolute,
+            256 * 1024 * 1024,
+            'Workspace cleanup snapshot',
+          );
+          if (sha256(bytes) !== candidate.digest) {
+            fail('snapshot_digest_mismatch', 'Workspace cleanup candidate changed before staging.');
+          }
+          const target = path.join(staging, candidate.name);
+          fs.renameSync(candidate.absolute, target);
+          staged.push({
+            snapshot: `assets/${candidate.name}`,
+            digest: candidate.digest,
+          });
+        }
+        const recordImmediatelyBeforeDelete = safeReadRegular(
+          workspace.paths.record,
+          MAX_RECORD_BYTES,
+          'Workspace attachment record',
+        );
+        if (!recordBefore.equals(recordImmediatelyBeforeDelete)) {
+          fail('workspace_binding_changed', 'Workspace attachment record changed during cleanup.');
+        }
+      } catch (error) {
+        restoreStagedSnapshots(workspace.paths, staging, staged);
+        removeEmptyStaging(staging);
+        throw error;
+      }
+    }
+
+    let deletionError = null;
+    for (const candidate of staged) {
+      try {
+        fs.unlinkSync(path.join(staging, path.basename(candidate.snapshot)));
+        deletedDigests.push(candidate.digest);
+        writeCleanupReceipt(workspace.paths, {
+          document_type: 'kdna.workspace-cleanup-receipt',
+          schema_version: SCHEMA_VERSION,
+          status: 'IN_PROGRESS',
+          plan_digest: plan.plan_digest,
+          deleted_snapshot_count: deletedDigests.length,
+          deleted_snapshot_digests: deletedDigests,
+        });
+      } catch (error) {
+        deletionError = error;
+        break;
+      }
+    }
+    if (deletionError) {
+      const recovery = restoreStagedSnapshots(workspace.paths, staging, staged);
+      removeEmptyStaging(staging);
+      const receipt = {
+        document_type: 'kdna.workspace-cleanup-receipt',
+        schema_version: SCHEMA_VERSION,
+        status: 'PARTIAL',
+        plan_digest: plan.plan_digest,
+        deleted_snapshot_count: deletedDigests.length,
+        deleted_snapshot_digests: deletedDigests,
+        restored_snapshot_count: recovery.restored.length,
+        restored_snapshot_digests: recovery.restored,
+      };
+      writeCleanupReceipt(workspace.paths, receipt);
+      fail(
+        'cleanup_partial',
+        'Cleanup stopped after a partial deletion; see cleanup-last-receipt.json for exact recovery facts.',
+      );
+    }
+    removeEmptyStaging(staging);
+    fsyncDirectory(workspace.paths.assetsDirectory);
+    const receipt = {
+      document_type: 'kdna.workspace-cleanup-receipt',
+      schema_version: SCHEMA_VERSION,
+      status: 'PASS',
+      plan_digest: plan.plan_digest,
+      deleted_snapshot_count: deletedDigests.length,
+      deleted_snapshot_digests: deletedDigests,
+      restored_snapshot_count: 0,
+      restored_snapshot_digests: [],
+    };
+    writeCleanupReceipt(workspace.paths, receipt);
     return {
       workspace_root: workspace.root,
-      mode: execute ? 'execute' : 'preview',
+      mode: 'execute',
+      recovered_interrupted_cleanup: recovered,
       attachment_record_changed: false,
+      ...plan,
       eligible_snapshot_count: inspection.eligible.length,
       deleted_snapshot_count: deletedDigests.length,
       deleted_snapshot_digests: deletedDigests,
-      retained_snapshot_count:
-        inspection.retained.length + (execute ? 0 : inspection.eligible.length),
-      retained_reason_counts: {
-        ...retainedReasonCounts,
-        ...(execute || inspection.eligible.length === 0
-          ? {}
-          : { awaiting_explicit_cleanup: inspection.eligible.length }),
-      },
+      retained_snapshot_count: inspection.retained.length,
+      retained_reason_counts: retainedReasonCounts,
       projection_cache_deleted_count: 0,
       projection_cache_retained_count: 0,
       projection_cache_reason: 'no_workspace_projection_cache_surface',
+      cleanup_receipt: receipt,
     };
   });
 }
@@ -1044,7 +1409,7 @@ function resolveWorkspace(options) {
   const task = normalizedPhrase(decodeTaskFile(options.taskFile));
   let workspace;
   try {
-    workspace = findWorkspace(start);
+    workspace = findWorkspace(start, options.workspaceRoot || start);
   } catch {
     return blockResult('attachment_schema_unsupported', '.', [], 'not_checked', 'not_checked');
   }
@@ -1081,76 +1446,89 @@ function resolveWorkspace(options) {
     });
   }
 
-  const verified = [];
-  for (const attachment of enabled) {
-    const candidate = candidateFor(attachment);
-    let asset;
-    try {
-      asset = verifyAssetReference(workspace.paths, attachment.asset);
-    } catch (error) {
-      const code =
-        error instanceof WorkspaceAttachmentError &&
-        ['snapshot_missing', 'snapshot_digest_mismatch'].includes(error.code)
-          ? error.code
-          : 'asset_invalid';
-      return blockResult(code, workspaceRoot, [candidate], 'not_checked', 'failed');
-    }
-    if (asset.plan.can_load_now !== true) {
-      return blockResult(
-        'authorization_required',
-        workspaceRoot,
-        [candidate],
-        'required',
-        'verified',
-      );
-    }
-    verified.push({ attachment, candidate });
-  }
-
-  const evaluated = verified.map(({ attachment, candidate }) => {
-    const positives = attachment.scope.applies_to.some((term) =>
-      task.includes(normalizedPhrase(term)),
-    );
+  const evaluated = enabled.map((attachment) => {
+    const positives = attachment.scope.applies_to.some((term) => scopeTermMatches(task, term));
     const negatives = attachment.scope.does_not_apply_to.some((term) =>
-      task.includes(normalizedPhrase(term)),
+      scopeTermMatches(task, term),
     );
-    return { attachment, candidate, positives, negatives };
+    return { attachment, candidate: candidateFor(attachment), positives, negatives };
   });
   const internallyAmbiguous = evaluated.filter((item) => item.positives && item.negatives);
   const positive = evaluated.filter((item) => item.positives && !item.negatives);
   const negative = evaluated.filter((item) => item.negatives && !item.positives);
   const unmatched = evaluated.filter((item) => !item.positives && !item.negatives);
+  const verifyScopedCandidates = (items) => {
+    const verified = [];
+    for (const item of items) {
+      let asset;
+      try {
+        asset = verifyAssetReference(workspace.paths, item.attachment.asset);
+      } catch (error) {
+        const code =
+          error instanceof WorkspaceAttachmentError &&
+          ['snapshot_missing', 'snapshot_digest_mismatch'].includes(error.code)
+            ? error.code
+            : 'asset_invalid';
+        return {
+          blocked: blockResult(code, workspaceRoot, [item.candidate], 'not_checked', 'failed'),
+        };
+      }
+      if (asset.plan.can_load_now !== true) {
+        return {
+          blocked: blockResult(
+            'authorization_required',
+            workspaceRoot,
+            [item.candidate],
+            'required',
+            'verified',
+          ),
+        };
+      }
+      verified.push(item);
+    }
+    return { verified };
+  };
 
   if (internallyAmbiguous.length > 0) {
+    const checked = verifyScopedCandidates(internallyAmbiguous);
+    if (checked.blocked) return checked.blocked;
     return resolutionResult({
       decision: 'ask',
       reasonCode: 'ambiguous_scope',
       workspaceRoot,
-      candidates: internallyAmbiguous.map((item) => item.candidate),
+      candidates: checked.verified.map((item) => item.candidate),
       authorization: 'satisfied',
       integrity: 'verified',
     });
   }
-  const sameRoleContradiction = positive.some((positiveItem) =>
-    negative.some((negativeItem) => negativeItem.attachment.role === positiveItem.attachment.role),
+  const contradictoryNegative = negative.filter((negativeItem) =>
+    positive.some(
+      (positiveItem) =>
+        normalizedPhrase(negativeItem.attachment.role) ===
+        normalizedPhrase(positiveItem.attachment.role),
+    ),
   );
-  if (positive.length > 1 || sameRoleContradiction) {
+  if (positive.length > 1 || contradictoryNegative.length > 0) {
+    const checked = verifyScopedCandidates([...positive, ...contradictoryNegative]);
+    if (checked.blocked) return checked.blocked;
     return resolutionResult({
       decision: 'ask',
       reasonCode: 'attachment_conflict',
       workspaceRoot,
-      candidates: [...positive, ...negative].map((item) => item.candidate),
+      candidates: checked.verified.map((item) => item.candidate),
       authorization: 'satisfied',
       integrity: 'verified',
     });
   }
   if (positive.length === 1 && unmatched.length === 0) {
+    const checked = verifyScopedCandidates(positive);
+    if (checked.blocked) return checked.blocked;
     return resolutionResult({
       decision: 'load',
       reasonCode: 'single_approved_attachment_clearly_applies',
       workspaceRoot,
-      selected: positive[0].candidate,
-      candidates: [positive[0].candidate],
+      selected: checked.verified[0].candidate,
+      candidates: [checked.verified[0].candidate],
       authorization: 'satisfied',
       integrity: 'verified',
     });
@@ -1161,15 +1539,17 @@ function resolveWorkspace(options) {
       reasonCode: 'outside_scope',
       workspaceRoot,
       candidates: negative.map((item) => item.candidate),
-      authorization: 'satisfied',
-      integrity: 'verified',
+      authorization: 'not_checked',
+      integrity: 'not_checked',
     });
   }
+  const checked = verifyScopedCandidates([...positive, ...unmatched]);
+  if (checked.blocked) return checked.blocked;
   return resolutionResult({
     decision: 'ask',
     reasonCode: 'ambiguous_scope',
     workspaceRoot,
-    candidates: [...positive, ...unmatched].map((item) => item.candidate),
+    candidates: checked.verified.map((item) => item.candidate),
     authorization: 'satisfied',
     integrity: 'verified',
   });
@@ -1195,6 +1575,7 @@ module.exports = {
   resolveWorkspace,
   rollbackWorkspaceAttachment,
   safeReadRegular,
+  scopeTermMatches,
   setAttachmentState,
   sha256,
   snapshotPathForDigest,
