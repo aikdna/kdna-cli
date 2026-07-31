@@ -96,10 +96,13 @@ test('source-candidate task examples prefer stdin and keep file input explicit',
 
 test('scope narrative does not present phrase matching as natural-language understanding', () => {
   const readme = read('README.md');
-  assert.match(readme, /negation, quotation or meta-discussion/);
+  assert.match(readme, /(?:in\s+)?negation, quotation or\s+meta-discussion/);
   assert.match(readme, /contrastive multi-clause task/);
-  assert.match(readme, /overly short or broad hint/);
-  assert.match(readme, /does not claim to understand arbitrary\s+natural language/);
+  assert.match(readme, /overly\s+short or broad\s+hints?/);
+  assert.match(
+    readme,
+    /(?:(?:this\s+)?resolver\s+)?does not claim\s+to\s+understand arbitrary\s+natural language/,
+  );
 });
 
 test('ask has an official receipt-bound one-task continuation without generic-load bypass', () => {
@@ -115,7 +118,7 @@ test('ask has an official receipt-bound one-task continuation without generic-lo
   );
   assert.match(readme, /an asset-ID substring never can/);
   assert.match(readme, /Authorization is\s+reported per candidate/);
-  assert.match(readme, /unauthorized candidate cannot prevent selection/);
+  assert.match(readme, /unauthorized candidate\s+cannot prevent selection/);
   assert.match(readme, /`switch` is a policy change/);
   assert.match(readme, /Rollback restores the complete previous asset and policy metadata/);
   assert.match(readme, /--selection-task-digest/);
