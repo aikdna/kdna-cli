@@ -118,7 +118,14 @@ function scopeTermAssessment(task, term) {
     const comparableTask = cjkComparable(normalizedTask);
     const comparableTerm = cjkComparable(normalizedTerm);
     const start = comparableTask.indexOf(comparableTerm);
-    if (start < 0) return { matched: false, uncertain: false };
+    if (start < 0) {
+      const approximate =
+        comparableTerm.length >= 3 &&
+        Array.from({ length: comparableTerm.length - 1 }, (_, index) =>
+          comparableTerm.slice(index, index + 2),
+        ).some((part) => comparableTask.includes(part));
+      return { matched: approximate, uncertain: approximate };
+    }
     const preceding = comparableTask.slice(Math.max(0, start - 6), start);
     const uncertain =
       comparableTerm.length < 3 ||
@@ -141,7 +148,26 @@ function scopeTermAssessment(task, term) {
       index + termTokens.length <= taskTokens.length &&
       termTokens.every((token, offset) => taskTokens[index + offset] === token),
   );
-  if (start < 0) return { matched: false, uncertain: false };
+  if (start < 0) {
+    const approximate = termTokens.some(
+      (termToken) =>
+        termToken.length >= 4 &&
+        taskTokens.some((taskToken) => {
+          if (taskToken.length < 4) return false;
+          if (taskToken.includes(termToken) || termToken.includes(taskToken)) return true;
+          let sharedPrefix = 0;
+          while (
+            sharedPrefix < termToken.length &&
+            sharedPrefix < taskToken.length &&
+            termToken[sharedPrefix] === taskToken[sharedPrefix]
+          ) {
+            sharedPrefix += 1;
+          }
+          return sharedPrefix >= 4;
+        }),
+    );
+    return { matched: approximate, uncertain: approximate };
+  }
   const preceding = taskTokens.slice(Math.max(0, start - 4), start);
   const broadTerms = new Set(['all', 'any', 'general', 'help', 'task', 'thing', 'work']);
   const uncertain =
@@ -484,6 +510,12 @@ function mutationWorkspace(cwd = process.cwd()) {
     fail(
       'home_workspace_ambiguous',
       'The home-level .kdna directory cannot act as project attachment authority.',
+    );
+  }
+  if (root === path.parse(root).root) {
+    fail(
+      'workspace_root_ambiguous',
+      'The filesystem root cannot act as project attachment authority.',
     );
   }
   return {
@@ -1924,7 +1956,23 @@ function resolveWorkspace(options) {
       const selectedCandidate = result.candidates.find(
         (candidate) => candidate.attachment_id === options.selectedAttachmentId,
       );
-      if (!selectedCandidate || !['ask', 'load'].includes(result.decision)) {
+      const exactIdentifierNamed =
+        selectedCandidate !== undefined &&
+        taskNamesExactAttachmentIdentifier(taskText, selectedCandidate.attachment_id);
+      if (
+        !selectedCandidate ||
+        (!['ask', 'load'].includes(result.decision) &&
+          !(result.decision === 'skip' && exactIdentifierNamed))
+      ) {
+        if (selectedCandidate && result.decision === 'skip' && !exactIdentifierNamed) {
+          return blockResult(
+            'selection_receipt_required',
+            workspaceRoot,
+            result.candidates,
+            'not_checked',
+            'not_checked',
+          );
+        }
         return blockResult(
           'selection_not_current_candidate',
           workspaceRoot,
@@ -1933,10 +1981,6 @@ function resolveWorkspace(options) {
           'not_checked',
         );
       }
-      const exactIdentifierNamed = taskNamesExactAttachmentIdentifier(
-        taskText,
-        selectedCandidate.attachment_id,
-      );
       if (
         result.decision === 'ask' &&
         options.selectionPlanDigest === undefined &&
@@ -2176,29 +2220,20 @@ function resolveWorkspace(options) {
       }),
     );
   }
-  if (positive.length === 0 && unmatched.length === 0 && negative.length > 0) {
+  if (positive.length === 0 && (negative.length > 0 || unmatched.length > 0)) {
     return finish(
       resolutionResult({
         decision: 'skip',
-        reasonCode: 'outside_scope',
+        reasonCode: 'outside_scope_or_no_match',
         workspaceRoot,
-        candidates: negative.map((item) => item.candidate),
+        candidates: [...negative, ...unmatched].map((item) => item.candidate),
         authorization: 'not_checked',
         integrity: 'not_checked',
       }),
     );
   }
-  const checked = verifyScopedCandidates([...positive, ...unmatched]);
-  if (checked.blocked) return finish(checked.blocked);
   return finish(
-    resolutionResult({
-      decision: 'ask',
-      reasonCode: 'ambiguous_scope',
-      workspaceRoot,
-      candidates: checked.verified.map((item) => item.candidate),
-      authorization: 'not_selected',
-      integrity: 'verified',
-    }),
+    blockResult('attachment_schema_unsupported', workspaceRoot, [], 'not_checked', 'not_checked'),
   );
 }
 

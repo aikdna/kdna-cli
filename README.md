@@ -204,20 +204,21 @@ do not belong in argv, environment variables, or an incidental task file.
 
 The source-candidate resolver is a conservative deterministic interpreter of
 user-approved scope hints, not an AI classifier for arbitrary natural
-language. Latin and numeric phrases use token boundaries, hyphens and spaces
-are normalized as phrase separators, and CJK hints use normalized explicit
-phrase matching. Near matches, word-form overlap, empty hints, and
-contradictions ask instead of auto-loading. A matched phrase is also treated as
-uncertain when it appears in negation, quotation or meta-discussion, a
-contrastive multi-clause task, or an overly short or broad hint. Those cases
-ask for structured intent; this resolver does not claim to understand arbitrary
-natural language. Scope metadata is evaluated before snapshot authorization or
-integrity only to exclude an explicitly out-of-scope attachment; the closed
-attachment record schema is still validated first, and every possible load/ask
-candidate receives full identity and integrity checks. Authorization is
-reported per candidate but is required only after one candidate is selected;
-an unauthorized candidate cannot prevent selection of another verified public
-candidate.
+language. `task_hints` are a positive whitelist: when no hint matches and there
+is no uncertain match or policy contradiction, the resolver returns
+`skip/outside_scope_or_no_match` without checking unrelated authorization,
+snapshot bytes, or LoadPlan. Latin and numeric phrases use token boundaries,
+hyphens and spaces are normalized as phrase separators, and CJK hints use
+normalized explicit phrase matching. Near matches, word-form overlap, empty
+hints, and contradictions ask instead of auto-loading. A matched phrase is
+also treated as uncertain when it appears in negation, quotation or
+meta-discussion, a contrastive multi-clause task, or an overly short or broad
+hint. Those cases ask for structured intent; this resolver does not claim to
+understand arbitrary natural language. The closed attachment record schema is
+still validated first, and every possible load/ask candidate receives full
+identity and integrity checks. Authorization is reported per candidate but is
+required only after one candidate is selected; an unauthorized candidate
+cannot prevent selection of another verified public candidate.
 
 `switch` is a policy change, not an asset-path edit. It requires a preview or
 an already explicit user instruction covering the new asset and exact

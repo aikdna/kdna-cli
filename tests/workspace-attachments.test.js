@@ -406,7 +406,7 @@ test('one positive scope loads and one explicit exclusion skips', () => {
   assert.equal(load.integrity, 'verified');
   const skip = resolve(root, 'Review this code change.');
   assert.equal(skip.decision, 'skip');
-  assert.equal(skip.reason_code, 'outside_scope');
+  assert.equal(skip.reason_code, 'outside_scope_or_no_match');
 });
 
 test('negative scope is optional, all-workspace is explicit, and no executable scope is rejected', () => {
@@ -423,7 +423,11 @@ test('negative scope is optional, all-workspace is explicit, and no executable s
     doesNotApplyTo: [],
   });
   assert.equal(resolve(positiveOnlyRoot, 'article writing').decision, 'load');
-  assert.equal(resolve(positiveOnlyRoot, 'change code').decision, 'ask');
+  const positiveOnlyMiss = resolve(positiveOnlyRoot, 'change code');
+  assert.equal(positiveOnlyMiss.decision, 'skip');
+  assert.equal(positiveOnlyMiss.reason_code, 'outside_scope_or_no_match');
+  assert.equal(positiveOnlyMiss.authorization, 'not_checked');
+  assert.equal(positiveOnlyMiss.integrity, 'not_checked');
 
   const allWorkspaceRoot = temporaryRoot('all-workspace-scope');
   attachWorkspace({
@@ -443,7 +447,7 @@ test('negative scope is optional, all-workspace is explicit, and no executable s
     appliesTo: ['headline'],
     doesNotApplyTo: ['administration'],
   });
-  assert.equal(resolve(unmatchedRoot, 'draft').reason_code, 'ambiguous_scope');
+  assert.equal(resolve(unmatchedRoot, 'draft').reason_code, 'outside_scope_or_no_match');
 
   const contradictoryRoot = temporaryRoot('contradictory-scope');
   attach(contradictoryRoot, buildAsset(contradictoryRoot), {
@@ -498,6 +502,35 @@ test('scope hints use deterministic token boundaries, normalized roles, and expl
   assert.equal(resolve(cjkRoot, '请完成文章起草。').decision, 'load');
   assert.equal(resolve(cjkRoot, '请解释“文章起草”这个标签。').decision, 'ask');
   assert.equal(resolve(cjkRoot, '请检查文章。').decision, 'ask');
+});
+
+test('clean positive-whitelist misses skip without inspecting unrelated authorization or bytes', () => {
+  const root = temporaryRoot('scope-whitelist-miss');
+  attach(root, buildProtectedAsset(root), {
+    role: 'protected-writing',
+    appliesTo: ['draft article'],
+    doesNotApplyTo: [],
+  });
+  const missing = attach(root, buildAsset(root), {
+    role: 'design-review',
+    appliesTo: ['review interface'],
+    doesNotApplyTo: [],
+  });
+  fs.unlinkSync(path.join(root, '.kdna', ...missing.attachment.asset.snapshot.split('/')));
+
+  const result = resolve(root, 'reconcile quarterly invoices');
+  assert.equal(result.decision, 'skip');
+  assert.equal(result.reason_code, 'outside_scope_or_no_match');
+  assert.equal(result.authorization, 'not_checked');
+  assert.equal(result.integrity, 'not_checked');
+  assert.equal(result.selected, null);
+  assert.equal(result.candidates.length, 2);
+  assert.ok(
+    result.candidates.every(
+      (candidate) =>
+        candidate.authorization === 'not_checked' && candidate.integrity === 'not_checked',
+    ),
+  );
 });
 
 test('negation, quotation, broad hints, and contrastive clauses never auto-load', () => {
@@ -763,19 +796,9 @@ test('explicit attachment naming and cross-language scope variation have a safe 
     appliesTo: ['article writing'],
     doesNotApplyTo: ['code editing'],
   });
-  const chineseTask = '写一篇推文';
-  const initial = resolve(root, chineseTask);
-  assert.equal(initial.decision, 'ask');
-  const selected = resolve(root, chineseTask, {
-    selectedAttachmentId: first.attachment.attachment_id,
-    selectionTaskDigest: initial.selection_plan.task_digest,
-    selectionPlanDigest: initial.selection_plan.plan_digest,
-    selectionApproved: true,
-  });
-  assert.equal(selected.decision, 'load');
-  assert.equal(selected.selected.attachment_id, first.attachment.attachment_id);
+  assert.equal(resolve(root, '写一篇推文').decision, 'skip');
 
-  const exactTask = `For this task, use attachment ${first.attachment.attachment_id}.`;
+  const exactTask = `本次任务请使用附件 ${first.attachment.attachment_id}。`;
   const exactDigest = sha256(Buffer.from(exactTask, 'utf8'));
   const exact = resolve(root, exactTask, {
     selectedAttachmentId: first.attachment.attachment_id,
@@ -866,7 +889,7 @@ test('explicitly outside-scope assets do not block on missing authorization or d
   });
   const encryptedOutside = resolve(encryptedRoot, 'review this code');
   assert.equal(encryptedOutside.decision, 'skip');
-  assert.equal(encryptedOutside.reason_code, 'outside_scope');
+  assert.equal(encryptedOutside.reason_code, 'outside_scope_or_no_match');
   assert.equal(encryptedOutside.authorization, 'not_checked');
   assert.equal(encryptedOutside.integrity, 'not_checked');
   assert.equal(resolve(encryptedRoot, 'draft this').reason_code, 'authorization_required');
@@ -879,7 +902,7 @@ test('explicitly outside-scope assets do not block on missing authorization or d
   fs.unlinkSync(path.join(missingRoot, '.kdna', ...missing.attachment.asset.snapshot.split('/')));
   const missingOutside = resolve(missingRoot, 'review this code');
   assert.equal(missingOutside.decision, 'skip');
-  assert.equal(missingOutside.reason_code, 'outside_scope');
+  assert.equal(missingOutside.reason_code, 'outside_scope_or_no_match');
   assert.equal(missingOutside.integrity, 'not_checked');
   assert.equal(resolve(missingRoot, 'draft this').reason_code, 'snapshot_missing');
 });
@@ -1058,6 +1081,41 @@ test('home and out-of-boundary parent records never become implicit project auth
   assert.equal(outsideResult.decision, 'skip');
   assert.equal(outsideResult.reason_code, 'no_approved_attachment');
 });
+
+test(
+  'attachment mutation rejects HOME, the filesystem root, and symlinked workspace roots',
+  { skip: process.platform === 'win32' },
+  () => {
+    const container = temporaryRoot('mutation-root-boundaries');
+    const project = path.join(container, 'project');
+    const linkedProject = path.join(container, 'linked-project');
+    fs.mkdirSync(project);
+    fs.symlinkSync(project, linkedProject);
+    const asset = buildAsset(container);
+    const originalHome = os.homedir;
+    os.homedir = () => project;
+    try {
+      assert.throws(
+        () => attach(project, asset),
+        (error) =>
+          error instanceof WorkspaceAttachmentError && error.code === 'home_workspace_ambiguous',
+      );
+    } finally {
+      os.homedir = originalHome;
+    }
+    assert.throws(
+      () => attachWorkspace({ cwd: path.parse(project).root, sourcePath: asset, approve }),
+      (error) =>
+        error instanceof WorkspaceAttachmentError && error.code === 'workspace_root_ambiguous',
+    );
+    assert.throws(
+      () => attach(linkedProject, asset),
+      (error) => error instanceof WorkspaceAttachmentError && error.code === 'workspace_invalid',
+    );
+    attach(project, asset);
+    assert.equal(readRecord(project).attachments.length, 1);
+  },
+);
 
 test(
   'workspace boundary rejects relative escapes and symlinked launch coordinates',
@@ -1719,7 +1777,7 @@ test('task stdin is bounded, strict UTF-8, mutually exclusive, and leaves no wor
 test('task stdin and task file produce identical load, ask, skip, and block decisions', () => {
   for (const [label, task, expected] of [
     ['load', 'draft this', 'load'],
-    ['ask', 'review this document', 'ask'],
+    ['ask', 'redraft this document', 'ask'],
     ['skip', 'review this code', 'skip'],
   ]) {
     const root = temporaryRoot(`stdin-equivalence-${label}`);
@@ -1773,7 +1831,7 @@ if (
     env: { NODE_OPTIONS: `${inherited}--require=${hook}` },
   });
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(JSON.parse(result.stdout).decision, 'ask');
+  assert.equal(JSON.parse(result.stdout).decision, 'skip');
   assert.doesNotMatch(result.stdout, new RegExp(task, 'u'));
   assert.doesNotMatch(result.stderr, new RegExp(task, 'u'));
 });
