@@ -34,15 +34,16 @@ kdna load ./demo-judgment.kdna --profile=compact --as=json
 
 The workspace attachment commands are an unreleased `0.36.0` source candidate,
 not the npm `latest` surface. To evaluate them without confusing the candidate
-with an installed release, fetch PR `#140`, detach at the fetched commit, record
-that exact HEAD, install its locked dependencies, and invoke the source entry
+with an installed release, obtain an exact candidate commit from a
+machine-readable source receipt, detach at that immutable commit, verify the
+recorded HEAD, install its locked dependencies, and invoke the source entry
 point directly:
 
 ```bash
 git clone https://github.com/aikdna/kdna-cli.git kdna-cli-candidate
 cd kdna-cli-candidate
-git fetch origin pull/140/head
-git switch --detach FETCH_HEAD
+git fetch origin <exact-commit-from-candidate-receipt>
+git switch --detach <exact-commit-from-candidate-receipt>
 git rev-parse HEAD
 npm ci
 node ./src/cli.js --version
