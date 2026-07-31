@@ -9,13 +9,17 @@ KDNA CLI inspects, validates, packs, unpacks, plans, authorizes, and loads
 path starts from one explicit file; neither a global asset library nor a Skill
 installation is required by the protocol.
 
-## Install
+## Published install
 
 ```bash
 npm install -g @aikdna/kdna-cli
 ```
 
-## File-first quick start
+The registry `latest` release is `0.35.1`. It supports the published,
+explicit-file path below. It does not include the workspace attachment
+commands shown later in this README.
+
+## Published 0.35.1 file-first quick start
 
 ```bash
 kdna demo judgment ./demo-judgment
@@ -26,14 +30,36 @@ kdna plan-load ./demo-judgment.kdna
 kdna load ./demo-judgment.kdna --profile=compact --as=json
 ```
 
-To approve that exact file for one workspace, save the current task text in a
-regular file and use the workspace contract:
+## Unreleased 0.36.0 source candidate
+
+The workspace attachment commands are an unreleased `0.36.0` source candidate,
+not the npm `latest` surface. To evaluate them without confusing the candidate
+with an installed release, fetch PR `#140`, detach at the fetched commit, record
+that exact HEAD, install its locked dependencies, and invoke the source entry
+point directly:
 
 ```bash
-kdna attach ./demo-judgment.kdna --cwd ./my-project \
+git clone https://github.com/aikdna/kdna-cli.git kdna-cli-candidate
+cd kdna-cli-candidate
+git fetch origin pull/140/head
+git switch --detach FETCH_HEAD
+git rev-parse HEAD
+npm ci
+node ./src/cli.js --version
+```
+
+Alternatively, an evaluator may use a candidate package supplied with an exact
+SHA-256 receipt; its digest must be verified before installation. Neither path
+changes what npm `latest` promises.
+
+To approve one exact file for one workspace from that detached source
+candidate, save the current task text in a regular file and use:
+
+```bash
+node ./src/cli.js attach ./demo-judgment.kdna --cwd ./my-project \
   --role article-writing --applies-to draft --does-not-apply-to code --yes
-kdna attachments --cwd ./my-project
-kdna resolve --cwd ./my-project --task-file ./current-task.txt
+node ./src/cli.js attachments --cwd ./my-project
+node ./src/cli.js resolve --cwd ./my-project --task-file ./current-task.txt
 ```
 
 `attach` copies the validated bytes to an immutable digest snapshot under
