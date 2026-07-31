@@ -26,6 +26,9 @@ const VALUE_FLAGS = new Set([
   '--task-file',
   '--adapter-schema',
   '--plan-digest',
+  '--select-attachment',
+  '--selection-task-digest',
+  '--selection-plan-digest',
 ]);
 
 class WorkspaceCommandInputError extends Error {
@@ -259,11 +262,21 @@ function cmdAttachments(args) {
 function cmdResolve(args) {
   const parsed = parseArgs(
     args,
-    new Set(['--cwd', '--workspace-root', '--task-file', '--task-stdin', '--adapter-schema']),
+    new Set([
+      '--cwd',
+      '--workspace-root',
+      '--task-file',
+      '--task-stdin',
+      '--adapter-schema',
+      '--select-attachment',
+      '--selection-task-digest',
+      '--selection-plan-digest',
+      '--selection-approved',
+    ]),
   );
   if (parsed.positional.length !== 0) {
     inputError(
-      'Usage: kdna resolve --cwd <start> [--workspace-root <boundary>] (--task-stdin | --task-file <file>) [--adapter-schema 0.1.0]',
+      'Usage: kdna resolve --cwd <start> [--workspace-root <boundary>] (--task-stdin | --task-file <file>) [--adapter-schema 0.1.0] [--select-attachment <id> --selection-task-digest <sha256:...> [--selection-plan-digest <sha256:...>] --selection-approved]',
     );
   }
   const cwd = parsed.one('--cwd');
@@ -284,6 +297,10 @@ function cmdResolve(args) {
         taskFile,
         taskBytes,
         adapterSchema: parsed.one('--adapter-schema'),
+        selectedAttachmentId: parsed.one('--select-attachment') || undefined,
+        selectionTaskDigest: parsed.one('--selection-task-digest') || undefined,
+        selectionPlanDigest: parsed.one('--selection-plan-digest') || undefined,
+        selectionApproved: parsed.has('--selection-approved'),
       }),
     );
   } finally {

@@ -14,8 +14,8 @@
     },
     {
       "command": "resolve",
-      "usage": "resolve --cwd <start> [--workspace-root <boundary>] (--task-stdin | --task-file <file>)",
-      "purpose": "Resolve one stdin or explicit-file task against approved attachments inside the explicit Host workspace boundary."
+      "usage": "resolve --cwd <start> [--workspace-root <boundary>] (--task-stdin | --task-file <file>) [--select-attachment <id> --selection-task-digest <sha256:...> [--selection-plan-digest <sha256:...>] --selection-approved]",
+      "purpose": "Resolve one stdin or explicit-file task, including a receipt-bound one-task user selection, against approved attachments inside the explicit Host workspace boundary."
     },
     {
       "command": "disable",

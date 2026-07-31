@@ -91,6 +91,21 @@ test('scope narrative does not present phrase matching as natural-language under
   assert.match(readme, /does not claim to understand arbitrary\s+natural language/);
 });
 
+test('ask has an official receipt-bound one-task continuation without generic-load bypass', () => {
+  const readme = read('README.md');
+  const allowlist = JSON.parse(read('release-surface/cli-command-allowlist.json'));
+  const resolve = allowlist.commands.find((entry) => entry.command === 'resolve');
+  assert.match(readme, /one-task `selection_plan` binding the exact task\s+bytes/);
+  assert.match(readme, /does not change stored scope/);
+  assert.match(readme, /not reused for a later task/);
+  assert.match(readme, /generic `kdna load <file>`.*not a workspace-selection continuation/su);
+  assert.match(readme, /--selection-task-digest/);
+  assert.match(readme, /--selection-plan-digest/);
+  assert.match(readme, /--selection-approved/);
+  assert.match(resolve.usage, /--select-attachment <id>/);
+  assert.match(resolve.purpose, /receipt-bound one-task user selection/);
+});
+
 test('default authoring rubric does not require output uplift', () => {
   const rubric = read('templates/standard-domain/evals/scoring.json');
   const template = read('templates/standard-domain/README.md');

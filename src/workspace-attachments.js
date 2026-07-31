@@ -557,7 +557,7 @@ function ensureWorkspaceLayout(paths) {
   ensureGitignore(paths);
 }
 
-function readRecord(paths, { optional = false } = {}) {
+function readRecordSnapshot(paths, { optional = false } = {}) {
   try {
     const bytes = safeReadRegular(paths.record, MAX_RECORD_BYTES, 'Workspace attachment record');
     let record;
@@ -566,7 +566,11 @@ function readRecord(paths, { optional = false } = {}) {
     } catch {
       fail('attachment_schema_unsupported', 'Workspace attachment record is not valid JSON.');
     }
-    return validateRecord(record);
+    return {
+      bytes,
+      digest: sha256(bytes),
+      record: validateRecord(record),
+    };
   } catch (error) {
     if (
       optional &&
@@ -577,6 +581,10 @@ function readRecord(paths, { optional = false } = {}) {
     }
     throw error;
   }
+}
+
+function readRecord(paths, options = {}) {
+  return readRecordSnapshot(paths, options)?.record || null;
 }
 
 function atomicWriteRecord(paths, record) {
@@ -1497,8 +1505,9 @@ function resolutionResult({
   candidates = [],
   authorization,
   integrity,
+  selectionPlan = null,
 }) {
-  return {
+  const result = {
     document_type: RESOLUTION_TYPE,
     schema_version: SCHEMA_VERSION,
     decision,
@@ -1509,6 +1518,8 @@ function resolutionResult({
     authorization,
     integrity,
   };
+  if (selectionPlan !== null) result.selection_plan = selectionPlan;
+  return result;
 }
 
 function blockResult(reasonCode, workspaceRoot, candidates, authorization, integrity) {
@@ -1536,9 +1547,37 @@ function decodeTaskBytes(bytes, label) {
   }
 }
 
-function decodeTaskFile(taskFile) {
+function readTaskFile(taskFile) {
   const absolute = path.resolve(taskFile);
-  return decodeTaskBytes(safeReadRegular(absolute, MAX_TASK_BYTES, 'Task file'), 'Task file');
+  return safeReadRegular(absolute, MAX_TASK_BYTES, 'Task file');
+}
+
+function selectionPlanFor({
+  workspaceRoot,
+  absoluteWorkspaceRoot,
+  taskDigest,
+  recordDigest,
+  candidates,
+}) {
+  const candidateSetDigest = sha256(Buffer.from(JSON.stringify(candidates), 'utf8'));
+  const planFacts = {
+    document_type: 'kdna.workspace-selection-plan',
+    schema_version: SCHEMA_VERSION,
+    workspace_root: workspaceRoot,
+    absolute_workspace_root: absoluteWorkspaceRoot,
+    task_digest: taskDigest,
+    record_digest: recordDigest,
+    candidate_set_digest: candidateSetDigest,
+  };
+  return {
+    document_type: planFacts.document_type,
+    schema_version: planFacts.schema_version,
+    workspace_root: planFacts.workspace_root,
+    task_digest: planFacts.task_digest,
+    record_digest: planFacts.record_digest,
+    candidate_set_digest: planFacts.candidate_set_digest,
+    plan_digest: sha256(Buffer.from(JSON.stringify(planFacts), 'utf8')),
+  };
 }
 
 function resolveWorkspace(options) {
@@ -1551,19 +1590,57 @@ function resolveWorkspace(options) {
   if (hasTaskFile === hasTaskBytes) {
     fail('input_invalid', 'Resolve requires exactly one task file or task stdin input.');
   }
-  const task = normalizedPhrase(
-    hasTaskFile
-      ? decodeTaskFile(options.taskFile)
-      : decodeTaskBytes(options.taskBytes, 'Task stdin'),
+  const hasSelection = options.selectedAttachmentId !== undefined;
+  const hasSelectionTaskDigest = options.selectionTaskDigest !== undefined;
+  const hasSelectionPlanDigest = options.selectionPlanDigest !== undefined;
+  if (
+    hasSelection !== (options.selectionApproved === true) ||
+    hasSelection !== hasSelectionTaskDigest ||
+    (!hasSelection && hasSelectionPlanDigest)
+  ) {
+    fail(
+      'input_invalid',
+      'A one-task attachment selection requires an attachment ID, task digest, and explicit approval.',
+    );
+  }
+  if (hasSelection && options.workspaceRoot == null) {
+    fail('input_invalid', 'A one-task attachment selection requires an explicit workspace root.');
+  }
+  if (hasSelection && !ATTACHMENT_ID_PATTERN.test(String(options.selectedAttachmentId))) {
+    fail('input_invalid', 'Selected attachment ID is invalid.');
+  }
+  if (
+    (hasSelectionTaskDigest && !DIGEST_PATTERN.test(String(options.selectionTaskDigest))) ||
+    (hasSelectionPlanDigest && !DIGEST_PATTERN.test(String(options.selectionPlanDigest)))
+  ) {
+    fail('input_invalid', 'Selection task and plan digests must be lowercase SHA-256 digests.');
+  }
+  const taskBytes = Buffer.from(
+    hasTaskFile ? readTaskFile(options.taskFile) : options.taskBytes,
   );
-  if (!task) fail('input_invalid', 'Task input must contain non-empty UTF-8 text.');
+  let taskText;
+  let task;
+  try {
+    taskText = decodeTaskBytes(taskBytes, hasTaskFile ? 'Task file' : 'Task stdin');
+    task = normalizedPhrase(taskText);
+  } catch (error) {
+    taskBytes.fill(0);
+    throw error;
+  }
+  if (!task) {
+    taskBytes.fill(0);
+    fail('input_invalid', 'Task input must contain non-empty UTF-8 text.');
+  }
+  const taskDigest = sha256(taskBytes);
   let workspace;
   try {
     workspace = findWorkspace(start, options.workspaceRoot);
   } catch {
+    taskBytes.fill(0);
     return blockResult('attachment_schema_unsupported', '.', [], 'not_checked', 'not_checked');
   }
   if (!workspace.root) {
+    taskBytes.fill(0);
     return resolutionResult({
       decision: 'skip',
       reasonCode: 'no_approved_attachment',
@@ -1573,10 +1650,11 @@ function resolveWorkspace(options) {
     });
   }
   const workspaceRoot = displayWorkspaceRoot(start, workspace.root);
-  let record;
+  let recordSnapshot;
   try {
-    record = readRecord(workspace.paths);
+    recordSnapshot = readRecordSnapshot(workspace.paths);
   } catch {
+    taskBytes.fill(0);
     return blockResult(
       'attachment_schema_unsupported',
       workspaceRoot,
@@ -1585,15 +1663,153 @@ function resolveWorkspace(options) {
       'not_checked',
     );
   }
+  const { record } = recordSnapshot;
+  const finish = (baseResult) => {
+    try {
+      let result = baseResult;
+      if (result.decision === 'ask') {
+        result = resolutionResult({
+          decision: result.decision,
+          reasonCode: result.reason_code,
+          workspaceRoot: result.workspace_root,
+          selected: result.selected,
+          candidates: result.candidates,
+          authorization: result.authorization,
+          integrity: result.integrity,
+          selectionPlan: selectionPlanFor({
+            workspaceRoot,
+            absoluteWorkspaceRoot: workspace.root,
+            taskDigest,
+            recordDigest: recordSnapshot.digest,
+            candidates: result.candidates,
+          }),
+        });
+      }
+      if (!hasSelection) return result;
+      if (options.selectionTaskDigest !== taskDigest) {
+        return blockResult(
+          'selection_binding_changed',
+          workspaceRoot,
+          result.candidates,
+          'not_checked',
+          'not_checked',
+        );
+      }
+      if (result.decision === 'block') return result;
+      const selectedCandidate = result.candidates.find(
+        (candidate) => candidate.attachment_id === options.selectedAttachmentId,
+      );
+      if (!selectedCandidate || !['ask', 'load'].includes(result.decision)) {
+        return blockResult(
+          'selection_not_current_candidate',
+          workspaceRoot,
+          result.candidates,
+          'not_checked',
+          'not_checked',
+        );
+      }
+      const exactIdentifierNamed =
+        taskText.includes(selectedCandidate.attachment_id) ||
+        taskText.includes(selectedCandidate.asset_id);
+      if (
+        result.decision === 'ask' &&
+        options.selectionPlanDigest === undefined &&
+        !exactIdentifierNamed
+      ) {
+        return blockResult(
+          'selection_receipt_required',
+          workspaceRoot,
+          result.candidates,
+          'not_checked',
+          'not_checked',
+        );
+      }
+      if (
+        options.selectionPlanDigest !== undefined &&
+        options.selectionPlanDigest !== result.selection_plan?.plan_digest
+      ) {
+        return blockResult(
+          'selection_binding_changed',
+          workspaceRoot,
+          result.candidates,
+          'not_checked',
+          'not_checked',
+        );
+      }
+      const attachment = findAttachment(record, selectedCandidate.attachment_id);
+      if (attachment.state !== 'enabled') {
+        return blockResult(
+          'selection_not_current_candidate',
+          workspaceRoot,
+          result.candidates,
+          'not_checked',
+          'not_checked',
+        );
+      }
+      let asset;
+      try {
+        asset = verifyAssetReference(workspace.paths, attachment.asset);
+      } catch (error) {
+        const code =
+          error instanceof WorkspaceAttachmentError &&
+          ['snapshot_missing', 'snapshot_digest_mismatch'].includes(error.code)
+            ? error.code
+            : 'asset_invalid';
+        return blockResult(code, workspaceRoot, [selectedCandidate], 'not_checked', 'failed');
+      }
+      if (asset.plan.can_load_now !== true) {
+        return blockResult(
+          'authorization_required',
+          workspaceRoot,
+          [selectedCandidate],
+          'required',
+          'verified',
+        );
+      }
+      let currentRecordSnapshot;
+      try {
+        currentRecordSnapshot = readRecordSnapshot(workspace.paths);
+      } catch {
+        return blockResult(
+          'selection_binding_changed',
+          workspaceRoot,
+          result.candidates,
+          'not_checked',
+          'not_checked',
+        );
+      }
+      if (currentRecordSnapshot.digest !== recordSnapshot.digest) {
+        return blockResult(
+          'selection_binding_changed',
+          workspaceRoot,
+          result.candidates,
+          'not_checked',
+          'not_checked',
+        );
+      }
+      return resolutionResult({
+        decision: 'load',
+        reasonCode: 'explicit_task_attachment_selection',
+        workspaceRoot,
+        selected: selectedCandidate,
+        candidates: result.candidates,
+        authorization: 'satisfied',
+        integrity: 'verified',
+      });
+    } finally {
+      taskBytes.fill(0);
+      recordSnapshot.bytes.fill(0);
+    }
+  };
   const enabled = record.attachments.filter((attachment) => attachment.state === 'enabled');
   if (enabled.length === 0) {
-    return resolutionResult({
+    return finish(resolutionResult({
       decision: 'skip',
       reasonCode: 'no_approved_attachment',
       workspaceRoot,
       authorization: 'not_checked',
       integrity: 'not_checked',
-    });
+    }));
   }
 
   const evaluated = enabled.map((attachment) => {
@@ -1659,28 +1875,28 @@ function resolveWorkspace(options) {
     const checked = verifyScopedCandidates(
       evaluated.filter((item) => item.positives || item.negatives),
     );
-    if (checked.blocked) return checked.blocked;
-    return resolutionResult({
+    if (checked.blocked) return finish(checked.blocked);
+    return finish(resolutionResult({
       decision: 'ask',
       reasonCode: 'ambiguous_scope',
       workspaceRoot,
       candidates: checked.verified.map((item) => item.candidate),
       authorization: 'satisfied',
       integrity: 'verified',
-    });
+    }));
   }
 
   if (internallyAmbiguous.length > 0) {
     const checked = verifyScopedCandidates(internallyAmbiguous);
-    if (checked.blocked) return checked.blocked;
-    return resolutionResult({
+    if (checked.blocked) return finish(checked.blocked);
+    return finish(resolutionResult({
       decision: 'ask',
       reasonCode: 'ambiguous_scope',
       workspaceRoot,
       candidates: checked.verified.map((item) => item.candidate),
       authorization: 'satisfied',
       integrity: 'verified',
-    });
+    }));
   }
   const contradictoryNegative = negative.filter((negativeItem) =>
     positive.some(
@@ -1691,20 +1907,20 @@ function resolveWorkspace(options) {
   );
   if (positive.length > 1 || contradictoryNegative.length > 0) {
     const checked = verifyScopedCandidates([...positive, ...contradictoryNegative]);
-    if (checked.blocked) return checked.blocked;
-    return resolutionResult({
+    if (checked.blocked) return finish(checked.blocked);
+    return finish(resolutionResult({
       decision: 'ask',
       reasonCode: 'attachment_conflict',
       workspaceRoot,
       candidates: checked.verified.map((item) => item.candidate),
       authorization: 'satisfied',
       integrity: 'verified',
-    });
+    }));
   }
   if (positive.length === 1 && unmatched.length === 0) {
     const checked = verifyScopedCandidates(positive);
-    if (checked.blocked) return checked.blocked;
-    return resolutionResult({
+    if (checked.blocked) return finish(checked.blocked);
+    return finish(resolutionResult({
       decision: 'load',
       reasonCode: 'single_approved_attachment_clearly_applies',
       workspaceRoot,
@@ -1712,28 +1928,28 @@ function resolveWorkspace(options) {
       candidates: [checked.verified[0].candidate],
       authorization: 'satisfied',
       integrity: 'verified',
-    });
+    }));
   }
   if (positive.length === 0 && unmatched.length === 0 && negative.length > 0) {
-    return resolutionResult({
+    return finish(resolutionResult({
       decision: 'skip',
       reasonCode: 'outside_scope',
       workspaceRoot,
       candidates: negative.map((item) => item.candidate),
       authorization: 'not_checked',
       integrity: 'not_checked',
-    });
+    }));
   }
   const checked = verifyScopedCandidates([...positive, ...unmatched]);
-  if (checked.blocked) return checked.blocked;
-  return resolutionResult({
+  if (checked.blocked) return finish(checked.blocked);
+  return finish(resolutionResult({
     decision: 'ask',
     reasonCode: 'ambiguous_scope',
     workspaceRoot,
     candidates: checked.verified.map((item) => item.candidate),
     authorization: 'satisfied',
     integrity: 'verified',
-  });
+  }));
 }
 
 module.exports = {

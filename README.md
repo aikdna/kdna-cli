@@ -143,6 +143,32 @@ task resolves to zero or one selected asset. Conflicts ask; this source
 candidate does not silently combine assets or define an explicit composition
 contract.
 
+An `ask` response includes a one-task `selection_plan` binding the exact task
+bytes, workspace attachment record, and current candidate set. After the user
+chooses one candidate, the Host repeats the same task bytes and exact Host root
+with the selected attachment ID, the task and plan digests from that response,
+and `--selection-approved`. The resolver rechecks every bound fact and returns
+`load` only for that attachment; any drift rejects the continuation. This
+approval is consumed for this task only, does not change stored scope, and is
+not reused for a later task. If the task itself contains the exact attachment
+ID or asset ID, that explicit naming can serve as the one-task selection
+without a prior plan, but the task digest, Host root, and approval remain
+mandatory. A generic `kdna load <file>` is an explicit-file operation and is
+not a workspace-selection continuation: a Host must not use it to bypass the
+attachment record or adoption controls.
+
+```bash
+node ./src/cli.js resolve \
+  --cwd ./my-project --workspace-root ./my-project --task-stdin \
+  --select-attachment att_<id-from-ask> \
+  --selection-task-digest sha256:<task-digest-from-ask> \
+  --selection-plan-digest sha256:<plan-digest-from-ask> \
+  --selection-approved
+```
+
+The Host writes the same in-memory task bytes to stdin and closes it; the bytes
+do not belong in argv, environment variables, or an incidental task file.
+
 The source-candidate resolver is a conservative deterministic interpreter of
 user-approved scope hints, not an AI classifier for arbitrary natural
 language. Latin and numeric phrases use token boundaries, hyphens and spaces
