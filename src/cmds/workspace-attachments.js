@@ -7,6 +7,7 @@ const { TextDecoder } = require('node:util');
 const {
   WorkspaceAttachmentError,
   MAX_TASK_BYTES,
+  SCHEMA_VERSION,
   attachWorkspace,
   cleanupWorkspaceSnapshots,
   listWorkspaceAttachments,
@@ -361,7 +362,7 @@ function cmdResolve(args) {
   );
   if (parsed.positional.length !== 0) {
     inputError(
-      'Usage: kdna resolve --cwd <start> [--workspace-root <boundary>] (--task-stdin | --task-file <file>) [--adapter-schema 0.3.0] [--select-attachment <id> --selection-task-digest <sha256:...> [--selection-plan-digest <sha256:...>] --selection-approved] [--defer-password-authorization]',
+      `Usage: kdna resolve --cwd <start> [--workspace-root <boundary>] (--task-stdin | --task-file <file>) [--adapter-schema ${SCHEMA_VERSION}] [--select-attachment <id> --selection-task-digest <sha256:...> [--selection-plan-digest <sha256:...>] --selection-approved] [--defer-password-authorization]`,
     );
   }
   const cwd = parsed.one('--cwd');

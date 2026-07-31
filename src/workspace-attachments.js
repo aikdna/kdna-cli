@@ -1182,9 +1182,7 @@ function verifyAssetReference(paths, asset, options = {}) {
   const passwordAuthorizationDeferred =
     options.deferPasswordAuthorization === true &&
     plan.state === 'needs_password' &&
-    plan.issues?.some(
-      (issue) => issue.code === 'KDNA_AUTH_PASSWORD_REQUIRED',
-    );
+    plan.issues?.some((issue) => issue.code === 'KDNA_AUTH_PASSWORD_REQUIRED');
   return { bytes, manifest, plan, passwordAuthorizationDeferred };
 }
 
@@ -2319,7 +2317,7 @@ function resolveWorkspace(options) {
         workspaceRoot,
         selected: checked.verified[0].candidate,
         candidates: [checked.verified[0].candidate],
-        authorization: 'satisfied',
+        authorization: checked.verified[0].candidate.authorization,
         integrity: 'verified',
       }),
     );
