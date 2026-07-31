@@ -562,6 +562,26 @@ test('negation, quotation, broad hints, and contrastive clauses never auto-load'
 });
 
 test('multiple positive attachments and same-role disagreement ask with attachment_conflict', () => {
+  const uniqueRoot = temporaryRoot('multi-unique-positive');
+  const writing = attach(uniqueRoot, buildAsset(uniqueRoot), {
+    role: 'writing',
+    appliesTo: ['draft article'],
+    doesNotApplyTo: [],
+  });
+  attach(uniqueRoot, buildAsset(uniqueRoot), {
+    role: 'programming',
+    appliesTo: ['change code'],
+    doesNotApplyTo: [],
+  });
+  attach(uniqueRoot, buildAsset(uniqueRoot), {
+    role: 'administration',
+    appliesTo: ['manage invoices'],
+    doesNotApplyTo: [],
+  });
+  const unique = resolve(uniqueRoot, 'draft article');
+  assert.equal(unique.decision, 'load');
+  assert.equal(unique.selected.attachment_id, writing.attachment.attachment_id);
+
   const multipleRoot = temporaryRoot('multi-conflict');
   attach(multipleRoot, buildAsset(multipleRoot), { role: 'writing' });
   attach(multipleRoot, buildAsset(multipleRoot), { role: 'editing' });
