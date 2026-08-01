@@ -24,6 +24,10 @@ const {
   cmdSetState,
   cmdSwitch,
 } = require('./cmds/workspace-attachments');
+const {
+  HostConsentError,
+  cmdHostConsent,
+} = require('./cmds/host-consent');
 const { CliError, EXIT, error } = require('./foundation-common');
 
 function showHelp() {
@@ -62,6 +66,7 @@ const handlers = Object.freeze({
   switch: (args) => runWorkspaceCommand(cmdSwitch, args),
   rollback: (args) => runWorkspaceCommand(cmdRollback, args),
   remove: (args) => runWorkspaceCommand(cmdRemove, args),
+  'host-consent': cmdHostConsent,
   inspect: cmdInspect,
   validate: cmdValidate,
   'plan-load': cmdPlanLoad,
@@ -117,7 +122,14 @@ async function main(argv) {
       commandPolicy.rejection.exit_code,
     );
   }
-  await handler(args);
+  try {
+    await handler(args);
+  } catch (commandError) {
+    if (commandError instanceof HostConsentError) {
+      error(commandError.message, EXIT.INPUT_ERROR);
+    }
+    throw commandError;
+  }
 }
 
 main(process.argv.slice(2)).catch((caught) => {

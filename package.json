@@ -1,7 +1,7 @@
 {
   "name": "@aikdna/kdna-cli",
   "version": "0.36.0",
-  "description": "KDNA CLI — runtime control plane for inspecting, validating, planning, packing, unpacking, and loading local .kdna assets.",
+  "description": "KDNA CLI \u2014 runtime control plane for inspecting, validating, planning, packing, unpacking, and loading local .kdna assets.",
   "type": "commonjs",
   "bin": {
     "kdna": "src/cli.js"
@@ -27,6 +27,7 @@
     "src/cmds/asset-io.js",
     "src/cmds/audit-log.js",
     "src/cmds/demo.js",
+    "src/cmds/host-consent.js",
     "src/cmds/workspace-attachments.js",
     "src/foundation-common.js",
     "src/local-state-paths.js",
