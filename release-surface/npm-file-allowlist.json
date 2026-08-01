@@ -23,6 +23,7 @@
     "src/cmds/asset-io.js",
     "src/cmds/audit-log.js",
     "src/cmds/demo.js",
+    "src/cmds/host-consent.js",
     "src/cmds/workspace-attachments.js",
     "src/foundation-common.js",
     "src/local-state-paths.js",
