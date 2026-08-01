@@ -140,6 +140,7 @@ project authority.
 | `kdna disable` / `enable`             | Retain an attachment while controlling eligibility                  |
 | `kdna switch` / `rollback` / `remove` | Replace, restore, or remove only the workspace relation             |
 | `kdna cleanup`                        | Preview or explicitly delete only unreferenced workspace snapshots  |
+| `kdna host-consent`                   | Low-level source-candidate broker for Host processing consent       |
 
 Successful loading proves technical delivery of a named projection. It does
 not prove that an Agent followed the judgment or that the result became better.
@@ -172,6 +173,24 @@ permissions, decision reason, and controls to disable, switch, or roll back.
 Digests, receipts, record IDs, and plan coordinates remain available only in
 technical details, JSON, or audit output; ordinary approval is never a hash
 questionnaire.
+
+The unreleased `host-consent` command is a low-level integration primitive,
+not yet that finished ordinary-user surface. A trusted Host launcher supplies
+one private strict-JSON draft through stdin or a private `--input-file`, and
+sets `KDNA_MCP_HOST_PROCESSING_CONSENT_FILE` to the fixed Host-private target:
+
+```bash
+trusted-host-draft-producer | node ./src/cli.js host-consent
+node ./src/cli.js host-consent --status --json
+node ./src/cli.js host-consent --revoke
+```
+
+The command requires a real terminal for Allow/Decline, writes atomically and
+fails closed on unsafe paths. Ordinary users must not construct the draft or
+copy IDs/digests from tool output. The current source-candidate terminal prompt
+still displays the full asset digest and role/scope mechanics, so a Host cannot
+claim the default human-readable experience above until its trusted launcher
+derives the draft and presents only human concepts by default.
 
 These low-level flags are an integration surface, not a field questionnaire
 for ordinary users. If the original natural-language instruction already binds
