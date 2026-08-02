@@ -74,7 +74,16 @@ test(
           profile_version: '0.1.0',
           core: {
             highest_question: 'Can the CLI load this?',
-            axioms: [],
+            axioms: [
+              {
+                id: 'ax_cli_external',
+                one_sentence: 'The CLI loads this fixture through a verified external grant.',
+                full_statement: 'The CLI loads this fixture through a verified external grant.',
+                applies_when: ['loading the CLI external entitlement fixture'],
+                does_not_apply_when: [],
+                failure_risk: 'None for a fixture.',
+              },
+            ],
             boundaries: [],
           },
           patterns: [],
