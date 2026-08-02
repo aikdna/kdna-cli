@@ -591,6 +591,29 @@ test('relative cwd resolves identically to the absolute workspace root and recor
   assert.deepEqual(missing.candidates, []);
 });
 
+test('latin meta-words only mark uncertainty near the matched term', () => {
+  const root = temporaryRoot('scope-latin-meta-context');
+  attach(root, buildAsset(root), {
+    appliesTo: ['review'],
+    doesNotApplyTo: [],
+  });
+  // A task that says "explain the ordering of required changes" is a review
+  // instruction, not a discussion of the word "review": it must load.
+  assert.equal(
+    resolve(
+      root,
+      'Review a pull request that changes error handling, has a flaky test, and renames two internal functions. Decide whether it is ready to approve and explain the ordering of required changes.',
+    ).decision,
+    'load',
+  );
+  // A task that asks to explain what "review" means is genuinely ambiguous.
+  assert.equal(resolve(root, 'Please explain what review means in this context.').decision, 'ask');
+  assert.equal(
+    resolve(root, 'Please explain what review means in this context.').reason_code,
+    'ambiguous_scope',
+  );
+});
+
 test('open-world synonym and language variation ask while explicit closed boundaries can skip', () => {
   for (const [hint, task] of [
     ['article writing', 'compose a blog post'],
