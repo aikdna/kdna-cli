@@ -15,7 +15,7 @@ const CORE_COMMIT = ['32aa3ff8e633291d4bb9e01de5a70181c8415d93', ''].join('');
 const WORKFLOW_AUTHORITIES = Object.freeze([
   Object.freeze({
     path: '.github/workflows/ci.yml',
-    sha256: '4d9cb5547a30997c1f9f7b0267df827e968ea39a98acaa1d0516be737f9bcd81',
+    sha256: '147cc45a2c91a703ef80dd5a11a37ddc544dd6922d13dee3b437f143c8097f2b',
   }),
   Object.freeze({
     path: '.github/workflows/public-surface.yml',
