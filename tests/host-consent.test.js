@@ -137,4 +137,138 @@ test('host-consent declines drafts with unknown fields or invalid coordinates', 
   }
 });
 
+test('host-consent --from-workspace requires host and processor', () => {
+  const temporary = temporaryDirectory();
+  const consentPath = path.join(temporary, 'consent.json');
+  const result = runHostConsent(['--from-workspace', '--cwd', temporary], {
+    consentPath,
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /requires --host/);
+});
+
+test('host-consent --from-workspace fails closed without a workspace record', () => {
+  const temporary = temporaryDirectory();
+  const consentPath = path.join(temporary, 'consent.json');
+  const workspace = path.join(temporary, 'workspace');
+  fs.mkdirSync(workspace);
+  const result = runHostConsent(
+    [
+      '--from-workspace',
+      '--cwd',
+      workspace,
+      '--host',
+      'test-host-1',
+      '--processor',
+      'fixture-provider',
+    ],
+    { consentPath },
+  );
+  assert.notEqual(result.status, 0);
+  assert.match(
+    result.stderr,
+    /No KDNA workspace attachment record was found from the current directory/,
+  );
+  assert.equal(fs.existsSync(consentPath), false);
+});
+
+test('host-consent --from-workspace requires exactly one enabled attachment', () => {
+  const temporary = temporaryDirectory();
+  const consentPath = path.join(temporary, 'consent.json');
+  const workspace = path.join(temporary, 'workspace');
+  fs.mkdirSync(path.join(workspace, '.kdna', 'assets'), { recursive: true });
+  fs.writeFileSync(
+    path.join(workspace, '.kdna', 'attachments.json'),
+    JSON.stringify({
+      document_type: 'kdna.workspace-attachments',
+      schema_version: '0.3.0',
+      workspace: { root_marker: '.kdna/attachments.json' },
+      attachments: [],
+    }),
+    { mode: 0o600 },
+  );
+  const result = runHostConsent(
+    [
+      '--from-workspace',
+      '--cwd',
+      workspace,
+      '--host',
+      'test-host-1',
+      '--processor',
+      'fixture-provider',
+    ],
+    { consentPath },
+  );
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /requires exactly one enabled workspace attachment/);
+  assert.equal(fs.existsSync(consentPath), false);
+});
+
+test('host-consent --from-workspace derives a draft from the enabled attachment', () => {
+  const temporary = temporaryDirectory();
+  const consentPath = path.join(temporary, 'consent.json');
+  const workspace = path.join(temporary, 'workspace');
+  fs.mkdirSync(path.join(workspace, '.kdna', 'assets'), { recursive: true });
+  const digest = 'sha256:' + 'a'.repeat(64);
+  fs.writeFileSync(
+    path.join(workspace, '.kdna', 'assets', 'sha256-' + 'a'.repeat(64) + '.kdna'),
+    Buffer.from('fixture'),
+    { mode: 0o600 },
+  );
+  fs.writeFileSync(
+    path.join(workspace, '.kdna', 'attachments.json'),
+    JSON.stringify({
+      document_type: 'kdna.workspace-attachments',
+      schema_version: '0.3.0',
+      workspace: { root_marker: '.kdna/attachments.json' },
+      attachments: [
+        {
+          attachment_id: 'att_' + 'b'.repeat(24),
+          state: 'enabled',
+          role: 'review-triage',
+          asset: {
+            id: 'kdna:studio:fixture_asset',
+            version: '0.1.0',
+            digest,
+            snapshot: 'assets/sha256-' + 'a'.repeat(64) + '.kdna',
+          },
+          scope: {
+            kind: 'workspace',
+            application: 'task_hints',
+            matching_policy: 'open_world_ask',
+            authority: 'user_approved_routing_hint',
+            approval_source: 'user_explicit',
+            applies_to: ['review'],
+            does_not_apply_to: ['code'],
+          },
+          resolution_policy: 'load_when_clear_ask_when_ambiguous',
+          update_policy: 'explicit_switch_only',
+          approved_at: new Date().toISOString(),
+          history: [],
+        },
+      ],
+    }),
+    { mode: 0o600 },
+  );
+  const result = runHostConsent(
+    [
+      '--from-workspace',
+      '--cwd',
+      workspace,
+      '--host',
+      'test-host-1',
+      '--processor',
+      'fixture-provider',
+    ],
+    { consentPath },
+  );
+  assert.notEqual(result.status, 0);
+  assert.match(
+    result.stderr,
+    /interactive Allow\/Decline confirmation/,
+    'draft derivation must succeed and reach the interactive confirmation step',
+  );
+  assert.equal(fs.existsSync(consentPath), false);
+});
+
 
