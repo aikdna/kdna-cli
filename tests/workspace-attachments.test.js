@@ -551,6 +551,46 @@ test('high-coverage CJK variants resolve as clear matches and explicit exclusion
   assert.equal(resolve(root, '请判断这条口播脚本值不值得发布。').decision, 'load');
 });
 
+test('relative cwd resolves identically to the absolute workspace root and record faults fail closed', () => {
+  const root = temporaryRoot('scope-relative-cwd');
+  attach(root, buildAsset(root), {
+    appliesTo: ['判断口播脚本是否值得发布'],
+    doesNotApplyTo: ['代码审查'],
+  });
+  // a relative --cwd string must resolve to the same workspace as the
+  // absolute root (this mirrors a caller passing --cwd from another
+  // directory using a relative path)
+  const relative = resolve(root, '请判断这条口播脚本值不值得发布。', {
+    cwd: path.relative(process.cwd(), root),
+    workspaceRoot: root,
+  });
+  const absolute = resolve(root, '请判断这条口播脚本值不值得发布。');
+  assert.equal(relative.decision, absolute.decision);
+  assert.equal(relative.reason_code, absolute.reason_code);
+  assert.deepEqual(
+    (relative.candidates || []).map((candidate) => candidate.attachment_id),
+    (absolute.candidates || []).map((candidate) => candidate.attachment_id),
+  );
+  // a corrupt record must fail closed, never silently degrade to an empty
+  // attachment set with no_approved_attachment
+  const record = recordPath(root);
+  const original = fs.readFileSync(record);
+  fs.writeFileSync(record, '{broken json');
+  const corrupt = resolve(root, '请判断这条口播脚本值不值得发布。');
+  assert.equal(corrupt.decision, 'block');
+  fs.writeFileSync(record, original);
+  // a missing record is a real empty workspace: skip, not a silent error
+  fs.rmSync(path.join(root, '.kdna'), { recursive: true, force: true });
+  const missing = resolveWorkspace({
+    cwd: root,
+    workspaceRoot: root,
+    taskFile: writeTask(root, '请判断这条口播脚本值不值得发布。'),
+  });
+  assert.equal(missing.decision, 'skip');
+  assert.equal(missing.reason_code, 'no_approved_attachment');
+  assert.deepEqual(missing.candidates, []);
+});
+
 test('open-world synonym and language variation ask while explicit closed boundaries can skip', () => {
   for (const [hint, task] of [
     ['article writing', 'compose a blog post'],
