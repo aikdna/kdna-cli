@@ -200,7 +200,7 @@ test('trusted Git uses a Git-compatible null config device and still scrubs ever
   }
 });
 
-test('default install binds one exact Core candidate with no second AIKDNA runtime dependency', () => {
+test('default install binds one exact Core registry artifact after Core 0.21.0 is published', () => {
   const pkg = require('../package.json');
   const lock = require('../package-lock.json');
   const binding = verifyCandidateBinding(ROOT);
@@ -209,7 +209,7 @@ test('default install binds one exact Core candidate with no second AIKDNA runti
   assert.equal(lock.packages[`node_modules/${CORE}`].version, CORE_VERSION);
   assert.equal(
     lock.packages[`node_modules/${CORE}`].resolved,
-    `file:${binding.packages[0].artifact}`,
+    canonicalRegistryUrl(CORE, binding.packages[0].version),
   );
   assert.equal(require('@aikdna/kdna-core/package.json').version, CORE_VERSION);
   assert.deepEqual(verifyInstalledAikdnaGraph(ROOT), {
@@ -217,11 +217,8 @@ test('default install binds one exact Core candidate with no second AIKDNA runti
   });
 });
 
-test('registry release gate rejects an unpublished Core candidate', () => {
-  assert.throws(
-    () => assertRegistryReleaseReady(ROOT, strictRegistryLookup),
-    /still candidate-bound/,
-  );
+test('registry release gate accepts the real published Core 0.21.0', () => {
+  assert.doesNotThrow(() => assertRegistryReleaseReady(ROOT, strictRegistryLookup));
 });
 
 test('registry release gate checks exact package identity, version, and integrity', (t) => {

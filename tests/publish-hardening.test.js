@@ -584,15 +584,13 @@ test('release readiness requires exact formal Core and CBOR releases across mani
   const currentInstalledCore = require('@aikdna/kdna-core/package.json');
   const currentInstalledCbor = require('cbor-x/package.json');
   assert.equal(currentPackage.dependencies['@aikdna/kdna-core'], REQUIRED_CORE_VERSION);
-  assert.throws(
-    () =>
-      validateReleaseReadiness({
-        pkg: currentPackage,
-        lock: currentLock,
-        installedCore: currentInstalledCore,
-        installedCbor: currentInstalledCbor,
-      }),
-    /canonical registry artifact/,
+  assert.doesNotThrow(() =>
+    validateReleaseReadiness({
+      pkg: currentPackage,
+      lock: currentLock,
+      installedCore: currentInstalledCore,
+      installedCbor: currentInstalledCbor,
+    }),
   );
 });
 
