@@ -98,12 +98,7 @@
       "purpose": "Generate, rotate, bind, inspect, or revoke the Host-owned processing consent document used by MCP Host adapters for named-remote judgment processing."
     }
   ],
-  "option_aliases": [
-    "--help",
-    "-h",
-    "--version",
-    "-v"
-  ],
+  "option_aliases": ["--help", "-h", "--version", "-v"],
   "rejection": {
     "exit_code": 2,
     "message_prefix": "command is not in the approved allowlist:",

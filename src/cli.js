@@ -24,10 +24,7 @@ const {
   cmdSetState,
   cmdSwitch,
 } = require('./cmds/workspace-attachments');
-const {
-  HostConsentError,
-  cmdHostConsent,
-} = require('./cmds/host-consent');
+const { HostConsentError, cmdHostConsent } = require('./cmds/host-consent');
 const { CliError, EXIT, error } = require('./foundation-common');
 
 function showHelp() {

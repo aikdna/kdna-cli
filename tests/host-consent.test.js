@@ -63,7 +63,9 @@ test('host-consent --revoke removes an existing consent', () => {
 test('host-consent fails closed without an interactive terminal', () => {
   const temporary = temporaryDirectory();
   const consentPath = path.join(temporary, 'consent.json');
-  fs.writeFileSync(path.join(temporary, 'draft.json'), JSON.stringify(VALID_DRAFT), { mode: 0o600 });
+  fs.writeFileSync(path.join(temporary, 'draft.json'), JSON.stringify(VALID_DRAFT), {
+    mode: 0o600,
+  });
   const result = runHostConsent(['--input-file', path.join(temporary, 'draft.json')], {
     consentPath,
   });
@@ -270,5 +272,3 @@ test('host-consent --from-workspace derives a draft from the enabled attachment'
   );
   assert.equal(fs.existsSync(consentPath), false);
 });
-
-

@@ -133,7 +133,10 @@ test('kdna doctor --domains reports a formally validated installed asset as read
   const kdnaHome = path.join(home, '.kdna');
   const assetPath = path.join(home, 'deployment-review.kdna');
   const receiptPath = path.join(kdnaHome, 'deployment-review.receipt.json');
-  require('@aikdna/kdna-core').pack(path.resolve(__dirname, '..', 'fixtures', 'minimal'), assetPath);
+  require('@aikdna/kdna-core').pack(
+    path.resolve(__dirname, '..', 'fixtures', 'minimal'),
+    assetPath,
+  );
   fs.mkdirSync(kdnaHome, { recursive: true });
   const entry = {
     name: '@aikdna/deployment-review',

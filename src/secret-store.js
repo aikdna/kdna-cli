@@ -196,10 +196,7 @@ const KEYCHAIN_HELPER_PATH =
   process.env.KDNA_KEYCHAIN_HELPER_PATH ||
   path.join(PATHS.root, 'bin', `kdna-keychain-helper-${KEYCHAIN_HELPER_ID}`);
 
-const KEYCHAIN_OP_TIMEOUT_MS = Number.parseInt(
-  process.env.KDNA_KEYCHAIN_TIMEOUT_MS || '30000',
-  10,
-);
+const KEYCHAIN_OP_TIMEOUT_MS = Number.parseInt(process.env.KDNA_KEYCHAIN_TIMEOUT_MS || '30000', 10);
 const KEYCHAIN_COMPILE_TIMEOUT_MS = Number.parseInt(
   process.env.KDNA_KEYCHAIN_COMPILE_TIMEOUT_MS || '300000',
   10,
@@ -212,7 +209,10 @@ function resolveSwiftc() {
     if (fs.existsSync(candidate)) return candidate;
   }
   try {
-    return execFileSync('xcrun', ['-f', 'swiftc'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    return execFileSync('xcrun', ['-f', 'swiftc'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
   } catch {
     return null;
   }
@@ -599,8 +599,7 @@ function syncBackend() {
   if (backend === 'keychain') {
     return {
       get(name) {
-        if (!keychainAvailable())
-          throw keychainUnavailableError();
+        if (!keychainAvailable()) throw keychainUnavailableError();
         return keychainGet(name);
       },
       set(name, value) {

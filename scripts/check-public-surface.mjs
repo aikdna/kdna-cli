@@ -110,10 +110,9 @@ const rules = [
     pattern: new RegExp(
       [
         `${['private', 'pass', 'tool'].join('\\s+')}`,
-        `maintainers?.{0,80}(?:${['credential', 'source'].join(' ')}|${[
-          'pass',
-          'tool',
-        ].join(' ')})`,
+        `maintainers?.{0,80}(?:${['credential', 'source'].join(' ')}|${['pass', 'tool'].join(
+          ' ',
+        )})`,
       ].join('|'),
       'gi',
     ),

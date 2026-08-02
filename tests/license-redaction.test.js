@@ -33,15 +33,11 @@ function runSourceLicenseAsync(command, args, opts = {}) {
     const requestDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-license-source-test-'));
     const requestFile = path.join(requestDirectory, 'request.json');
     fs.writeFileSync(requestFile, JSON.stringify({ command, args }), { mode: 0o600 });
-    const child = spawn(
-      process.execPath,
-      ['-e', SOURCE_LICENSE_RUNNER, requestFile],
-      {
-        cwd: ROOT,
-        env: { ...process.env, ...(opts.env || {}) },
-        stdio: [opts.input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
-      },
-    );
+    const child = spawn(process.execPath, ['-e', SOURCE_LICENSE_RUNNER, requestFile], {
+      cwd: ROOT,
+      env: { ...process.env, ...(opts.env || {}) },
+      stdio: [opts.input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
+    });
     if (opts.input !== undefined) child.stdin.end(opts.input);
     let stdout = '';
     let stderr = '';
@@ -119,20 +115,20 @@ async function withReflectingActivationErrorServer(key, fn) {
 test('license activate rejects a credential in argv without echoing it', async () => {
   const key = 'KDNA-LIC-SHOULD-NOT-LEAK';
 
-  const activate = await runSourceLicenseAsync(
-    'activate',
-    [
-        '@aikdna/redact',
-        '--key',
-        key,
-        '--server',
-        'https://example.invalid',
-    ],
-  );
+  const activate = await runSourceLicenseAsync('activate', [
+    '@aikdna/redact',
+    '--key',
+    key,
+    '--server',
+    'https://example.invalid',
+  ]);
   assert.equal(activate.code, 2);
   assert.match(activate.stderr, /not accepted in process arguments/);
   assert.doesNotMatch(activate.stderr, new RegExp(key));
-  assert.equal(activate.childArgv.some((argument) => argument.includes(key)), false);
+  assert.equal(
+    activate.childArgv.some((argument) => argument.includes(key)),
+    false,
+  );
 });
 
 test('license activation credential uses bounded stdin and remote errors stay sterile', async () => {
@@ -195,11 +191,7 @@ test('license sync sterilizes output and trace errors', async () => {
       ),
     );
 
-    const sync = await runSourceLicenseAsync(
-      'sync',
-      ['@aikdna/redact-sync', '--json'],
-      { env },
-    );
+    const sync = await runSourceLicenseAsync('sync', ['@aikdna/redact-sync', '--json'], { env });
     assert.ok(sync.ok, `sync command should return status JSON: ${sync.stderr}`);
     assert.doesNotMatch(sync.stdout, new RegExp(key));
     assert.doesNotMatch(sync.stdout, /denied request body/);
