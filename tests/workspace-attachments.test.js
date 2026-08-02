@@ -524,6 +524,33 @@ test('scope hints use deterministic token boundaries, normalized roles, and expl
   assert.equal(resolve(cjkRoot, '请检查文章。').decision, 'ask');
 });
 
+test('high-coverage CJK variants resolve as clear matches and explicit exclusions skip', () => {
+  const root = temporaryRoot('scope-coverage-grade');
+  attach(root, buildAsset(root), {
+    appliesTo: ['判断口播脚本是否值得发布', '口播文案要不要发'],
+    doesNotApplyTo: ['代码审查', '与口播脚本发布无关的任务', '长文/报告类内容评审'],
+  });
+  // F1: "值不值得发布" is a high-coverage variant of "是否值得发布" -> load
+  assert.equal(resolve(root, '请判断这条口播脚本值不值得发布。').decision, 'load');
+  assert.equal(
+    resolve(root, '请判断这条口播脚本值不值得发布。').reason_code,
+    'single_approved_attachment_clearly_applies',
+  );
+  // exact match still loads
+  assert.equal(resolve(root, '这条口播文案要不要发？').decision, 'load');
+  // F4: a task in the explicit exclusion domain skips, even when it shares
+  // subject bigrams with a positive term
+  assert.equal(resolve(root, '帮我审一下这段 CLI 代码有没有安全问题。').decision, 'skip');
+  assert.equal(
+    resolve(root, '帮我审一下这段 CLI 代码有没有安全问题。').reason_code,
+    'explicitly_outside_scope',
+  );
+  assert.equal(resolve(root, '帮我评审这篇长文报告。').decision, 'skip');
+  // a negated exclusion ("与...无关的任务") does not match a task that only
+  // mentions the subject words
+  assert.equal(resolve(root, '请判断这条口播脚本值不值得发布。').decision, 'load');
+});
+
 test('open-world synonym and language variation ask while explicit closed boundaries can skip', () => {
   for (const [hint, task] of [
     ['article writing', 'compose a blog post'],

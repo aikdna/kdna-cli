@@ -6,6 +6,13 @@ const os = require('node:os');
 const path = require('node:path');
 const { TextDecoder } = require('node:util');
 
+// Approximation coverage thresholds for scope-term matching.
+// A high-coverage variant (same stem, minor wording difference) is a clear
+// match; exclusion terms use a lower threshold so a task in the excluded
+// domain never loads.
+const COVERAGE_CLEAR = 0.6;
+const COVERAGE_EXCLUDE = 0.3;
+
 const core = require('@aikdna/kdna-core');
 const { loadExternalAuthorization } = require('./runtime-entitlement');
 const { snapshotAssetFile } = require('./snapshot-asset');
@@ -116,7 +123,7 @@ function normalizedLatinRoutingText(value) {
     .trim();
 }
 
-function scopeTermAssessment(task, term) {
+function scopeTermAssessment(task, term, options = {}) {
   const normalizedTask = normalizedPhrase(task);
   const normalizedTerm = normalizedPhrase(term);
   if (
@@ -127,12 +134,31 @@ function scopeTermAssessment(task, term) {
     const comparableTerm = cjkComparable(normalizedTerm);
     const start = comparableTask.indexOf(comparableTerm);
     if (start < 0) {
-      const approximate =
-        comparableTerm.length >= 3 &&
-        Array.from({ length: comparableTerm.length - 1 }, (_, index) =>
-          comparableTerm.slice(index, index + 2),
-        ).some((part) => comparableTask.includes(part));
-      return { matched: approximate, uncertain: approximate };
+      if (comparableTerm.length < 3) {
+        return { matched: false, uncertain: false };
+      }
+      const bigrams = Array.from({ length: comparableTerm.length - 1 }, (_, index) =>
+        comparableTerm.slice(index, index + 2),
+      );
+      const hits = bigrams.filter((part) => comparableTask.includes(part)).length;
+      const coverage = hits / bigrams.length;
+      // Coverage-graded approximation: a high-coverage variant (e.g. one
+      // word differing between "值不值得发布" and "是否值得发布") is a clear
+      // match; a low-coverage synonym is an uncertain near-miss. Positive
+      // scope requires higher coverage than exclusion terms, which must be
+      // conservative (a task in the exclusion domain must not load).
+      // Exclusion terms carrying an explicit negation (e.g. "与口播脚本发布
+      // 无关的任务") must not match by their subject words alone: a task that
+      // mentions the subject is not automatically excluded. Such terms only
+      // match when the full term (negation included) has high coverage.
+      const threshold = options.positive === false ? COVERAGE_EXCLUDE : COVERAGE_CLEAR;
+      const negatedExclusion =
+        options.positive === false &&
+        /无关|不要|不应|不能|不可|禁止|避免|除外|之外|非/u.test(comparableTerm);
+      if (coverage >= (negatedExclusion ? COVERAGE_CLEAR : threshold)) {
+        return { matched: true, uncertain: false, coverage };
+      }
+      return { matched: false, uncertain: false, coverage };
     }
     const preceding = comparableTask.slice(Math.max(0, start - 6), start);
     const uncertain =
@@ -2146,9 +2172,11 @@ function resolveWorkspace(options) {
     const positiveAssessments =
       attachment.scope.application === 'all_workspace'
         ? [{ matched: true, uncertain: false }]
-        : attachment.scope.applies_to.map((term) => scopeTermAssessment(task, term));
+        : attachment.scope.applies_to.map((term) =>
+            scopeTermAssessment(task, term, { positive: true }),
+          );
     const negativeAssessments = attachment.scope.does_not_apply_to.map((term) =>
-      scopeTermAssessment(task, term),
+      scopeTermAssessment(task, term, { positive: false }),
     );
     const negatives = negativeAssessments.some(({ matched }) => matched);
     const positives =
