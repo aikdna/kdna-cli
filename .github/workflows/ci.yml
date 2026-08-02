@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           repository: aikdna/kdna
-          ref: 76bbc587ce05f7e575c2373832cc5c9eee9df98a
+          ref: 32aa3ff8e633291d4bb9e01de5a70181c8415d93
           path: .cross-repo/kdna
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -48,7 +48,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           repository: aikdna/kdna
-          ref: 76bbc587ce05f7e575c2373832cc5c9eee9df98a
+          ref: 32aa3ff8e633291d4bb9e01de5a70181c8415d93
           path: .cross-repo/kdna
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -81,7 +81,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           repository: aikdna/kdna
-          ref: 76bbc587ce05f7e575c2373832cc5c9eee9df98a
+          ref: 32aa3ff8e633291d4bb9e01de5a70181c8415d93
           path: .cross-repo/kdna-runtime-contract
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
