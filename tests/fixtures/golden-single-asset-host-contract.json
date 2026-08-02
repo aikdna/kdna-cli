@@ -2,13 +2,13 @@
   "provenance": {
     "contract_id": "kdna.golden-single-asset",
     "core_repository": "https://github.com/aikdna/kdna",
-    "core_commit": "76bbc58",
+    "core_commit": "32aa3ff",
     "core_fixture_path": "packages/kdna-core/test/fixtures/golden-single-asset.json",
     "dynamic_field_normalization": {
       "trace.loaded_at": "<runtime-generated-iso8601>",
       "digests.asset.value": "<runtime-generated-container-sha256>"
     },
-    "normalized_capsule_sha256": "sha256:e58276cdfa9a65e60c88f220e6fede5477ded80589fc3707c0155224d2d50565"
+    "normalized_capsule_sha256": "sha256:b072a6a84254d8426c2bba339a472f11dbadc24704d710bba0b7b05102368dcc"
   },
   "task": "Choose the rollout mode after required checks passed but rollback-drill evidence remains incomplete.",
   "source": {
@@ -227,6 +227,7 @@
           "acceptable_exceptions": []
         }
       ],
+      "core_structure": [],
       "self_checks": [
         "Did I preserve the verified recovery path without inventing release facts?",
         {
