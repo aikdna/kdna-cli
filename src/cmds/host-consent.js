@@ -269,9 +269,11 @@ function confirmInteractive(summary) {
       [
         'KDNA Host processing consent',
         '',
-        `  Asset        : ${summary.asset_id}@${summary.asset_version} (${summary.asset_digest})`,
+        `  Asset        : ${summary.asset_id}@${summary.asset_version}`,
+        `  Purpose      : ${summary.role}`,
+        `  Used for     : ${summary.applies_to.join(', ') || '(everything in the workspace)'}`,
+        `  Not for      : ${summary.does_not_apply_to.join(', ') || '(nothing excluded)'}`,
         `  Workspace    : ${summary.workspace_root_display}`,
-        `  Use boundary : role=${summary.role}; applies_to=${summary.applies_to.join(', ')}; does_not_apply_to=${summary.does_not_apply_to.join(', ')}`,
         `  Host         : ${summary.host_id}`,
         `  Processor    : ${summary.processor} (named remote; the asset judgment may be processed by this provider under its retention policy)`,
         `  Projection   : ${summary.capsule_profile} Runtime Capsule (minimal judgment projection)`,
@@ -327,6 +329,59 @@ function valueOption(args, name) {
   return value;
 }
 
+function workspaceDraft(args) {
+  const cwd = valueOption(args, '--cwd') || process.cwd();
+  const hostId = valueOption(args, '--host');
+  const processor = valueOption(args, '--processor');
+  const profile = valueOption(args, '--profile') || 'compact';
+  if (!hostId || !processor) {
+    throw new HostConsentError(
+      'host_consent_usage_invalid',
+      '--from-workspace requires --host <host-id> and --processor <named-remote-provider>.',
+    );
+  }
+  const workspaceAttachments = require('../workspace-attachments');
+  const listing = workspaceAttachments.listWorkspaceAttachments(cwd);
+  if (!listing.record) {
+    throw new HostConsentError(
+      'host_consent_workspace_missing',
+      'No KDNA workspace attachment record was found from the current directory.',
+    );
+  }
+  const enabled = (listing.record.attachments || []).filter(
+    (attachment) => attachment && attachment.state === 'enabled',
+  );
+  if (enabled.length !== 1) {
+    throw new HostConsentError(
+      'host_consent_attachment_ambiguous',
+      'Host processing consent requires exactly one enabled workspace attachment; found '
+        + `${enabled.length}.`,
+    );
+  }
+  const attachment = enabled[0];
+  const asset = attachment.asset || {};
+  const scope = attachment.scope || {};
+  const scopeDigest = workspaceAttachments.sha256(
+    Buffer.from(JSON.stringify(scope), 'utf8'),
+  );
+  return {
+    host_id: hostId,
+    workspace_root: listing.workspace_root,
+    asset_id: asset.id,
+    asset_version: asset.version,
+    asset_digest: asset.digest,
+    attachment_id: attachment.attachment_id,
+    role: attachment.role,
+    applies_to: Array.isArray(scope.applies_to) ? scope.applies_to : [],
+    does_not_apply_to: Array.isArray(scope.does_not_apply_to)
+      ? scope.does_not_apply_to
+      : [],
+    scope_digest: scopeDigest,
+    processor,
+    capsule_profile: profile,
+  };
+}
+
 function statusOf(consent) {
   if (!consent) {
     return {
@@ -364,10 +419,17 @@ async function cmdHostConsent(args) {
   const revoke = args.includes('--revoke');
   const json = args.includes('--json');
   const statusOnly = args.includes('--status');
+  const fromWorkspace = args.includes('--from-workspace');
   if (revoke && statusOnly) {
     throw new HostConsentError(
       'host_consent_usage_invalid',
       '--revoke and --status are mutually exclusive.',
+    );
+  }
+  if (fromWorkspace && (revoke || statusOnly)) {
+    throw new HostConsentError(
+      'host_consent_usage_invalid',
+      '--from-workspace cannot be combined with --revoke or --status.',
     );
   }
   if (revoke) {
@@ -393,41 +455,48 @@ async function cmdHostConsent(args) {
     process.stdout.write(`${JSON.stringify(statusOf(consent), null, 2)}\n`);
     return;
   }
-  let rawDraft = null;
-  const inputFile = valueOption(args, '--input-file');
-  if (inputFile !== null) {
-    const stat = fs.lstatSync(inputFile);
-    if (
-      !stat.isFile() ||
-      stat.isSymbolicLink() ||
-      (process.platform !== 'win32' && (stat.mode & 0o077) !== 0)
-    ) {
+  let draft;
+  if (fromWorkspace) {
+    draft = normalizeDraft(workspaceDraft(args));
+  } else {    let rawDraft = null;
+    const inputFile = valueOption(args, '--input-file');
+    if (inputFile !== null) {
+      const stat = fs.lstatSync(inputFile);
+      if (
+        !stat.isFile() ||
+        stat.isSymbolicLink() ||
+        (process.platform !== 'win32' && (stat.mode & 0o077) !== 0)
+      ) {
+        throw new HostConsentError(
+          'host_consent_draft_invalid',
+          'The Host consent draft file must be one private regular file.',
+        );
+      }
+      rawDraft = fs.readFileSync(inputFile, 'utf8').trim();
+    } else {
+      rawDraft = fs.readFileSync(0, 'utf8').trim();
+    }
+    try {
+      draft = normalizeDraft(rawDraft ? JSON.parse(rawDraft) : null);
+    } catch (error) {
+      if (error instanceof HostConsentError) throw error;
       throw new HostConsentError(
         'host_consent_draft_invalid',
-        'The Host consent draft file must be one private regular file.',
+        'The Host consent draft must be strict JSON.',
       );
     }
-    rawDraft = fs.readFileSync(inputFile, 'utf8').trim();
-  } else {
-    rawDraft = fs.readFileSync(0, 'utf8').trim();
+    if (draft === null) {
+      throw new HostConsentError(
+        'host_consent_draft_required',
+        'Usage: kdna host-consent [--json] [--status] [--revoke] [--from-workspace --cwd <dir> --host <host-id> --processor <named-remote-provider> | --input-file <private-draft.json>]',
+      );
+    }
   }
-  let draft;
-  try {
-    draft = normalizeDraft(rawDraft ? JSON.parse(rawDraft) : null);
-  } catch (error) {
-    if (error instanceof HostConsentError) throw error;
-    throw new HostConsentError(
-      'host_consent_draft_invalid',
-      'The Host consent draft must be strict JSON.',
-    );
-  }
-  if (draft === null) {
-    throw new HostConsentError(
-      'host_consent_draft_required',
-      'Usage: kdna host-consent [--json] [--status] [--revoke] --input-file <private-draft.json>',
-    );
-  }
-  const allowed = await confirmInteractive(draft);
+  const displaySummary = {
+    ...draft,
+    workspace_root_display: draft.workspace_root,
+  };
+  const allowed = await confirmInteractive(displaySummary);
   if (!allowed) {
     if (json) {
       process.stdout.write(

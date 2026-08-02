@@ -174,23 +174,28 @@ Digests, receipts, record IDs, and plan coordinates remain available only in
 technical details, JSON, or audit output; ordinary approval is never a hash
 questionnaire.
 
-The unreleased `host-consent` command is a low-level integration primitive,
-not yet that finished ordinary-user surface. A trusted Host launcher supplies
-one private strict-JSON draft through stdin or a private `--input-file`, and
-sets `KDNA_MCP_HOST_PROCESSING_CONSENT_FILE` to the fixed Host-private target:
+The unreleased `host-consent` command is a low-level integration primitive.
+A trusted Host launcher supplies one private strict-JSON draft through stdin
+or a private `--input-file`, and sets
+`KDNA_MCP_HOST_PROCESSING_CONSENT_FILE` to the fixed Host-private target:
 
 ```bash
 trusted-host-draft-producer | node ./src/cli.js host-consent
+node ./src/cli.js host-consent --from-workspace --cwd <dir> --host <host-id> --processor <provider>
 node ./src/cli.js host-consent --status --json
 node ./src/cli.js host-consent --revoke
 ```
 
+`--from-workspace` is the human-readable surface: it derives the draft from
+the user-approved workspace attachment record (exactly one enabled
+attachment), and its terminal confirmation presents only human concepts —
+asset name and version, purpose, used-for and not-for scopes, workspace,
+Host, and named processing destination. Digests, attachment IDs, and scope
+coordinates are hidden from the ordinary user and remain technical details.
+
 The command requires a real terminal for Allow/Decline, writes atomically and
 fails closed on unsafe paths. Ordinary users must not construct the draft or
-copy IDs/digests from tool output. The current source-candidate terminal prompt
-still displays the full asset digest and role/scope mechanics, so a Host cannot
-claim the default human-readable experience above until its trusted launcher
-derives the draft and presents only human concepts by default.
+copy IDs/digests from tool output.
 
 These low-level flags are an integration surface, not a field questionnaire
 for ordinary users. If the original natural-language instruction already binds
