@@ -205,25 +205,25 @@ function scopeTermAssessment(task, term, options = {}) {
     return { matched: approximate, uncertain: approximate };
   }
   const preceding = taskTokens.slice(Math.max(0, start - 6), start);
+  const following = taskTokens.slice(start + termTokens.length, start + termTokens.length + 6);
   const negationTokens = new Set(['no', 'not', 'never', 'avoid', 'without', 'dont']);
   const broadTerms = new Set(['all', 'any', 'general', 'help', 'task', 'thing', 'work']);
+  const metaWords = new Set([
+    'discuss',
+    'explain',
+    'mention',
+    'quote',
+    'label',
+    'term',
+    'phrase',
+    'example',
+    'whether',
+  ]);
   const uncertain =
     (termTokens.length === 1 && (termTokens[0].length < 4 || broadTerms.has(termTokens[0]))) ||
     termTokens.some((token) => negationTokens.has(token)) ||
     preceding.some((token) => negationTokens.has(token)) ||
-    taskTokens.some((token) =>
-      [
-        'discuss',
-        'explain',
-        'mention',
-        'quote',
-        'label',
-        'term',
-        'phrase',
-        'example',
-        'whether',
-      ].includes(token),
-    ) ||
+    [...preceding, ...following].some((token) => metaWords.has(token)) ||
     /(?:^|[;\s])(?:but|only|instead)(?:[;\s]|$)|\brather\s+than\b|\b(?:do\s+not|not\s+for|instead\s+of)\b/iu.test(
       latinTask,
     ) ||
