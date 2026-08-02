@@ -308,18 +308,13 @@ test('encrypted asset: pack → protect → validate → plan-load needs_passwor
     const recoveryCode = r2.stdout.match(/Recovery code:[^\n]*\n\s+([^\n]+)/)?.[1]?.trim();
     assert.ok(recoveryCode, 'protect must emit one recovery code');
     const recovered = path.join(tmp, 'recovered.kdna');
-    const recoveredResult = run([
-      'protect',
-      'recover',
-      prot,
-      '--out',
-      recovered,
-      '--code-stdin',
-      '--password-stdin',
-    ], {
-      input: `${recoveryCode}\nreplacement-password\n`,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    const recoveredResult = run(
+      ['protect', 'recover', prot, '--out', recovered, '--code-stdin', '--password-stdin'],
+      {
+        input: `${recoveryCode}\nreplacement-password\n`,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    );
     assert.equal(recoveredResult.status, 0, recoveredResult.stderr);
     const recoveredReader = core.createKdnaAssetReader();
     const recoveredAsset = recoveredReader.openSync(recovered);

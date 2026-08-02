@@ -60,14 +60,8 @@ function ensurePrivateParent(target) {
 function atomicWritePrivate(target, bytes) {
   ensurePrivateParent(target);
   const nonce = crypto.randomBytes(8).toString('hex');
-  const temporary = path.join(
-    path.dirname(target),
-    `.host-processing-consent.tmp-${nonce}`,
-  );
-  const backup = path.join(
-    path.dirname(target),
-    `.host-processing-consent.backup-${nonce}`,
-  );
+  const temporary = path.join(path.dirname(target), `.host-processing-consent.tmp-${nonce}`);
+  const backup = path.join(path.dirname(target), `.host-processing-consent.backup-${nonce}`);
   let movedExisting = false;
   try {
     fs.writeFileSync(temporary, bytes, { mode: 0o600, flag: 'wx' });
@@ -168,10 +162,7 @@ function normalizeDraft(input) {
     );
   }
   const workspaceRoot = input.workspace_root;
-  if (
-    !validBoundedString(workspaceRoot, 4096) ||
-    !path.isAbsolute(workspaceRoot)
-  ) {
+  if (!validBoundedString(workspaceRoot, 4096) || !path.isAbsolute(workspaceRoot)) {
     throw new HostConsentError(
       'host_consent_draft_invalid',
       'The Host consent draft requires one absolute workspace root.',
@@ -321,10 +312,7 @@ function valueOption(args, name) {
   if (index === -1) return null;
   const value = args[index + 1];
   if (value === undefined || value.startsWith('--')) {
-    throw new HostConsentError(
-      'host_consent_usage_invalid',
-      `${name} requires one value.`,
-    );
+    throw new HostConsentError('host_consent_usage_invalid', `${name} requires one value.`);
   }
   return value;
 }
@@ -354,16 +342,14 @@ function workspaceDraft(args) {
   if (enabled.length !== 1) {
     throw new HostConsentError(
       'host_consent_attachment_ambiguous',
-      'Host processing consent requires exactly one enabled workspace attachment; found '
-        + `${enabled.length}.`,
+      'Host processing consent requires exactly one enabled workspace attachment; found ' +
+        `${enabled.length}.`,
     );
   }
   const attachment = enabled[0];
   const asset = attachment.asset || {};
   const scope = attachment.scope || {};
-  const scopeDigest = workspaceAttachments.sha256(
-    Buffer.from(JSON.stringify(scope), 'utf8'),
-  );
+  const scopeDigest = workspaceAttachments.sha256(Buffer.from(JSON.stringify(scope), 'utf8'));
   return {
     host_id: hostId,
     workspace_root: listing.workspace_root,
@@ -373,9 +359,7 @@ function workspaceDraft(args) {
     attachment_id: attachment.attachment_id,
     role: attachment.role,
     applies_to: Array.isArray(scope.applies_to) ? scope.applies_to : [],
-    does_not_apply_to: Array.isArray(scope.does_not_apply_to)
-      ? scope.does_not_apply_to
-      : [],
+    does_not_apply_to: Array.isArray(scope.does_not_apply_to) ? scope.does_not_apply_to : [],
     scope_digest: scopeDigest,
     processor,
     capsule_profile: profile,
@@ -436,12 +420,16 @@ async function cmdHostConsent(args) {
     if (fs.existsSync(target)) fs.unlinkSync(target);
     if (json) {
       process.stdout.write(
-        `${JSON.stringify({
-          operation: 'revoke',
-          document_type: 'kdna.cli.host-processing-consent-status',
-          present: false,
-          revoked: true,
-        }, null, 2)}\n`,
+        `${JSON.stringify(
+          {
+            operation: 'revoke',
+            document_type: 'kdna.cli.host-processing-consent-status',
+            present: false,
+            revoked: true,
+          },
+          null,
+          2,
+        )}\n`,
       );
     } else {
       process.stdout.write('KDNA Host processing consent revoked.\n');
@@ -449,16 +437,15 @@ async function cmdHostConsent(args) {
     return;
   }
   if (statusOnly) {
-    const consent = fs.existsSync(target)
-      ? readConsent(target)
-      : null;
+    const consent = fs.existsSync(target) ? readConsent(target) : null;
     process.stdout.write(`${JSON.stringify(statusOf(consent), null, 2)}\n`);
     return;
   }
   let draft;
   if (fromWorkspace) {
     draft = normalizeDraft(workspaceDraft(args));
-  } else {    let rawDraft = null;
+  } else {
+    let rawDraft = null;
     const inputFile = valueOption(args, '--input-file');
     if (inputFile !== null) {
       const stat = fs.lstatSync(inputFile);
@@ -500,11 +487,15 @@ async function cmdHostConsent(args) {
   if (!allowed) {
     if (json) {
       process.stdout.write(
-        `${JSON.stringify({
-          operation: 'decline',
-          approved: false,
-          consent_digest: null,
-        }, null, 2)}\n`,
+        `${JSON.stringify(
+          {
+            operation: 'decline',
+            approved: false,
+            consent_digest: null,
+          },
+          null,
+          2,
+        )}\n`,
       );
     } else {
       process.stdout.write('KDNA Host processing consent declined.\n');
@@ -518,19 +509,21 @@ async function cmdHostConsent(args) {
   bytes.fill(0);
   if (json) {
     process.stdout.write(
-      `${JSON.stringify({
-        operation: 'approve',
-        document_type: 'kdna.cli.host-processing-consent-status',
-        present: true,
-        approved: true,
-        consent_digest: digest,
-        consent_path: target,
-      }, null, 2)}\n`,
+      `${JSON.stringify(
+        {
+          operation: 'approve',
+          document_type: 'kdna.cli.host-processing-consent-status',
+          present: true,
+          approved: true,
+          consent_digest: digest,
+          consent_path: target,
+        },
+        null,
+        2,
+      )}\n`,
     );
   } else {
-    process.stdout.write(
-      `KDNA Host processing consent approved and written to ${target}\n`,
-    );
+    process.stdout.write(`KDNA Host processing consent approved and written to ${target}\n`);
   }
 }
 

@@ -9,10 +9,10 @@ value is superseded.
 
 There are two flags that look similar but mean very different things:
 
-| Flag               | Command          | Meaning                          | Use case                                                                           |
-| ------------------ | ---------------- | -------------------------------- | ---------------------------------------------------------------------------------- |
+| Flag               | Command          | Meaning                          | Use case                                                                          |
+| ------------------ | ---------------- | -------------------------------- | --------------------------------------------------------------------------------- |
 | `--has-password`   | `kdna plan-load` | Diagnostic **presence signal**   | "I have a password available; report that fact without claiming it was verified." |
-| `--password-stdin` | `kdna load`      | **Real** password for decryption | Read the password from standard input, then decrypt the protected entry.           |
+| `--password-stdin` | `kdna load`      | **Real** password for decryption | Read the password from standard input, then decrypt the protected entry.          |
 
 The plan-load stage decides _whether_ the asset can be loaded. The load
 stage actually _does_ the loading (and decryption).

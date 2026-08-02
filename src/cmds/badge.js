@@ -158,8 +158,7 @@ function cmdRegistryAudit(args = []) {
 
   if (yanked.length) audit.issues.push(`${yanked.length} yanked domain(s)`);
   if (deprecated.length) audit.issues.push(`${deprecated.length} deprecated domain(s)`);
-  if (noPackage.length)
-    audit.issues.push(`${noPackage.length} domain(s) without .kdna package`);
+  if (noPackage.length) audit.issues.push(`${noPackage.length} domain(s) without .kdna package`);
   if (noSignature.length) audit.issues.push(`${noSignature.length} domain(s) without signature`);
 
   audit.healthy = audit.issues.length === 0;

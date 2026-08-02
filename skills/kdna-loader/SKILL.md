@@ -74,10 +74,10 @@ officially approved, or guaranteed to improve the result.
 
 ## Failure handling
 
-| Situation | Action |
-|---|---|
-| No explicit file or exact approved attachment | Do not use KDNA. |
-| Ambiguous asset choice | Ask the user; do not choose autonomously. |
-| `can_load_now` is not `true` | Follow the Core-required action or block. |
-| Asset is outside its declared scope | Skip it. |
-| User disables or replaces the attachment | Stop using it immediately. |
+| Situation                                     | Action                                    |
+| --------------------------------------------- | ----------------------------------------- |
+| No explicit file or exact approved attachment | Do not use KDNA.                          |
+| Ambiguous asset choice                        | Ask the user; do not choose autonomously. |
+| `can_load_now` is not `true`                  | Follow the Core-required action or block. |
+| Asset is outside its declared scope           | Skip it.                                  |
+| User disables or replaces the attachment      | Stop using it immediately.                |

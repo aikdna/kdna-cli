@@ -179,14 +179,7 @@ function scopeTermAssessment(task, term) {
     return { matched: approximate, uncertain: approximate };
   }
   const preceding = taskTokens.slice(Math.max(0, start - 6), start);
-  const negationTokens = new Set([
-    'no',
-    'not',
-    'never',
-    'avoid',
-    'without',
-    'dont',
-  ]);
+  const negationTokens = new Set(['no', 'not', 'never', 'avoid', 'without', 'dont']);
   const broadTerms = new Set(['all', 'any', 'general', 'help', 'task', 'thing', 'work']);
   const uncertain =
     (termTokens.length === 1 && (termTokens[0].length < 4 || broadTerms.has(termTokens[0]))) ||
@@ -213,9 +206,7 @@ function scopeTermAssessment(task, term) {
       `'${normalizedTerm}'`,
       `“${normalizedTerm}”`,
       `‘${normalizedTerm}’`,
-    ].some((quoted) =>
-      normalizedTask.includes(quoted),
-    );
+    ].some((quoted) => normalizedTask.includes(quoted));
   return { matched: true, uncertain };
 }
 

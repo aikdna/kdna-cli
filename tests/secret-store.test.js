@@ -207,11 +207,14 @@ test('packaged authorization callers reject plaintext, env, and non-test memory 
         const secretStore = freshSecretStore();
         delete require.cache[require.resolve('../src/external-entitlement')];
         const externalEntitlement = require('../src/external-entitlement');
-        assert.throws(() => externalEntitlement.assertSecureSecretStore(), (error) => {
-          assert.equal(error.code, 'KDNA_SECRET_STORE_REQUIRED');
-          assert.equal(secretStore.backendStatus().secure_for_secrets, false);
-          return true;
-        });
+        assert.throws(
+          () => externalEntitlement.assertSecureSecretStore(),
+          (error) => {
+            assert.equal(error.code, 'KDNA_SECRET_STORE_REQUIRED');
+            assert.equal(secretStore.backendStatus().secure_for_secrets, false);
+            return true;
+          },
+        );
       });
     }
   } finally {
@@ -236,9 +239,12 @@ test('macOS keychain backend writes secrets through the stdin helper, never argv
   try {
     await ss.set(name, value);
     assert.equal(await ss.get(name), value);
-    assert.equal(typeof ss._internals.keychainHelperAvailable === 'function'
-      ? ss._internals.keychainHelperAvailable()
-      : 'helper-api-missing', true);
+    assert.equal(
+      typeof ss._internals.keychainHelperAvailable === 'function'
+        ? ss._internals.keychainHelperAvailable()
+        : 'helper-api-missing',
+      true,
+    );
   } finally {
     await ss.delete(name);
     assert.equal(await ss.get(name), null);
@@ -283,10 +289,13 @@ test('keychain get refuses deterministically when the helper is missing', async 
     process.env.KDNA_SECRET_STORE_BACKEND = 'keychain';
     process.env.KDNA_KEYCHAIN_HELPER_PATH = path.join(tmp, 'missing-helper');
     const ss = freshSecretStore();
-    await assert.rejects(() => ss.get('any-name'), (error) => {
-      assert.equal(error.code, 'BACKEND_UNAVAILABLE');
-      return true;
-    });
+    await assert.rejects(
+      () => ss.get('any-name'),
+      (error) => {
+        assert.equal(error.code, 'BACKEND_UNAVAILABLE');
+        return true;
+      },
+    );
   } finally {
     delete process.env.KDNA_KEYCHAIN_HELPER_PATH;
     fs.rmSync(tmp, { recursive: true, force: true });
@@ -302,11 +311,14 @@ test('a hung helper fails closed with KEYCHAIN_TIMEOUT instead of hanging', asyn
     process.env.KDNA_KEYCHAIN_TIMEOUT_MS = '500';
     const ss = freshSecretStore();
     const started = Date.now();
-    await assert.rejects(() => ss.set('any-name', 'any-secret'), (error) => {
-      assert.equal(error.code, 'KEYCHAIN_TIMEOUT');
-      assert.match(error.message, /refusing to hang/);
-      return true;
-    });
+    await assert.rejects(
+      () => ss.set('any-name', 'any-secret'),
+      (error) => {
+        assert.equal(error.code, 'KEYCHAIN_TIMEOUT');
+        assert.match(error.message, /refusing to hang/);
+        return true;
+      },
+    );
     assert.ok(Date.now() - started < 15_000, 'must fail fast, not hang');
   } finally {
     delete process.env.KDNA_KEYCHAIN_HELPER_PATH;

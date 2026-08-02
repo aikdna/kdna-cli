@@ -182,9 +182,18 @@ test('retired publication and global-discovery modules are explicit and unreacha
       `${file} must not look like current product authority`,
     );
   }
-  assert.equal(COMMAND_POLICY.commands.some(({ command }) => command === 'publish'), false);
-  assert.equal(COMMAND_POLICY.commands.some(({ command }) => command === 'available'), false);
-  assert.equal(COMMAND_POLICY.commands.some(({ command }) => command === 'match'), false);
+  assert.equal(
+    COMMAND_POLICY.commands.some(({ command }) => command === 'publish'),
+    false,
+  );
+  assert.equal(
+    COMMAND_POLICY.commands.some(({ command }) => command === 'available'),
+    false,
+  );
+  assert.equal(
+    COMMAND_POLICY.commands.some(({ command }) => command === 'match'),
+    false,
+  );
 });
 
 test('ordinary explicit-file command does not discover or mutate a user-global asset directory', () => {
