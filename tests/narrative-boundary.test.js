@@ -26,27 +26,27 @@ test('current CLI narrative remains file-first and user-authorized', () => {
   assert.match(skill, /do not\s+ask the user to repeat the same consent/);
 });
 
-test('published quick start does not imply unreleased workspace commands are npm latest', () => {
+test('published quick start and published workspace attachment surface remain distinct sections', () => {
   const readme = read('README.md');
   const publishedInstall = readme.indexOf('npm install -g @aikdna/kdna-cli');
-  const candidateBoundary = readme.indexOf('## Unreleased 0.36.0 source candidate');
+  const workspaceSurface = readme.indexOf('## Workspace attachment surface');
   const firstWorkspaceCommand = readme.indexOf('node ./src/cli.js attach');
 
   assert.ok(publishedInstall >= 0, 'published install command must remain visible');
   assert.ok(
-    candidateBoundary > publishedInstall,
-    'candidate boundary must follow the published install',
+    workspaceSurface > publishedInstall,
+    'workspace surface must follow the published install',
   );
   assert.ok(
-    firstWorkspaceCommand > candidateBoundary,
-    'workspace commands must follow the candidate boundary',
+    firstWorkspaceCommand > workspaceSurface,
+    'workspace commands must follow the workspace surface',
   );
   assert.doesNotMatch(
-    readme.slice(publishedInstall, candidateBoundary),
+    readme.slice(publishedInstall, workspaceSurface),
     /\bkdna (?:attach|attachments|resolve|disable|enable|switch|rollback|remove|cleanup)\b/,
   );
-  assert.match(readme, /registry `latest` release is `0\.35\.1`/);
-  assert.match(readme, /not the npm `latest` surface/);
+  assert.match(readme, /registry `latest` release is `0\.36\.0`/);
+  assert.match(readme, /engineering foundation primitives/u);
   assert.match(readme, /exact candidate commit from a\s+machine-readable source receipt/i);
   assert.match(readme, /detach at that immutable commit, verify the\s+recorded HEAD/i);
   assert.match(readme, /candidate package supplied with an exact\s+SHA-256 receipt/i);
@@ -87,7 +87,7 @@ test('ordinary Host approval is human-readable and hides mechanical coordinates'
 
 test('source-candidate task examples prefer stdin and keep file input explicit', () => {
   const readme = read('README.md');
-  const candidate = readme.slice(readme.indexOf('## Unreleased 0.36.0 source candidate'));
+  const candidate = readme.slice(readme.indexOf('## Workspace attachment surface'));
   assert.match(candidate, /resolve --cwd \.\/my-project --task-stdin/);
   assert.match(candidate, /writes bounded UTF-8 task bytes to stdin/);
   assert.match(

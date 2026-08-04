@@ -15,11 +15,11 @@ installation is required by the protocol.
 npm install -g @aikdna/kdna-cli
 ```
 
-The registry `latest` release is `0.35.1`. It supports the published,
-explicit-file path below. It does not include the workspace attachment
-commands shown later in this README.
+The registry `latest` release is `0.36.0`. It supports the published,
+explicit-file path below and the workspace attachment commands shown later
+in this README.
 
-## Published 0.35.1 file-first quick start
+## Published file-first quick start
 
 ```bash
 kdna demo judgment ./demo-judgment
@@ -30,11 +30,13 @@ kdna plan-load ./demo-judgment.kdna
 kdna load ./demo-judgment.kdna --profile=compact --as=json
 ```
 
-## Unreleased 0.36.0 source candidate
+## Workspace attachment surface
 
-The workspace attachment commands are an unreleased `0.36.0` source candidate,
-not the npm `latest` surface. To evaluate them without confusing the candidate
-with an installed release, obtain an exact candidate commit from a
+The workspace attachment commands (`attach`, `attachments`, `resolve`,
+`disable`, `enable`, `switch`, `rollback`, `remove`) are shipped in the
+published `0.36.0` CLI, but they remain engineering foundation primitives
+rather than a stable product API. To evaluate them without confusing an exact
+candidate with an installed release, obtain an exact candidate commit from a
 machine-readable source receipt, detach at that immutable commit, verify the
 recorded HEAD, install its locked dependencies, and invoke the source entry
 point directly:
@@ -174,7 +176,7 @@ Digests, receipts, record IDs, and plan coordinates remain available only in
 technical details, JSON, or audit output; ordinary approval is never a hash
 questionnaire.
 
-The unreleased `host-consent` command is a low-level integration primitive.
+The `host-consent` command is a low-level integration primitive.
 A trusted Host launcher supplies one private strict-JSON draft through stdin
 or a private `--input-file`, and sets
 `KDNA_MCP_HOST_PROCESSING_CONSENT_FILE` to the fixed Host-private target:
@@ -378,7 +380,7 @@ embedded newline. The protected-workspace source follow-up uses this same
 decoder rather than a second password interpretation.
 
 The published `0.35.1` package preserves its historical license surface. The
-unreleased `0.36.0` source candidate makes a deliberate safety correction:
+published `0.36.0` package makes a deliberate safety correction:
 `license activate` rejects raw credentials supplied through `--key` or
 `--license-key`. Use browser activation, an external grant, or bounded
 `--credential-stdin`; never place a license credential in shell arguments.
