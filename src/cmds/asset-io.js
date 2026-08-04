@@ -27,7 +27,7 @@ const {
 } = require('../runtime-host-command');
 
 const ENTITLEMENT_STATUSES = new Set(['active', 'expired', 'revoked', 'offline_grace']);
-const LOAD_PROFILES = new Set(['index', 'compact', 'scenario', 'full']);
+const LOAD_PROFILES = new Set(['index', 'compact', 'scenario', 'full', 'minimal']);
 const OUTPUT_FORMATS = new Set(['json', 'prompt', 'raw']);
 
 function requireOneTarget(parsed, usage) {
