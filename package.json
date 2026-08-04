@@ -89,7 +89,7 @@
   },
   "dependencies": {
     "@aikdna/kdna-core": "0.21.0",
-    "cbor-x": "1.6.4"
+    "cbor-x": "1.6.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
