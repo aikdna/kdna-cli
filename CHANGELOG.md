@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.36.1 (2026-08-04)
+
+- Correct the package README to acknowledge the workspace attachment surface
+  (`attach`, `attachments`, `resolve`, `disable`, `enable`, `switch`,
+  `rollback`, `remove`) that ships in the CLI as engineering foundation
+  primitives, and track the registry `latest` reference at `0.36.1`. No
+  functional code change.
+
+## 0.36.0 (2026-08-02)
 
 - Freeze the candidate npm and command surfaces as machine-readable contracts.
   `release-surface/cli-command-allowlist.json` is the sole top-level dispatcher

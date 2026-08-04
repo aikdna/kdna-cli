@@ -15,7 +15,7 @@ installation is required by the protocol.
 npm install -g @aikdna/kdna-cli
 ```
 
-The registry `latest` release is `0.36.0`. It supports the published,
+The registry `latest` release is `0.36.1`. It supports the published,
 explicit-file path below and the workspace attachment commands shown later
 in this README.
 
@@ -34,7 +34,7 @@ kdna load ./demo-judgment.kdna --profile=compact --as=json
 
 The workspace attachment commands (`attach`, `attachments`, `resolve`,
 `disable`, `enable`, `switch`, `rollback`, `remove`) are shipped in the
-published `0.36.0` CLI, but they remain engineering foundation primitives
+published CLI, but they remain engineering foundation primitives
 rather than a stable product API. To evaluate them without confusing an exact
 candidate with an installed release, obtain an exact candidate commit from a
 machine-readable source receipt, detach at that immutable commit, verify the
