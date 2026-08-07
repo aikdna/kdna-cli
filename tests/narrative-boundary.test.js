@@ -45,7 +45,7 @@ test('published quick start and published workspace attachment surface remain di
     readme.slice(publishedInstall, workspaceSurface),
     /\bkdna (?:attach|attachments|resolve|disable|enable|switch|rollback|remove|cleanup)\b/,
   );
-  assert.match(readme, /registry `latest` release is `0\.36\.0`/);
+  assert.match(readme, /registry `latest` release is `0\.36\.1`/);
   assert.match(readme, /engineering foundation primitives/u);
   assert.match(readme, /exact candidate commit from a\s+machine-readable source receipt/i);
   assert.match(readme, /detach at that immutable commit, verify the\s+recorded HEAD/i);
