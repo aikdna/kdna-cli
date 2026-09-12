@@ -12,3 +12,6 @@ python-sdk/venv/
 __pycache__/
 *.pyc
 .pytest_cache/
+# The vendored offline dependency graph must travel with the repository
+# so a clean clone can run `npm ci --offline`; other *.tgz stay ignored.
+!vendor/*.tgz
