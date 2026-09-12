@@ -12,4 +12,4 @@ jobs:
         with:
           node-version: '26.5.1'
           check-latest: false
-      - run: node scripts/check-surface.cjs
+      - run: npm run check
