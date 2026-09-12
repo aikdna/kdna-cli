@@ -1,107 +1,26 @@
 {
   "document_type": "kdna.cli-command-allowlist",
-  "schema_version": "0.1.0",
+  "schema_version": "0.2.0",
   "commands": [
-    {
-      "command": "attach",
-      "usage": "attach <file.kdna> --cwd <workspace> --attachment-stdin [--preview | (--yes (--scope-user-approved | --consent-digest <sha256:...>))]",
-      "purpose": "Approve one exact asset and an executable open-world, explicitly closed-world, or all-workspace routing scope, with optional exclusions, for one workspace."
-    },
-    {
-      "command": "attachments",
-      "usage": "attachments [--cwd <start>] [--workspace-root <boundary>]",
-      "purpose": "List the nearest explicit attachment record without crossing the Host workspace boundary."
-    },
-    {
-      "command": "resolve",
-      "usage": "resolve --cwd <start> [--workspace-root <boundary>] (--task-stdin | --task-file <file>) [--select-attachment <id> --selection-task-digest <sha256:...> [--selection-plan-digest <sha256:...>] --selection-approved] [--defer-password-authorization]",
-      "purpose": "Resolve one stdin or explicit-file task, including a receipt-bound one-task user selection and fail-closed process-scoped password deferral, inside the explicit Host workspace boundary."
-    },
-    {
-      "command": "disable",
-      "usage": "disable <attachment-id> [--cwd <start>] [--workspace-root <boundary>]",
-      "purpose": "Disable one approved workspace attachment."
-    },
-    {
-      "command": "enable",
-      "usage": "enable <attachment-id> [--cwd <start>] [--workspace-root <boundary>]",
-      "purpose": "Re-enable one approved workspace attachment."
-    },
-    {
-      "command": "switch",
-      "usage": "switch <attachment-id> <file.kdna> [--cwd <start>] [--workspace-root <boundary>] (--retain-scope | --attachment-stdin | <reviewed-scope>) [--preview | (--yes (--scope-user-approved | --consent-digest <sha256:...>))]",
-      "purpose": "Approve one exact replacement together with its reviewed role, open/closed-world scope policy, authorization facts, and rollback policy."
-    },
-    {
-      "command": "rollback",
-      "usage": "rollback <attachment-id> [--cwd <start>] [--workspace-root <boundary>]",
-      "purpose": "Restore the preceding exact asset and complete approved policy for one workspace attachment."
-    },
-    {
-      "command": "remove",
-      "usage": "remove <attachment-id> [--cwd <start>] [--workspace-root <boundary>]",
-      "purpose": "Remove one relation while explicitly reporting retained snapshots."
-    },
-    {
-      "command": "cleanup",
-      "usage": "cleanup [--cwd <start>] [--workspace-root <boundary>] [--plan-digest <sha256:...> --yes]",
-      "purpose": "Preview or confirm one exact plan for unreferenced workspace snapshots."
-    },
-    {
-      "command": "inspect",
-      "usage": "inspect <file.kdna|source-dir>",
-      "purpose": "Inspect an explicit local KDNA asset or source directory."
-    },
-    {
-      "command": "validate",
-      "usage": "validate <file.kdna|source-dir>",
-      "purpose": "Validate an explicit local KDNA asset or source directory."
-    },
-    {
-      "command": "plan-load",
-      "usage": "plan-load <file.kdna>",
-      "purpose": "Return the Core LoadPlan for an explicit packaged asset."
-    },
-    {
-      "command": "load",
-      "usage": "load <file.kdna>",
-      "purpose": "Load an explicit packaged asset only when Core authorizes it."
-    },
-    {
-      "command": "pack",
-      "usage": "pack <source-dir> <file.kdna>",
-      "purpose": "Pack an explicit KDNA source directory."
-    },
-    {
-      "command": "unpack",
-      "usage": "unpack <file.kdna> <empty-dir>",
-      "purpose": "Unpack an explicit packaged KDNA asset into an empty directory."
-    },
-    {
-      "command": "demo",
-      "usage": "demo <minimal|judgment> <dir>",
-      "purpose": "Create one of the two maintained local source fixtures."
-    },
-    {
-      "command": "help",
-      "usage": "help",
-      "purpose": "Display this exact command allowlist."
-    },
-    {
-      "command": "version",
-      "usage": "version",
-      "purpose": "Display the CLI package version."
-    },
-    {
-      "command": "host-consent",
-      "usage": "host-consent [--json] [--status] [--revoke]",
-      "purpose": "Generate, rotate, bind, inspect, or revoke the Host-owned processing consent document used by MCP Host adapters for named-remote judgment processing."
-    }
+    "inspect",
+    "validate",
+    "read"
   ],
-  "option_aliases": ["--help", "-h", "--version", "-v"],
-  "rejection": {
-    "exit_code": 2,
-    "message_prefix": "command is not in the approved allowlist:",
-    "stderr_prefix": "Error: command is not in the approved allowlist:"
-  }
+  "unavailable": [
+    "plan",
+    "load"
+  ],
+  "options": [
+    "--help",
+    "-h",
+    "--version"
+  ],
+  "read_modes": [
+    "catalog",
+    "whole_asset",
+    "exact_selection",
+    "expand"
+  ],
+  "expand_requires": "same process-local session and issuing Host provider",
+  "retired_commands": "All other commands return KDNA_COMMAND_UNAVAILABLE with exit 2; no action authorization"
 }
