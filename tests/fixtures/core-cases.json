@@ -1,0 +1,2573 @@
+[
+  {
+    "name": "original-uint64",
+    "file": "minimal-uint64.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "original-float64",
+    "file": "minimal-float64.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-0-integer",
+    "file": "pd275-exact-0-integer.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-0-float",
+    "file": "pd275-exact-0-float.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-1-integer",
+    "file": "pd275-exact-1-integer.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-1-float",
+    "file": "pd275-exact-1-float.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-2-integer",
+    "file": "pd275-exact-2-integer.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-2-float",
+    "file": "pd275-exact-2-float.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-3-integer",
+    "file": "pd275-exact-3-integer.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-3-float",
+    "file": "pd275-exact-3-float.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-4-integer",
+    "file": "pd275-exact-4-integer.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-4-float",
+    "file": "pd275-exact-4-float.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-5-integer",
+    "file": "pd275-exact-5-integer.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-5-float",
+    "file": "pd275-exact-5-float.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-6-integer",
+    "file": "pd275-exact-6-integer.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-6-float",
+    "file": "pd275-exact-6-float.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-7-integer",
+    "file": "pd275-exact-7-integer.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-7-float",
+    "file": "pd275-exact-7-float.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-8-integer",
+    "file": "pd275-exact-8-integer.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-8-float",
+    "file": "pd275-exact-8-float.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-9-integer",
+    "file": "pd275-exact-9-integer.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-9-float",
+    "file": "pd275-exact-9-float.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-10-integer",
+    "file": "pd275-exact-10-integer.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-10-float",
+    "file": "pd275-exact-10-float.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-11-integer",
+    "file": "pd275-exact-11-integer.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-11-float",
+    "file": "pd275-exact-11-float.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-12-integer",
+    "file": "pd275-exact-12-integer.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-12-float",
+    "file": "pd275-exact-12-float.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-13-integer",
+    "file": "pd275-exact-13-integer.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-exact-13-float",
+    "file": "pd275-exact-13-float.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-inexact-0",
+    "file": "pd275-inexact-0.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "pd275-inexact-1",
+    "file": "pd275-inexact-1.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "pd275-inexact-2",
+    "file": "pd275-inexact-2.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "pd275-inexact-3",
+    "file": "pd275-inexact-3.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "pd275-inexact-4",
+    "file": "pd275-inexact-4.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "pd275-inexact-5",
+    "file": "pd275-inexact-5.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "pd275-uint-zero",
+    "file": "pd275-uint-zero.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-uint-safe-max",
+    "file": "pd275-uint-safe-max.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "pd275-uint-negative",
+    "file": "pd275-uint-negative.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "pd275-uint-beyond-safe",
+    "file": "pd275-uint-beyond-safe.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "graph-same",
+    "file": "graph-same.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "graph-cross",
+    "file": "graph-cross.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "graph-asset",
+    "file": "graph-asset.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "graph-null",
+    "file": "graph-null.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "graph-missing-actor",
+    "file": "graph-missing-actor.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "graph-missing-boundary",
+    "file": "graph-missing-boundary.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "graph-method",
+    "file": "graph-method.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "graph-required-producer",
+    "file": "graph-required-producer.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "graph-cycle",
+    "file": "graph-cycle.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "graph-expand-support",
+    "file": "graph-expand-support.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "graph-dedup-support",
+    "file": "graph-dedup-support.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "graph-wrong-role",
+    "file": "graph-wrong-role.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-attachment-json-jcs-numbers",
+    "file": "hostile-attachment-json-jcs-numbers.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "hostile-attachment-json-nested-duplicate",
+    "file": "hostile-attachment-json-nested-duplicate.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-attachment-json-nonfinite",
+    "file": "hostile-attachment-json-nonfinite.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-attachment-json-object-order",
+    "file": "hostile-attachment-json-object-order.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "hostile-attachment-json-unicode-keys",
+    "file": "hostile-attachment-json-unicode-keys.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "hostile-bad-entry-name",
+    "file": "hostile-bad-entry-name.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-cbor-binary",
+    "file": "hostile-cbor-binary.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-cbor-duplicate-key",
+    "file": "hostile-cbor-duplicate-key.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-cbor-indefinite",
+    "file": "hostile-cbor-indefinite.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-cbor-infinity",
+    "file": "hostile-cbor-infinity.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-cbor-nan",
+    "file": "hostile-cbor-nan.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-cbor-tag",
+    "file": "hostile-cbor-tag.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-cbor64-exact-53",
+    "file": "hostile-cbor64-exact-53.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "hostile-cbor64-exact-63",
+    "file": "hostile-cbor64-exact-63.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "hostile-cbor64-inexact-53",
+    "file": "hostile-cbor64-inexact-53.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-cbor64-safe",
+    "file": "hostile-cbor64-safe.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "hostile-cbor64-uint32-plus",
+    "file": "hostile-cbor64-uint32-plus.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "hostile-critical-extension",
+    "file": "hostile-critical-extension.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INTERPRETATION_INCOMPLETE",
+      "diagnostics": [
+        {
+          "code": "READ_INTERPRETATION_INCOMPLETE",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-deflated",
+    "file": "hostile-deflated.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "hostile-duplicate-judgment",
+    "file": "hostile-duplicate-judgment.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-empty-attachment",
+    "file": "hostile-empty-attachment.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "hostile-forbidden-extra",
+    "file": "hostile-forbidden-extra.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-identifier-astral",
+    "file": "hostile-identifier-astral.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "hostile-identifier-control",
+    "file": "hostile-identifier-control.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-identifier-max-byte",
+    "file": "hostile-identifier-max-byte.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "hostile-identifier-nel",
+    "file": "hostile-identifier-nel.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-identifier-space",
+    "file": "hostile-identifier-space.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "hostile-identifier-too-long",
+    "file": "hostile-identifier-too-long.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-identifiers-nfc-distinct",
+    "file": "hostile-identifiers-nfc-distinct.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "hostile-json-duplicate",
+    "file": "hostile-json-duplicate.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-json-invalid-utf8",
+    "file": "hostile-json-invalid-utf8.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-json-syntax",
+    "file": "hostile-json-syntax.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-mandatory-duplicate",
+    "file": "hostile-mandatory-duplicate.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-mandatory-mimetype",
+    "file": "hostile-mandatory-mimetype.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-mandatory-missing",
+    "file": "hostile-mandatory-missing.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-missing-actor",
+    "file": "hostile-missing-actor.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-mixed-payload",
+    "file": "hostile-mixed-payload.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-noncritical-extension",
+    "file": "hostile-noncritical-extension.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "hostile-old-container",
+    "file": "hostile-old-container.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-old-payload",
+    "file": "hostile-old-payload.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-raw-runtime-field",
+    "file": "hostile-raw-runtime-field.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-resource-missing",
+    "file": "hostile-resource-missing.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-resource-valid",
+    "file": "hostile-resource-valid.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "hostile-resource-wrong-digest",
+    "file": "hostile-resource-wrong-digest.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-result-bounds",
+    "file": "hostile-result-bounds.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-result-contract-mismatch",
+    "file": "hostile-result-contract-mismatch.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-result-type-mismatch",
+    "file": "hostile-result-type-mismatch.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-stored",
+    "file": "hostile-stored.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "hostile-text-astral",
+    "file": "hostile-text-astral.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "hostile-text-bom",
+    "file": "hostile-text-bom.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-text-combining",
+    "file": "hostile-text-combining.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "hostile-text-lone-surrogate",
+    "file": "hostile-text-lone-surrogate.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-text-nbsp",
+    "file": "hostile-text-nbsp.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-text-nel",
+    "file": "hostile-text-nel.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "hostile-text-nfc",
+    "file": "hostile-text-nfc.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "hostile-timestamp-invalid-leap",
+    "file": "hostile-timestamp-invalid-leap.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-timestamp-leap-second",
+    "file": "hostile-timestamp-leap-second.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-timestamp-offset",
+    "file": "hostile-timestamp-offset.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-timestamp-valid-leap",
+    "file": "hostile-timestamp-valid-leap.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "hostile-timestamp-year-zero",
+    "file": "hostile-timestamp-year-zero.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "hostile-unknown-manifest",
+    "file": "hostile-unknown-manifest.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-unknown-payload",
+    "file": "hostile-unknown-payload.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-unsupported-checksums",
+    "file": "hostile-unsupported-checksums.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_CAPABILITY_UNAVAILABLE",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_CAPABILITY_UNAVAILABLE",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-unsupported-signature",
+    "file": "hostile-unsupported-signature.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_CAPABILITY_UNAVAILABLE",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_CAPABILITY_UNAVAILABLE",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-zip-crc",
+    "file": "hostile-zip-crc.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-zip-entry-count",
+    "file": "hostile-zip-entry-count.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-zip-entry-limit",
+    "file": "hostile-zip-entry-limit.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-zip-trailing",
+    "file": "hostile-zip-trailing.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "hostile-zip-truncated",
+    "file": "hostile-zip-truncated.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "scale-1",
+    "file": "scale-1.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "scale-100",
+    "file": "scale-100.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "scale-20",
+    "file": "scale-20.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "original-ff",
+    "file": "pd278-json-original-ff.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "original-syntax",
+    "file": "pd278-json-original-syntax.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "ff-start",
+    "file": "pd278-json-ff-start.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "ff-string",
+    "file": "pd278-json-ff-string.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "ff-after-prefix",
+    "file": "pd278-json-ff-after-prefix.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "continuation-start",
+    "file": "pd278-json-continuation-start.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "continuation-string",
+    "file": "pd278-json-continuation-string.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "continuation-after-prefix",
+    "file": "pd278-json-continuation-after-prefix.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "overlong-two-start",
+    "file": "pd278-json-overlong-two-start.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "overlong-two-string",
+    "file": "pd278-json-overlong-two-string.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "overlong-two-after-prefix",
+    "file": "pd278-json-overlong-two-after-prefix.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "overlong-three-start",
+    "file": "pd278-json-overlong-three-start.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "overlong-three-string",
+    "file": "pd278-json-overlong-three-string.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "overlong-three-after-prefix",
+    "file": "pd278-json-overlong-three-after-prefix.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "surrogate-start",
+    "file": "pd278-json-surrogate-start.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "surrogate-string",
+    "file": "pd278-json-surrogate-string.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "surrogate-after-prefix",
+    "file": "pd278-json-surrogate-after-prefix.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "overlong-four-start",
+    "file": "pd278-json-overlong-four-start.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "overlong-four-string",
+    "file": "pd278-json-overlong-four-string.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "overlong-four-after-prefix",
+    "file": "pd278-json-overlong-four-after-prefix.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "beyond-unicode-start",
+    "file": "pd278-json-beyond-unicode-start.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "beyond-unicode-string",
+    "file": "pd278-json-beyond-unicode-string.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "beyond-unicode-after-prefix",
+    "file": "pd278-json-beyond-unicode-after-prefix.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "illegal-lead-start",
+    "file": "pd278-json-illegal-lead-start.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "illegal-lead-string",
+    "file": "pd278-json-illegal-lead-string.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "illegal-lead-after-prefix",
+    "file": "pd278-json-illegal-lead-after-prefix.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "truncated-two-start",
+    "file": "pd278-json-truncated-two-start.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "truncated-two-string",
+    "file": "pd278-json-truncated-two-string.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "truncated-two-after-prefix",
+    "file": "pd278-json-truncated-two-after-prefix.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "truncated-three-start",
+    "file": "pd278-json-truncated-three-start.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "truncated-three-string",
+    "file": "pd278-json-truncated-three-string.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "truncated-three-after-prefix",
+    "file": "pd278-json-truncated-three-after-prefix.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "truncated-four-start",
+    "file": "pd278-json-truncated-four-start.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "truncated-four-string",
+    "file": "pd278-json-truncated-four-string.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "truncated-four-after-prefix",
+    "file": "pd278-json-truncated-four-after-prefix.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "encoding-before-grammar",
+    "file": "pd278-json-encoding-before-grammar.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "multibyte",
+    "file": "pd278-json-multibyte.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "distinct-scalars",
+    "file": "pd278-json-distinct-scalars.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "legal-controls",
+    "file": "pd278-json-legal-controls.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "astral",
+    "file": "pd278-json-astral.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "leading-bom",
+    "file": "pd278-json-leading-bom.kdna",
+    "result": {
+      "status": "accepted"
+    }
+  },
+  {
+    "name": "trailing-bom",
+    "file": "pd278-json-trailing-bom.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "open-object",
+    "file": "pd278-json-open-object.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "open-array",
+    "file": "pd278-json-open-array.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "missing-colon",
+    "file": "pd278-json-missing-colon.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "trailing-comma",
+    "file": "pd278-json-trailing-comma.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "trailing-token",
+    "file": "pd278-json-trailing-token.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "leading-zero",
+    "file": "pd278-json-leading-zero.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "decimal-truncated",
+    "file": "pd278-json-decimal-truncated.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "exponent-truncated",
+    "file": "pd278-json-exponent-truncated.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "nan",
+    "file": "pd278-json-nan.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "overflow",
+    "file": "pd278-json-overflow.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "invalid-escape",
+    "file": "pd278-json-invalid-escape.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "invalid-hex",
+    "file": "pd278-json-invalid-hex.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "short-hex",
+    "file": "pd278-json-short-hex.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "high-surrogate",
+    "file": "pd278-json-high-surrogate.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "low-surrogate",
+    "file": "pd278-json-low-surrogate.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "wrong-surrogate-pair",
+    "file": "pd278-json-wrong-surrogate-pair.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "valid-surrogate-pair-wrong-manifest",
+    "file": "pd278-json-valid-surrogate-pair-wrong-manifest.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "unterminated",
+    "file": "pd278-json-unterminated.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "raw-newline",
+    "file": "pd278-json-raw-newline.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "duplicate",
+    "file": "pd278-json-duplicate.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "escaped-duplicate",
+    "file": "pd278-json-escaped-duplicate.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "proto-key",
+    "file": "pd278-json-proto-key.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "depth-limit",
+    "file": "pd278-json-depth-limit.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "array-limit",
+    "file": "pd278-json-array-limit.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "string-limit",
+    "file": "pd278-json-string-limit.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_INPUT_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_INPUT_INVALID",
+          "stage": "input",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "safe-number-wrong-manifest",
+    "file": "pd278-json-safe-number-wrong-manifest.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  },
+  {
+    "name": "beyond-safe-number-wrong-manifest",
+    "file": "pd278-json-beyond-safe-number-wrong-manifest.kdna",
+    "result": {
+      "status": "rejected",
+      "reason": "READ_CORE_INVALID",
+      "diagnostics": [
+        {
+          "code": "READ_CORE_INVALID",
+          "stage": "core",
+          "severity": "error",
+          "subject": null,
+          "field": null
+        }
+      ]
+    }
+  }
+]

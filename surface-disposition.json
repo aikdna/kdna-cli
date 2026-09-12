@@ -1,0 +1,1843 @@
+{
+  "format": "kdna.implementation-surface-disposition/1",
+  "scope": "cli",
+  "authority": "Current root README, declared package exports and generated exact binding only; no new public semantics",
+  "retired_test_status": "Not run; incompatible historical contract tests are not current conformance. Their original bytes remain under retired.",
+  "excluded_runtime_roots": [
+    "retired",
+    "tests",
+    ".github",
+    "docs",
+    "scripts",
+    "node_modules",
+    ".build"
+  ],
+  "original_files": [
+    {
+      "original_path": ".gitattributes",
+      "entry_sha256": "56d5e9fa9a3d7e15a10ad616ae0e1367ed9a806077b8626189f0ab518c78212c",
+      "disposition": "retained_byte_identical",
+      "current_path": ".gitattributes"
+    },
+    {
+      "original_path": ".github/CODEOWNERS",
+      "entry_sha256": "e7622c273294710bf60bf264a76bd7fc0ffa29eadcd76a1ae52ae60b8d1240ef",
+      "disposition": "retained_byte_identical",
+      "current_path": ".github/CODEOWNERS"
+    },
+    {
+      "original_path": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "entry_sha256": "78e12627727bda07386e94d62b196cd12eb20974de2eec43c87ca9a814065d97",
+      "disposition": "retained_byte_identical",
+      "current_path": ".github/ISSUE_TEMPLATE/bug_report.md"
+    },
+    {
+      "original_path": ".github/ISSUE_TEMPLATE/feature_request.md",
+      "entry_sha256": "3308d3d5021333987752bbdbdea735ac3e1353895740d61b1cb03349f0ff5d85",
+      "disposition": "retained_byte_identical",
+      "current_path": ".github/ISSUE_TEMPLATE/feature_request.md"
+    },
+    {
+      "original_path": ".github/dependabot.yml",
+      "entry_sha256": "d15c3e9a613c40795adcb26e3e56e2871ef59c33b82bf4a41ed7be32a220885b",
+      "disposition": "retained_byte_identical",
+      "current_path": ".github/dependabot.yml"
+    },
+    {
+      "original_path": ".github/pull_request_template.md",
+      "entry_sha256": "bd1b40b1c40608b7de7d6429b0e43323bc464af97107c413606b539da4bb47d2",
+      "disposition": "retained_byte_identical",
+      "current_path": ".github/pull_request_template.md"
+    },
+    {
+      "original_path": ".github/workflows/ci.yml",
+      "entry_sha256": "96bfa479beffdedeab9ac752754c5d73b61c636aad11e3fab36d1423cdb2510c",
+      "disposition": "replaced_current_surface",
+      "current_path": ".github/workflows/ci.yml",
+      "original_bytes_preserved_at": "retired/.github/workflows/ci.yml"
+    },
+    {
+      "original_path": ".github/workflows/codeql-js.yml",
+      "entry_sha256": "90cfbebd93d00381ac48f8d9d8d8956f1fd9f0c03c022e037dbb61abc936a34d",
+      "disposition": "retained_byte_identical",
+      "current_path": ".github/workflows/codeql-js.yml"
+    },
+    {
+      "original_path": ".github/workflows/public-surface.yml",
+      "entry_sha256": "082db09457d8b97f7ea8c758ed708093c4e91b8d8c11b80b219cd586cd766863",
+      "disposition": "replaced_current_surface",
+      "current_path": ".github/workflows/public-surface.yml",
+      "original_bytes_preserved_at": "retired/.github/workflows/public-surface.yml"
+    },
+    {
+      "original_path": ".github/workflows/publish.yml",
+      "entry_sha256": "8f7837c9f1a25168371f764319946f4705f83cbac3f34f0d8c268cd3b369ed49",
+      "disposition": "retained_byte_identical",
+      "current_path": ".github/workflows/publish.yml"
+    },
+    {
+      "original_path": ".github/workflows/stale.yml",
+      "entry_sha256": "a1ad24f80a94d47d91bbc363021c7b714b97f66db6c37d8c07ac2b0d1493841e",
+      "disposition": "retained_byte_identical",
+      "current_path": ".github/workflows/stale.yml"
+    },
+    {
+      "original_path": ".gitignore",
+      "entry_sha256": "aadb3af03359e3b18603afffcd0fa143fe2d1fb8bd9ae0b1cf8b588fb8ef3ff5",
+      "disposition": "retained_byte_identical",
+      "current_path": ".gitignore"
+    },
+    {
+      "original_path": ".prettierignore",
+      "entry_sha256": "768024da7960d43c10bfd19aaa20b169215ed14bb26b8e0111d7b61dc3c9c148",
+      "disposition": "retained_byte_identical",
+      "current_path": ".prettierignore"
+    },
+    {
+      "original_path": ".prettierrc",
+      "entry_sha256": "8f111fd9d36e47bc1ab13a25eba09a02d56f546d3eae600d5f1524eca79a3669",
+      "disposition": "retained_byte_identical",
+      "current_path": ".prettierrc"
+    },
+    {
+      "original_path": "CHANGELOG.md",
+      "entry_sha256": "f1686ea8f11afb06df7cb48c285bb14871ac64509ab689b77eedeb6db8b2f8e9",
+      "disposition": "retained_byte_identical",
+      "current_path": "CHANGELOG.md"
+    },
+    {
+      "original_path": "CODE_OF_CONDUCT.md",
+      "entry_sha256": "e65a18e9fbda1c18ffd21cea0a65a3610be749e99d3a3e70aa924e685949ca76",
+      "disposition": "retained_byte_identical",
+      "current_path": "CODE_OF_CONDUCT.md"
+    },
+    {
+      "original_path": "CONTRIBUTING.md",
+      "entry_sha256": "ca9aadb8516c923f92e960dcf9417e53440267597e9c99df0f5f6591b3f54f38",
+      "disposition": "retained_byte_identical",
+      "current_path": "CONTRIBUTING.md"
+    },
+    {
+      "original_path": "LICENSE",
+      "entry_sha256": "61521822ef66370ebd2296106f3c6bbf6bb64c65ce1e4b58cba43be3920c8dfb",
+      "disposition": "retained_byte_identical",
+      "current_path": "LICENSE"
+    },
+    {
+      "original_path": "NOTICE",
+      "entry_sha256": "b4f4bc942d33471092fde99dee1b78defb278c0afe77481322c96585dccc4a27",
+      "disposition": "retained_byte_identical",
+      "current_path": "NOTICE"
+    },
+    {
+      "original_path": "README.md",
+      "entry_sha256": "0c46dea062d60ae58d9658bc14111450e2537da612c80a2e82f255fdc991deef",
+      "disposition": "replaced_current_surface",
+      "current_path": "README.md",
+      "original_bytes_preserved_at": "retired/README.md"
+    },
+    {
+      "original_path": "SECURITY.md",
+      "entry_sha256": "d7564abd4ba934aef6a5b1e3d02ee92a6f09442762a5ef48c2d98e59f13d279c",
+      "disposition": "retained_byte_identical",
+      "current_path": "SECURITY.md"
+    },
+    {
+      "original_path": "docs/asset-authorization.md",
+      "entry_sha256": "e6cfc327081f794103688b8bf9f36266085e2d5eeda1c201259472e79e6657f2",
+      "disposition": "retained_byte_identical",
+      "current_path": "docs/asset-authorization.md"
+    },
+    {
+      "original_path": "docs/consumption-runtime.md",
+      "entry_sha256": "c67a6d2edbb310fa623ac31315b668860492c3140027d8a183ecbb5558b8ab24",
+      "disposition": "retained_byte_identical",
+      "current_path": "docs/consumption-runtime.md"
+    },
+    {
+      "original_path": "eslint.config.mjs",
+      "entry_sha256": "d14ea2cc086dc60dc363b356d0524a35872ff474a834038098e5f0fd81ed5094",
+      "disposition": "retained_byte_identical",
+      "current_path": "eslint.config.mjs"
+    },
+    {
+      "original_path": "fixtures/cluster-launch-decision.json",
+      "entry_sha256": "a580a58e37c3ff6897f5002dc5bd337d8910770671268a154b7fe23f9b8f16c0",
+      "disposition": "retained_byte_identical",
+      "current_path": "fixtures/cluster-launch-decision.json"
+    },
+    {
+      "original_path": "fixtures/judgment/checksums.json",
+      "entry_sha256": "3e74cb491632e73712dfd5790a35acff69e0b934d50d7bc457ff0aee83a4b4b2",
+      "disposition": "retained_byte_identical",
+      "current_path": "fixtures/judgment/checksums.json"
+    },
+    {
+      "original_path": "fixtures/judgment/kdna.json",
+      "entry_sha256": "d03aff194248404b36df5f429d1fa6673aa2a1705339c441934d39d7ccb222cf",
+      "disposition": "retained_byte_identical",
+      "current_path": "fixtures/judgment/kdna.json"
+    },
+    {
+      "original_path": "fixtures/judgment/mimetype",
+      "entry_sha256": "54f2557b354c2ab77f87a9d73b58bbbf12cfec20c40b0b13327d12df3d35e4ca",
+      "disposition": "retained_byte_identical",
+      "current_path": "fixtures/judgment/mimetype"
+    },
+    {
+      "original_path": "fixtures/judgment/payload.kdnab",
+      "entry_sha256": "bb13e0c80a1668c3dccfe750405db22ed2c13b035f3fb0d541968fb0d76c2661",
+      "disposition": "retained_byte_identical",
+      "current_path": "fixtures/judgment/payload.kdnab"
+    },
+    {
+      "original_path": "fixtures/minimal/checksums.json",
+      "entry_sha256": "e67953fa91244f9dd68105ef5dbc7b131d2f664a35e4fb300beaef85d4c35d5b",
+      "disposition": "retained_byte_identical",
+      "current_path": "fixtures/minimal/checksums.json"
+    },
+    {
+      "original_path": "fixtures/minimal/kdna.json",
+      "entry_sha256": "f2a27091c6ed897fd52f48f13548d9dd27f631317a54861adea4161c426689b9",
+      "disposition": "retained_byte_identical",
+      "current_path": "fixtures/minimal/kdna.json"
+    },
+    {
+      "original_path": "fixtures/minimal/mimetype",
+      "entry_sha256": "54f2557b354c2ab77f87a9d73b58bbbf12cfec20c40b0b13327d12df3d35e4ca",
+      "disposition": "retained_byte_identical",
+      "current_path": "fixtures/minimal/mimetype"
+    },
+    {
+      "original_path": "fixtures/minimal/payload.kdnab",
+      "entry_sha256": "fcde0e2b20d84ac10b28bcf4256ba04d7be5ae69386210eb4e9577ab042d116c",
+      "disposition": "retained_byte_identical",
+      "current_path": "fixtures/minimal/payload.kdnab"
+    },
+    {
+      "original_path": "package-lock.json",
+      "entry_sha256": "dd4fb8c363c4cbd8e461649690ff3742512dcc968ef15ebafc4de794ca80e0dc",
+      "disposition": "replaced_current_surface",
+      "current_path": "package-lock.json",
+      "original_bytes_preserved_at": "retired/package-lock.json"
+    },
+    {
+      "original_path": "package.json",
+      "entry_sha256": "ee8218a9406e25f7981042bfb9aca9ba81f4ac39516a98da359e5516b8420141",
+      "disposition": "replaced_current_surface",
+      "current_path": "package.json",
+      "original_bytes_preserved_at": "retired/package.json"
+    },
+    {
+      "original_path": "release-surface/cli-command-allowlist.json",
+      "entry_sha256": "e695679dd884ec5c83053eee2f83cbc5a130db3e36f362feccdf48a2692faa8e",
+      "disposition": "replaced_current_surface",
+      "current_path": "release-surface/cli-command-allowlist.json",
+      "original_bytes_preserved_at": "retired/release-surface/cli-command-allowlist.json"
+    },
+    {
+      "original_path": "release-surface/npm-file-allowlist.json",
+      "entry_sha256": "c84e93a4f3f78882902c0a3b943e7ecb13091b1bbbc7678f5a762f08159cee7a",
+      "disposition": "replaced_current_surface",
+      "current_path": "release-surface/npm-file-allowlist.json",
+      "original_bytes_preserved_at": "retired/release-surface/npm-file-allowlist.json"
+    },
+    {
+      "original_path": "schema/bundle-profile.schema.json",
+      "entry_sha256": "45370bc73504df26a25d2e391cf543a468f872be835e57ac17ebc5c95d13f3ef",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/schema/bundle-profile.schema.json",
+      "original_bytes_preserved_at": "retired/schema/bundle-profile.schema.json"
+    },
+    {
+      "original_path": "schema/checksums.schema.json",
+      "entry_sha256": "7fd1f5d5a98a2f0a4d311a6ebba7d13d0e00253ab042098ac0aeec9e31c4d4e8",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/schema/checksums.schema.json",
+      "original_bytes_preserved_at": "retired/schema/checksums.schema.json"
+    },
+    {
+      "original_path": "schema/consumer-index.schema.json",
+      "entry_sha256": "3df62390ce66ec585821ecbad8c1a46e34f1eb388a107781ddc48e99fabbdbf0",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/schema/consumer-index.schema.json",
+      "original_bytes_preserved_at": "retired/schema/consumer-index.schema.json"
+    },
+    {
+      "original_path": "schema/load-contract.schema.json",
+      "entry_sha256": "1b262a02f3c63ec25c72ae6dc79c4a472325414d4b06c6fa3f85f56998178ebb",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/schema/load-contract.schema.json",
+      "original_bytes_preserved_at": "retired/schema/load-contract.schema.json"
+    },
+    {
+      "original_path": "schema/manifest.schema.json",
+      "entry_sha256": "9abe3d36250f177d3772520245d4fc471b01baf179a5fc0cf1e22553114b88b0",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/schema/manifest.schema.json",
+      "original_bytes_preserved_at": "retired/schema/manifest.schema.json"
+    },
+    {
+      "original_path": "schema/payload-profile.schema.json",
+      "entry_sha256": "c65afb38b47c115680d121838ec3640266455d5b2d472b3e0e8904f60d734012",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/schema/payload-profile.schema.json",
+      "original_bytes_preserved_at": "retired/schema/payload-profile.schema.json"
+    },
+    {
+      "original_path": "schema/route-card.schema.json",
+      "entry_sha256": "fe3cfd8ee72072b62f8183cd9c8246d19f353e5027aa0599f9f652256844f29f",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/schema/route-card.schema.json",
+      "original_bytes_preserved_at": "retired/schema/route-card.schema.json"
+    },
+    {
+      "original_path": "schema/trace-validator.js",
+      "entry_sha256": "a3dde0e818070f70549933e4e86abe3738332a7a458a06f5ca1f72c72ecd8e5e",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/schema/trace-validator.js",
+      "original_bytes_preserved_at": "retired/schema/trace-validator.js"
+    },
+    {
+      "original_path": "schema/trace.schema.json",
+      "entry_sha256": "dec7fd99f338cb15c9e2e61f47506e6102658ac44799cd2f52ee1724bd6b339b",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/schema/trace.schema.json",
+      "original_bytes_preserved_at": "retired/schema/trace.schema.json"
+    },
+    {
+      "original_path": "scripts/check-current-protocol-names.js",
+      "entry_sha256": "88bc4a88a1cde165354785c950cd514dc7a75ef96364a30ab00f86fb102a63df",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/check-current-protocol-names.js",
+      "original_bytes_preserved_at": "retired/scripts/check-current-protocol-names.js"
+    },
+    {
+      "original_path": "scripts/check-public-surface.mjs",
+      "entry_sha256": "84a895bcd66b86b8d4a907b3455327eef4bcd706323ebf89c91274571a71162a",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/check-public-surface.mjs",
+      "original_bytes_preserved_at": "retired/scripts/check-public-surface.mjs"
+    },
+    {
+      "original_path": "scripts/check-test-inventory.js",
+      "entry_sha256": "933542d6a2b8313917c0d23a826f908d4e029092734d9c550554b4da034aa7a4",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/check-test-inventory.js",
+      "original_bytes_preserved_at": "retired/scripts/check-test-inventory.js"
+    },
+    {
+      "original_path": "scripts/check-workflow-authority.js",
+      "entry_sha256": "268de1b838d886ff2014512d6bd967db675e14d5d3764fb2fcfce5b22c488e26",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/check-workflow-authority.js",
+      "original_bytes_preserved_at": "retired/scripts/check-workflow-authority.js"
+    },
+    {
+      "original_path": "scripts/core-candidate.js",
+      "entry_sha256": "1e93c81a805e320f4b7da377e4a0fb46ca87341507ef7894c96657afb8739ca7",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/core-candidate.js",
+      "original_bytes_preserved_at": "retired/scripts/core-candidate.js"
+    },
+    {
+      "original_path": "scripts/core-source-authority.js",
+      "entry_sha256": "373cb5e91941eace0204efbb02864567931ebd73ed3d061a99e2729c9319635a",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/core-source-authority.js",
+      "original_bytes_preserved_at": "retired/scripts/core-source-authority.js"
+    },
+    {
+      "original_path": "scripts/current-release-binding.js",
+      "entry_sha256": "96d9ccae839125e65eec4118de18804002e42941881f293abccc5e7e27488eb5",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/current-release-binding.js",
+      "original_bytes_preserved_at": "retired/scripts/current-release-binding.js"
+    },
+    {
+      "original_path": "scripts/download-trusted-npm.js",
+      "entry_sha256": "61129fc49a0303b9451cffee1ec46b6493178e77e06f3f03bc28eb1bd6b4f8e6",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/download-trusted-npm.js",
+      "original_bytes_preserved_at": "retired/scripts/download-trusted-npm.js"
+    },
+    {
+      "original_path": "scripts/evidence-ci.js",
+      "entry_sha256": "d99ba94fe4797add3b20338ff73bdc038144b47c09432fc4608150a2550bf534",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/evidence-ci.js",
+      "original_bytes_preserved_at": "retired/scripts/evidence-ci.js"
+    },
+    {
+      "original_path": "scripts/fixture-sources/judgment.payload.json",
+      "entry_sha256": "0c9c9ed67ff01d63cfa7864b3e3f1343b2f663f89b34fc7333c3461d3c8361c4",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/fixture-sources/judgment.payload.json",
+      "original_bytes_preserved_at": "retired/scripts/fixture-sources/judgment.payload.json"
+    },
+    {
+      "original_path": "scripts/fixture-sources/minimal.payload.json",
+      "entry_sha256": "9d187c2e4517a0fd882fd71d8f0a440c357a794f91ffc8ac6f434e9d268f1459",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/fixture-sources/minimal.payload.json",
+      "original_bytes_preserved_at": "retired/scripts/fixture-sources/minimal.payload.json"
+    },
+    {
+      "original_path": "scripts/generate-core-candidate-evidence.js",
+      "entry_sha256": "ffcec02493fa14fc86fde75c31c39e12764c9b40d0c1b82524af97baf7919d55",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/generate-core-candidate-evidence.js",
+      "original_bytes_preserved_at": "retired/scripts/generate-core-candidate-evidence.js"
+    },
+    {
+      "original_path": "scripts/generate-golden-host-contract.js",
+      "entry_sha256": "68b22c553a685e903178cb88d3944e0798c49b514d512b335fa1b90796da43ec",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/generate-golden-host-contract.js",
+      "original_bytes_preserved_at": "retired/scripts/generate-golden-host-contract.js"
+    },
+    {
+      "original_path": "scripts/generate-release-evidence.js",
+      "entry_sha256": "39754b635eaa2c4cbfc501b88961d4f14409641d9feea2b93d356230b50fb4f7",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/generate-release-evidence.js",
+      "original_bytes_preserved_at": "retired/scripts/generate-release-evidence.js"
+    },
+    {
+      "original_path": "scripts/generate-runtime-fixtures.js",
+      "entry_sha256": "f255e10ded92dd6f312e8084a3d654c64d2dffb7409a1c3d25303059177480aa",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/generate-runtime-fixtures.js",
+      "original_bytes_preserved_at": "retired/scripts/generate-runtime-fixtures.js"
+    },
+    {
+      "original_path": "scripts/pretest-smoke.js",
+      "entry_sha256": "dc528158be11209f180896f75289096fcb356a160a768d293dd2ca57ec259b62",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/pretest-smoke.js",
+      "original_bytes_preserved_at": "retired/scripts/pretest-smoke.js"
+    },
+    {
+      "original_path": "scripts/private-repo-allowlist.json",
+      "entry_sha256": "bb6a06204222eade44bce7598bbdbcddb68eb334620e50b0cde76f0e562c984c",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/private-repo-allowlist.json",
+      "original_bytes_preserved_at": "retired/scripts/private-repo-allowlist.json"
+    },
+    {
+      "original_path": "scripts/public-surface-policy.mjs",
+      "entry_sha256": "de0c12e40f5b87172fc15233625ce34b752f94f62d37660d78ef34d9ef9c86f4",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/public-surface-policy.mjs",
+      "original_bytes_preserved_at": "retired/scripts/public-surface-policy.mjs"
+    },
+    {
+      "original_path": "scripts/public-surface.config.json",
+      "entry_sha256": "90a56bcab0c130ef333329a0cafa0b3e0be95774a8a2e14d3c0801d3d6c1c072",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/public-surface.config.json",
+      "original_bytes_preserved_at": "retired/scripts/public-surface.config.json"
+    },
+    {
+      "original_path": "scripts/publish-verified-artifact.js",
+      "entry_sha256": "9e604de6d387e70b9580c0668746cffdff821866e28a63f1f88c81778a757b6d",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/publish-verified-artifact.js",
+      "original_bytes_preserved_at": "retired/scripts/publish-verified-artifact.js"
+    },
+    {
+      "original_path": "scripts/registry-duplicate-guard.js",
+      "entry_sha256": "36976cff996e63a072da2af638e02cb5a40615d39aaff5843fcc4b7df9a93daf",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/registry-duplicate-guard.js",
+      "original_bytes_preserved_at": "retired/scripts/registry-duplicate-guard.js"
+    },
+    {
+      "original_path": "scripts/registry-duplicate-policy.js",
+      "entry_sha256": "d19d6b0d2b4e6d2ee0cdc8dde5266ee455f714f4dd9b6cf744875222f1484be1",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/registry-duplicate-policy.js",
+      "original_bytes_preserved_at": "retired/scripts/registry-duplicate-policy.js"
+    },
+    {
+      "original_path": "scripts/release-check.js",
+      "entry_sha256": "a36eb984ea1b1ec562159e04ca0675d02c621f604dc3ae3cda1b7315b0685e62",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/release-check.js",
+      "original_bytes_preserved_at": "retired/scripts/release-check.js"
+    },
+    {
+      "original_path": "scripts/release-evidence.js",
+      "entry_sha256": "33ddbc97b75d228b4423085fa53fa10b7b4030af9b0082fd46e9fc3471b14c00",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/release-evidence.js",
+      "original_bytes_preserved_at": "retired/scripts/release-evidence.js"
+    },
+    {
+      "original_path": "scripts/release-policy.js",
+      "entry_sha256": "5bbaf1199c0a1065787801ca3d504ec34165e041425496aa71ed2d27cebf88c5",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/release-policy.js",
+      "original_bytes_preserved_at": "retired/scripts/release-policy.js"
+    },
+    {
+      "original_path": "scripts/release-preflight.js",
+      "entry_sha256": "021708d3d06a167d60374863330fd5c687cdeeaba20b0b3935f0eb1d7f1911c3",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/release-preflight.js",
+      "original_bytes_preserved_at": "retired/scripts/release-preflight.js"
+    },
+    {
+      "original_path": "scripts/release-readiness.js",
+      "entry_sha256": "13f0de874aa0504d0b66c171085c545a339464e457d443e43d0678ce4be1a310",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/release-readiness.js",
+      "original_bytes_preserved_at": "retired/scripts/release-readiness.js"
+    },
+    {
+      "original_path": "scripts/run-complete-suite.js",
+      "entry_sha256": "8aee2ae85414942f3fb7d25f3c8cc01822215868d6ec3ae8108f42af9c0056dc",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/run-complete-suite.js",
+      "original_bytes_preserved_at": "retired/scripts/run-complete-suite.js"
+    },
+    {
+      "original_path": "scripts/run-trusted-npm.js",
+      "entry_sha256": "eedd40aa58600570b8b10ac6da8e4be01431b73887c26c8a39907e3663deb0b0",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/run-trusted-npm.js",
+      "original_bytes_preserved_at": "retired/scripts/run-trusted-npm.js"
+    },
+    {
+      "original_path": "scripts/runtime-candidate-binding.js",
+      "entry_sha256": "3ea08e6aa048da74d47b69911632ebaa6a83c23a93a2cdddfd1f1ff31d47556b",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/runtime-candidate-binding.js",
+      "original_bytes_preserved_at": "retired/scripts/runtime-candidate-binding.js"
+    },
+    {
+      "original_path": "scripts/sync-core-schemas.js",
+      "entry_sha256": "ca2f879ef6ebb01508115c3bdccc3b3d6bf6fb4cec8b302f9f47dc520073ebcd",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/sync-core-schemas.js",
+      "original_bytes_preserved_at": "retired/scripts/sync-core-schemas.js"
+    },
+    {
+      "original_path": "scripts/trusted-git.js",
+      "entry_sha256": "fa01080e5c22cf5a8a4183904ec60c1caf263204f2e6a91106cfadfb1413dced",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/trusted-git.js",
+      "original_bytes_preserved_at": "retired/scripts/trusted-git.js"
+    },
+    {
+      "original_path": "scripts/verify-core-candidate-tar.js",
+      "entry_sha256": "ba85b2d2d00fdaf0f1800761f225105ef8ea26076be425e0609eacc604a180c7",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/verify-core-candidate-tar.js",
+      "original_bytes_preserved_at": "retired/scripts/verify-core-candidate-tar.js"
+    },
+    {
+      "original_path": "scripts/verify-core-source-dependencies.js",
+      "entry_sha256": "bbd0b296f2a65c9f48073ed79191d672be0fd33a5c45a6a49bc6c9f4d934517c",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/verify-core-source-dependencies.js",
+      "original_bytes_preserved_at": "retired/scripts/verify-core-source-dependencies.js"
+    },
+    {
+      "original_path": "scripts/verify-eval-runtime-package.js",
+      "entry_sha256": "3e14e5d9ee262efe827ccee343d3c90aeabd9bd4adf9a45fc2e1c94b38826c08",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/verify-eval-runtime-package.js",
+      "original_bytes_preserved_at": "retired/scripts/verify-eval-runtime-package.js"
+    },
+    {
+      "original_path": "scripts/verify-pack-policy.js",
+      "entry_sha256": "b87a83f837f837a3c5f07fe23a5692e7374fb2dedeafa67fe531dcbd69464398",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/verify-pack-policy.js",
+      "original_bytes_preserved_at": "retired/scripts/verify-pack-policy.js"
+    },
+    {
+      "original_path": "scripts/verify-runtime-contract-core.js",
+      "entry_sha256": "929d8aebed2e2bdb723c6756cc8710cf0ac99037fa3c2b32fa14029fd482f3c8",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/scripts/verify-runtime-contract-core.js",
+      "original_bytes_preserved_at": "retired/scripts/verify-runtime-contract-core.js"
+    },
+    {
+      "original_path": "skills/kdna-loader/SKILL.md",
+      "entry_sha256": "122f9886d1fb4034d3cce6cb7bc3eb7f0fc4475a79b7a74ab33f03b84ca0045d",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/skills/kdna-loader/SKILL.md",
+      "original_bytes_preserved_at": "retired/skills/kdna-loader/SKILL.md"
+    },
+    {
+      "original_path": "src/agent-host-capabilities.js",
+      "entry_sha256": "2ffa21bb29b83ca4122c28ef596fac155e7a330fd781521637cbeb22616f7860",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/agent-host-capabilities.js",
+      "original_bytes_preserved_at": "retired/src/agent-host-capabilities.js"
+    },
+    {
+      "original_path": "src/agent-host-process.js",
+      "entry_sha256": "a66ac8e7ffa0a0cd5465f4732f0c4fec616cbf96ceff0cb9ab1f0c91e25676ae",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/agent-host-process.js",
+      "original_bytes_preserved_at": "retired/src/agent-host-process.js"
+    },
+    {
+      "original_path": "src/agent.js",
+      "entry_sha256": "b56629aec1b43f45052ab07f32a32db49110acb4fc4c16bae2249b5b241faf4d",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/agent.js",
+      "original_bytes_preserved_at": "retired/src/agent.js"
+    },
+    {
+      "original_path": "src/capsule-verify.js",
+      "entry_sha256": "31ac0a94f8f996d82e083b7dbfe69886d8cc1dc457c32d589faee70f238b1778",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/capsule-verify.js",
+      "original_bytes_preserved_at": "retired/src/capsule-verify.js"
+    },
+    {
+      "original_path": "src/cli.js",
+      "entry_sha256": "e8ca538a763db5226818661eb76eb2296de62b06cb596df08a9dbff00e00bc42",
+      "disposition": "replaced_current_surface",
+      "current_path": "src/cli.js",
+      "original_bytes_preserved_at": "retired/entry-baseline/src/cli.js"
+    },
+    {
+      "original_path": "src/cluster-engine.js",
+      "entry_sha256": "47c8db48e93f6d1a6c4bc702d31660bf4005d666ec2a41d8272f3ccae07de851",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cluster-engine.js",
+      "original_bytes_preserved_at": "retired/src/cluster-engine.js"
+    },
+    {
+      "original_path": "src/cluster-preflight.js",
+      "entry_sha256": "f7da540ea4597bf6c3f01bd9760a4ae26162810562b507838d1dc1decc3f8d44",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cluster-preflight.js",
+      "original_bytes_preserved_at": "retired/src/cluster-preflight.js"
+    },
+    {
+      "original_path": "src/cluster.js",
+      "entry_sha256": "a230e802db10913742a30b250dfaadf883d5bc4f60246e848ddeebcc4b68abb4",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cluster.js",
+      "original_bytes_preserved_at": "retired/src/cluster.js"
+    },
+    {
+      "original_path": "src/cmds/_common.js",
+      "entry_sha256": "8b65d446e2555ef59f228eca66358eee8ec8bb2f11ef27008fcc6df7fa5f2756",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/_common.js",
+      "original_bytes_preserved_at": "retired/src/cmds/_common.js"
+    },
+    {
+      "original_path": "src/cmds/_kdna-eval.js",
+      "entry_sha256": "49238af13349ed0c8fd2cfdeba328b32a9ac91bc957631d04db670244241d326",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/_kdna-eval.js",
+      "original_bytes_preserved_at": "retired/src/cmds/_kdna-eval.js"
+    },
+    {
+      "original_path": "src/cmds/anti-monolithic.js",
+      "entry_sha256": "d9e8d98a8c284cb64f8e35141dbbb86af23449957c506983d721fef9a92712fb",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/anti-monolithic.js",
+      "original_bytes_preserved_at": "retired/src/cmds/anti-monolithic.js"
+    },
+    {
+      "original_path": "src/cmds/asset-evidence.js",
+      "entry_sha256": "84e26967941ee7cfcaa8358aac22ef940216864430c39e468af1965c1e77be0c",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/asset-evidence.js",
+      "original_bytes_preserved_at": "retired/src/cmds/asset-evidence.js"
+    },
+    {
+      "original_path": "src/cmds/asset-io.js",
+      "entry_sha256": "4ea9743be585d6fe1cbe7d2089eefd86b4b6b4101988e715541a0ff286e0c0e5",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/asset-io.js",
+      "original_bytes_preserved_at": "retired/src/cmds/asset-io.js"
+    },
+    {
+      "original_path": "src/cmds/audit-log.js",
+      "entry_sha256": "46ce76b37a1c12538506da2695a56a8e192dbb00b3f00e8c05093ae684f773cc",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/audit-log.js",
+      "original_bytes_preserved_at": "retired/src/cmds/audit-log.js"
+    },
+    {
+      "original_path": "src/cmds/badge.js",
+      "entry_sha256": "45cc67d45ec83b414c9ad56d47fe85065c01082f5bd8a9e34cba84767904d5b4",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/badge.js",
+      "original_bytes_preserved_at": "retired/src/cmds/badge.js"
+    },
+    {
+      "original_path": "src/cmds/changelog.js",
+      "entry_sha256": "652eeeebd10ad98fcc31063056f328ce7e53ac64db746a8d98bd90185473988b",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/changelog.js",
+      "original_bytes_preserved_at": "retired/src/cmds/changelog.js"
+    },
+    {
+      "original_path": "src/cmds/cluster.js",
+      "entry_sha256": "4636bdfe1c9dd7ad1d20b056648fad0a9a76d94ef9f58cdc64dcecc1fc381d34",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/cluster.js",
+      "original_bytes_preserved_at": "retired/src/cmds/cluster.js"
+    },
+    {
+      "original_path": "src/cmds/compose-review.js",
+      "entry_sha256": "ad6aab81b741832f81377de717ebb0153702e9ec9ad5606e7222e396a31aa73a",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/compose-review.js",
+      "original_bytes_preserved_at": "retired/src/cmds/compose-review.js"
+    },
+    {
+      "original_path": "src/cmds/compose.js",
+      "entry_sha256": "fd23d9cadb95f0bfb5fb61fd72dc5438ae54cd05bf7a25ca5388456daff403fc",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/compose.js",
+      "original_bytes_preserved_at": "retired/src/cmds/compose.js"
+    },
+    {
+      "original_path": "src/cmds/conflict-analysis.js",
+      "entry_sha256": "dc5224ce756f0a98f3225627d70a661162a27f40257fb487c9033a66b152517a",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/conflict-analysis.js",
+      "original_bytes_preserved_at": "retired/src/cmds/conflict-analysis.js"
+    },
+    {
+      "original_path": "src/cmds/context-budget.js",
+      "entry_sha256": "2b9bc7a8fe960a8186d012a0f6d39d2ca54ae8ee509b77d01ff387d2dc0cfa0e",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/context-budget.js",
+      "original_bytes_preserved_at": "retired/src/cmds/context-budget.js"
+    },
+    {
+      "original_path": "src/cmds/demo.js",
+      "entry_sha256": "c913a7a7d680cd16d9b803af96ad3c83a7e2954f3158239913e6b8ec95b078b1",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/demo.js",
+      "original_bytes_preserved_at": "retired/src/cmds/demo.js"
+    },
+    {
+      "original_path": "src/cmds/deprecation.js",
+      "entry_sha256": "776413d5941248bc6ab891df3c2dadc3462dc285d1d59812cc92f2b13e8499e7",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/deprecation.js",
+      "original_bytes_preserved_at": "retired/src/cmds/deprecation.js"
+    },
+    {
+      "original_path": "src/cmds/doctor.js",
+      "entry_sha256": "8d02f172e6ec09ac2b59db25531001507ef44ebca88345b21ad2a491b9c1da7d",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/doctor.js",
+      "original_bytes_preserved_at": "retired/src/cmds/doctor.js"
+    },
+    {
+      "original_path": "src/cmds/domain.js",
+      "entry_sha256": "e563bd6470eaaba5dd0f74c246b71496639620034729acb79316e18481fc279b",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/domain.js",
+      "original_bytes_preserved_at": "retired/src/cmds/domain.js"
+    },
+    {
+      "original_path": "src/cmds/eval-asset.js",
+      "entry_sha256": "4bf7254c73544242563844792e3b8cbbf0c2bb764ca37c74b103c25f1f283383",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/eval-asset.js",
+      "original_bytes_preserved_at": "retired/src/cmds/eval-asset.js"
+    },
+    {
+      "original_path": "src/cmds/eval-cluster.js",
+      "entry_sha256": "62cb443b30d06223f265bf354f827b3158d950aa20628debe025100d4e56570b",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/eval-cluster.js",
+      "original_bytes_preserved_at": "retired/src/cmds/eval-cluster.js"
+    },
+    {
+      "original_path": "src/cmds/eval-consumption.js",
+      "entry_sha256": "a717df41f5691592e8c314222dac94bb6c20f3405c3b4a5d3a11a218529bb3bf",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/eval-consumption.js",
+      "original_bytes_preserved_at": "retired/src/cmds/eval-consumption.js"
+    },
+    {
+      "original_path": "src/cmds/explain.js",
+      "entry_sha256": "8cf77660863dc85bdeedd48fff895bd88f6044093c426f5c962a5278561b7548",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/explain.js",
+      "original_bytes_preserved_at": "retired/src/cmds/explain.js"
+    },
+    {
+      "original_path": "src/cmds/governance.js",
+      "entry_sha256": "42481daff71ec69744d96945e86cb8bd3b28f077a0d3f9d824c286622fb4978a",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/governance.js",
+      "original_bytes_preserved_at": "retired/src/cmds/governance.js"
+    },
+    {
+      "original_path": "src/cmds/host-consent.js",
+      "entry_sha256": "d95d7bd7a4f76fefdc76a28be51c6ebface0c67afd7e51d22cead15650cd289a",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/host-consent.js",
+      "original_bytes_preserved_at": "retired/src/cmds/host-consent.js"
+    },
+    {
+      "original_path": "src/cmds/identity.js",
+      "entry_sha256": "cdbde4b33c381bf861aaca7e68df24973e45b47f2cdf7f066273584269024294",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/identity.js",
+      "original_bytes_preserved_at": "retired/src/cmds/identity.js"
+    },
+    {
+      "original_path": "src/cmds/legacy.js",
+      "entry_sha256": "6eda43ce8799151013de2af409d784b794a997b8a5001d4d36ad0da55850476d",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/legacy.js",
+      "original_bytes_preserved_at": "retired/src/cmds/legacy.js"
+    },
+    {
+      "original_path": "src/cmds/license.js",
+      "entry_sha256": "661dade3360942843ddb11909a92da7d9eae62fb66fff0a06beb0483315ebf78",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/license.js",
+      "original_bytes_preserved_at": "retired/src/cmds/license.js"
+    },
+    {
+      "original_path": "src/cmds/plan-use.js",
+      "entry_sha256": "3ed6a449a96caa9ca01388827b93538d73c876ea55609fdd54fe446770f52ff4",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/plan-use.js",
+      "original_bytes_preserved_at": "retired/src/cmds/plan-use.js"
+    },
+    {
+      "original_path": "src/cmds/project.js",
+      "entry_sha256": "6d2808bd4e8a228618d40a6d96434a49f099898b6fc622ea2c1d5445eb59b266",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/project.js",
+      "original_bytes_preserved_at": "retired/src/cmds/project.js"
+    },
+    {
+      "original_path": "src/cmds/protect.js",
+      "entry_sha256": "f8f4b877a4c0058789930eeeed6ef17eaa0466d24acad13490d0a863f51b65c4",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/protect.js",
+      "original_bytes_preserved_at": "retired/src/cmds/protect.js"
+    },
+    {
+      "original_path": "src/cmds/protocol.js",
+      "entry_sha256": "6bac3d6b97bdbb563d47cb5f14f38ec67fc60dab7d67ce134a5311a921734d22",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/protocol.js",
+      "original_bytes_preserved_at": "retired/src/cmds/protocol.js"
+    },
+    {
+      "original_path": "src/cmds/quality.js",
+      "entry_sha256": "008064455d48a67554b2ee0960033e6b5428efaf0b710f9eb5f83b57e68bed51",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/quality.js",
+      "original_bytes_preserved_at": "retired/src/cmds/quality.js"
+    },
+    {
+      "original_path": "src/cmds/registry.js",
+      "entry_sha256": "acb080d85106031a6fb22a16f6a80167fba25f0b3b21979ffdb5cdc670b481c7",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/registry.js",
+      "original_bytes_preserved_at": "retired/src/cmds/registry.js"
+    },
+    {
+      "original_path": "src/cmds/route.js",
+      "entry_sha256": "6e7b037dc5d33ae2f65ff8ee50849e567f2b7aec7fb3a443814c255e500c22f5",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/route.js",
+      "original_bytes_preserved_at": "retired/src/cmds/route.js"
+    },
+    {
+      "original_path": "src/cmds/semver-util.js",
+      "entry_sha256": "471d24ad2fde3b1cfa773831d77b80f4e0b259cdd5a6c882ddd21ea6421b546c",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/semver-util.js",
+      "original_bytes_preserved_at": "retired/src/cmds/semver-util.js"
+    },
+    {
+      "original_path": "src/cmds/setup.js",
+      "entry_sha256": "87cfde649eb3bb92cced5aea5a224dcc9259e799dd7909ebbda607b0f01a9cf3",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/setup.js",
+      "original_bytes_preserved_at": "retired/src/cmds/setup.js"
+    },
+    {
+      "original_path": "src/cmds/studio.js",
+      "entry_sha256": "7e0f9cd5d01cd100b69015c71473381ebafbe611e9b9aee6f5bdf52d5644b0e3",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/studio.js",
+      "original_bytes_preserved_at": "retired/src/cmds/studio.js"
+    },
+    {
+      "original_path": "src/cmds/test.js",
+      "entry_sha256": "151a74f91e064639cecf14b917571cc65be182e17cb70f08035425a070adb292",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/test.js",
+      "original_bytes_preserved_at": "retired/src/cmds/test.js"
+    },
+    {
+      "original_path": "src/cmds/trace.js",
+      "entry_sha256": "cef3a15653cd56bade257579a45279e34ef8496bfa43be969d60b134eeceafee",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/trace.js",
+      "original_bytes_preserved_at": "retired/src/cmds/trace.js"
+    },
+    {
+      "original_path": "src/cmds/use.js",
+      "entry_sha256": "6a303a64bd7c4258558eb0fcf18f48fab03c3cb9161a1bb2e6ea3cdf624010b0",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/use.js",
+      "original_bytes_preserved_at": "retired/src/cmds/use.js"
+    },
+    {
+      "original_path": "src/cmds/validate-bundle.js",
+      "entry_sha256": "da9dd1f21cd3d7faf59d672e9dbd09729633eb31649e8838e68d773ec8596f29",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/validate-bundle.js",
+      "original_bytes_preserved_at": "retired/src/cmds/validate-bundle.js"
+    },
+    {
+      "original_path": "src/cmds/watermark.js",
+      "entry_sha256": "57bb63f9b29f30b3536d8c41cc640c5b626060660ad7dcfd384f49c3abcc3d2f",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/watermark.js",
+      "original_bytes_preserved_at": "retired/src/cmds/watermark.js"
+    },
+    {
+      "original_path": "src/cmds/workpack.js",
+      "entry_sha256": "c2960a57095c08aea6e5cf3004e25715d1c33392e691e7a5a24dc99c401056d6",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/workpack.js",
+      "original_bytes_preserved_at": "retired/src/cmds/workpack.js"
+    },
+    {
+      "original_path": "src/cmds/workspace-attachments.js",
+      "entry_sha256": "272d6346e2b4b78d4530f3048b1c5e76534a810d7010554ab1c80097e1dc239b",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/cmds/workspace-attachments.js",
+      "original_bytes_preserved_at": "retired/src/cmds/workspace-attachments.js"
+    },
+    {
+      "original_path": "src/compare.js",
+      "entry_sha256": "dfe46a2e627328affef0c3a7072fae8ec6a7aa76cc20da33895ee164f0ab804a",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/compare.js",
+      "original_bytes_preserved_at": "retired/src/compare.js"
+    },
+    {
+      "original_path": "src/dev-pack.js",
+      "entry_sha256": "6b256f52321fc205753c77f76e0c790d4495095d556d023b33a6a2293ab68aa9",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/dev-pack.js",
+      "original_bytes_preserved_at": "retired/src/dev-pack.js"
+    },
+    {
+      "original_path": "src/diff.js",
+      "entry_sha256": "7a99e13477a416dbae3952858a8a2cb1baabbc4cd07846531f3a80079616ff13",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/diff.js",
+      "original_bytes_preserved_at": "retired/src/diff.js"
+    },
+    {
+      "original_path": "src/external-entitlement.js",
+      "entry_sha256": "07697a798bb5a13f2380afe4445e614ad1b76debcaccc57bcd45035c9c3f39f2",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/external-entitlement.js",
+      "original_bytes_preserved_at": "retired/src/external-entitlement.js"
+    },
+    {
+      "original_path": "src/foundation-common.js",
+      "entry_sha256": "831928b1505ba845ca9794fb7ad46bc30c7923a26f12a518885bdf65620b182a",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/foundation-common.js",
+      "original_bytes_preserved_at": "retired/src/foundation-common.js"
+    },
+    {
+      "original_path": "src/https-download.js",
+      "entry_sha256": "e101b921061a11fe9ebbc0a914fca9a2aa6e4ea6a42308da0713e9ad0fdfcc70",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/https-download.js",
+      "original_bytes_preserved_at": "retired/src/https-download.js"
+    },
+    {
+      "original_path": "src/identity.js",
+      "entry_sha256": "993dbcd12e47cce7cf1bddbc75217fe54c84b3bc8bcd0c5ca58e7079d7d6e456",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/identity.js",
+      "original_bytes_preserved_at": "retired/src/identity.js"
+    },
+    {
+      "original_path": "src/init.js",
+      "entry_sha256": "56f8235abc6d432e5d14e5ef12fc0038b65094a16838e92cf9a73ffde4048303",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/init.js",
+      "original_bytes_preserved_at": "retired/src/init.js"
+    },
+    {
+      "original_path": "src/install.js",
+      "entry_sha256": "99863f1ff765dd48e146cd12ea31b48b9cb8288b29c5644a479ba03ec7c5b3f6",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/install.js",
+      "original_bytes_preserved_at": "retired/src/install.js"
+    },
+    {
+      "original_path": "src/judgment-diff.js",
+      "entry_sha256": "ffe688d9a52f408293e53d9dfc9fca39ab2e6dd1fed6b28a9973f783d32ed8dd",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/judgment-diff.js",
+      "original_bytes_preserved_at": "retired/src/judgment-diff.js"
+    },
+    {
+      "original_path": "src/kdf-spec.js",
+      "entry_sha256": "8fa95a0d711e218163166e4b5d47c3e589b19d7b040b1b29e79fa8c0513ac2f6",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/kdf-spec.js",
+      "original_bytes_preserved_at": "retired/src/kdf-spec.js"
+    },
+    {
+      "original_path": "src/local-state-paths.js",
+      "entry_sha256": "8ae34388c8d4a0aa0ad42be5d5e50705e3ed3a85188f051245bde3c5b91bc7e7",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/local-state-paths.js",
+      "original_bytes_preserved_at": "retired/src/local-state-paths.js"
+    },
+    {
+      "original_path": "src/package-store.js",
+      "entry_sha256": "f4d2c55f49f5400945a04898a40cb447dcaf2f83c7729274403a64d55350f412",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/package-store.js",
+      "original_bytes_preserved_at": "retired/src/package-store.js"
+    },
+    {
+      "original_path": "src/paths.js",
+      "entry_sha256": "77bd5ce4edce10fe22914b81447d52ef37cef8ac97aae288bd66de70e7347bcc",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/paths.js",
+      "original_bytes_preserved_at": "retired/src/paths.js"
+    },
+    {
+      "original_path": "src/publish.js",
+      "entry_sha256": "7bc91b8b92110905cb4e5ddb906a57174f72eb6cbfe52bfed2f60809ce844620",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/publish.js",
+      "original_bytes_preserved_at": "retired/src/publish.js"
+    },
+    {
+      "original_path": "src/registry.js",
+      "entry_sha256": "702f00cef0e51379a0d7c075f975464fb8366f4bf70e32511babcb79e0807f14",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/registry.js",
+      "original_bytes_preserved_at": "retired/src/registry.js"
+    },
+    {
+      "original_path": "src/remote-transport.js",
+      "entry_sha256": "2d329cee1c0712f160491f9c3c81c3b3540125721a90749fae0e68d087fcef21",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/remote-transport.js",
+      "original_bytes_preserved_at": "retired/src/remote-transport.js"
+    },
+    {
+      "original_path": "src/runtime-contract.js",
+      "entry_sha256": "e2a20ce192ba6e9359b1d6f45dc404ca2343c547a70dae8068bfcf18d659d009",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/runtime-contract.js",
+      "original_bytes_preserved_at": "retired/src/runtime-contract.js"
+    },
+    {
+      "original_path": "src/runtime-entitlement.js",
+      "entry_sha256": "e5e071788c94437fa10e5488568c4cf826b2210b3f0e6ff1f71e8df5edc33476",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/runtime-entitlement.js",
+      "original_bytes_preserved_at": "retired/src/runtime-entitlement.js"
+    },
+    {
+      "original_path": "src/runtime-host-command.js",
+      "entry_sha256": "8d7d09a360e0bf8e66befadf5230ff1be26cecd5674bcb56f6c9a931cc731018",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/runtime-host-command.js",
+      "original_bytes_preserved_at": "retired/src/runtime-host-command.js"
+    },
+    {
+      "original_path": "src/runtime-remote-transport.js",
+      "entry_sha256": "a3e63bd193a48fe73a348647c9c9325526bf35f64d6fab47dd011497a93e58d6",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/runtime-remote-transport.js",
+      "original_bytes_preserved_at": "retired/src/runtime-remote-transport.js"
+    },
+    {
+      "original_path": "src/safe-archive.js",
+      "entry_sha256": "0d85e82c7e54bca48d709734eae65b85ee1ba5005107679ac5e30a1a0175bf39",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/safe-archive.js",
+      "original_bytes_preserved_at": "retired/src/safe-archive.js"
+    },
+    {
+      "original_path": "src/search.js",
+      "entry_sha256": "3207ba6ddb9b10b149a7d8bfb13247f06f4f3d7f750fdfc78d917c36193c2368",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/search.js",
+      "original_bytes_preserved_at": "retired/src/search.js"
+    },
+    {
+      "original_path": "src/secret-input.js",
+      "entry_sha256": "4755408f716d2ff2f30d3527c25a3d88fb4ba98864a85ec66b6e49d79f8c003d",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/secret-input.js",
+      "original_bytes_preserved_at": "retired/src/secret-input.js"
+    },
+    {
+      "original_path": "src/secret-store.js",
+      "entry_sha256": "d5d066414049e6e6a2113d1b38cbbab23c06965ae67665f6419307bfc5ad6700",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/secret-store.js",
+      "original_bytes_preserved_at": "retired/src/secret-store.js"
+    },
+    {
+      "original_path": "src/setup.js",
+      "entry_sha256": "5dccbe568387fac56df9c7f70f87a36b7a67fd523e8c04d7e89b70dc125ac8b1",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/setup.js",
+      "original_bytes_preserved_at": "retired/src/setup.js"
+    },
+    {
+      "original_path": "src/snapshot-asset.js",
+      "entry_sha256": "8c6448e931a95fde74fa81ec64dbe8c7017e86ce7c72d0466370d5cc6058d701",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/snapshot-asset.js",
+      "original_bytes_preserved_at": "retired/src/snapshot-asset.js"
+    },
+    {
+      "original_path": "src/version.js",
+      "entry_sha256": "1a951d1195b9d556f5166bd65635da4895d002a7ddb1c951eefe1b969156ded5",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/version.js",
+      "original_bytes_preserved_at": "retired/src/version.js"
+    },
+    {
+      "original_path": "src/workspace-attachments.js",
+      "entry_sha256": "5412440fdb9d31fe9d5af464577918fafa4faca49d238eda3834433635c29def",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/src/workspace-attachments.js",
+      "original_bytes_preserved_at": "retired/src/workspace-attachments.js"
+    },
+    {
+      "original_path": "templates/cluster/KDNA_Cluster.json",
+      "entry_sha256": "ad3feb01aed88a802e9fe9a8e7736fa3c509c8efbe00afd59e02059579808c5d",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/templates/cluster/KDNA_Cluster.json",
+      "original_bytes_preserved_at": "retired/templates/cluster/KDNA_Cluster.json"
+    },
+    {
+      "original_path": "templates/cluster/README.md",
+      "entry_sha256": "fce9eb9b9c3de32667a2b5ca5ce5394455dd99b7a64a2d5e60e5a1c9693d7c3d",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/templates/cluster/README.md",
+      "original_bytes_preserved_at": "retired/templates/cluster/README.md"
+    },
+    {
+      "original_path": "templates/minimal-domain/README.md",
+      "entry_sha256": "ff4c0e7ee67aff355107dc24b47534c90db97e65f20bf503cbba1ad01cda3188",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/templates/minimal-domain/README.md",
+      "original_bytes_preserved_at": "retired/templates/minimal-domain/README.md"
+    },
+    {
+      "original_path": "templates/minimal-domain/cards/axioms.json",
+      "entry_sha256": "d6aaf90023af5641269ebeb3588cf554bda2db019eaaf936f1a8cae099630701",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/templates/minimal-domain/cards/axioms.json",
+      "original_bytes_preserved_at": "retired/templates/minimal-domain/cards/axioms.json"
+    },
+    {
+      "original_path": "templates/minimal-domain/cards/boundaries.json",
+      "entry_sha256": "7a8d01ddd0ab7d6ab570714ef721bfc37e72b8f8a5f1bd931ae0cdd3a68c8bd3",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/templates/minimal-domain/cards/boundaries.json",
+      "original_bytes_preserved_at": "retired/templates/minimal-domain/cards/boundaries.json"
+    },
+    {
+      "original_path": "templates/minimal-domain/cards/misunderstandings.json",
+      "entry_sha256": "bad58638b5da5ffd551888ed53081fba0931710670abe13dda07daeaf447cdda",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/templates/minimal-domain/cards/misunderstandings.json",
+      "original_bytes_preserved_at": "retired/templates/minimal-domain/cards/misunderstandings.json"
+    },
+    {
+      "original_path": "templates/minimal-domain/cards/ontology.json",
+      "entry_sha256": "d15026dd2a3178b06d5d2f1ce7840c9d415b27e34dbc3cdd91649a497284e839",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/templates/minimal-domain/cards/ontology.json",
+      "original_bytes_preserved_at": "retired/templates/minimal-domain/cards/ontology.json"
+    },
+    {
+      "original_path": "templates/minimal-domain/cards/self_checks.json",
+      "entry_sha256": "9975174ad728ada169eee104398cec52bf51f32861edd7b8f648e82241181dca",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/templates/minimal-domain/cards/self_checks.json",
+      "original_bytes_preserved_at": "retired/templates/minimal-domain/cards/self_checks.json"
+    },
+    {
+      "original_path": "templates/minimal-domain/studio.project.json",
+      "entry_sha256": "c223a28d784d7eea2c226aa211cd8dff08d47ad01ac049cb699213ece608cc7c",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/templates/minimal-domain/studio.project.json",
+      "original_bytes_preserved_at": "retired/templates/minimal-domain/studio.project.json"
+    },
+    {
+      "original_path": "templates/minimal-domain/tests/before-after.json",
+      "entry_sha256": "496704c6ff3bec1a1fae2bee2574d6866a505d7957ad5bc11b793c6e5127a998",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/templates/minimal-domain/tests/before-after.json",
+      "original_bytes_preserved_at": "retired/templates/minimal-domain/tests/before-after.json"
+    },
+    {
+      "original_path": "templates/standard-domain/README.md",
+      "entry_sha256": "f020a172f528fda11233923f79201ae9d509705eb05980e21b8bea7651c75eeb",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/templates/standard-domain/README.md",
+      "original_bytes_preserved_at": "retired/templates/standard-domain/README.md"
+    },
+    {
+      "original_path": "templates/standard-domain/USAGE.md",
+      "entry_sha256": "cbf95c2975a5baba1e6f1470c440bfeca9f5c6e6cff676694dd4eb526a1655af",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/templates/standard-domain/USAGE.md",
+      "original_bytes_preserved_at": "retired/templates/standard-domain/USAGE.md"
+    },
+    {
+      "original_path": "templates/standard-domain/cards/axioms.json",
+      "entry_sha256": "c00ff9e71fb61e50277af2513efd3211fae92ff421129f2d0834d467da8ae6cd",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/templates/standard-domain/cards/axioms.json",
+      "original_bytes_preserved_at": "retired/templates/standard-domain/cards/axioms.json"
+    },
+    {
+      "original_path": "templates/standard-domain/cards/boundaries.json",
+      "entry_sha256": "1295f8a665d379839106e24bec9b24b5684493da9591b97d699eb9f077537d02",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/templates/standard-domain/cards/boundaries.json",
+      "original_bytes_preserved_at": "retired/templates/standard-domain/cards/boundaries.json"
+    },
+    {
+      "original_path": "templates/standard-domain/cards/misunderstandings.json",
+      "entry_sha256": "553351c61cfec8fefba6c47782658e385a4ed2512465a325aac9e7f7928dae3b",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/templates/standard-domain/cards/misunderstandings.json",
+      "original_bytes_preserved_at": "retired/templates/standard-domain/cards/misunderstandings.json"
+    },
+    {
+      "original_path": "templates/standard-domain/cards/ontology.json",
+      "entry_sha256": "314581e69a196db24b408270594c13bca3fd7cf7a9de4f61c57fd7660dd947a5",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/templates/standard-domain/cards/ontology.json",
+      "original_bytes_preserved_at": "retired/templates/standard-domain/cards/ontology.json"
+    },
+    {
+      "original_path": "templates/standard-domain/cards/self_checks.json",
+      "entry_sha256": "04437e3e8bf8c24cf34b7aba5a61aaac36abc82c4fa0b212062baf9f1802a784",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/templates/standard-domain/cards/self_checks.json",
+      "original_bytes_preserved_at": "retired/templates/standard-domain/cards/self_checks.json"
+    },
+    {
+      "original_path": "templates/standard-domain/evals/1_excluded_case.json",
+      "entry_sha256": "bbbfe498996b8a4c8de195bc6811c44255b9439dc02f8c86fbb6a2e800c5663d",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/templates/standard-domain/evals/1_excluded_case.json",
+      "original_bytes_preserved_at": "retired/templates/standard-domain/evals/1_excluded_case.json"
+    },
+    {
+      "original_path": "templates/standard-domain/evals/3_boundary_cases.json",
+      "entry_sha256": "ebf5b2a31772b9f810a4e52c991313c75b3491c2392493f0adfa580d010f8675",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/templates/standard-domain/evals/3_boundary_cases.json",
+      "original_bytes_preserved_at": "retired/templates/standard-domain/evals/3_boundary_cases.json"
+    },
+    {
+      "original_path": "templates/standard-domain/evals/3_core_cases.json",
+      "entry_sha256": "7f87c83cdf7aca61ef2535874b83e036a2b03eaf3a53ec4290593d37904da4fd",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/templates/standard-domain/evals/3_core_cases.json",
+      "original_bytes_preserved_at": "retired/templates/standard-domain/evals/3_core_cases.json"
+    },
+    {
+      "original_path": "templates/standard-domain/evals/3_failure_cases.json",
+      "entry_sha256": "91fcc3ac8bfaa06f7e06eac2d0aa56d116b639e55e1e7637f51f7cb69f0226af",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/templates/standard-domain/evals/3_failure_cases.json",
+      "original_bytes_preserved_at": "retired/templates/standard-domain/evals/3_failure_cases.json"
+    },
+    {
+      "original_path": "templates/standard-domain/evals/scoring.json",
+      "entry_sha256": "78db85c00cf888eba6cb22378826142eec258e1ae80e068538725de54731f2be",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/templates/standard-domain/evals/scoring.json",
+      "original_bytes_preserved_at": "retired/templates/standard-domain/evals/scoring.json"
+    },
+    {
+      "original_path": "templates/standard-domain/studio.project.json",
+      "entry_sha256": "682700df24eaab897980ead670c3fecdbfe2606b891c8e9c780d06c9d37c3246",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/templates/standard-domain/studio.project.json",
+      "original_bytes_preserved_at": "retired/templates/standard-domain/studio.project.json"
+    },
+    {
+      "original_path": "tests/anti-monolithic.test.js",
+      "entry_sha256": "671b28df6660c5f39ce191fd071e48388a8772e57fa25182d8bd6acb360279a7",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/anti-monolithic.test.js",
+      "original_bytes_preserved_at": "retired/tests/anti-monolithic.test.js"
+    },
+    {
+      "original_path": "tests/archive-io-hardening.test.js",
+      "entry_sha256": "3288ef4d0236d31c5eef575a597323711db7763327200051cd24bf70f09be980",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/archive-io-hardening.test.js",
+      "original_bytes_preserved_at": "retired/tests/archive-io-hardening.test.js"
+    },
+    {
+      "original_path": "tests/asset-inheritance.test.js",
+      "entry_sha256": "42a40e287052c3d5eadd9d8a1a7a2296cead414521836c26ee638a7d7816b991",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/asset-inheritance.test.js",
+      "original_bytes_preserved_at": "retired/tests/asset-inheritance.test.js"
+    },
+    {
+      "original_path": "tests/asset-store.test.js",
+      "entry_sha256": "4dcef5c4fbd9926a1ff01b3003ef423758e4ed9a41c7b0bb7257a33f1f0a16b8",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/asset-store.test.js",
+      "original_bytes_preserved_at": "retired/tests/asset-store.test.js"
+    },
+    {
+      "original_path": "tests/audit-log.test.js",
+      "entry_sha256": "131144fcd8c1db06eec45ddf7cd1a57da1208f8ac60bffc3cc250841d19084aa",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/audit-log.test.js",
+      "original_bytes_preserved_at": "retired/tests/audit-log.test.js"
+    },
+    {
+      "original_path": "tests/bundle-compatibility.test.js",
+      "entry_sha256": "12a6fefe1cd031f7f56621a49201a4c39132615c3218aac358fcb95b2a2fd017",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/bundle-compatibility.test.js",
+      "original_bytes_preserved_at": "retired/tests/bundle-compatibility.test.js"
+    },
+    {
+      "original_path": "tests/capsule-verify.test.js",
+      "entry_sha256": "136c976507b7912a2434545b7fdab21c5af4fdced411f10c63b28d348d71876e",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/capsule-verify.test.js",
+      "original_bytes_preserved_at": "retired/tests/capsule-verify.test.js"
+    },
+    {
+      "original_path": "tests/cli-smoke.test.js",
+      "entry_sha256": "6f5d8e87337edbbe2c2381245052e3ef469a52a23a31d525f0a106b32a8c6452",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/cli-smoke.test.js",
+      "original_bytes_preserved_at": "retired/tests/cli-smoke.test.js"
+    },
+    {
+      "original_path": "tests/cluster.test.js",
+      "entry_sha256": "8386d05184acea3bc87a3555338b7408d6fedbce94732fd78bb152c791335326",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/cluster.test.js",
+      "original_bytes_preserved_at": "retired/tests/cluster.test.js"
+    },
+    {
+      "original_path": "tests/common-utils.test.js",
+      "entry_sha256": "47bfdbbd57f38cce465787b2199969f2fac5f30908799eb3677e94c6fc882a5e",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/common-utils.test.js",
+      "original_bytes_preserved_at": "retired/tests/common-utils.test.js"
+    },
+    {
+      "original_path": "tests/context-budget.test.js",
+      "entry_sha256": "fad563d8ff27d68b26e92d82dcb52cc3461390277f79da62bad9a69e8917a5fc",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/context-budget.test.js",
+      "original_bytes_preserved_at": "retired/tests/context-budget.test.js"
+    },
+    {
+      "original_path": "tests/contract/cli-shape.test.js",
+      "entry_sha256": "6517a95a0a7d7bae974f95a82ccc5abc9da82d9c97af8720406245ed0bef494f",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/contract/cli-shape.test.js",
+      "original_bytes_preserved_at": "retired/tests/contract/cli-shape.test.js"
+    },
+    {
+      "original_path": "tests/current-global-cli.test.js",
+      "entry_sha256": "999acf18435592428840c0be3461b08c5d46225368ad73e79bc2d4776c3c043a",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/current-global-cli.test.js",
+      "original_bytes_preserved_at": "retired/tests/current-global-cli.test.js"
+    },
+    {
+      "original_path": "tests/demo.test.js",
+      "entry_sha256": "e807e09b9544bca3e698e4efb582bf623ec26e3695b87906088ba3acc0ebc274",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/demo.test.js",
+      "original_bytes_preserved_at": "retired/tests/demo.test.js"
+    },
+    {
+      "original_path": "tests/dependencies.test.js",
+      "entry_sha256": "84c857222207b300f0b8f030aadaea881393791baae72499ab1922bc1e092138",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/dependencies.test.js",
+      "original_bytes_preserved_at": "retired/tests/dependencies.test.js"
+    },
+    {
+      "original_path": "tests/dev-pack.test.js",
+      "entry_sha256": "9679ceebdbcda703f3dce5315b7c99bb38c1f4fdd93830e07638720b88f252f3",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/dev-pack.test.js",
+      "original_bytes_preserved_at": "retired/tests/dev-pack.test.js"
+    },
+    {
+      "original_path": "tests/e2e-encrypt.test.js",
+      "entry_sha256": "7b2982dc3d03a0658efda06265190fb78430c8c470f403254a8277bbc203acee",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/e2e-encrypt.test.js",
+      "original_bytes_preserved_at": "retired/tests/e2e-encrypt.test.js"
+    },
+    {
+      "original_path": "tests/external-entitlement.test.js",
+      "entry_sha256": "77fc441e4a888f886a25de97a36d21ef4906e534d3404d0dd19e0c3163cee53e",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/external-entitlement.test.js",
+      "original_bytes_preserved_at": "retired/tests/external-entitlement.test.js"
+    },
+    {
+      "original_path": "tests/fixtures/core-0.21-candidate-evidence.json",
+      "entry_sha256": "8d6aec59212c592acda26da56d09eaea715e980b4e763e392b7f4d10541020dc",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/fixtures/core-0.21-candidate-evidence.json",
+      "original_bytes_preserved_at": "retired/tests/fixtures/core-0.21-candidate-evidence.json"
+    },
+    {
+      "original_path": "tests/fixtures/golden-single-asset-host-contract.json",
+      "entry_sha256": "5024aed99f4b62368a714a769845642a6a18c9cf6fb9ce099fbab2b1ac818bc2",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/fixtures/golden-single-asset-host-contract.json",
+      "original_bytes_preserved_at": "retired/tests/fixtures/golden-single-asset-host-contract.json"
+    },
+    {
+      "original_path": "tests/fixtures/runtime-candidates/binding.json",
+      "entry_sha256": "d3dab698d336fb0d02011345d85fe4c67de0c4c06d4d02210676c6654a5f63af",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/fixtures/runtime-candidates/binding.json",
+      "original_bytes_preserved_at": "retired/tests/fixtures/runtime-candidates/binding.json"
+    },
+    {
+      "original_path": "tests/fixtures/runtime-candidates/kdna-core-0.21.0.tgz",
+      "entry_sha256": "51561e712fcf4af389e61377b478ad67287c1d7c4483321117922cdb0478e83e",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/fixtures/runtime-candidates/kdna-core-0.21.0.tgz",
+      "original_bytes_preserved_at": "retired/tests/fixtures/runtime-candidates/kdna-core-0.21.0.tgz"
+    },
+    {
+      "original_path": "tests/golden-host-request.test.js",
+      "entry_sha256": "5e4334230a1a8c6e2489e140b95b7ceb9f5923dc25275e9b64b9cb18d369caa8",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/golden-host-request.test.js",
+      "original_bytes_preserved_at": "retired/tests/golden-host-request.test.js"
+    },
+    {
+      "original_path": "tests/helpers/current-asset.js",
+      "entry_sha256": "4d62958cf5f42daa32bfbb960905e8c757295b6c8f282b51637fe2e6ef716e82",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/helpers/current-asset.js",
+      "original_bytes_preserved_at": "retired/tests/helpers/current-asset.js"
+    },
+    {
+      "original_path": "tests/helpers/invoke-internal-command.js",
+      "entry_sha256": "ad90636da5be6ecdf3113755018ac2f6b2eed8e9ec775069e94d72c155f71fc1",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/helpers/invoke-internal-command.js",
+      "original_bytes_preserved_at": "retired/tests/helpers/invoke-internal-command.js"
+    },
+    {
+      "original_path": "tests/helpers/require-golden-core.js",
+      "entry_sha256": "6ba3a75016fab48069d2ca3bb53d8d339da379869e0e4353214830b1ba7d7ded",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/helpers/require-golden-core.js",
+      "original_bytes_preserved_at": "retired/tests/helpers/require-golden-core.js"
+    },
+    {
+      "original_path": "tests/helpers/require-kdna-eval-fixture.js",
+      "entry_sha256": "e19a540188445e2e6aef3ceef4e3306276e14f313a7d4ccec0d5ef74d42762d7",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/helpers/require-kdna-eval-fixture.js",
+      "original_bytes_preserved_at": "retired/tests/helpers/require-kdna-eval-fixture.js"
+    },
+    {
+      "original_path": "tests/host-consent.test.js",
+      "entry_sha256": "3451a51a2907d6581e44f02d626ba7cab66fca24fb12963b11428c5b97b6cd15",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/host-consent.test.js",
+      "original_bytes_preserved_at": "retired/tests/host-consent.test.js"
+    },
+    {
+      "original_path": "tests/kdf-spec.test.js",
+      "entry_sha256": "d29746bdc01c6e87a0c10be043f0d1a726d0a9292cb92ef7b3d47e1a0b05624c",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/kdf-spec.test.js",
+      "original_bytes_preserved_at": "retired/tests/kdf-spec.test.js"
+    },
+    {
+      "original_path": "tests/layer-isolation.test.js",
+      "entry_sha256": "62e2e8f7f54995d1f8b3e3876813f37b835c707413ec5f3c7fa72ff6a9ad4ddb",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/layer-isolation.test.js",
+      "original_bytes_preserved_at": "retired/tests/layer-isolation.test.js"
+    },
+    {
+      "original_path": "tests/license-redaction.test.js",
+      "entry_sha256": "e905de8a6a6403208c2f0c144286549ea61535250c3a7b584d7b035e268e38ec",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/license-redaction.test.js",
+      "original_bytes_preserved_at": "retired/tests/license-redaction.test.js"
+    },
+    {
+      "original_path": "tests/narrative-boundary.test.js",
+      "entry_sha256": "a6f27bf021a8e70ea053007719a73e42d60d31e03bfe254a13fbf62d167ab1be",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/narrative-boundary.test.js",
+      "original_bytes_preserved_at": "retired/tests/narrative-boundary.test.js"
+    },
+    {
+      "original_path": "tests/protocol-naming-gate.test.js",
+      "entry_sha256": "157eee59f5df800258fa48a1a2a4a952e4b4cf39d836a14b20ac9132fe99b428",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/protocol-naming-gate.test.js",
+      "original_bytes_preserved_at": "retired/tests/protocol-naming-gate.test.js"
+    },
+    {
+      "original_path": "tests/public-surface-policy.test.js",
+      "entry_sha256": "6b186cf48196e4ab05a7c401767c80a519fe50401d84df37795ebc2ab561272f",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/public-surface-policy.test.js",
+      "original_bytes_preserved_at": "retired/tests/public-surface-policy.test.js"
+    },
+    {
+      "original_path": "tests/publish-hardening.test.js",
+      "entry_sha256": "88f59d84001d0116e609ed33722def6e344197f936d5bfcbd14942d67be254a3",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/publish-hardening.test.js",
+      "original_bytes_preserved_at": "retired/tests/publish-hardening.test.js"
+    },
+    {
+      "original_path": "tests/rag-namespace.test.js",
+      "entry_sha256": "b7299276bff89ceb375e7a4145e3c42ea30fa406588f1b305594a34f0b2fa4c5",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/rag-namespace.test.js",
+      "original_bytes_preserved_at": "retired/tests/rag-namespace.test.js"
+    },
+    {
+      "original_path": "tests/release-surface.test.js",
+      "entry_sha256": "7e1e4acf3502178810d99f9fadbc6e6369aef22ce8a41b5c9185052fe2945f64",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/release-surface.test.js",
+      "original_bytes_preserved_at": "retired/tests/release-surface.test.js"
+    },
+    {
+      "original_path": "tests/remote-transport-policy.test.js",
+      "entry_sha256": "8dc2b2d3b8db7789efd5e05edc8c209657c8d2d8adf02f273ef453c3f9522118",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/remote-transport-policy.test.js",
+      "original_bytes_preserved_at": "retired/tests/remote-transport-policy.test.js"
+    },
+    {
+      "original_path": "tests/retired/asset-evidence.test.js",
+      "entry_sha256": "2adb68eeeb55d1b27f3a4eae004e636cfacc83d27a07aebb5c5f10b687562713",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/asset-evidence.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/asset-evidence.test.js"
+    },
+    {
+      "original_path": "tests/retired/compose-review.test.js",
+      "entry_sha256": "9f57bc0eb2b53e05eb1d003b300c3303ce2fdab43dd3e4e73afac2f34f6ef713",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/compose-review.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/compose-review.test.js"
+    },
+    {
+      "original_path": "tests/retired/compose.test.js",
+      "entry_sha256": "6733ffb77898a97548f7ce0d9a0be8022026f65d92469da36e5106842c143f24",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/compose.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/compose.test.js"
+    },
+    {
+      "original_path": "tests/retired/conflict-analysis.test.js",
+      "entry_sha256": "45f5452c258d8ae06f9dfacff1927f5647541763e999151e8f6346f85ad7e83e",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/conflict-analysis.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/conflict-analysis.test.js"
+    },
+    {
+      "original_path": "tests/retired/critical-2-remote-mode-client.test.js",
+      "entry_sha256": "d2167c4457a73a793a9f70e92d2e24bec46dee3b3c8a72928cffdce22a948d46",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/critical-2-remote-mode-client.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/critical-2-remote-mode-client.test.js"
+    },
+    {
+      "original_path": "tests/retired/current-producers.test.js",
+      "entry_sha256": "83dd1a6dcfd68e9d4e557c1da792a471cc1de4af78910d656344e6ff7a90176b",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/current-producers.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/current-producers.test.js"
+    },
+    {
+      "original_path": "tests/retired/discovery-install-hardening.test.js",
+      "entry_sha256": "681b600b9258ce317cb142b0a667a855f5fc87902e1d761c8cdcfb370ee406c3",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/discovery-install-hardening.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/discovery-install-hardening.test.js"
+    },
+    {
+      "original_path": "tests/retired/doctor.test.js",
+      "entry_sha256": "beee9cb1c1c6705a014a8c0718a7866f362383b5a975fce0c1bf737347e10077",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/doctor.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/doctor.test.js"
+    },
+    {
+      "original_path": "tests/retired/e2e-password.test.js",
+      "entry_sha256": "a8be15daa2eb590be4b6e13141d493969d0e5ce9ed91f297de54c86f870606d6",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/e2e-password.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/e2e-password.test.js"
+    },
+    {
+      "original_path": "tests/retired/eval-asset.test.js",
+      "entry_sha256": "776e55117d4a4f99042c6dc20b6951365a13bface9f498c3f55b542ef90601ee",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/eval-asset.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/eval-asset.test.js"
+    },
+    {
+      "original_path": "tests/retired/eval-cluster.test.js",
+      "entry_sha256": "c473b3398d99e6850a043e0404cf794511c2979c47716e924925c9697ef54576",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/eval-cluster.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/eval-cluster.test.js"
+    },
+    {
+      "original_path": "tests/retired/eval-consumption.test.js",
+      "entry_sha256": "b2f7e2d73e481c28b985aa3aa57e30355675aedfa640f99558e09e2a2156eb6a",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/eval-consumption.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/eval-consumption.test.js"
+    },
+    {
+      "original_path": "tests/retired/eval-runtime-boundary.test.js",
+      "entry_sha256": "053c21c5b32306e53c7c4267368223ad65b2dbf5ccfe8f16faf5821a7316597c",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/eval-runtime-boundary.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/eval-runtime-boundary.test.js"
+    },
+    {
+      "original_path": "tests/retired/external-activation-flow.test.js",
+      "entry_sha256": "c9f5b107d0828d54e665fe6a56ab812e8069814295e11db323e9f235e7c7629b",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/external-activation-flow.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/external-activation-flow.test.js"
+    },
+    {
+      "original_path": "tests/retired/integration.test.js",
+      "entry_sha256": "ccdbcd6ce759ef80c4f816d4c269aa243ac9a626374f7db41f1d1d3fec026059",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/integration.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/integration.test.js"
+    },
+    {
+      "original_path": "tests/retired/plan-use.test.js",
+      "entry_sha256": "8bdad661fb1b258582ab8e0953eac20ab871b5b57515ad1296eafe34181bf4cc",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/plan-use.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/plan-use.test.js"
+    },
+    {
+      "original_path": "tests/retired/project.test.js",
+      "entry_sha256": "f45fd1fd23f802c1947e5843e8716ce5e5ebaf62101b20362f9519c3ea809007",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/project.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/project.test.js"
+    },
+    {
+      "original_path": "tests/retired/remove-list-cli.test.js",
+      "entry_sha256": "5c83860b9cefdb34404c5599d0f452b96d50759adc3b8a807ccf9f22b3583645",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/remove-list-cli.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/remove-list-cli.test.js"
+    },
+    {
+      "original_path": "tests/retired/route.test.js",
+      "entry_sha256": "a8dd7168923facf10f855f5f4c94fae30a227d12ba690986b08d2676181ac0ce",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/route.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/route.test.js"
+    },
+    {
+      "original_path": "tests/retired/setup.test.js",
+      "entry_sha256": "2dc62751e074978e64840c6f01d1907955a3934fdde49aef84446e71c1098866",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/setup.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/setup.test.js"
+    },
+    {
+      "original_path": "tests/retired/sign-verify-identity.test.js",
+      "entry_sha256": "d692080ba474a5fc474f070521bb578cd9a95c69e0421f1d9d40db16cf23af7d",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/sign-verify-identity.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/sign-verify-identity.test.js"
+    },
+    {
+      "original_path": "tests/retired/two-tier-store.test.js",
+      "entry_sha256": "a82b08253170ef2df1cc1072f7a3a1b97ab277f7da4fd852c23248fd7f3a67e5",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/two-tier-store.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/two-tier-store.test.js"
+    },
+    {
+      "original_path": "tests/retired/use.test.js",
+      "entry_sha256": "0118206e48fd2831d506caba82e41254077db982b134af3e2238b5fa6fd82428",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/use.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/use.test.js"
+    },
+    {
+      "original_path": "tests/retired/v012-commands.test.js",
+      "entry_sha256": "a7dd1a830227602365f3b936539abfe09bd30bfe3fe1df093ff7bd38d1a7a62a",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/v012-commands.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/v012-commands.test.js"
+    },
+    {
+      "original_path": "tests/retired/v07-commands.test.js",
+      "entry_sha256": "6fa6b40c7f129d00d1785986ee9719c174026e383bd2f1f155048b477a332f21",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/v07-commands.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/v07-commands.test.js"
+    },
+    {
+      "original_path": "tests/retired/validate-bundle.test.js",
+      "entry_sha256": "9b03a290e71fba07f09c63e50b8f74ce941f1fc022c850ce724751f97665d00e",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/validate-bundle.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/validate-bundle.test.js"
+    },
+    {
+      "original_path": "tests/retired/versioned-asset-lifecycle.test.js",
+      "entry_sha256": "fdd3c019b8e877ef6d4ae21ddfd3ca2484deac7bf1a02d0bd6ad9c101b150a13",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/retired/versioned-asset-lifecycle.test.js",
+      "original_bytes_preserved_at": "retired/tests/retired/versioned-asset-lifecycle.test.js"
+    },
+    {
+      "original_path": "tests/runtime-candidate-binding.test.js",
+      "entry_sha256": "43c8b7bf33ae0f2e199ae1b8a5ee329e2e2bafa81525f8f2acdbe5fc5fa732ef",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/runtime-candidate-binding.test.js",
+      "original_bytes_preserved_at": "retired/tests/runtime-candidate-binding.test.js"
+    },
+    {
+      "original_path": "tests/runtime-contract.test.js",
+      "entry_sha256": "fcb5d311966cb1043ff2124817eed4c61417c75263cd4bb2a4f153425962b319",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/runtime-contract.test.js",
+      "original_bytes_preserved_at": "retired/tests/runtime-contract.test.js"
+    },
+    {
+      "original_path": "tests/runtime-remote-transport.test.js",
+      "entry_sha256": "b6e02241fbccc13698adc75857cef29201e548275e2889575ca8eda1c49b4acf",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/runtime-remote-transport.test.js",
+      "original_bytes_preserved_at": "retired/tests/runtime-remote-transport.test.js"
+    },
+    {
+      "original_path": "tests/secret-input.test.js",
+      "entry_sha256": "e8a8efba310387123691bf9d69da76adbb027599576d65e35b2ddc4b4bcd56f9",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/secret-input.test.js",
+      "original_bytes_preserved_at": "retired/tests/secret-input.test.js"
+    },
+    {
+      "original_path": "tests/secret-store.test.js",
+      "entry_sha256": "a35af5df312d8102e2dccd2ce7f07d13e70e755a44f02c940329df9096383a22",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/secret-store.test.js",
+      "original_bytes_preserved_at": "retired/tests/secret-store.test.js"
+    },
+    {
+      "original_path": "tests/single-format-regression.test.js",
+      "entry_sha256": "f262f6b56d3279cf06bfe30ae34039e5ecd61e88d2b29291d28b0d5c85a65b72",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/single-format-regression.test.js",
+      "original_bytes_preserved_at": "retired/tests/single-format-regression.test.js"
+    },
+    {
+      "original_path": "tests/trust-deprecation.test.js",
+      "entry_sha256": "6411e08415ae721a5638d1503ae441e75c6a1d6c35ecd8492923ec031f5c06d0",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/trust-deprecation.test.js",
+      "original_bytes_preserved_at": "retired/tests/trust-deprecation.test.js"
+    },
+    {
+      "original_path": "tests/validator.test.js",
+      "entry_sha256": "6c9e3d165f3aa089befbd557acf26f02b7b75246adc29e5162503b5560a114d8",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/validator.test.js",
+      "original_bytes_preserved_at": "retired/tests/validator.test.js"
+    },
+    {
+      "original_path": "tests/watermarking.test.js",
+      "entry_sha256": "fd16b89fbd334a74fd6fc216bfb680340560602fbe2cca6c0da0ac53eaa2c9c6",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/watermarking.test.js",
+      "original_bytes_preserved_at": "retired/tests/watermarking.test.js"
+    },
+    {
+      "original_path": "tests/workflow-authority.test.js",
+      "entry_sha256": "8620a5a6c11d076a664c74da233102d17711b2b853b8dde9d55b6a7d725f0591",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/workflow-authority.test.js",
+      "original_bytes_preserved_at": "retired/tests/workflow-authority.test.js"
+    },
+    {
+      "original_path": "tests/workspace-attachments.test.js",
+      "entry_sha256": "0d5a53265e0a7f9378e244591e58a5c6920da32cf9b1489e6bbc32b6d53184eb",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/tests/workspace-attachments.test.js",
+      "original_bytes_preserved_at": "retired/tests/workspace-attachments.test.js"
+    },
+    {
+      "original_path": "validators/kdna-lint.js",
+      "entry_sha256": "bafe5e7d41ac5d2278138ae802b0c25320b8d88f7c749c878011a13d3dd1b836",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/validators/kdna-lint.js",
+      "original_bytes_preserved_at": "retired/validators/kdna-lint.js"
+    },
+    {
+      "original_path": "validators/kdna-validate.js",
+      "entry_sha256": "7d644df4747b26322484ee40210395ffefe5a9394879b974af935386ee785608",
+      "disposition": "retired_excluded_from_build_and_distribution",
+      "current_path": "retired/validators/kdna-validate.js",
+      "original_bytes_preserved_at": "retired/validators/kdna-validate.js"
+    }
+  ],
+  "hosted_ci_status": "NOT_RUN; CLI exact unpublished RC availability is a prerequisite. Native platform claims require actual platform execution."
+}

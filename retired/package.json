@@ -1,0 +1,107 @@
+{
+  "name": "@aikdna/kdna-cli",
+  "version": "0.36.1",
+  "description": "KDNA CLI — runtime control plane for inspecting, validating, planning, packing, unpacking, and loading local .kdna assets.",
+  "type": "commonjs",
+  "bin": {
+    "kdna": "src/cli.js"
+  },
+  "files": [
+    "LICENSE",
+    "NOTICE",
+    "README.md",
+    "SECURITY.md",
+    "fixtures/judgment/checksums.json",
+    "fixtures/judgment/kdna.json",
+    "fixtures/judgment/mimetype",
+    "fixtures/judgment/payload.kdnab",
+    "fixtures/minimal/checksums.json",
+    "fixtures/minimal/kdna.json",
+    "fixtures/minimal/mimetype",
+    "fixtures/minimal/payload.kdnab",
+    "release-surface/cli-command-allowlist.json",
+    "release-surface/npm-file-allowlist.json",
+    "src/agent-host-capabilities.js",
+    "src/agent-host-process.js",
+    "src/cli.js",
+    "src/cmds/asset-io.js",
+    "src/cmds/audit-log.js",
+    "src/cmds/demo.js",
+    "src/cmds/host-consent.js",
+    "src/cmds/workspace-attachments.js",
+    "src/foundation-common.js",
+    "src/local-state-paths.js",
+    "src/runtime-contract.js",
+    "src/runtime-entitlement.js",
+    "src/runtime-host-command.js",
+    "src/runtime-remote-transport.js",
+    "src/secret-input.js",
+    "src/secret-store.js",
+    "src/snapshot-asset.js",
+    "src/workspace-attachments.js"
+  ],
+  "scripts": {
+    "lint": "eslint src/ validators/ tests/",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node scripts/run-complete-suite.js --complete",
+    "test:release-surface": "node --test tests/release-surface.test.js",
+    "check:public-surface": "node scripts/check-public-surface.mjs",
+    "check:workflow-authority": "node scripts/check-workflow-authority.js",
+    "check:protocol-names": "node scripts/check-current-protocol-names.js",
+    "test:golden-host-request": "node scripts/generate-golden-host-contract.js --check && node --test tests/golden-host-request.test.js",
+    "test:runtime-contract": "node scripts/verify-runtime-contract-core.js && node --require ./tests/helpers/require-golden-core.js --test tests/runtime-contract.test.js",
+    "test:core-candidate-tar": "node scripts/verify-core-candidate-tar.js",
+    "test:integration": "node --test tests/integration.test.js",
+    "test:all": "node scripts/run-complete-suite.js --complete",
+    "test:core-smoke": "node scripts/pretest-smoke.js",
+    "release:preflight": "node scripts/release-preflight.js",
+    "release:readiness": "node scripts/release-readiness.js",
+    "release:registry-guard": "node scripts/registry-duplicate-guard.js",
+    "release:publish-verified": "node scripts/publish-verified-artifact.js",
+    "pack:verify": "node scripts/verify-pack-policy.js",
+    "test:unit": "node scripts/run-complete-suite.js --unit",
+    "test:smoke": "node scripts/run-complete-suite.js --smoke",
+    "test:demo": "node --test tests/demo.test.js",
+    "prepublishOnly": "node scripts/run-complete-suite.js --complete && node scripts/release-readiness.js && node scripts/release-check.js",
+    "release:check": "node scripts/release-readiness.js && node scripts/release-check.js"
+  },
+  "keywords": [
+    "kdna",
+    "kdna-cli",
+    "ai-agent",
+    "domain-judgment",
+    "cli",
+    "judgment-asset",
+    "official-toolchain"
+  ],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aikdna/kdna-cli.git"
+  },
+  "homepage": "https://aikdna.com",
+  "bugs": {
+    "url": "https://github.com/aikdna/kdna-cli/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@aikdna/kdna-core": "0.21.0",
+    "cbor-x": "1.6.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.8.1",
+    "prettier": "^3.9.1"
+  },
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "author": "",
+  "overrides": {
+    "fast-uri": "3.1.5"
+  }
+}
