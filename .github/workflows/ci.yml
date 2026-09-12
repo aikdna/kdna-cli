@@ -12,7 +12,8 @@ jobs:
         with:
           node-version: '26.5.1'
           check-latest: false
-      - run: node scripts/check-surface.cjs
+      - run: npm run check:surface
+      - run: npm run check:inventory
       # Exact unpublished Core/Read RCs must be provisioned before this can pass.
       # Integrity failure must not fall back to an older registry package/source.
       - run: npm ci --ignore-scripts --omit=optional --no-audit --no-fund

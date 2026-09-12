@@ -16,7 +16,10 @@
   ],
   "scripts": {
     "build": "node --check src/cli.js && node --check src/public-cli.js",
-    "test": "node --test tests/*.test.js",
+    "check:surface": "node scripts/check-surface.cjs",
+    "check:inventory": "node scripts/check-inventory.cjs",
+    "check": "npm run check:surface && npm run check:inventory",
+    "test": "npm run check:surface && npm run check:inventory && node --test tests/*.test.js",
     "prepublishOnly": "node -e \"throw new Error('LOCAL_RC_NOT_AUTHORIZED_FOR_PUBLICATION')\""
   },
   "keywords": [
