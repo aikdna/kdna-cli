@@ -15,3 +15,14 @@ __pycache__/
 # The vendored offline dependency graph must travel with the repository
 # so a clean clone can run `npm ci --offline`; other *.tgz stay ignored.
 !vendor/*.tgz
+
+
+# The retired byte-preservation tree must also travel complete; the broad
+# *.tgz rule above would otherwise silently drop historical bytes that
+# surface-disposition.json declares as still present under retired/.
+!retired/tests/fixtures/runtime-candidates/*.tgz
+
+
+# Internal Open-line evidence and progress material: kept in the working tree,
+# never part of the public repository surface.
+docs/audits/
