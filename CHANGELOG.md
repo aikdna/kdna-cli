@@ -1349,3 +1349,25 @@ that the `publish.js` signing path depends on.
 ### Breaking
 
 - Removed legacy `project`, `eval`, `export`, `demo`, `preview` commands.
+
+
+## 0.37.1 — 2026-09-08 (unpublished local release candidate)
+
+- Rebind the CLI to the exact accepted Core 0.23.0 and Read 0.2.0 archives and current source digest. The public Read tuple remains kdna.read/0.1.0.
+- Await Node Writable completion, reject asynchronous output failure or premature closure, and release session input when delivery fails.
+- Add real executable and require API coverage for local admission, consent, Read modes, process-local handles, stream boundaries and resource exit. Preserve the frozen Core fixture expectations.
+- Update current command/security scope and isolated offline reproduction instructions. Keep the seven-member package allowlist, private state and fail-closed publication hook. No independent CLI acceptance or public release is claimed.
+
+
+## 0.37.2 — 2026-09-08 (unpublished local release candidate)
+
+- Propagate the first output failure through the entire run, including idle session input and EOF. Cancel Node Readable input and request custom iterator closure without hiding output failure behind uncooperative cleanup.
+- Retain callback/backpressure completion and previously completed lines. Add idle-output, late input/cleanup, EOF and real stream regression coverage.
+- This is one bounded repair after an independent CLI acceptance pass; preserve the prior 0.37.1 repair and failed evidence. Public Core/Read pins, dependencies, tuple, seven-member distribution and private publication block remain unchanged. Independent acceptance is pending.
+
+
+## 0.37.3 — 2026-09-08 (unpublished local release candidate)
+
+- Unify output-failure settlement across the entire run, including input cleanup already pending while output was healthy. Keep a single iterator-close request and observe late results or rejections without forcing external promises.
+- Await malformed-input diagnostic output before closing iteration; retain healthy cleanup waits, completed output, callback/backpressure and caller stream ownership.
+- This third output-lifecycle repair was made under explicit authorization; the two earlier repairs and independent failures remain recorded. Public dependencies, pins, tuple and distribution surface are unchanged. Independent acceptance is pending.
