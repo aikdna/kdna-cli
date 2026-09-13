@@ -13,3 +13,7 @@ jobs:
           node-version: '26.5.1'
           check-latest: false
       - run: npm run check
+      # A workflow edit that drops a job or a matrix value silently deletes a
+      # required status context; the pull request then waits for a check that
+      # will never be reported.
+      - run: node scripts/check-required-contexts.cjs

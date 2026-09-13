@@ -1,12 +1,27 @@
-name: Public contract local candidate
+name: CI
 on: [pull_request, push]
+
 permissions:
   contents: read
+
+# This repository keeps two surfaces: the current component-semantics CLI at the
+# root, and the published 0.36.1 tree preserved under retired/. The jobs below
+# verify the current surface on this branch's bytes, and re-run the published
+# baseline's contract against a checkout of that published commit. The
+# preserved-baseline gate ties the two together: if the preserved bytes drift
+# from the baseline, these jobs fail instead of quietly verifying an old tree.
+env:
+  BASELINE_REPOSITORY: aikdna/kdna-cli
+  BASELINE_SHA: 8bbd47c2f436bf638e6393aeda029e5fcba1bd32
+  CORE_REPOSITORY: aikdna/kdna
+  CORE_SHA: 32aa3ff8e633291d4bb9e01de5a70181c8415d93
+
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
+      # ---- the current surface, on this branch's own bytes ----------------
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -14,10 +29,158 @@ jobs:
           check-latest: false
       - run: npm run check:surface
       - run: npm run check:inventory
+      - run: node scripts/check-required-contexts.cjs
       # Exact unpublished Core/Read RCs must be provisioned before this can pass.
       # Integrity failure must not fall back to an older registry package/source.
-      - run: npm ci --ignore-scripts --omit=optional --no-audit --no-fund
+      - run: npm ci --offline --ignore-scripts --omit=optional --no-audit --no-fund
       - run: npm run build
       - run: npm test
       - run: npm pack --ignore-scripts --json > packed-files.json
       - run: node scripts/check-surface.cjs packed-files.json
+      # ---- the published baseline, restored from the pre-change contract ---
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ env.BASELINE_REPOSITORY }}
+          ref: ${{ env.BASELINE_SHA }}
+          path: .baseline
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ env.CORE_REPOSITORY }}
+          ref: ${{ env.CORE_SHA }}
+          path: .baseline/.cross-repo/kdna
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '22.23.1'
+          check-latest: false
+      - name: Verify the preserved surface still matches the published baseline
+        run: node scripts/check-preserved-baseline.cjs .baseline
+      - name: Enforce exact workflow authority
+        working-directory: .baseline
+        run: node scripts/check-workflow-authority.js
+      - name: Install baseline dependencies with the audited client
+        working-directory: .baseline
+        run: node scripts/run-trusted-npm.js ci --ignore-scripts --no-audit --no-fund
+      - name: Install Core test dependencies with its lock-compatible client
+        working-directory: .baseline/.cross-repo/kdna
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify exact Core candidate dependency isolation
+        working-directory: .baseline
+        run: node scripts/verify-core-source-dependencies.js
+        env:
+          KDNA_CORE_SOURCE_ROOT: ${{ github.workspace }}/.baseline/.cross-repo/kdna/packages/kdna-core
+      - name: Enforce public repository boundary
+        working-directory: .baseline
+        run: node scripts/check-public-surface.mjs
+      - name: Run the complete baseline suite against the exact Core candidate
+        working-directory: .baseline
+        run: node scripts/run-complete-suite.js --complete
+        env:
+          KDNA_CORE_SOURCE_ROOT: ${{ github.workspace }}/.baseline/.cross-repo/kdna/packages/kdna-core
+          NODE_OPTIONS: --require=${{ github.workspace }}/.baseline/tests/helpers/require-golden-core.js
+      - name: Verify the exact Core candidate through a reproducible local tar install
+        working-directory: .baseline
+        run: node scripts/verify-core-candidate-tar.js
+        env:
+          KDNA_CORE_SOURCE_ROOT: ${{ github.workspace }}/.baseline/.cross-repo/kdna/packages/kdna-core
+
+  golden-host-request:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ env.BASELINE_REPOSITORY }}
+          ref: ${{ env.BASELINE_SHA }}
+          path: .baseline
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ env.CORE_REPOSITORY }}
+          ref: ${{ env.CORE_SHA }}
+          path: .baseline/.cross-repo/kdna
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '22.23.1'
+          check-latest: false
+      - name: Verify the preserved surface still matches the published baseline
+        run: node scripts/check-preserved-baseline.cjs .baseline
+      - name: Install baseline dependencies with the audited client
+        working-directory: .baseline
+        run: node scripts/run-trusted-npm.js ci --ignore-scripts --no-audit --no-fund
+      - name: Install Core test dependencies with its lock-compatible client
+        working-directory: .baseline/.cross-repo/kdna
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify exact Core candidate dependency isolation
+        working-directory: .baseline
+        run: node scripts/verify-core-source-dependencies.js
+        env:
+          KDNA_CORE_SOURCE_ROOT: ${{ github.workspace }}/.baseline/.cross-repo/kdna/packages/kdna-core
+      - name: Verify Golden Core Capsule through the real process Host path
+        working-directory: .baseline
+        run: >-
+          node scripts/generate-golden-host-contract.js --check &&
+          node --test tests/golden-host-request.test.js
+        env:
+          KDNA_GOLDEN_CORE_ROOT: ${{ github.workspace }}/.baseline/.cross-repo/kdna/packages/kdna-core
+
+  runtime-contract:
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: ['22.23.1', '24.18.0']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ env.BASELINE_REPOSITORY }}
+          ref: ${{ env.BASELINE_SHA }}
+          path: .baseline
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ env.CORE_REPOSITORY }}
+          ref: ${{ env.CORE_SHA }}
+          path: .baseline/.cross-repo/kdna-runtime-contract
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '${{ matrix.node }}'
+          check-latest: false
+      - name: Verify the preserved surface still matches the published baseline
+        run: node scripts/check-preserved-baseline.cjs .baseline
+      - name: Install dependencies with the audited client
+        working-directory: .baseline
+        run: node scripts/run-trusted-npm.js ci --ignore-scripts --no-audit --no-fund
+      - name: Verify the current Runtime Capsule and process Host contract
+        working-directory: .baseline
+        run: >-
+          node scripts/verify-runtime-contract-core.js &&
+          node --require ./tests/helpers/require-golden-core.js
+          --test tests/runtime-contract.test.js
+        env:
+          KDNA_CORE_SOURCE_ROOT: ${{ github.workspace }}/.baseline/.cross-repo/kdna-runtime-contract/packages/kdna-core
+
+  evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ env.BASELINE_REPOSITORY }}
+          ref: ${{ env.BASELINE_SHA }}
+          path: .baseline
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '22.23.1'
+          check-latest: false
+      - name: Verify the preserved surface still matches the published baseline
+        run: node scripts/check-preserved-baseline.cjs .baseline
+      - name: Install baseline dependencies with the audited client
+        working-directory: .baseline
+        run: node scripts/run-trusted-npm.js ci --ignore-scripts --no-audit --no-fund
+      - name: Run README command evidence checks
+        working-directory: .baseline
+        run: node scripts/evidence-ci.js
