@@ -8,15 +8,15 @@ const { createRequire } = require('node:module');
 const { spawn, spawnSync } = require('node:child_process');
 const { createInterface } = require('node:readline');
 const { Writable, Readable } = require('node:stream');
-const target = process.env.KDNA_PD301_TARGET_ROOT || path.resolve(__dirname, '..');
+const target = process.env.KDNA_CLI_TARGET_ROOT || path.resolve(__dirname, '..');
 const local = createRequire(path.join(target, 'package.json'));
 const { run } = local('@aikdna/kdna-cli');
 const pkg = local('@aikdna/kdna-cli/package.json');
 const binding = JSON.parse(fs.readFileSync(path.join(target, 'public-contract-binding.json')));
 const bin = path.join(target, pkg.bin.kdna);
-const fixtures = process.env.KDNA_PD301_FIXTURES || path.join(__dirname, 'fixtures');
+const fixtures = process.env.KDNA_CLI_FIXTURES || path.join(__dirname, 'fixtures');
 const file = path.join(fixtures, 'graph-cross.kdna');
-const request = (mode='exact_selection', handle=null) => ({ request_id:'request:pd301', tuple:binding.tuple, budget_bytes:1000000, mode, selection:['catalog','whole_asset'].includes(mode)?null:{asset_id:'asset:bytes',asset_version:'1.0.0',judgment_id:'j:0'}, handle });
+const request = (mode='exact_selection', handle=null) => ({ request_id:'request:cli-slice', tuple:binding.tuple, budget_bytes:1000000, mode, selection:['catalog','whole_asset'].includes(mode)?null:{asset_id:'asset:bytes',asset_version:'1.0.0',judgment_id:'j:0'}, handle });
 function sink() { const lines=[]; return {lines, write(value) {lines.push(value);return true;}}; }
 async function invoke(argv, chunks=[]) {const out=sink();const code=await run(argv,out,Readable.from(chunks));return {code,rows:out.lines.join('').trim().split('\n').filter(Boolean).map(JSON.parse)};}
 function binary(args,input) {const p=spawnSync(bin,args,{input,encoding:'utf8',env:process.env,timeout:5000});assert.equal(p.error,undefined);assert.equal(p.signal,null);return p;}
@@ -78,7 +78,7 @@ test('malformed and oversized transport lines fail before further input and clos
  const out=sink();assert.equal(await run(['read',file,'--session'],out,input()),2);assert.equal(closed,true);
 });
 test('invalid local containers are generated only in isolated scratch and never change frozen fixtures',()=>{
- const base=fs.mkdtempSync(path.join(process.env.KDNA_CLI_TEST_SCRATCH||os.tmpdir(),'pd301-input-'));
+ const base=fs.mkdtempSync(path.join(process.env.KDNA_CLI_TEST_SCRATCH||os.tmpdir(),'cli-slice-input-'));
  try{const bad=path.join(base,'not-a-container.kdna');fs.writeFileSync(bad,Buffer.from([0x50,0x4b,0xff]));for(const p of [bad,path.join(base,'missing.kdna'),base]){const result=binary(['validate',p]);assert.equal(result.status,1);assert.equal(JSON.parse(result.stdout).status,'rejected');}}
  finally {fs.rmSync(base,{recursive:true,force:true});}
 });

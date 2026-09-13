@@ -14,204 +14,204 @@
     }
   },
   {
-    "name": "pd275-exact-0-integer",
-    "file": "pd275-exact-0-integer.kdna",
+    "name": "numeric-exact-0-integer",
+    "file": "numeric-exact-0-integer.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-0-float",
-    "file": "pd275-exact-0-float.kdna",
+    "name": "numeric-exact-0-float",
+    "file": "numeric-exact-0-float.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-1-integer",
-    "file": "pd275-exact-1-integer.kdna",
+    "name": "numeric-exact-1-integer",
+    "file": "numeric-exact-1-integer.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-1-float",
-    "file": "pd275-exact-1-float.kdna",
+    "name": "numeric-exact-1-float",
+    "file": "numeric-exact-1-float.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-2-integer",
-    "file": "pd275-exact-2-integer.kdna",
+    "name": "numeric-exact-2-integer",
+    "file": "numeric-exact-2-integer.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-2-float",
-    "file": "pd275-exact-2-float.kdna",
+    "name": "numeric-exact-2-float",
+    "file": "numeric-exact-2-float.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-3-integer",
-    "file": "pd275-exact-3-integer.kdna",
+    "name": "numeric-exact-3-integer",
+    "file": "numeric-exact-3-integer.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-3-float",
-    "file": "pd275-exact-3-float.kdna",
+    "name": "numeric-exact-3-float",
+    "file": "numeric-exact-3-float.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-4-integer",
-    "file": "pd275-exact-4-integer.kdna",
+    "name": "numeric-exact-4-integer",
+    "file": "numeric-exact-4-integer.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-4-float",
-    "file": "pd275-exact-4-float.kdna",
+    "name": "numeric-exact-4-float",
+    "file": "numeric-exact-4-float.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-5-integer",
-    "file": "pd275-exact-5-integer.kdna",
+    "name": "numeric-exact-5-integer",
+    "file": "numeric-exact-5-integer.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-5-float",
-    "file": "pd275-exact-5-float.kdna",
+    "name": "numeric-exact-5-float",
+    "file": "numeric-exact-5-float.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-6-integer",
-    "file": "pd275-exact-6-integer.kdna",
+    "name": "numeric-exact-6-integer",
+    "file": "numeric-exact-6-integer.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-6-float",
-    "file": "pd275-exact-6-float.kdna",
+    "name": "numeric-exact-6-float",
+    "file": "numeric-exact-6-float.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-7-integer",
-    "file": "pd275-exact-7-integer.kdna",
+    "name": "numeric-exact-7-integer",
+    "file": "numeric-exact-7-integer.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-7-float",
-    "file": "pd275-exact-7-float.kdna",
+    "name": "numeric-exact-7-float",
+    "file": "numeric-exact-7-float.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-8-integer",
-    "file": "pd275-exact-8-integer.kdna",
+    "name": "numeric-exact-8-integer",
+    "file": "numeric-exact-8-integer.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-8-float",
-    "file": "pd275-exact-8-float.kdna",
+    "name": "numeric-exact-8-float",
+    "file": "numeric-exact-8-float.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-9-integer",
-    "file": "pd275-exact-9-integer.kdna",
+    "name": "numeric-exact-9-integer",
+    "file": "numeric-exact-9-integer.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-9-float",
-    "file": "pd275-exact-9-float.kdna",
+    "name": "numeric-exact-9-float",
+    "file": "numeric-exact-9-float.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-10-integer",
-    "file": "pd275-exact-10-integer.kdna",
+    "name": "numeric-exact-10-integer",
+    "file": "numeric-exact-10-integer.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-10-float",
-    "file": "pd275-exact-10-float.kdna",
+    "name": "numeric-exact-10-float",
+    "file": "numeric-exact-10-float.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-11-integer",
-    "file": "pd275-exact-11-integer.kdna",
+    "name": "numeric-exact-11-integer",
+    "file": "numeric-exact-11-integer.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-11-float",
-    "file": "pd275-exact-11-float.kdna",
+    "name": "numeric-exact-11-float",
+    "file": "numeric-exact-11-float.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-12-integer",
-    "file": "pd275-exact-12-integer.kdna",
+    "name": "numeric-exact-12-integer",
+    "file": "numeric-exact-12-integer.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-12-float",
-    "file": "pd275-exact-12-float.kdna",
+    "name": "numeric-exact-12-float",
+    "file": "numeric-exact-12-float.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-13-integer",
-    "file": "pd275-exact-13-integer.kdna",
+    "name": "numeric-exact-13-integer",
+    "file": "numeric-exact-13-integer.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-exact-13-float",
-    "file": "pd275-exact-13-float.kdna",
+    "name": "numeric-exact-13-float",
+    "file": "numeric-exact-13-float.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-inexact-0",
-    "file": "pd275-inexact-0.kdna",
+    "name": "numeric-inexact-0",
+    "file": "numeric-inexact-0.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -227,8 +227,8 @@
     }
   },
   {
-    "name": "pd275-inexact-1",
-    "file": "pd275-inexact-1.kdna",
+    "name": "numeric-inexact-1",
+    "file": "numeric-inexact-1.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -244,8 +244,8 @@
     }
   },
   {
-    "name": "pd275-inexact-2",
-    "file": "pd275-inexact-2.kdna",
+    "name": "numeric-inexact-2",
+    "file": "numeric-inexact-2.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -261,8 +261,8 @@
     }
   },
   {
-    "name": "pd275-inexact-3",
-    "file": "pd275-inexact-3.kdna",
+    "name": "numeric-inexact-3",
+    "file": "numeric-inexact-3.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -278,8 +278,8 @@
     }
   },
   {
-    "name": "pd275-inexact-4",
-    "file": "pd275-inexact-4.kdna",
+    "name": "numeric-inexact-4",
+    "file": "numeric-inexact-4.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -295,8 +295,8 @@
     }
   },
   {
-    "name": "pd275-inexact-5",
-    "file": "pd275-inexact-5.kdna",
+    "name": "numeric-inexact-5",
+    "file": "numeric-inexact-5.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -312,22 +312,22 @@
     }
   },
   {
-    "name": "pd275-uint-zero",
-    "file": "pd275-uint-zero.kdna",
+    "name": "numeric-uint-zero",
+    "file": "numeric-uint-zero.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-uint-safe-max",
-    "file": "pd275-uint-safe-max.kdna",
+    "name": "numeric-uint-safe-max",
+    "file": "numeric-uint-safe-max.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
-    "name": "pd275-uint-negative",
-    "file": "pd275-uint-negative.kdna",
+    "name": "numeric-uint-negative",
+    "file": "numeric-uint-negative.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -343,8 +343,8 @@
     }
   },
   {
-    "name": "pd275-uint-beyond-safe",
-    "file": "pd275-uint-beyond-safe.kdna",
+    "name": "numeric-uint-beyond-safe",
+    "file": "numeric-uint-beyond-safe.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1449,7 +1449,7 @@
   },
   {
     "name": "original-ff",
-    "file": "pd278-json-original-ff.kdna",
+    "file": "json-original-ff.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1466,7 +1466,7 @@
   },
   {
     "name": "original-syntax",
-    "file": "pd278-json-original-syntax.kdna",
+    "file": "json-original-syntax.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_INPUT_INVALID",
@@ -1483,7 +1483,7 @@
   },
   {
     "name": "ff-start",
-    "file": "pd278-json-ff-start.kdna",
+    "file": "json-ff-start.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1500,7 +1500,7 @@
   },
   {
     "name": "ff-string",
-    "file": "pd278-json-ff-string.kdna",
+    "file": "json-ff-string.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1517,7 +1517,7 @@
   },
   {
     "name": "ff-after-prefix",
-    "file": "pd278-json-ff-after-prefix.kdna",
+    "file": "json-ff-after-prefix.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1534,7 +1534,7 @@
   },
   {
     "name": "continuation-start",
-    "file": "pd278-json-continuation-start.kdna",
+    "file": "json-continuation-start.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1551,7 +1551,7 @@
   },
   {
     "name": "continuation-string",
-    "file": "pd278-json-continuation-string.kdna",
+    "file": "json-continuation-string.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1568,7 +1568,7 @@
   },
   {
     "name": "continuation-after-prefix",
-    "file": "pd278-json-continuation-after-prefix.kdna",
+    "file": "json-continuation-after-prefix.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1585,7 +1585,7 @@
   },
   {
     "name": "overlong-two-start",
-    "file": "pd278-json-overlong-two-start.kdna",
+    "file": "json-overlong-two-start.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1602,7 +1602,7 @@
   },
   {
     "name": "overlong-two-string",
-    "file": "pd278-json-overlong-two-string.kdna",
+    "file": "json-overlong-two-string.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1619,7 +1619,7 @@
   },
   {
     "name": "overlong-two-after-prefix",
-    "file": "pd278-json-overlong-two-after-prefix.kdna",
+    "file": "json-overlong-two-after-prefix.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1636,7 +1636,7 @@
   },
   {
     "name": "overlong-three-start",
-    "file": "pd278-json-overlong-three-start.kdna",
+    "file": "json-overlong-three-start.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1653,7 +1653,7 @@
   },
   {
     "name": "overlong-three-string",
-    "file": "pd278-json-overlong-three-string.kdna",
+    "file": "json-overlong-three-string.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1670,7 +1670,7 @@
   },
   {
     "name": "overlong-three-after-prefix",
-    "file": "pd278-json-overlong-three-after-prefix.kdna",
+    "file": "json-overlong-three-after-prefix.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1687,7 +1687,7 @@
   },
   {
     "name": "surrogate-start",
-    "file": "pd278-json-surrogate-start.kdna",
+    "file": "json-surrogate-start.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1704,7 +1704,7 @@
   },
   {
     "name": "surrogate-string",
-    "file": "pd278-json-surrogate-string.kdna",
+    "file": "json-surrogate-string.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1721,7 +1721,7 @@
   },
   {
     "name": "surrogate-after-prefix",
-    "file": "pd278-json-surrogate-after-prefix.kdna",
+    "file": "json-surrogate-after-prefix.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1738,7 +1738,7 @@
   },
   {
     "name": "overlong-four-start",
-    "file": "pd278-json-overlong-four-start.kdna",
+    "file": "json-overlong-four-start.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1755,7 +1755,7 @@
   },
   {
     "name": "overlong-four-string",
-    "file": "pd278-json-overlong-four-string.kdna",
+    "file": "json-overlong-four-string.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1772,7 +1772,7 @@
   },
   {
     "name": "overlong-four-after-prefix",
-    "file": "pd278-json-overlong-four-after-prefix.kdna",
+    "file": "json-overlong-four-after-prefix.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1789,7 +1789,7 @@
   },
   {
     "name": "beyond-unicode-start",
-    "file": "pd278-json-beyond-unicode-start.kdna",
+    "file": "json-beyond-unicode-start.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1806,7 +1806,7 @@
   },
   {
     "name": "beyond-unicode-string",
-    "file": "pd278-json-beyond-unicode-string.kdna",
+    "file": "json-beyond-unicode-string.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1823,7 +1823,7 @@
   },
   {
     "name": "beyond-unicode-after-prefix",
-    "file": "pd278-json-beyond-unicode-after-prefix.kdna",
+    "file": "json-beyond-unicode-after-prefix.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1840,7 +1840,7 @@
   },
   {
     "name": "illegal-lead-start",
-    "file": "pd278-json-illegal-lead-start.kdna",
+    "file": "json-illegal-lead-start.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1857,7 +1857,7 @@
   },
   {
     "name": "illegal-lead-string",
-    "file": "pd278-json-illegal-lead-string.kdna",
+    "file": "json-illegal-lead-string.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1874,7 +1874,7 @@
   },
   {
     "name": "illegal-lead-after-prefix",
-    "file": "pd278-json-illegal-lead-after-prefix.kdna",
+    "file": "json-illegal-lead-after-prefix.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1891,7 +1891,7 @@
   },
   {
     "name": "truncated-two-start",
-    "file": "pd278-json-truncated-two-start.kdna",
+    "file": "json-truncated-two-start.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1908,7 +1908,7 @@
   },
   {
     "name": "truncated-two-string",
-    "file": "pd278-json-truncated-two-string.kdna",
+    "file": "json-truncated-two-string.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1925,7 +1925,7 @@
   },
   {
     "name": "truncated-two-after-prefix",
-    "file": "pd278-json-truncated-two-after-prefix.kdna",
+    "file": "json-truncated-two-after-prefix.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1942,7 +1942,7 @@
   },
   {
     "name": "truncated-three-start",
-    "file": "pd278-json-truncated-three-start.kdna",
+    "file": "json-truncated-three-start.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1959,7 +1959,7 @@
   },
   {
     "name": "truncated-three-string",
-    "file": "pd278-json-truncated-three-string.kdna",
+    "file": "json-truncated-three-string.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1976,7 +1976,7 @@
   },
   {
     "name": "truncated-three-after-prefix",
-    "file": "pd278-json-truncated-three-after-prefix.kdna",
+    "file": "json-truncated-three-after-prefix.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -1993,7 +1993,7 @@
   },
   {
     "name": "truncated-four-start",
-    "file": "pd278-json-truncated-four-start.kdna",
+    "file": "json-truncated-four-start.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -2010,7 +2010,7 @@
   },
   {
     "name": "truncated-four-string",
-    "file": "pd278-json-truncated-four-string.kdna",
+    "file": "json-truncated-four-string.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -2027,7 +2027,7 @@
   },
   {
     "name": "truncated-four-after-prefix",
-    "file": "pd278-json-truncated-four-after-prefix.kdna",
+    "file": "json-truncated-four-after-prefix.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -2044,7 +2044,7 @@
   },
   {
     "name": "encoding-before-grammar",
-    "file": "pd278-json-encoding-before-grammar.kdna",
+    "file": "json-encoding-before-grammar.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -2061,42 +2061,42 @@
   },
   {
     "name": "multibyte",
-    "file": "pd278-json-multibyte.kdna",
+    "file": "json-multibyte.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
     "name": "distinct-scalars",
-    "file": "pd278-json-distinct-scalars.kdna",
+    "file": "json-distinct-scalars.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
     "name": "legal-controls",
-    "file": "pd278-json-legal-controls.kdna",
+    "file": "json-legal-controls.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
     "name": "astral",
-    "file": "pd278-json-astral.kdna",
+    "file": "json-astral.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
     "name": "leading-bom",
-    "file": "pd278-json-leading-bom.kdna",
+    "file": "json-leading-bom.kdna",
     "result": {
       "status": "accepted"
     }
   },
   {
     "name": "trailing-bom",
-    "file": "pd278-json-trailing-bom.kdna",
+    "file": "json-trailing-bom.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_INPUT_INVALID",
@@ -2113,7 +2113,7 @@
   },
   {
     "name": "open-object",
-    "file": "pd278-json-open-object.kdna",
+    "file": "json-open-object.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_INPUT_INVALID",
@@ -2130,7 +2130,7 @@
   },
   {
     "name": "open-array",
-    "file": "pd278-json-open-array.kdna",
+    "file": "json-open-array.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_INPUT_INVALID",
@@ -2147,7 +2147,7 @@
   },
   {
     "name": "missing-colon",
-    "file": "pd278-json-missing-colon.kdna",
+    "file": "json-missing-colon.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_INPUT_INVALID",
@@ -2164,7 +2164,7 @@
   },
   {
     "name": "trailing-comma",
-    "file": "pd278-json-trailing-comma.kdna",
+    "file": "json-trailing-comma.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_INPUT_INVALID",
@@ -2181,7 +2181,7 @@
   },
   {
     "name": "trailing-token",
-    "file": "pd278-json-trailing-token.kdna",
+    "file": "json-trailing-token.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_INPUT_INVALID",
@@ -2198,7 +2198,7 @@
   },
   {
     "name": "leading-zero",
-    "file": "pd278-json-leading-zero.kdna",
+    "file": "json-leading-zero.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_INPUT_INVALID",
@@ -2215,7 +2215,7 @@
   },
   {
     "name": "decimal-truncated",
-    "file": "pd278-json-decimal-truncated.kdna",
+    "file": "json-decimal-truncated.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_INPUT_INVALID",
@@ -2232,7 +2232,7 @@
   },
   {
     "name": "exponent-truncated",
-    "file": "pd278-json-exponent-truncated.kdna",
+    "file": "json-exponent-truncated.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_INPUT_INVALID",
@@ -2249,7 +2249,7 @@
   },
   {
     "name": "nan",
-    "file": "pd278-json-nan.kdna",
+    "file": "json-nan.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_INPUT_INVALID",
@@ -2266,7 +2266,7 @@
   },
   {
     "name": "overflow",
-    "file": "pd278-json-overflow.kdna",
+    "file": "json-overflow.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_INPUT_INVALID",
@@ -2283,7 +2283,7 @@
   },
   {
     "name": "invalid-escape",
-    "file": "pd278-json-invalid-escape.kdna",
+    "file": "json-invalid-escape.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -2300,7 +2300,7 @@
   },
   {
     "name": "invalid-hex",
-    "file": "pd278-json-invalid-hex.kdna",
+    "file": "json-invalid-hex.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -2317,7 +2317,7 @@
   },
   {
     "name": "short-hex",
-    "file": "pd278-json-short-hex.kdna",
+    "file": "json-short-hex.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -2334,7 +2334,7 @@
   },
   {
     "name": "high-surrogate",
-    "file": "pd278-json-high-surrogate.kdna",
+    "file": "json-high-surrogate.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_INPUT_INVALID",
@@ -2351,7 +2351,7 @@
   },
   {
     "name": "low-surrogate",
-    "file": "pd278-json-low-surrogate.kdna",
+    "file": "json-low-surrogate.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_INPUT_INVALID",
@@ -2368,7 +2368,7 @@
   },
   {
     "name": "wrong-surrogate-pair",
-    "file": "pd278-json-wrong-surrogate-pair.kdna",
+    "file": "json-wrong-surrogate-pair.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_INPUT_INVALID",
@@ -2385,7 +2385,7 @@
   },
   {
     "name": "valid-surrogate-pair-wrong-manifest",
-    "file": "pd278-json-valid-surrogate-pair-wrong-manifest.kdna",
+    "file": "json-valid-surrogate-pair-wrong-manifest.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -2402,7 +2402,7 @@
   },
   {
     "name": "unterminated",
-    "file": "pd278-json-unterminated.kdna",
+    "file": "json-unterminated.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_INPUT_INVALID",
@@ -2419,7 +2419,7 @@
   },
   {
     "name": "raw-newline",
-    "file": "pd278-json-raw-newline.kdna",
+    "file": "json-raw-newline.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_INPUT_INVALID",
@@ -2436,7 +2436,7 @@
   },
   {
     "name": "duplicate",
-    "file": "pd278-json-duplicate.kdna",
+    "file": "json-duplicate.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_INPUT_INVALID",
@@ -2453,7 +2453,7 @@
   },
   {
     "name": "escaped-duplicate",
-    "file": "pd278-json-escaped-duplicate.kdna",
+    "file": "json-escaped-duplicate.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_INPUT_INVALID",
@@ -2470,7 +2470,7 @@
   },
   {
     "name": "proto-key",
-    "file": "pd278-json-proto-key.kdna",
+    "file": "json-proto-key.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -2487,7 +2487,7 @@
   },
   {
     "name": "depth-limit",
-    "file": "pd278-json-depth-limit.kdna",
+    "file": "json-depth-limit.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_INPUT_INVALID",
@@ -2504,7 +2504,7 @@
   },
   {
     "name": "array-limit",
-    "file": "pd278-json-array-limit.kdna",
+    "file": "json-array-limit.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_INPUT_INVALID",
@@ -2521,7 +2521,7 @@
   },
   {
     "name": "string-limit",
-    "file": "pd278-json-string-limit.kdna",
+    "file": "json-string-limit.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_INPUT_INVALID",
@@ -2538,7 +2538,7 @@
   },
   {
     "name": "safe-number-wrong-manifest",
-    "file": "pd278-json-safe-number-wrong-manifest.kdna",
+    "file": "json-safe-number-wrong-manifest.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
@@ -2555,7 +2555,7 @@
   },
   {
     "name": "beyond-safe-number-wrong-manifest",
-    "file": "pd278-json-beyond-safe-number-wrong-manifest.kdna",
+    "file": "json-beyond-safe-number-wrong-manifest.kdna",
     "result": {
       "status": "rejected",
       "reason": "READ_CORE_INVALID",
