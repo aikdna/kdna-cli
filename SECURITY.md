@@ -57,3 +57,18 @@ documented in README. Archive SHA256 and integrity values are recorded in
 `release-surface/dependency-archives.json`. Optional native acceleration is
 excluded. The candidate package is marked private and its publication hook fails
 closed; source availability does not imply npm registry availability.
+
+## Preserved historical dependency graph
+
+The byte-preserved `retired/package-lock.json` contains `fast-uri@3.1.5`,
+which is affected by the published
+[fast-uri security advisories](https://github.com/advisories/GHSA-5jgf-p345-68v8).
+The current source graph instead pins `fast-uri@3.1.7` in its verified archive
+inventory. Historical files are excluded from the current CLI package.
+
+Keep the preserved graph for reproducing the historical contract; do not use
+it as the dependency baseline for a new deployment or expose it to untrusted
+input. Historical CI results check that contract on controlled fixtures and do
+not certify its dependencies as secure. The supported published line and an
+installed package's resolved dependencies must be assessed separately; the
+source candidate does not silently repair a previously installed release.
