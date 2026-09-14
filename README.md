@@ -38,7 +38,7 @@ npm test
 npm pack --ignore-scripts
 ```
 
-Use Node 22 or later. Create a private working prefix with HOME, TMPDIR, XDG_CACHE_HOME and npm cache/config paths under it. Copy the source and the eleven exact companion archives listed in `release-surface/dependency-archives.json` into its `vendor/` directory after verifying their SHA256 and SRI. The source lock uses those relative `file:vendor/` archives, including all nine non-optional transitive dependencies. They are supplied with the local candidate and are not assertions of registry availability. The commands above install from that offline graph. Optional native acceleration is excluded. The package is private and its publish hook fails closed. Its seven package members are explicitly allowlisted; tests, retired code and local caches are not installed.
+Use Node 22 or later in a clean checkout with a dedicated npm cache. The eleven exact companion archives listed in `release-surface/dependency-archives.json` are committed under `vendor/`; verify their SHA256 and SRI before use. The source lock resolves those relative `file:vendor/` archives, including all nine non-optional transitive dependencies. No registry access or separately supplied KDNA archive is needed for the source install. These committed inputs do not assert registry availability. The commands above install from that offline graph. Optional native acceleration is excluded. The package is private and its publish hook fails closed. Its seven package members are explicitly allowlisted; tests, retired code and local caches are not installed.
 
 ## Contract and authority
 
