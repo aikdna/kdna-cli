@@ -1,6 +1,8 @@
 # KDNA CLI 0.39.0-rc.native-sections.3
 
-This unpublished candidate delegates native container production, admission and disclosure to the exact companion Core and Read archives. It does not interpret assets independently.
+`npm i @aikdna/kdna-cli` resolves to the published stable `0.36.1`. The source in this repository is the candidate `0.39.0-rc.native-sections.3`, which is addressed by its exact version or by the `native-preview` dist-tag and never carries the `latest` tag.
+
+This candidate delegates native container production, admission and disclosure to the exact companion Core and Read archives. It does not interpret assets independently.
 
 | Operation | Current candidate command | Explicit permission |
 | --- | --- | --- |
