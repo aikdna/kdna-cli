@@ -85,6 +85,41 @@ function redactToken(text, token) {
 }
 // A rejected publish must not hide the audited observations behind one line.
 // This runs on the failure path only and changes no assertion.
+const DIST_TAG_RECHECK_ATTEMPTS = 6;
+const DIST_TAG_RECHECK_DELAY_MS = 10_000;
+function synchronousSleep(milliseconds) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
+}
+// A published version can take a short while to appear in the dist-tags
+// document. The post-publication check re-reads within a bounded window; the
+// first correct read passes without any re-read or extra output, and a window
+// that never sees the tag still fails closed.
+function awaitDistTag(invocation, expected, work, options = {}) {
+  const attempts = options.attempts ?? DIST_TAG_RECHECK_ATTEMPTS;
+  const delayMs = options.delayMs ?? DIST_TAG_RECHECK_DELAY_MS;
+  const read = options.read || (() => lookupDistTags(invocation, expected.name, work));
+  const sleep = options.sleep || synchronousSleep;
+  let tags = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      tags = read(attempt);
+    } catch {
+      tags = null;
+    }
+    const selected =
+      tags && typeof tags === 'object' && typeof tags[DIST_TAG] === 'string'
+        ? tags[DIST_TAG]
+        : null;
+    if (selected === expected.version) return { tags, attempt, selected };
+    process.stderr.write(
+      'preview-publish-diagnostic:dist-tag-recheck ' +
+        JSON.stringify({ attempt, selected, expected: expected.version, attempts }) +
+        '\n',
+    );
+    if (attempt < attempts) sleep(delayMs);
+  }
+  return { tags, attempt: attempts, selected: null };
+}
 function reportPublisherFailure(options) {
   const { result, token, invocation, expected, decision, distTagsBefore } = options;
   const rows = [
@@ -1058,7 +1093,7 @@ function publish(options) {
     }
     assert(!result.error && result.status === 0, 'verified preview publisher failed');
     const channel = validateChannel(
-      lookupDistTags(invocation, expected.name, work),
+      awaitDistTag(invocation, expected, work).tags,
       candidate.evidence.registry_before,
       expected.version,
       true,
@@ -1559,7 +1594,7 @@ function verifyPublic(options) {
     const decision = registryDecision(lookup(invocation, expected, work), expected);
     assert(!decision.shouldPublish, 'preview registry publication not observed');
     const channel = validateChannel(
-      lookupDistTags(invocation, expected.name, work),
+      awaitDistTag(invocation, expected, work).tags,
       candidate.evidence.registry_before,
       expected.version,
       true,
@@ -1632,6 +1667,9 @@ if (require.main === module)
 module.exports = {
   BASE_COMMIT,
   COMPANIONS,
+  DIST_TAG_RECHECK_ATTEMPTS,
+  DIST_TAG_RECHECK_DELAY_MS,
+  awaitDistTag,
   createCandidateLock,
   validateCandidateLock,
   sourceHost,

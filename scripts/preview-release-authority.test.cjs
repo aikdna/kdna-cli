@@ -525,6 +525,87 @@ test('publish failure diagnostics carry the observations and never the token', (
     assert.match(output, new RegExp(`preview-publish-diagnostic:${label} `, 'u'), label);
   assert.equal(output.includes(sentinel), false, 'the publication token must never be printed');
 });
+test('the post-publication dist-tag check re-reads within a bounded window only when needed', () => {
+  const expected = { name: '@aikdna/kdna-cli', version: '0.39.0-rc.native-sections.3' };
+  const invocation = { command: '/tool/node', prefixArgs: ['/tool/npm-cli.js'] };
+  const tags = (value) => JSON.stringify({ latest: '0.36.1', 'native-preview': value });
+
+  // The first read is already correct: no re-read, no sleep, no extra output.
+  {
+    const chunks = [];
+    const original = process.stderr.write.bind(process.stderr);
+    process.stderr.write = (chunk, ...rest) => {
+      chunks.push(String(chunk));
+      return original(chunk, ...rest);
+    };
+    let calls = 0;
+    const sleeps = [];
+    try {
+      const result = authority.awaitDistTag(invocation, expected, '/work', {
+        attempts: 6,
+        delayMs: 10_000,
+        sleep: (ms) => sleeps.push(ms),
+        read: () => {
+          calls += 1;
+          return JSON.parse(tags(expected.version));
+        },
+      });
+      assert.equal(calls, 1);
+      assert.equal(sleeps.length, 0);
+      assert.equal(result.attempt, 1);
+    } finally {
+      process.stderr.write = original;
+    }
+    assert.equal(chunks.join(''), '');
+  }
+
+  // A later read succeeds: the re-reads are logged and the check passes.
+  {
+    let calls = 0;
+    const sleeps = [];
+    const result = authority.awaitDistTag(invocation, expected, '/work', {
+      attempts: 6,
+      delayMs: 10_000,
+      sleep: (ms) => sleeps.push(ms),
+      read: () => {
+        calls += 1;
+        return JSON.parse(tags(calls < 3 ? '0.36.1' : expected.version));
+      },
+    });
+    assert.equal(calls, 3);
+    assert.deepEqual(sleeps, [10_000, 10_000]);
+    assert.equal(result.attempt, 3);
+  }
+
+  // A window that never sees the tag exhausts its bounded attempts and still
+  // fails the channel assertion.
+  {
+    let calls = 0;
+    const sleeps = [];
+    const result = authority.awaitDistTag(invocation, expected, '/work', {
+      attempts: 3,
+      delayMs: 10_000,
+      sleep: (ms) => sleeps.push(ms),
+      read: () => {
+        calls += 1;
+        return JSON.parse(tags('0.36.1'));
+      },
+    });
+    assert.equal(calls, 3);
+    assert.deepEqual(sleeps, [10_000, 10_000]);
+    assert.equal(result.selected, null);
+    assert.throws(
+      () =>
+        authority.validateChannel(
+          result.tags,
+          { latest: '0.36.1' },
+          expected.version,
+          true,
+        ),
+      /dist-tag does not select exact published version/u,
+    );
+  }
+});
 test('local candidate cannot obtain publication authority through function or CLI overrides', () => {
   assert.throws(() => authority.publish({ requireRelease: false }), /real release authority/u);
   assert.throws(() => authority.parseArgs(['publish', '--unit', 'cli', '--skip-release', 'true']));
