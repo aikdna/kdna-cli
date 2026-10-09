@@ -473,3 +473,54 @@ test('vendored public origin hashes are exact and stable authority exports disab
   );
   assert.notEqual(child.status, 0);
 });
+
+test('candidate lock uses exactly eleven required companions plus retained CLI, refuses cached optional graph', () => {
+  const peers = Array.from({ length: 11 }, (_, i) => ({
+    name: 'fixture-' + i,
+    version: '1.0.0',
+    bytes: Buffer.from('fixture-' + i),
+  }));
+  const cli = {
+    name: authority.POLICIES.cli.name,
+    version: authority.POLICIES.cli.version,
+    bytes: Buffer.from('CLI fixture'),
+  };
+  const packages = [cli, ...peers];
+  const sourceLock = { lockfileVersion: 3, packages: { '': {} } };
+  for (const peer of peers)
+    sourceLock.packages['node_modules/' + peer.name] = {
+      version: peer.version,
+      integrity: trusted.integrity(peer.bytes),
+      resolved: 'file:../../vendor/' + authority.filename(peer),
+    };
+  const manifest = {
+    name: 'fixture-consumer',
+    version: '1.0.0',
+    dependencies: Object.fromEntries(
+      packages.map((x) => [x.name, 'file:vendor/' + authority.filename(x)]),
+    ),
+  };
+  const lock = authority.createCandidateLock(packages, sourceLock, manifest, fixture().pkg);
+  assert.equal(Object.keys(lock.packages).length, 13);
+  assert.equal(lock.packages['node_modules/' + cli.name].integrity, trusted.integrity(cli.bytes));
+  assert.equal(authority.filename(peers[0]), 'fixture-0-1.0.0.tgz');
+  const changed = structuredClone(sourceLock);
+  changed.packages['node_modules/optional-from-cache'] = { version: '1.0.0', optional: true };
+  assert.throws(
+    () => authority.createCandidateLock(packages, changed, manifest, fixture().pkg),
+    /closure/u,
+  );
+  for (const change of [
+    { integrity: 'wrong' },
+    { optional: true },
+    { resolved: 'https://example.invalid/package.tgz' },
+    { version: '1.0.1' },
+  ]) {
+    const bad = structuredClone(sourceLock);
+    Object.assign(bad.packages['node_modules/' + peers[0].name], change);
+    assert.throws(
+      () => authority.createCandidateLock(packages, bad, manifest, fixture().pkg),
+      /coordinate/u,
+    );
+  }
+});

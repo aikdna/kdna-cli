@@ -42,8 +42,9 @@ compares archive bytes and every member's mode/content against the source, and
 retains the SHA-256/SHA-512/member manifest. The exact 17 package files are fixed
 in the authority and must match both the committed allowlist and package
 manifest. Candidate smoke creates a new private consumer and an empty npm
-cache, verifies eleven source-bound companion archives, installs all twelve
-archives offline, compares every installed package member, then executes the
+cache, verifies eleven source-bound companion archives and the exact required
+source-host lock, adds the retained CLI entry and installs all twelve archives
+with offline `npm ci`, compares every installed package member, then executes the
 packaged create/inspect/read/expand/source-edit/repack example. Candidate
 commands grant no publication authority and never synthesize a GitHub event.
 

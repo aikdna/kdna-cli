@@ -81,7 +81,12 @@ function policy(unit) {
   return POLICIES[unit];
 }
 function filename(pkg) {
-  return pkg.name.slice(1).replace('/', '-') + '-' + pkg.version + '.tgz';
+  return (
+    (pkg.name.startsWith('@') ? pkg.name.slice(1).replace('/', '-') : pkg.name) +
+    '-' +
+    pkg.version +
+    '.tgz'
+  );
 }
 function git(args, root) {
   return trusted
@@ -1151,10 +1156,32 @@ function smoke(options) {
       fs.writeFileSync(path.join(work, 'package.json'), JSON.stringify(manifest) + '\n', {
         flag: 'wx',
       });
+      let consumerLock = null;
+      if (options.requireRelease === false) {
+        const sourceLock = trusted.strictJson(
+          readSource(
+            candidate.context.treeState,
+            'release-surface/native-offline-host/package-lock.json',
+            options.root || ROOT,
+          ),
+          'CLI source companion lock',
+        );
+        consumerLock = createCandidateLock(
+          packages,
+          sourceLock,
+          manifest,
+          candidate.context.manifest,
+        );
+        fs.writeFileSync(
+          path.join(work, 'package-lock.json'),
+          JSON.stringify(consumerLock) + '\n',
+          { flag: 'wx' },
+        );
+      }
       trusted.runNpm(
         invocation,
         [
-          'install',
+          options.requireRelease === false ? 'ci' : 'install',
           ...(options.requireRelease === false ? ['--offline'] : ['--prefer-online']),
           '--ignore-scripts',
           '--omit=optional',
@@ -1208,6 +1235,10 @@ function smoke(options) {
         installed: packages.map((x) => x.name),
         exact_members: true,
         empty_cache: true,
+        required_package_count: packages.length,
+        consumer_lock_sha256: consumerLock
+          ? trusted.sha256(Buffer.from(JSON.stringify(consumerLock) + '\n'))
+          : null,
         installed_journey: summary,
         acquisition: options.publicAcquisition
           ? 'exact-public-registry-versions'
@@ -1217,6 +1248,51 @@ function smoke(options) {
       };
     },
   );
+}
+function createCandidateLock(packages, sourceLock, manifest, cliManifest) {
+  assert(
+    sourceLock.lockfileVersion === 3 && sourceLock.packages && packages.length === 12,
+    'CLI candidate lock inputs invalid',
+  );
+  const companions = packages.filter((x) => x.name !== POLICIES.cli.name);
+  assert(
+    JSON.stringify(Object.keys(sourceLock.packages).sort()) ===
+      JSON.stringify(['', ...companions.map((x) => 'node_modules/' + x.name)].sort()),
+    'CLI source lock closure differs',
+  );
+  const nodes = {
+    '': { name: manifest.name, version: manifest.version, dependencies: manifest.dependencies },
+  };
+  for (const peer of companions) {
+    const key = 'node_modules/' + peer.name,
+      node = sourceLock.packages[key];
+    assert(
+      node.version === peer.version &&
+        node.integrity === trusted.integrity(peer.bytes) &&
+        node.resolved === 'file:../../vendor/' + filename(peer) &&
+        node.optional !== true,
+      'CLI source companion lock coordinate mismatch',
+    );
+    nodes[key] = { ...node, resolved: 'file:vendor/' + filename(peer) };
+  }
+  const cli = packages.find((x) => x.name === POLICIES.cli.name);
+  assert(cli && cli.version === POLICIES.cli.version, 'CLI candidate lock CLI identity mismatch');
+  nodes['node_modules/' + cli.name] = {
+    version: cli.version,
+    resolved: 'file:vendor/' + filename(cli),
+    integrity: trusted.integrity(cli.bytes),
+    license: cliManifest.license,
+    dependencies: cliManifest.dependencies,
+    bin: cliManifest.bin,
+    engines: cliManifest.engines,
+  };
+  return {
+    name: manifest.name,
+    version: manifest.version,
+    lockfileVersion: 3,
+    requires: true,
+    packages: nodes,
+  };
 }
 function verifyInstalledMembers(directory, bytes) {
   const files = trusted.parseTarFiles(bytes, { includeBytes: true });
@@ -1328,6 +1404,7 @@ if (require.main === module)
 module.exports = {
   BASE_COMMIT,
   COMPANIONS,
+  createCandidateLock,
   SOURCE_FILES,
   verifyInstalledMembers,
   DIST_TAG,
