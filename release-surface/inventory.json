@@ -4,7 +4,7 @@
   "scope": "@aikdna/kdna-cli public repository",
   "authority": "Declaration of what must be tracked, what may be present untracked, and what may be present ignored. Verified against real git state by scripts/check-inventory.cjs; it is not a self-report.",
   "why": "A broad .gitignore pattern can hide a file that must travel with the repository, so the loss is invisible to `git status` and to any review that counts status lines. This declaration makes that ignore surface explicit and checkable.",
-  "tracked_count": 517,
+  "tracked_count": 555,
   "must_track_globs": [
     "vendor/*.tgz",
     "retired/**/*.tgz"
@@ -19,13 +19,15 @@
     ".DS_Store",
     ".env",
     ".npmrc",
-    "aikdna-kdna-cli-*.tgz"
+    "aikdna-kdna-cli-*.tgz",
+    "release-surface/native-offline-host/node_modules/**"
   ],
   "notes": [
     "must_track_globs are files that MUST travel: every path matching them that is present on disk has to be tracked. vendor/*.tgz is the offline dependency graph a clean clone installs from; retired/**/*.tgz is the byte-preservation archive surface-disposition.json declares as still present under retired/.",
     "A must-track glob may be added but the two required ones cannot be removed; scripts/check-inventory.cjs holds them as hard invariants of its own.",
     "allowed_untracked_globs and allowed_ignored_globs are the reviewed exception list. Anything present but untracked or ignored that is not listed here is a failure, because it means the ignore surface changed without a declaration.",
     "packed-files.json and aikdna-kdna-cli-*.tgz are local build outputs of `npm pack`; they exist only while a pack report is being produced and are never repository content.",
-    "tracked_count is the exact number of tracked files. Re-pin it in the same change that adds or removes tracked files; the gate prints the command in its failure message."
+    "tracked_count is the exact number of tracked files. Re-pin it in the same change that adds or removes tracked files; the gate prints the command in its failure message.",
+    "Eleven exact companion inputs support current native development. The delivery generator packs this CLI and emits an independent twelve-archive consumer with its own lock; earlier vendor archives remain historical."
   ]
 }

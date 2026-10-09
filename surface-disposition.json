@@ -139,20 +139,30 @@
     {
       "original_path": "SECURITY.md",
       "entry_sha256": "d7564abd4ba934aef6a5b1e3d02ee92a6f09442762a5ef48c2d98e59f13d279c",
-      "disposition": "retained_byte_identical",
-      "current_path": "SECURITY.md"
+      "disposition": "replaced_current_surface",
+      "current_path": "SECURITY.md",
+      "predecessor_bytes_preserved_at": "retired/SECURITY.md",
+      "predecessor_source_sha256": "8f84f6b64cc1e87d1bdef0b36eeaccf1e6e7da14fafbc9d11db3999208e1a922",
+      "predecessor_source_differs_from_entry": true,
+      "original_entry_preservation": "Not established by this correction. entry_sha256 is retained as the original inventory coordinate; the preserved predecessor source has the separately recorded digest."
     },
     {
       "original_path": "docs/asset-authorization.md",
       "entry_sha256": "e6cfc327081f794103688b8bf9f36266085e2d5eeda1c201259472e79e6657f2",
-      "disposition": "retained_byte_identical",
-      "current_path": "docs/asset-authorization.md"
+      "disposition": "wrapped_historical_surface",
+      "current_path": "docs/asset-authorization.md",
+      "original_bytes_preserved_at": "docs/asset-authorization.md",
+      "original_body_location": "Original complete guide body inside the historical <details> block.",
+      "original_body_sha256": "e6cfc327081f794103688b8bf9f36266085e2d5eeda1c201259472e79e6657f2"
     },
     {
       "original_path": "docs/consumption-runtime.md",
       "entry_sha256": "c67a6d2edbb310fa623ac31315b668860492c3140027d8a183ecbb5558b8ab24",
-      "disposition": "retained_byte_identical",
-      "current_path": "docs/consumption-runtime.md"
+      "disposition": "wrapped_historical_surface",
+      "current_path": "docs/consumption-runtime.md",
+      "original_bytes_preserved_at": "docs/consumption-runtime.md",
+      "original_body_location": "Original complete guide body inside the historical <details> block.",
+      "original_body_sha256": "c67a6d2edbb310fa623ac31315b668860492c3140027d8a183ecbb5558b8ab24"
     },
     {
       "original_path": "eslint.config.mjs",

@@ -2,6 +2,9 @@
   "document_type": "kdna.cli-command-allowlist",
   "schema_version": "0.2.0",
   "commands": [
+    "create",
+    "source-open",
+    "source-pack",
     "inspect",
     "validate",
     "read"
@@ -22,5 +25,11 @@
     "expand"
   ],
   "expand_requires": "same process-local session and issuing Host provider",
-  "retired_commands": "All other commands return KDNA_COMMAND_UNAVAILABLE with exit 2; no action authorization"
+  "retired_commands": "All other commands return KDNA_COMMAND_UNAVAILABLE with exit 2; no action authorization",
+  "create_input": "Bounded UTF-8 JSON with manifest, payload and members containing canonical bytes_base64; no unknown fields are dropped.",
+  "create_permission": "--allow-create",
+  "save_policy": "Atomic no-replace publication; old versions preserved.",
+  "source_permission": "--allow-source; explicit sha256:... --expected-a required and passed unchanged to native Source",
+  "source_edits": "Complete manifest and payload objects in strict bounded UTF-8 JSON; original members stay in the original asset and native Source rebuilds derived tables.",
+  "source_scope": "Public Source only; protected editing uses a separate Host route. Source observation and saving establish no author confirmation or action permission."
 }

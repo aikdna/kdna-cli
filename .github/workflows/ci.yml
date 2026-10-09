@@ -4,7 +4,7 @@ on: [pull_request, push]
 permissions:
   contents: read
 
-# This repository keeps two surfaces: the current component-semantics CLI at the
+# This repository keeps two surfaces: the current native-section CLI at the
 # root, and the published 0.36.1 tree preserved under retired/. The jobs below
 # verify the current surface on this branch's bytes, and re-run the published
 # baseline's contract against a checkout of that published commit. The
@@ -23,18 +23,31 @@ jobs:
     steps:
       # ---- the current surface, on this branch's own bytes ----------------
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
-          node-version: '26.5.1'
+          node-version: '22.22.3'
           check-latest: false
       - run: npm run check:surface
       - run: npm run check:inventory
       - run: node scripts/check-required-contexts.cjs
-      # Exact unpublished Core/Read RCs must be provisioned before this can pass.
-      # Integrity failure must not fall back to an older registry package/source.
-      - run: npm ci --offline --ignore-scripts --omit=optional --no-audit --no-fund
+      # The root publication manifest uses registry coordinates. Current source
+      # tests use the explicitly declared eleven-archive host until publication.
+      - name: Select the outside-repository audited npm archive
+        run: echo "KDNA_TRUSTED_NPM_TARBALL=$RUNNER_TEMP/npm-11.17.0.tgz" >> "$GITHUB_ENV"
+      - name: Authenticate the audited isolated npm client
+        run: node scripts/preview-release-authority.cjs provision-npm --artifact "$KDNA_TRUSTED_NPM_TARBALL"
+      - name: Install and verify the declared source-test dependency graph
+        run: node scripts/preview-release-authority.cjs source-host
       - run: npm run build
-      - run: npm test
+      - name: Verify current CLI against the declared source-test graph
+        run: npm test
+        env:
+          NODE_PATH: ${{ github.workspace }}/release-surface/native-offline-host/node_modules
+      - name: Verify standalone preview authority hostile cases
+        run: node --test scripts/preview-release-authority.test.cjs
       - run: npm pack --ignore-scripts --json > packed-files.json
       - run: node scripts/check-surface.cjs packed-files.json
       # ---- the published baseline, restored from the pre-change contract ---

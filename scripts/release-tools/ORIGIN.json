@@ -1,0 +1,28 @@
+{
+  "schema": "kdna.public-release-primitives-origin/1",
+  "repository": "https://github.com/aikdna/kdna",
+  "commit": "c4299d751e0b5cac9474d2a95ce976c9cac0b267",
+  "license": "Apache-2.0",
+  "files": [
+    {
+      "upstream_path": "scripts/core-release-authority.js",
+      "vendored_path": "scripts/release-tools/core-release-authority.js",
+      "upstream_sha256": "717927e07cbdc2f7e3c8c5da3ed654703ef0d6fef12f955e19aeac6ea2bb9552",
+      "vendored_sha256": "5e56f342a58346dbdbc307147c2e85b90c79b06489e6e546b100eb8d146a64b2",
+      "adaptations": [
+        "repository-root depth adjusted for vendored location",
+        "direct execution disabled",
+        "exports restricted to Git/tar/JSON/npm primitives; upstream stable authority not exported",
+        "changelog heading pattern escapes every regular-expression metacharacter instead of only dots (CodeQL: incomplete string escaping)"
+      ]
+    },
+    {
+      "upstream_path": "scripts/ecosystem-gate-stages.js",
+      "vendored_path": "scripts/release-tools/ecosystem-gate-stages.js",
+      "upstream_sha256": "f8a156888629baffe9ae9f1367c55bc02f9f7f556605a04853a11957aa1431c5",
+      "vendored_sha256": "f8a156888629baffe9ae9f1367c55bc02f9f7f556605a04853a11957aa1431c5",
+      "adaptations": []
+    }
+  ],
+  "sync": "Copy only from an exact public upstream commit, review adaptations, update both hashes and run the standalone preview authority tests. This checkout never loads a neighboring repository or private path."
+}

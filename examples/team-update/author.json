@@ -1,0 +1,395 @@
+{
+  "manifest": {
+    "asset_id": "asset:team-update-format",
+    "asset_uid": "uid:team-update-format",
+    "asset_type": "sample",
+    "title": "A sample author’s team-update preferences",
+    "summary": "Three declared preferences for routine weekly team updates; no permission or performance claim.",
+    "languages": [
+      "en"
+    ],
+    "lineage": [],
+    "history": {
+      "coverage": "complete",
+      "statement": "Initial public teaching sample, not a record of a real team.",
+      "entries": []
+    },
+    "version": "1.0.0",
+    "judgment_version": "1.0.0",
+    "created_at": "2026-10-04T00:00:00Z",
+    "updated_at": "2026-10-04T00:00:00Z",
+    "compatibility": {
+      "min_loader_version": "0.36.0",
+      "profile": "kdna.payload.judgment",
+      "profile_version": "0.5.1"
+    },
+    "runtime": {
+      "mandatory_entries": []
+    }
+  },
+  "payload": {
+    "profile": "kdna.payload.judgment",
+    "profile_version": "0.5.1",
+    "asset": {
+      "asset_id": "asset:team-update-format",
+      "asset_version": "1.0.0",
+      "judgment_version": "1.0.0"
+    },
+    "actors": [
+      {
+        "id": "actor:sample-team-author",
+        "kind": "person",
+        "name": "Example team author"
+      }
+    ],
+    "scope": {
+      "statement": "The example author’s preferences for routine weekly asynchronous updates in their team; urgent incident response is outside this scope."
+    },
+    "declarations": {
+      "highest_question": {
+        "state": "provided",
+        "value": "How does this example author prefer to structure a weekly team update?"
+      },
+      "boundaries": {
+        "state": "none",
+        "value": null
+      }
+    },
+    "kernel": {
+      "purpose": {
+        "kind": "summary"
+      },
+      "foundation_refs": []
+    },
+    "contracts": [],
+    "conditions": [],
+    "shared_declarations": [],
+    "materials": [],
+    "reasons": [],
+    "sources": [],
+    "source_uses": [],
+    "resources": [],
+    "relationships": [],
+    "dependencies": [
+      {
+        "id": "dependency:update-rationale",
+        "producer": {
+          "kind": "judgment_result",
+          "judgment_ref": "update:rationale",
+          "result_contract_ref": "result-contract:update:rationale"
+        },
+        "producer_port": "output:update-rationale",
+        "consumer_judgment_ref": "update:order",
+        "consumer_port": "input:update-rationale",
+        "input_role": "context",
+        "data_type": {
+          "term": "text"
+        },
+        "required": false,
+        "purpose": "Optional detail supporting the example author’s compact update format."
+      }
+    ],
+    "examples": [],
+    "exceptions": [],
+    "misuse": [],
+    "reading_order": [
+      "update:order",
+      "update:evidence",
+      "update:rationale"
+    ],
+    "extensions": [],
+    "judgments": [
+      {
+        "id": "update:order",
+        "focus": "Weekly update order",
+        "subject": {
+          "actor_ids": [
+            "actor:sample-team-author"
+          ],
+          "statement": "The example author’s routine weekly team update"
+        },
+        "scope": {
+          "statement": "The example author’s preferences for routine weekly asynchronous updates in their team; urgent incident response is outside this scope."
+        },
+        "answer_kind": "preference",
+        "parent_ref": null,
+        "form": "conclusion",
+        "core_expression": {
+          "kind": "authored",
+          "statement": "For my team’s weekly asynchronous update, I prefer completed changes first, then current blockers, then the next concrete action.",
+          "qualification_refs": []
+        },
+        "method": {
+          "method": {
+            "term": "feeling"
+          },
+          "components": [
+            {
+              "id": "component:update:order",
+              "method": {
+                "term": "feeling"
+              },
+              "role": "个人感受",
+              "material_refs": [],
+              "statement": "This is the example author’s stated preference, not evidence of a universal effect."
+            }
+          ],
+          "bindings": []
+        },
+        "material_refs": [],
+        "reason_refs": [],
+        "content_uses": [],
+        "ports": [
+          {
+            "name": "input:update-rationale",
+            "meaning": "Optional detail supporting the example author’s compact update format.",
+            "direction": "input",
+            "input_role": "context",
+            "contract_ref": {
+              "kind": "contract",
+              "id": "result-contract:update:rationale"
+            }
+          }
+        ],
+        "inputs": [
+          {
+            "name": "context",
+            "meaning": "Optional detail supporting the example author’s compact update format.",
+            "contract_ref": {
+              "kind": "contract",
+              "id": "result-contract:update:rationale"
+            }
+          }
+        ],
+        "boundaries": {
+          "state": "none",
+          "value": null
+        },
+        "exceptions": {
+          "state": "none",
+          "value": null
+        },
+        "misuse": {
+          "state": "none",
+          "value": null
+        },
+        "extensions": [],
+        "result_contract": {
+          "id": "result-contract:update:order",
+          "form": {
+            "term": "scalar",
+            "vocabulary": "core"
+          },
+          "shape": {
+            "kind": "scalar",
+            "scalar_type": "text"
+          },
+          "minimum": 1,
+          "maximum": 1,
+          "allowed_result_types": [
+            {
+              "term": "text",
+              "vocabulary": "core"
+            }
+          ]
+        },
+        "result": {
+          "contract_ref": "result-contract:update:order",
+          "result_type": {
+            "term": "text",
+            "vocabulary": "core"
+          },
+          "value": {
+            "kind": "text",
+            "value": "For my team’s weekly asynchronous update, I prefer completed changes first, then current blockers, then the next concrete action."
+          }
+        }
+      },
+      {
+        "id": "update:evidence",
+        "focus": "Evidence in a completed-change update",
+        "subject": {
+          "actor_ids": [
+            "actor:sample-team-author"
+          ],
+          "statement": "The example author’s routine weekly team update"
+        },
+        "scope": {
+          "statement": "The example author’s preferences for routine weekly asynchronous updates in their team; urgent incident response is outside this scope."
+        },
+        "answer_kind": "preference",
+        "parent_ref": null,
+        "form": "conclusion",
+        "core_expression": {
+          "kind": "authored",
+          "statement": "When I describe a completed change, I prefer a link to an observable result and a brief statement of what it proves; when evidence is unavailable, I say so.",
+          "qualification_refs": []
+        },
+        "method": {
+          "method": {
+            "term": "feeling"
+          },
+          "components": [
+            {
+              "id": "component:update:evidence",
+              "method": {
+                "term": "feeling"
+              },
+              "role": "个人感受",
+              "material_refs": [],
+              "statement": "This is the example author’s stated preference, not evidence of a universal effect."
+            }
+          ],
+          "bindings": []
+        },
+        "material_refs": [],
+        "reason_refs": [],
+        "content_uses": [],
+        "ports": [],
+        "inputs": [],
+        "boundaries": {
+          "state": "none",
+          "value": null
+        },
+        "exceptions": {
+          "state": "none",
+          "value": null
+        },
+        "misuse": {
+          "state": "none",
+          "value": null
+        },
+        "extensions": [],
+        "result_contract": {
+          "id": "result-contract:update:evidence",
+          "form": {
+            "term": "scalar",
+            "vocabulary": "core"
+          },
+          "shape": {
+            "kind": "scalar",
+            "scalar_type": "text"
+          },
+          "minimum": 1,
+          "maximum": 1,
+          "allowed_result_types": [
+            {
+              "term": "text",
+              "vocabulary": "core"
+            }
+          ]
+        },
+        "result": {
+          "contract_ref": "result-contract:update:evidence",
+          "result_type": {
+            "term": "text",
+            "vocabulary": "core"
+          },
+          "value": {
+            "kind": "text",
+            "value": "When I describe a completed change, I prefer a link to an observable result and a brief statement of what it proves; when evidence is unavailable, I say so."
+          }
+        }
+      },
+      {
+        "id": "update:rationale",
+        "focus": "Optional supporting rationale",
+        "subject": {
+          "actor_ids": [
+            "actor:sample-team-author"
+          ],
+          "statement": "The example author’s routine weekly team update"
+        },
+        "scope": {
+          "statement": "The example author’s preferences for routine weekly asynchronous updates in their team; urgent incident response is outside this scope."
+        },
+        "answer_kind": "preference",
+        "parent_ref": null,
+        "form": "conclusion",
+        "core_expression": {
+          "kind": "authored",
+          "statement": "I prefer supporting rationale in an optional detail section, so teammates can expand it without making the main update longer.",
+          "qualification_refs": []
+        },
+        "method": {
+          "method": {
+            "term": "feeling"
+          },
+          "components": [
+            {
+              "id": "component:update:rationale",
+              "method": {
+                "term": "feeling"
+              },
+              "role": "个人感受",
+              "material_refs": [],
+              "statement": "This is the example author’s stated preference, not evidence of a universal effect."
+            }
+          ],
+          "bindings": []
+        },
+        "material_refs": [],
+        "reason_refs": [],
+        "content_uses": [],
+        "ports": [
+          {
+            "name": "output:update-rationale",
+            "meaning": "The example author’s optional rationale.",
+            "direction": "output",
+            "contract_ref": {
+              "kind": "contract",
+              "id": "result-contract:update:rationale"
+            },
+            "result_field": null
+          }
+        ],
+        "inputs": [],
+        "boundaries": {
+          "state": "none",
+          "value": null
+        },
+        "exceptions": {
+          "state": "none",
+          "value": null
+        },
+        "misuse": {
+          "state": "none",
+          "value": null
+        },
+        "extensions": [],
+        "result_contract": {
+          "id": "result-contract:update:rationale",
+          "form": {
+            "term": "scalar",
+            "vocabulary": "core"
+          },
+          "shape": {
+            "kind": "scalar",
+            "scalar_type": "text"
+          },
+          "minimum": 1,
+          "maximum": 1,
+          "allowed_result_types": [
+            {
+              "term": "text",
+              "vocabulary": "core"
+            }
+          ]
+        },
+        "result": {
+          "contract_ref": "result-contract:update:rationale",
+          "result_type": {
+            "term": "text",
+            "vocabulary": "core"
+          },
+          "value": {
+            "kind": "text",
+            "value": "I prefer supporting rationale in an optional detail section, so teammates can expand it without making the main update longer."
+          }
+        }
+      }
+    ],
+    "asset_capability": "asserted_answers"
+  },
+  "members": []
+}

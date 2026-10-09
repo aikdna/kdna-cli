@@ -3,11 +3,21 @@
   "schema_version": "0.2.0",
   "files": [
     "LICENSE",
+    "LICENSE-DOCS",
     "NOTICE",
     "README.md",
-    "package.json",
     "public-contract-binding.json",
     "src/cli.js",
-    "src/public-cli.js"
+    "src/public-cli.js",
+    "src/authored-input.js",
+    "src/source-input.js",
+    "SECURITY.md",
+    "docs/asset-authorization.md",
+    "docs/consumption-runtime.md",
+    "docs/native-delivery.md",
+    "examples/native-workflow.cjs",
+    "examples/team-update/author.json",
+    "examples/team-update/README.md",
+    "package.json"
   ]
 }

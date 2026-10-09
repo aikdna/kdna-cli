@@ -7,20 +7,8 @@ const { spawnSync } = require('node:child_process');
 const { run } = require('../src/public-cli.js');
 const binding = require('../public-contract-binding.json');
 const fixtures = path.join(__dirname, 'fixtures');
-const os = require('node:os');
-const { before, after } = require('node:test');
-const { Readable } = require('node:stream');
-const { admitSectionRequest } = require('@aikdna/kdna-core/sections-node');
-const { createNativeSectionByteReadAuthority, admitSectionBytesNode } = require('@aikdna/kdna-core/sections-bytes-node');
-let scratch, file;
-before(async () => {
-  scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'cli-public-native-'));
-  file = path.join(scratch, 'current.kdna');
-  const result = await invoke(['create', path.join(fixtures, 'native-graph-cross.authored.json'), '--output', file, '--allow-create']);
-  assert.equal(result.code, 0); assert.equal(result.rows[0].status, 'saved');
-});
-after(() => fs.rmSync(scratch, { recursive: true, force: true }));
-const request = (mode = 'exact_selection', handle = null) => ({ request_id: 'cli:test', tuple: binding.tuple, budget_bytes: 1000000, mode, selection: ['catalog', 'whole_asset'].includes(mode) ? null : { asset_id: 'asset:bytes', asset_version: '1.0.0', judgment_ids: ['j:0'] }, handle });
+const file = path.join(fixtures, 'graph-cross.kdna');
+const request = (mode = 'exact_selection', handle = null) => ({ request_id: 'cli:test', tuple: binding.tuple, budget_bytes: 1000000, mode, selection: ['catalog', 'whole_asset'].includes(mode) ? null : { asset_id: 'asset:bytes', asset_version: '1.0.0', judgment_id: 'j:0' }, handle });
 function sink() {
   const chunks = [];
   return { chunks, write(text) { chunks.push(text); return true; } };
@@ -31,16 +19,14 @@ async function invoke(args, input) {
   return { code, rows: out.chunks.join('').trim().split('\n').filter(Boolean).map(JSON.parse) };
 }
 
-test('validate delegates current native admission and exact legacy/malformed rejection diagnostics', async () => {
-  const request = admitSectionRequest({ request_id: 'validate:control', tuple: binding.tuple, budget_bytes: 100000000, mode: 'whole_asset', selection: null, handle: null });
-  const cases = [file, ...JSON.parse(fs.readFileSync(path.join(fixtures, 'core-cases.json'))).map(row => path.join(fixtures, row.file)), ...JSON.parse(fs.readFileSync(path.join(fixtures,'components/component-node-oracles.json'))).rows.map(row=>path.join(fixtures,'components',row.file))];
-  for (const candidate of cases) {
-    const core = await admitSectionBytesNode(fs.readFileSync(candidate), request, createNativeSectionByteReadAuthority(() => true));
-    const { code, rows: [actual] } = await invoke(['validate', candidate, '--json']);
-    assert.equal(code, core.status === 'accepted' ? 0 : 1, candidate);
-    assert.equal(actual.status, core.status);
-    if (core.status !== 'accepted') { const {request_id: actualId, ...a}=actual; const {request_id: controlId, ...c}=core; assert.deepEqual(a,c); }
-    else assert.equal(actual.states.action_authorization, 'not_evaluated');
+test('validate delegates every real container and preserves public diagnostic classification', async () => {
+  for (const row of JSON.parse(fs.readFileSync(path.join(fixtures, 'core-cases.json')))) {
+    const { code, rows } = await invoke(['validate', path.join(fixtures, row.file), '--json']);
+    assert.equal(code, row.result.status === 'accepted' ? 0 : 1, row.name);
+    assert.equal(rows[0].status, row.result.status, row.name);
+    assert.equal(rows[0].reason, row.result.reason, row.name);
+    assert.deepEqual(rows[0].diagnostics, row.result.diagnostics ?? [], row.name);
+    assert.equal(rows[0].states.action_authorization, 'not_evaluated');
   }
 });
 
@@ -59,7 +45,8 @@ test('local read consent defaults to denial and exact selection preserves requir
   const args = ['read', file, '--mode', 'exact_selection', '--asset-id', 'asset:bytes', '--asset-version', '1.0.0', '--judgment-id', 'j:0'];
   const denied = await invoke(args);
   assert.equal(denied.code, 1);
-  assert.deepEqual(denied.rows[0], {status:'rejected',code:'KDNA_READ_PERMISSION_REQUIRED',action_authorized:false});
+  assert.equal(denied.rows[0].envelope.diagnostics[0].code, 'READ_HOST_DENIED');
+  assert.equal(denied.rows[0].envelope.content, null);
   const allowed = await invoke([...args, '--allow-read']);
   assert.equal(allowed.code, 0);
   const body = allowed.rows[0].envelope;
@@ -75,7 +62,7 @@ test('one real session supports all four modes and preserves stable expansion', 
     yield JSON.stringify(request('catalog')) + '\n';
     yield JSON.stringify(request('whole_asset')) + '\n';
     yield JSON.stringify(request()) + '\n';
-    const handle = output()[2].envelope.content.expansion_handles.find(h => h.target.id === 'dependency:optional');
+    const handle = output()[2].envelope.content.expansion_handles[0];
     assert.ok(handle);
     yield JSON.stringify(request('expand', handle)) + '\n';
     yield JSON.stringify(request('expand', handle)) + '\n';
@@ -83,27 +70,26 @@ test('one real session supports all four modes and preserves stable expansion', 
   assert.equal(await run(['read', file, '--session', '--allow-read'], out, input()), 0);
   const rows = output();
   assert.equal(rows.length, 5);
-  assert.ok(rows.every((r, i) => r.envelope.status === (i === 0 ? 'catalog_only' : 'ready')));
+  assert.ok(rows.every(r => r.envelope.status === 'ready'));
   assert.equal(new Set(rows.map(r => r.envelope.snapshot_id)).size, 1);
   assert.deepEqual(rows[3].envelope.content, rows[4].envelope.content);
   assert.deepEqual(rows[3].envelope.content.closure.filter(n => n.role === 'judgment').map(n => n.value.id), ['j:0', 'j:2']);
-  const forged = rows[2].envelope.content.expansion_handles.find(h => h.target.id === 'dependency:optional');
+  const forged = rows[2].envelope.content.expansion_handles[0];
   async function* otherSession() { yield JSON.stringify(request('expand', forged)) + '\n'; }
   const rejected = await invoke(['read', file, '--session', '--allow-read'], otherSession());
   assert.equal(rejected.code, 1);
-  assert.equal(rejected.rows[0].diagnostic.code, 'READ_HANDLE_STALE');
-  assert.equal(rejected.rows[0].body, null); assert.equal(rejected.rows[0].body_bytes, 0);
+  assert.equal(rejected.rows[0].envelope.diagnostics[0].code, 'READ_HANDLE_UNTRUSTED');
 });
 
 test('budget and session transport errors fail closed', async () => {
   const zero = await invoke(['read', file, '--budget', '0', '--allow-read']);
   assert.equal(zero.rows[0].channel, 'no_body_control');
   assert.equal(zero.rows[0].control.body_bytes, 0);
-  for (const budget of ['-1', '9007199254740992', '1e3', '01']) assert.equal((await invoke(['read', file, '--budget', budget, '--allow-read'])).code, 2);
+  for (const budget of ['-1', '9007199254740992', '1e3', '01']) assert.equal((await invoke(['read', file, '--budget', budget])).code, 2);
   async function* malformed() { yield Buffer.from([0xff, 10]); }
-  assert.equal((await invoke(['read', file, '--session', '--allow-read'], malformed())).rows[0].code, 'KDNA_SESSION_JSON_INVALID');
+  assert.equal((await invoke(['read', file, '--session'], malformed())).rows[0].code, 'KDNA_SESSION_JSON_INVALID');
   async function* oversized() { yield Buffer.alloc(1048577, 32); }
-  assert.equal((await invoke(['read', file, '--session', '--allow-read'], oversized())).rows[0].code, 'KDNA_SESSION_INPUT_TOO_LARGE');
+  assert.equal((await invoke(['read', file, '--session'], oversized())).rows[0].code, 'KDNA_SESSION_INPUT_TOO_LARGE');
   assert.equal((await invoke(['read', file, '--session', '--mode', 'catalog'])).code, 2);
   assert.equal((await invoke(['read', file, '--allow-read', '--allow-read'])).code, 2);
 });
@@ -116,7 +102,7 @@ test('Plan, load and retired commands cannot authorize actions or execute the ol
     assert.equal(result.rows[0].action_authorized, false);
   }
   assert.notEqual(require('../package.json').private, true);
-  assert.deepEqual(require('../package.json').files, ['LICENSE', 'LICENSE-DOCS', 'NOTICE', 'README.md', 'public-contract-binding.json', 'src/cli.js', 'src/public-cli.js', 'src/authored-input.js', 'src/source-input.js', 'SECURITY.md', 'docs/asset-authorization.md', 'docs/consumption-runtime.md', 'docs/native-delivery.md', 'examples/native-workflow.cjs', 'examples/team-update/author.json', 'examples/team-update/README.md']);
+  assert.deepEqual(require('../package.json').files, ['LICENSE', 'NOTICE', 'README.md', 'public-contract-binding.json', 'src/cli.js', 'src/public-cli.js', 'src/authored-input.js', 'src/source-input.js', 'SECURITY.md', 'docs/asset-authorization.md', 'docs/consumption-runtime.md', 'docs/native-delivery.md', 'examples/native-workflow.cjs', 'examples/team-update/author.json', 'examples/team-update/README.md']);
 });
 
 test('the actual executable handles version, valid input, rejection and unavailable Plan', () => {
