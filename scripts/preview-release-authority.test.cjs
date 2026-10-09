@@ -555,3 +555,30 @@ test('actual final consumer lock must retain exact required graph and coordinate
   changed.packages['node_modules/' + packages[0].name].integrity = 'changed';
   assert.throws(() => authority.validateCandidateLock(changed, packages, manifest), /coordinate/u);
 });
+
+test('required current CI uses the verified source-host entry and real full-history source', () => {
+  const workflow = fs.readFileSync(path.join(__dirname, '../.github/workflows/ci.yml'), 'utf8');
+  const verify = (text) => {
+    const current = text.split('# ---- the published baseline,')[0];
+    assert.match(current, /fetch-depth: 0/u);
+    assert.match(current, /github\.event\.pull_request\.head\.sha \|\| github\.sha/u);
+    assert.match(current, /node-version: '22\.22\.3'/u);
+    assert.match(current, /preview-release-authority\.cjs provision-npm --artifact/u);
+    assert.match(current, /preview-release-authority\.cjs source-host/u);
+    assert.doesNotMatch(current, /npm --prefix release-surface\/native-offline-host ci/u);
+    assert.match(current, /NODE_PATH:.*release-surface\/native-offline-host\/node_modules/u);
+  };
+  verify(workflow);
+  assert.throws(() =>
+    verify(
+      workflow.replace(
+        'preview-release-authority.cjs source-host',
+        'npm --prefix release-surface/native-offline-host ci --offline',
+      ),
+    ),
+  );
+  assert.throws(() => verify(workflow.replace('fetch-depth: 0', 'fetch-depth: 1')));
+  assert.throws(() =>
+    verify(workflow.replace('github.event.pull_request.head.sha || github.sha', 'github.sha')),
+  );
+});

@@ -23,17 +23,24 @@ jobs:
     steps:
       # ---- the current surface, on this branch's own bytes ----------------
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
-          node-version: '26.5.1'
+          node-version: '22.22.3'
           check-latest: false
       - run: npm run check:surface
       - run: npm run check:inventory
       - run: node scripts/check-required-contexts.cjs
       # The root publication manifest uses registry coordinates. Current source
       # tests use the explicitly declared eleven-archive host until publication.
-      - name: Install the declared source-test dependency graph
-        run: npm --prefix release-surface/native-offline-host ci --offline --ignore-scripts --omit=optional --no-audit --no-fund
+      - name: Select the outside-repository audited npm archive
+        run: echo "KDNA_TRUSTED_NPM_TARBALL=$RUNNER_TEMP/npm-11.17.0.tgz" >> "$GITHUB_ENV"
+      - name: Authenticate the audited isolated npm client
+        run: node scripts/preview-release-authority.cjs provision-npm --artifact "$KDNA_TRUSTED_NPM_TARBALL"
+      - name: Install and verify the declared source-test dependency graph
+        run: node scripts/preview-release-authority.cjs source-host
       - run: npm run build
       - name: Verify current CLI against the declared source-test graph
         run: npm test
