@@ -28,7 +28,7 @@ content, same-session expansion and full Source revision behavior. A successful
 scripted run does not prove that a person or another Agent used the content.
 
 The CLI's exact companion binding records Core archive SHA256
-`12a2d5f234ed3404aee1b394442251ad875c1531c01cd6a4f3c0366d55e5d773`
+`81639dd57dc3a56a2d9171ce3a6ce956847f4877461b8722897e4f598aa8a8ca`
 and Read archive SHA256
 `c5c2d6b65c44dd30aeddd49d6f2a4c915e9fd4d8f2a28297d6d677564e261cb7`.
 The candidate's own archive identity must come from its delivered receipt.

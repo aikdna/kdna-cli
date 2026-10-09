@@ -80,7 +80,7 @@ The native CLI source and dependency graph are candidates. Source feedback revis
 
 ## Contract and authority
 
-Core `0.37.1-rc.browser.1` archive SHA256 `12a2d5f234ed3404aee1b394442251ad875c1531c01cd6a4f3c0366d55e5d773` and Read `0.11.2-rc.browser.1` archive SHA256 `c5c2d6b65c44dd30aeddd49d6f2a4c915e9fd4d8f2a28297d6d677564e261cb7` supply the required native public export targets. The current tuple is container `0.6.0`, Core `kdna.core/0.8.2`, IR `kdna.canonical-ir/0.6.1` and Read `kdna.read/0.7.0-candidate`; route-definition content identities are recorded in the binding file. A source checkout with the same versions is not automatically byte-equivalent to these archives.
+Core `0.37.1-rc.browser.1` archive SHA256 `81639dd57dc3a56a2d9171ce3a6ce956847f4877461b8722897e4f598aa8a8ca` and Read `0.11.2-rc.browser.1` archive SHA256 `c5c2d6b65c44dd30aeddd49d6f2a4c915e9fd4d8f2a28297d6d677564e261cb7` supply the required native public export targets. The current tuple is container `0.6.0`, Core `kdna.core/0.8.2`, IR `kdna.canonical-ir/0.6.1` and Read `kdna.read/0.7.0-candidate`; route-definition content identities are recorded in the binding file. A source checkout with the same versions is not automatically byte-equivalent to these archives.
 
 Technical validity, producer observation, filesystem saving, author confirmation, reading permission, task adoption and action authorization remain separate. No CLI operation creates human confirmation or grants network, payment, execution or other Host permissions. There is no legacy loader fallback, automatic asset migration or action executor. Historical material under `retired/` is excluded from builds and distribution.
 

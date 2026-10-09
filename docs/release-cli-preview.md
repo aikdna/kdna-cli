@@ -74,7 +74,7 @@ are not a valid approval:
   "artifact_sha256": "RETAINED_CLI_SHA256",
   "notes_sha256": "EXACT_NOTES_SHA256",
   "companions": [
-    {"name":"@aikdna/kdna-core","version":"0.37.1-rc.browser.1","sha256":"12a2d5f234ed3404aee1b394442251ad875c1531c01cd6a4f3c0366d55e5d773","integrity":"PUBLIC_CORE_SRI","shasum":"PUBLIC_CORE_SHA1","gitHead":"PUBLIC_CORE_COMMIT"},
+    {"name":"@aikdna/kdna-core","version":"0.37.1-rc.browser.1","sha256":"81639dd57dc3a56a2d9171ce3a6ce956847f4877461b8722897e4f598aa8a8ca","integrity":"PUBLIC_CORE_SRI","shasum":"PUBLIC_CORE_SHA1","gitHead":"PUBLIC_CORE_COMMIT"},
     {"name":"@aikdna/kdna-read","version":"0.11.2-rc.browser.1","sha256":"c5c2d6b65c44dd30aeddd49d6f2a4c915e9fd4d8f2a28297d6d677564e261cb7","integrity":"PUBLIC_READ_SRI","shasum":"PUBLIC_READ_SHA1","gitHead":"PUBLIC_READ_COMMIT"}
   ]
 }
