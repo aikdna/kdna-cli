@@ -1181,7 +1181,7 @@ function smoke(options) {
       trusted.runNpm(
         invocation,
         [
-          options.requireRelease === false ? 'ci' : 'install',
+          'install',
           ...(options.requireRelease === false ? ['--offline'] : ['--prefer-online']),
           '--ignore-scripts',
           '--omit=optional',
@@ -1195,6 +1195,14 @@ function smoke(options) {
           label: 'CLI empty-cache after-pack consumer',
         },
       );
+      if (consumerLock) {
+        const observedLock = trusted.strictJson(
+          readRegular(path.join(work, 'package-lock.json'), 'CLI installed consumer lock'),
+          'CLI installed consumer lock',
+        );
+        validateCandidateLock(observedLock, packages, manifest);
+        consumerLock = observedLock;
+      }
       for (const pkg of packages)
         verifyInstalledMembers(path.join(work, 'node_modules', ...pkg.name.split('/')), pkg.bytes);
       const installed = path.join(work, 'node_modules/@aikdna/kdna-cli');
@@ -1236,6 +1244,7 @@ function smoke(options) {
         exact_members: true,
         empty_cache: true,
         required_package_count: packages.length,
+        consumer_lock_scope: consumerLock ? 'private-scratch-only' : 'public-registry-consumer',
         consumer_lock_sha256: consumerLock
           ? trusted.sha256(Buffer.from(JSON.stringify(consumerLock) + '\n'))
           : null,
@@ -1293,6 +1302,142 @@ function createCandidateLock(packages, sourceLock, manifest, cliManifest) {
     requires: true,
     packages: nodes,
   };
+}
+function validateCandidateLock(lock, packages, manifest) {
+  assert(lock.lockfileVersion === 3 && lock.packages, 'CLI installed lock invalid');
+  assert(
+    JSON.stringify(Object.keys(lock.packages).sort()) ===
+      JSON.stringify(['', ...packages.map((x) => 'node_modules/' + x.name)].sort()),
+    'CLI installed lock closure differs',
+  );
+  assert(
+    JSON.stringify(lock.packages[''].dependencies) === JSON.stringify(manifest.dependencies),
+    'CLI installed lock root dependencies changed',
+  );
+  for (const pkg of packages) {
+    const node = lock.packages['node_modules/' + pkg.name];
+    assert(
+      node.version === pkg.version &&
+        node.integrity === trusted.integrity(pkg.bytes) &&
+        node.resolved === 'file:vendor/' + filename(pkg) &&
+        node.optional !== true,
+      'CLI installed lock coordinate changed',
+    );
+  }
+  return lock;
+}
+function sourceHost({ root = ROOT, env = process.env } = {}) {
+  const source = inspectSource('cli', root);
+  const receipts = trusted.strictJson(
+    readSource(source.treeState, 'release-surface/native-delivery-archives.json', root),
+    'CLI source host receipts',
+  ).archives;
+  const lock = trusted.strictJson(
+    readSource(source.treeState, 'release-surface/native-offline-host/package-lock.json', root),
+    'CLI source host lock',
+  );
+  assert(
+    Array.isArray(receipts) &&
+      receipts.length === 11 &&
+      lock.lockfileVersion === 3 &&
+      JSON.stringify(Object.keys(lock.packages).sort()) ===
+        JSON.stringify(['', ...receipts.map((x) => 'node_modules/' + x.name)].sort()),
+    'CLI source host closure invalid',
+  );
+  const packages = receipts.map((input) => {
+    assert(path.basename(input.file) === input.file, 'CLI source host filename invalid');
+    const bytes = readSource(source.treeState, 'vendor/' + input.file, root),
+      node = lock.packages['node_modules/' + input.name];
+    assert(
+      trusted.sha256(bytes) === input.sha256 &&
+        trusted.integrity(bytes) === input.integrity &&
+        bytes.length === input.bytes &&
+        node.version === input.version &&
+        node.integrity === input.integrity &&
+        node.resolved === 'file:../../vendor/' + input.file &&
+        node.optional !== true,
+      'CLI source host receipt/lock mismatch',
+    );
+    return { name: input.name, version: input.version, bytes };
+  });
+  const directory = path.join(root, 'release-surface/native-offline-host');
+  const sourceLockBytes = readRegular(
+    path.join(directory, 'package-lock.json'),
+    'CLI committed source host lock',
+  );
+  assert(
+    sourceLockBytes.equals(
+      readSource(source.treeState, 'release-surface/native-offline-host/package-lock.json', root),
+    ),
+    'CLI source host lock differs from committed source',
+  );
+  let invocation;
+  try {
+    invocation = trusted.resolveTrustedNpmInvocation({ environment: env, root });
+    // npm11 ci includes an inert missing optional node in its validation. Install
+    // offline without rewriting the already validated committed source lock.
+    trusted.runNpm(
+      invocation,
+      [
+        'install',
+        '--offline',
+        '--package-lock=false',
+        '--ignore-scripts',
+        '--omit=optional',
+        '--no-audit',
+        '--no-fund',
+      ],
+      {
+        cwd: directory,
+        projectRoot: root,
+        timeout: 180000,
+        label: 'CLI declared source host install',
+      },
+    );
+    for (const pkg of packages)
+      verifyInstalledMembers(
+        path.join(directory, 'node_modules', ...pkg.name.split('/')),
+        pkg.bytes,
+      );
+    assert(
+      readRegular(
+        path.join(directory, 'package-lock.json'),
+        'CLI committed source host lock',
+      ).equals(sourceLockBytes),
+      'CLI source host lock bytes changed',
+    );
+    const names = [];
+    for (const name of fs.readdirSync(path.join(directory, 'node_modules'))) {
+      if (name.startsWith('.')) continue;
+      const installed = path.join(directory, 'node_modules', name);
+      assert(
+        fs.lstatSync(installed).isDirectory() && !fs.lstatSync(installed).isSymbolicLink(),
+        'CLI source host package entry invalid',
+      );
+      if (name.startsWith('@'))
+        for (const child of fs.readdirSync(installed)) names.push(name + '/' + child);
+      else names.push(name);
+    }
+    assert(
+      JSON.stringify(names.sort()) === JSON.stringify(packages.map((x) => x.name).sort()),
+      'CLI source host installed package closure differs',
+    );
+    const rebound = inspectSource('cli', root);
+    assert(
+      rebound.commit === source.commit && rebound.tree === source.tree,
+      'CLI source host source changed',
+    );
+    return {
+      status: 'source_host_verified',
+      required_packages: packages.length,
+      exact_members: true,
+      source_commit: source.commit,
+      source_tree: source.tree,
+      lock_rewritten: false,
+    };
+  } finally {
+    if (invocation) invocation.cleanup();
+  }
 }
 function verifyInstalledMembers(directory, bytes) {
   const files = trusted.parseTarFiles(bytes, { includeBytes: true });
@@ -1369,6 +1514,10 @@ function parseArgs(argv) {
   return { command, options };
 }
 async function main(argv = process.argv.slice(2)) {
+  if (argv[0] === 'source-host' && argv.length === 1) {
+    console.log(JSON.stringify(sourceHost(), null, 2));
+    return;
+  }
   if (argv[0] === 'provision-npm' && argv.length === 3 && argv[1] === '--artifact') {
     return trusted.provisionTrustedNpmTarball({ artifactPath: argv[2] });
   }
@@ -1405,6 +1554,8 @@ module.exports = {
   BASE_COMMIT,
   COMPANIONS,
   createCandidateLock,
+  validateCandidateLock,
+  sourceHost,
   SOURCE_FILES,
   verifyInstalledMembers,
   DIST_TAG,

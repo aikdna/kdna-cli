@@ -56,7 +56,7 @@ jobs:
       - name: Verify actual published prerelease and exact Owner-reviewed artifact
         run: node scripts/preview-release-authority.cjs check --unit cli
       - name: Install declared source-test graph with the audited npm client
-        run: node scripts/preview-release-authority.cjs trusted-npm --prefix release-surface/native-offline-host ci --offline --ignore-scripts --omit=optional --no-audit --no-fund
+        run: node scripts/preview-release-authority.cjs source-host
       - name: Verify exact current source and standalone publication gates
         run: |
           node scripts/check-surface.cjs

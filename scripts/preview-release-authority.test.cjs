@@ -524,3 +524,34 @@ test('candidate lock uses exactly eleven required companions plus retained CLI, 
     );
   }
 });
+
+test('actual final consumer lock must retain exact required graph and coordinates', () => {
+  const packages = [
+    {
+      name: authority.POLICIES.cli.name,
+      version: authority.POLICIES.cli.version,
+      bytes: Buffer.from('CLI fixture'),
+    },
+  ];
+  const manifest = {
+    dependencies: { [packages[0].name]: 'file:vendor/' + authority.filename(packages[0]) },
+  };
+  const lock = {
+    lockfileVersion: 3,
+    packages: {
+      '': { dependencies: manifest.dependencies },
+      ['node_modules/' + packages[0].name]: {
+        version: packages[0].version,
+        integrity: trusted.integrity(packages[0].bytes),
+        resolved: manifest.dependencies[packages[0].name],
+      },
+    },
+  };
+  authority.validateCandidateLock(lock, packages, manifest);
+  const extra = structuredClone(lock);
+  extra.packages['node_modules/cached-optional'] = { optional: true };
+  assert.throws(() => authority.validateCandidateLock(extra, packages, manifest), /closure/u);
+  const changed = structuredClone(lock);
+  changed.packages['node_modules/' + packages[0].name].integrity = 'changed';
+  assert.throws(() => authority.validateCandidateLock(changed, packages, manifest), /coordinate/u);
+});

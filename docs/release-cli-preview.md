@@ -19,7 +19,12 @@ npm configuration and the global cache. Source tests use the declared
 `release-surface/native-offline-host` graph; the root publication manifest keeps
 exact public Core/Read registry coordinates. These are different dependency
 acquisition paths. The root source lock is not used as proof of a clean public
-consumer.
+consumer. The `source-host` command validates the committed eleven-package
+lock and archive receipts, installs offline without rewriting that lock, and
+compares every installed member. The candidate consumer uses a retained exact
+twelve-package lock and validates the final closure after offline installation;
+this avoids the audited client’s `ci` validation of an omitted optional native
+accelerator. No optional archive is introduced.
 
 Before requesting publication, commit a clean DCO-signed source on the canonical
 main ancestry. The fixed baseline is
@@ -44,7 +49,8 @@ in the authority and must match both the committed allowlist and package
 manifest. Candidate smoke creates a new private consumer and an empty npm
 cache, verifies eleven source-bound companion archives and the exact required
 source-host lock, adds the retained CLI entry and installs all twelve archives
-with offline `npm ci`, compares every installed package member, then executes the
+with the audited offline npm client, checking the final lock still contains
+exactly those twelve required packages and exact archive coordinates, compares every installed package member, then executes the
 packaged create/inspect/read/expand/source-edit/repack example. Candidate
 commands grant no publication authority and never synthesize a GitHub event.
 
