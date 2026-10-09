@@ -8,11 +8,12 @@
       "upstream_path": "scripts/core-release-authority.js",
       "vendored_path": "scripts/release-tools/core-release-authority.js",
       "upstream_sha256": "717927e07cbdc2f7e3c8c5da3ed654703ef0d6fef12f955e19aeac6ea2bb9552",
-      "vendored_sha256": "cd4e89dd3af735be23e999142ac7adb1dcccd0b028027bce37efdad8400c9fe4",
+      "vendored_sha256": "5e56f342a58346dbdbc307147c2e85b90c79b06489e6e546b100eb8d146a64b2",
       "adaptations": [
         "repository-root depth adjusted for vendored location",
         "direct execution disabled",
-        "exports restricted to Git/tar/JSON/npm primitives; upstream stable authority not exported"
+        "exports restricted to Git/tar/JSON/npm primitives; upstream stable authority not exported",
+        "changelog heading pattern escapes every regular-expression metacharacter instead of only dots (CodeQL: incomplete string escaping)"
       ]
     },
     {

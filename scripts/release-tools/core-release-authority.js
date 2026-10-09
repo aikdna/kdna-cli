@@ -847,7 +847,10 @@ function validateReleaseContext(input) {
   );
   assert(git.authorSignoffMatch === true, 'release commit author DCO match is missing');
 
-  const escaped = pkg.version.replace(/\./gu, '\\.');
+  // Escape every regular-expression metacharacter, not just the dots: a
+  // version string reaching this pattern must not be able to change what the
+  // pattern matches (CodeQL: incomplete string escaping).
+  const escaped = pkg.version.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
   const headings = [
     ...changelog.matchAll(new RegExp(`^## ${escaped}(?: \\(\\d{4}-\\d{2}-\\d{2}\\))?$`, 'gmu')),
   ];
