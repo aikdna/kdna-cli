@@ -69,6 +69,47 @@ const APPROVAL_KEYS = [
 function assert(value, message) {
   if (!value) throw new Error(message);
 }
+const DIAGNOSTIC_LIMIT = 4096;
+function boundedText(value) {
+  const text = typeof value === 'string' ? value : '';
+  return text.length > DIAGNOSTIC_LIMIT
+    ? text.slice(0, DIAGNOSTIC_LIMIT) + '...[truncated]'
+    : text;
+}
+// The publication token is never printed. It is redacted defensively in case a
+// provider echoes it, and the diagnostics name only the resolved tool paths.
+function redactToken(text, token) {
+  const value = typeof text === 'string' ? text : '';
+  if (typeof token !== 'string' || token === '') return value;
+  return value.split(token).join('[redacted]');
+}
+// A rejected publish must not hide the audited observations behind one line.
+// This runs on the failure path only and changes no assertion.
+function reportPublisherFailure(options) {
+  const { result, token, invocation, expected, decision, distTagsBefore } = options;
+  const rows = [
+    [
+      'publisher-detail',
+      {
+        status: result.status ?? null,
+        signal: result.signal ?? null,
+        error: result.error ? String(result.error.code || result.error.message) : null,
+      },
+    ],
+    ['publisher-stdout', redactToken(boundedText(result.stdout), token)],
+    ['publisher-stderr', redactToken(boundedText(result.stderr), token)],
+    ['npm-command', invocation.command],
+    ['npm-prefix-args', invocation.prefixArgs ? [...invocation.prefixArgs] : null],
+    ['expected', expected],
+    ['registry-decision', decision],
+    ['dist-tags-before', distTagsBefore ? boundedText(distTagsBefore.stdout) : null],
+  ];
+  for (const [label, value] of rows) {
+    if (value === undefined || value === null) continue;
+    const text = typeof value === 'string' ? value : JSON.stringify(value);
+    process.stderr.write('preview-publish-diagnostic:' + label + ' ' + text + '\n');
+  }
+}
 function exactKeys(value, keys, label) {
   assert(value && typeof value === 'object' && !Array.isArray(value), label + ' must be an object');
   assert(
@@ -946,8 +987,9 @@ function publish(options) {
   return withInvocation({ ...options, requireRelease: true }, (candidate, invocation, work) => {
     const expected = expectedRegistry(candidate);
     const decision = registryDecision(lookup(invocation, expected, work), expected);
+    const distTagsBefore = lookupDistTags(invocation, expected.name, work);
     const channelBefore = validateChannel(
-      lookupDistTags(invocation, expected.name, work),
+      distTagsBefore,
       candidate.evidence.registry_before,
       expected.version,
       !decision.shouldPublish,
@@ -1001,6 +1043,16 @@ function publish(options) {
       ],
       { cwd: work, env: environment, encoding: 'utf8', maxBuffer: 1024 * 1024, timeout: 300000 },
     );
+    if (result.error || result.status !== 0) {
+      reportPublisherFailure({
+        result,
+        token: environment.NODE_AUTH_TOKEN,
+        invocation,
+        expected,
+        decision,
+        distTagsBefore,
+      });
+    }
     assert(!result.error && result.status === 0, 'verified preview publisher failed');
     const channel = validateChannel(
       lookupDistTags(invocation, expected.name, work),

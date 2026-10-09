@@ -70,6 +70,7 @@ async function publishVerified({
 async function main(argv = process.argv.slice(2)) {
   assert(argv.length === 4, 'publisher arguments invalid');
   const token = process.env.NODE_AUTH_TOKEN;
+  retainedToken = typeof token === 'string' ? token : '';
   delete process.env.NODE_AUTH_TOKEN;
   await publishVerified({
     libraryPath: argv[0],
@@ -79,9 +80,41 @@ async function main(argv = process.argv.slice(2)) {
     token,
   });
 }
+const DETAIL_LIMIT = 2048;
+let retainedToken = '';
+function bounded(value) {
+  const text = typeof value === 'string' ? value : '';
+  return text.length > DETAIL_LIMIT ? text.slice(0, DETAIL_LIMIT) + '...[truncated]' : text;
+}
+// The token is redacted defensively so a provider that echoes it cannot leak it
+// into the workflow log, and the detail is bounded.
+function redacted(value) {
+  const text = bounded(value);
+  if (retainedToken === '') return text;
+  return text.split(retainedToken).join('[redacted]');
+}
 if (require.main === module)
-  main().catch(() => {
+  main().catch((error) => {
     console.error('Verified preview publisher rejected the request');
+    console.error(
+      'Verified preview publisher detail: ' +
+        JSON.stringify({
+          name: typeof error?.name === 'string' ? error.name : null,
+          code:
+            typeof error?.code === 'string' || typeof error?.code === 'number'
+              ? error.code
+              : null,
+          statusCode: typeof error?.statusCode === 'number' ? error.statusCode : null,
+          message: redacted(typeof error?.message === 'string' ? error.message : ''),
+          body: redacted(
+            typeof error?.body === 'string'
+              ? error.body
+              : error?.body
+                ? JSON.stringify(error.body)
+                : '',
+          ),
+        }),
+    );
     process.exitCode = 1;
   });
 module.exports = { DIST_TAG, publishVerified };
