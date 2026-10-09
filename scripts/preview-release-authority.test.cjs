@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const zlib = require('node:zlib');
-const { execFileSync } = require('node:child_process');
+const { execFileSync, spawnSync } = require('node:child_process');
 const authority = require('./preview-release-authority.cjs');
 const publisher = require('./preview-release-publisher.cjs');
 const trusted = require('./release-tools/core-release-authority.js');
@@ -444,6 +444,86 @@ test('publisher passes retained bytes only, fixed preview tag and provenance; mo
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+test('a rejected publisher reports the inner error without echoing the publication token', () => {
+  const root = directory();
+  try {
+    const sentinel = 'sentinel-publication-token-abcdef0123456789';
+    const bytes = Buffer.from('fixture bytes');
+    const artifactPath = path.join(root, 'retained.tgz');
+    const manifestPath = path.join(root, 'manifest.json');
+    const stubPath = path.join(root, 'stub-library.cjs');
+    fs.writeFileSync(artifactPath, bytes);
+    fs.writeFileSync(manifestPath, JSON.stringify({ ...fixture().pkg, gitHead: SHA }));
+    // The stub echoes the token into the message and the body on purpose, so the
+    // redaction is exercised on both paths.
+    fs.writeFileSync(
+      stubPath,
+      [
+        "'use strict';",
+        'exports.publish = async (manifest, packed, config) => {',
+        "  const token = config['//registry.npmjs.org/:_authToken'];",
+        "  const error = new Error('EOTP refused for ' + token);",
+        "  error.code = 'EOTP';",
+        '  error.statusCode = 401;',
+        '  error.body = JSON.stringify({ token });',
+        '  throw error;',
+        '};',
+      ].join('\n') + '\n',
+    );
+    const result = spawnSync(
+      process.execPath,
+      [
+        path.join(__dirname, 'preview-release-publisher.cjs'),
+        stubPath,
+        manifestPath,
+        artifactPath,
+        trusted.sha256(bytes),
+      ],
+      { encoding: 'utf8', env: { ...process.env, NODE_AUTH_TOKEN: sentinel } },
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    assert.equal(result.status, 1);
+    assert.match(output, /Verified preview publisher detail:/u);
+    assert.match(output, /EOTP/u);
+    assert.match(output, /\[redacted\]/u);
+    assert.equal(output.includes(sentinel), false, 'the publication token must never be printed');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+test('publish failure diagnostics carry the observations and never the token', () => {
+  const sentinel = 'sentinel-publication-token-abcdef0123456789';
+  const chunks = [];
+  const original = process.stderr.write.bind(process.stderr);
+  process.stderr.write = (chunk, ...rest) => {
+    chunks.push(String(chunk));
+    return original(chunk, ...rest);
+  };
+  try {
+    authority.reportPublisherFailure({
+      result: { status: 1, signal: null, error: null, stdout: `out ${sentinel}`, stderr: `err ${sentinel}` },
+      token: sentinel,
+      invocation: { command: `/tool/node ${sentinel}`, prefixArgs: ['/tool/npm-cli.js', sentinel] },
+      expected: { name: '@aikdna/kdna-cli', version: '0.39.0-rc.native-sections.3' },
+      decision: { decision: 'publish', shouldPublish: true },
+      distTagsBefore: { stdout: JSON.stringify({ latest: '0.36.1' }) },
+    });
+  } finally {
+    process.stderr.write = original;
+  }
+  const output = chunks.join('');
+  for (const label of [
+    'publisher-detail',
+    'publisher-stdout',
+    'publisher-stderr',
+    'npm-command',
+    'npm-prefix-args',
+    'registry-decision',
+    'dist-tags-before',
+  ])
+    assert.match(output, new RegExp(`preview-publish-diagnostic:${label} `, 'u'), label);
+  assert.equal(output.includes(sentinel), false, 'the publication token must never be printed');
 });
 test('local candidate cannot obtain publication authority through function or CLI overrides', () => {
   assert.throws(() => authority.publish({ requireRelease: false }), /real release authority/u);
