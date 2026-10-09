@@ -1336,12 +1336,36 @@ function sourceHost({ root = ROOT, env = process.env } = {}) {
     readSource(source.treeState, 'release-surface/native-offline-host/package-lock.json', root),
     'CLI source host lock',
   );
+  // The lock must describe exactly the declared archives. It may also carry the
+  // optional native accelerator that `--omit=optional` keeps out of the runtime
+  // tree: npm validates the lock against the complete dependency graph before it
+  // installs anything, so a lock without those entries fails with EUSAGE even
+  // when the documented command passes `--omit=optional`. The names are spelled
+  // out one by one - no pattern - so any other extra entry still fails the gate.
+  const OPTIONAL_ACCELERATOR_ENTRIES = [
+    'node_modules/cbor-extract',
+    'node_modules/@cbor-extract/cbor-extract-darwin-arm64',
+    'node_modules/@cbor-extract/cbor-extract-darwin-x64',
+    'node_modules/@cbor-extract/cbor-extract-linux-arm',
+    'node_modules/@cbor-extract/cbor-extract-linux-arm64',
+    'node_modules/@cbor-extract/cbor-extract-linux-x64',
+    'node_modules/@cbor-extract/cbor-extract-win32-x64',
+    'node_modules/detect-libc',
+    'node_modules/node-gyp-build-optional-packages',
+  ];
+  const expectedKeys = ['', ...receipts.map((x) => 'node_modules/' + x.name)];
+  const optional = new Set(OPTIONAL_ACCELERATOR_ENTRIES);
+  const actualKeys = Object.keys(lock.packages);
+  const requiredKeys = actualKeys.filter((key) => !optional.has(key)).sort();
+  const unexpectedOptional = actualKeys.filter(
+    (key) => !expectedKeys.includes(key) && !optional.has(key),
+  );
   assert(
     Array.isArray(receipts) &&
       receipts.length === 11 &&
       lock.lockfileVersion === 3 &&
-      JSON.stringify(Object.keys(lock.packages).sort()) ===
-        JSON.stringify(['', ...receipts.map((x) => 'node_modules/' + x.name)].sort()),
+      JSON.stringify(requiredKeys) === JSON.stringify(expectedKeys.sort()) &&
+      unexpectedOptional.length === 0,
     'CLI source host closure invalid',
   );
   const packages = receipts.map((input) => {
