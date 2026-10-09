@@ -85,15 +85,18 @@ function redactToken(text, token) {
 }
 // A rejected publish must not hide the audited observations behind one line.
 // This runs on the failure path only and changes no assertion.
-const DIST_TAG_RECHECK_ATTEMPTS = 6;
-const DIST_TAG_RECHECK_DELAY_MS = 10_000;
+// A provenance-bearing publication is accepted asynchronously: `npm publish`
+// returns success before the version is visible in the registry document, and
+// the observed delay is about four to five minutes. The post-publication check
+// therefore re-reads over a window of at least five minutes.
+const DIST_TAG_RECHECK_ATTEMPTS = 13;
+const DIST_TAG_RECHECK_DELAY_MS = 30_000;
 function synchronousSleep(milliseconds) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
 }
-// A published version can take a short while to appear in the dist-tags
-// document. The post-publication check re-reads within a bounded window; the
-// first correct read passes without any re-read or extra output, and a window
-// that never sees the tag still fails closed.
+// The post-publication check re-reads within that bounded window; the first
+// correct read passes without any re-read or extra output, and a window that
+// never sees the tag still fails closed.
 function awaitDistTag(invocation, expected, work, options = {}) {
   const attempts = options.attempts ?? DIST_TAG_RECHECK_ATTEMPTS;
   const delayMs = options.delayMs ?? DIST_TAG_RECHECK_DELAY_MS;
