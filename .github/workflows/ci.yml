@@ -4,7 +4,7 @@ on: [pull_request, push]
 permissions:
   contents: read
 
-# This repository keeps two surfaces: the current component-semantics CLI at the
+# This repository keeps two surfaces: the current native-section CLI at the
 # root, and the published 0.36.1 tree preserved under retired/. The jobs below
 # verify the current surface on this branch's bytes, and re-run the published
 # baseline's contract against a checkout of that published commit. The
@@ -30,11 +30,17 @@ jobs:
       - run: npm run check:surface
       - run: npm run check:inventory
       - run: node scripts/check-required-contexts.cjs
-      # Exact unpublished Core/Read RCs must be provisioned before this can pass.
-      # Integrity failure must not fall back to an older registry package/source.
-      - run: npm ci --offline --ignore-scripts --omit=optional --no-audit --no-fund
+      # The root publication manifest uses registry coordinates. Current source
+      # tests use the explicitly declared eleven-archive host until publication.
+      - name: Install the declared source-test dependency graph
+        run: npm --prefix release-surface/native-offline-host ci --offline --ignore-scripts --omit=optional --no-audit --no-fund
       - run: npm run build
-      - run: npm test
+      - name: Verify current CLI against the declared source-test graph
+        run: npm test
+        env:
+          NODE_PATH: ${{ github.workspace }}/release-surface/native-offline-host/node_modules
+      - name: Verify standalone preview authority hostile cases
+        run: node --test scripts/preview-release-authority.test.cjs
       - run: npm pack --ignore-scripts --json > packed-files.json
       - run: node scripts/check-surface.cjs packed-files.json
       # ---- the published baseline, restored from the pre-change contract ---

@@ -1,3 +1,46 @@
+# Native CLI Read guide
+
+This guide's current entry is the unpublished
+`0.39.0-rc.native-sections.3` CLI and its exact native Core/Read archives.
+Use the [binding](../public-contract-binding.json) and
+[installation instructions](../README.md#local-validation-and-packaging)
+together; a matching version string alone is insufficient.
+
+```sh
+kdna read ./asset.kdna --mode catalog --budget 1000000 --allow-read
+kdna read ./asset.kdna --mode exact_selection --asset-id asset:example \
+  --asset-version 1.0.0 --judgment-id j:example --budget 1000000 --allow-read
+```
+
+Catalog is metadata. A selected body is disclosure, not a decision to act.
+Core technical admission, explicit read permission, delivery, task adoption and
+action authorization remain separate. There is no model or action execution.
+
+For dependency expansion, use `read --session --allow-read`. Send one current
+ReadRequest JSON object per line, using the exact tuple from the binding.
+An `exact_selection` request uses `judgment_ids: ["j:example"]`. Read the
+response, then send its returned `expansion_handles` object unchanged in an
+`expand` request in the same session. Do not reopen the file, reconstruct a
+handle or treat it as persistent permission. Each request has a byte budget
+and a fresh, single-use preparation.
+
+See the [complete authored example](../examples/team-update/README.md) for
+creation, selection, a real returned handle, full Source revision and a new
+file. The example source is provided for separate execution verification;
+source preparation alone does not establish a successful run or useful task.
+
+`plan`, `load`, `plan-use` and `use` do not provide a current native Runtime
+path. Plan/load and unavailable commands return exit 2. The historical contract
+below does not enable these commands in the native candidate.
+
+<details>
+<summary>Preserved historical consumption contract</summary>
+
+The following original guide is retained as historical material. Its command
+names, Host protocol and limits belong to that older surface; they are not
+instructions for the native candidate. For the separately published loading
+line, use its exact version's documentation.
+
 # Consumption Runtime Guide
 
 The CLI has one single-asset Runtime path:
@@ -99,3 +142,5 @@ Cluster remains a separately staged Runtime engineering surface. `kdna use`
 does not enable Cluster execution or reuse the single-asset process Host flags
 for Cluster. Cluster validation and planning commands do not constitute a
 published staged Primary-first Runtime.
+
+</details>

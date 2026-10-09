@@ -1,3 +1,40 @@
+# Native CLI authorization guide
+
+The unpublished `0.39.0-rc.native-sections.3` candidate uses explicit local
+operation permissions. It has no password or credential-store command.
+
+| Operation | Permission and scope |
+| --- | --- |
+| `create` | `--allow-create`: encode the supplied authored JSON and save a new file |
+| `inspect`, `validate` | Explicit file argument: technical admission and metadata, without judgment bodies |
+| `read` | `--allow-read`: admit the named asset and disclose the requested projections |
+| `source-open`, `source-pack` | `--allow-source` plus the original SHA256 as `--expected-a`: open full authored values or save a revision |
+
+Permissions apply to the invocation; they do not grant human confirmation,
+adoption or authority to execute actions. Source edits contain the complete
+Manifest and Payload. Use a new output filename; existing files and symlinks
+are never replaced. Read handles belong to their issuing snapshot and Host in
+the original session, and are not durable permission tokens.
+
+Creation produces public unsigned assets. Public Source preserves and
+reverifies existing signature/checksum members and refuses edits that invalidate
+them; it does not strip or re-sign them. Protected logical profiles require a
+separate Host route and are not opened or edited through these CLI commands.
+See [SECURITY](../SECURITY.md), the [binding](../public-contract-binding.json)
+and the [authored example](../examples/team-update/README.md).
+
+The `plan-load`, `load`, `--has-password` and `--password-stdin` material below
+belongs to the historical loading contract. It must not be used as a password
+flow for the native candidate, where Plan/load and unsupported commands are
+unavailable (exit 2).
+
+<details>
+<summary>Preserved historical asset-authorization contract</summary>
+
+The following original guide retains its older source and RFC pointers. Resolve
+them against that contract's source revision, not this candidate's replacement
+entrypoints. The separately published line has its own versioned documentation.
+
 # KDNA Asset Authorization — CLI User Guide
 
 This document explains how `kdna` CLI handles password-entitled `.kdna`
@@ -101,3 +138,5 @@ intend to read the content, and reading requires the key.
 - LoadPlan: `packages/kdna-core/src/container/index.js` (the password
   authorization branch)
 - CLI guard: `src/cli.js` (the `load` command's `--has-password` rejection)
+
+</details>

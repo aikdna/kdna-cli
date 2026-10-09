@@ -80,7 +80,7 @@ test('surface gate: a mutated package.json export surface turns it red', () => {
   const dir = makeFixture();
   const pkgPath = path.join(dir, 'package.json');
   const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-  pkg.private = false;
+  pkg.private = true;
   write(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
   const run = runGate(dir);
   assert.equal(run.status, 1);

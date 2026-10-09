@@ -3,17 +3,16 @@
 ## Supported versions
 
 The published `0.36.x` line remains supported; earlier versions are unsupported.
-The current source candidate is `0.39.0-rc.native-sections.3`. It is not an
+The current source candidate is `0.38.0-rc.component-semantics.1`. It is not an
 npm release and does not change the published version's command contract.
 Reports should identify which surface is affected.
 
 ## Current source boundary
 
-The candidate supports local `create`, `inspect`, `validate`, `read`,
-`source-open` and `source-pack`, including a process-local retained Read session.
-It delegates native production, admission, disclosure and Source operations to
-the exact Core `0.37.1-rc.browser.1` and Read `0.11.2-rc.browser.1` archives bound in
-[`public-contract-binding.json`](./public-contract-binding.json).
+The candidate supports local `inspect`, `validate` and `read`, including a
+process-local Read session. It delegates container admission and disclosure to
+the exact Core `0.24.0-rc.component-semantics.2` and Read
+`0.3.0-rc.component-semantics.2` archives in `public-contract-binding.json`.
 Matching version strings alone do not identify those archives.
 
 Technical admission does not establish authorship, Creation acceptance,
@@ -30,25 +29,11 @@ rejects and the binary exits with code 1. Writable callbacks control local write
 completion; they do not prove remote consumption. See README for iterator and
 output-cleanup limits.
 
-`--allow-create` permits encoding the supplied authored JSON into a new file.
-`--allow-source` permits opening or repacking the explicitly named public asset;
-the original asset's exact SHA256 is also required as `--expected-a`.
-Both save routes refuse existing files and symlinks. Source edits are complete
-Manifest and Payload replacements; original resource members are retained.
-These flags do not confer human confirmation or action authority.
-
-Creation here produces public unsigned containers; it does not create encrypted,
-signature or checksum members. Public Source can admit signed or checksum-bearing
-inputs only when the bound native Core verifies them. Repacking retains and
-reverifies those members; an edit that invalidates them is rejected. The CLI
-does not strip integrity members, re-sign an asset or open protected logical
-profiles through this Source route. Protected assets require a separate Host
-route.
-
-Plan admission, load/execution, legacy pack/unpack, conversion, migration,
-attachment, remote projection and action execution remain unavailable. There
-is no password, secret-store or agent-host command surface. Historical
-code under `retired/` is excluded from the current CLI archive and does
+Plan, load, authoring, packing, migration, attachment, remote projection and
+action execution are unavailable in the current candidate. It has no password,
+secret-store or agent-host command surface. Encrypted, signed and checksum-bearing
+containers remain unavailable where the bound Core rejects them. Historical
+code under `retired/` is excluded from the seven-member distribution and does
 not define the candidate's supported behavior. The supported published line has
 its separate command and security contract at the
 [0.36.1 source baseline](https://github.com/aikdna/kdna-cli/blob/8bbd47c2f436bf638e6393aeda029e5fcba1bd32/SECURITY.md).
@@ -78,7 +63,7 @@ closed; source availability does not imply npm registry availability.
 The byte-preserved `retired/package-lock.json` contains `fast-uri@3.1.5`,
 which is affected by the published
 [fast-uri security advisories](https://github.com/advisories/GHSA-5jgf-p345-68v8).
-The current source graph instead pins `fast-uri@3.1.8` in its exact archive
+The current source graph instead pins `fast-uri@3.1.7` in its verified archive
 inventory. Historical files are excluded from the current CLI package.
 
 Keep the preserved graph for reproducing the historical contract; do not use

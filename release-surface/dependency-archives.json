@@ -1,21 +1,30 @@
 [
   {
     "name": "@aikdna/kdna-core",
-    "version": "0.24.0-rc.component-semantics.2",
-    "file": "aikdna-kdna-core-0.24.0-rc.component-semantics.2.tgz",
-    "sha256": "a9cb3f08735b00657e4848766f0ac517abdcb256121a841f01e662525a0858ea",
-    "bytes": 235986,
-    "integrity": "sha512-GQZj2AcVaRdbWzvQ74QfSz5wfKtIG9ygUz6hx/p5b0+GtYIyRMdt8mg7JZTL7y62i7cgl7y/3faPgZLu8R4M7w==",
-    "members": 39
+    "version": "0.37.1-rc.browser.1",
+    "file": "aikdna-kdna-core-0.37.1-rc.browser.1.tgz",
+    "sha256": "12a2d5f234ed3404aee1b394442251ad875c1531c01cd6a4f3c0366d55e5d773",
+    "bytes": 8260414,
+    "integrity": "sha512-WJ2Syc17BE1LgcCG0IJAxEFuLsk0D08dRSYrNLlZfoUjoGQ0jx+OUPGmHi3emsNf+VQMDhcF1XtfXAF1Git7Hg==",
+    "members": 456
   },
   {
     "name": "@aikdna/kdna-read",
-    "version": "0.3.0-rc.component-semantics.2",
-    "file": "aikdna-kdna-read-0.3.0-rc.component-semantics.2.tgz",
-    "sha256": "43d0f12a1a63a88d26570bfff821919a5cd478fdbd0568bd9c819bc56078b0f0",
-    "bytes": 100934,
-    "integrity": "sha512-gz6JSH8i0fve0+nt7RdAeby2UDNtkWgEAUpb+Fi1kvCEv0O7Aw4eMiRAbR5EHLyj+7Mjn9mLjthpugqTbTRbLQ==",
-    "members": 36
+    "version": "0.11.2-rc.browser.1",
+    "file": "aikdna-kdna-read-0.11.2-rc.browser.1.tgz",
+    "sha256": "c5c2d6b65c44dd30aeddd49d6f2a4c915e9fd4d8f2a28297d6d677564e261cb7",
+    "bytes": 3203508,
+    "integrity": "sha512-tddb6nxCC6DDyS8b/DlBRVTF2P4jgKppFo4X4aVAvzdxlKgYVlQo927peZ9APHdaA4++GUZTwh2TDU4U1WdDaA==",
+    "members": 97
+  },
+  {
+    "name": "@noble/hashes",
+    "version": "1.8.0",
+    "file": "noble-hashes-1.8.0.tgz",
+    "sha256": "2f8ce985a97936715bab16a7b3025bd73cc317831ec4d7ccaa4d136a6b04bfb5",
+    "bytes": 154380,
+    "integrity": "sha512-l5yqfa+G4+TEnAyx8QvX6ar/GmBKTFtXyH7sD1acBDvsHlvpUqYmrNifc9nUHBqno2xTGKtlm780Ey4g+JD8AQ==",
+    "members": 247
   },
   {
     "name": "ajv",
@@ -55,11 +64,11 @@
   },
   {
     "name": "fast-uri",
-    "version": "3.1.7",
-    "file": "fast-uri-3.1.7.tgz",
-    "sha256": "75d114fa009a342a4f964e099012cfc9660cab130d8df367184e01f0d0198777",
-    "bytes": 43515,
-    "integrity": "sha512-aMDEVX6P8vorK2rM048F+QQCdtOTofaUyCFWTTCkhMJL8UdXuG2FsNAGqymKRqlsvZyxJrbG9gLaeHeBPBFjVg==",
+    "version": "3.1.8",
+    "file": "fast-uri-3.1.8.tgz",
+    "sha256": "86be033b406a7737c0521edc8fe3e15c7ac0cb6b5e509478cc9539a2efaa086c",
+    "bytes": 44269,
+    "integrity": "sha512-GZMtZUTNRpOVIECoXwLNZS5xUGE+mVNbTB8h/7Rwh2TFWcBQiPzTgyZi05BF9UMZKkLJv8XBRJTlU7zg8+ZfMg==",
     "members": 44
   },
   {
@@ -70,15 +79,6 @@
     "bytes": 6027,
     "integrity": "sha512-IakiG9hGRIsxzoMxZE9RXqc7LILkD9yfL2k6ann/bp6tPFiYOmF2/BlRFhUxUQar77FA+K5NuBv9MNFpPOcy8A==",
     "members": 12
-  },
-  {
-    "name": "@noble/hashes",
-    "version": "1.8.0",
-    "file": "noble-hashes-1.8.0.tgz",
-    "sha256": "2f8ce985a97936715bab16a7b3025bd73cc317831ec4d7ccaa4d136a6b04bfb5",
-    "bytes": 154380,
-    "integrity": "sha512-l5yqfa+G4+TEnAyx8QvX6ar/GmBKTFtXyH7sD1acBDvsHlvpUqYmrNifc9nUHBqno2xTGKtlm780Ey4g+JD8AQ==",
-    "members": 247
   },
   {
     "name": "pako",

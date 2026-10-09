@@ -1,26 +1,38 @@
 {
   "name": "@aikdna/kdna-cli",
-  "version": "0.38.0-rc.component-semantics.1",
-  "description": "KDNA CLI: public Core admission and Read disclosure for the exact accepted Core/Read contract.",
+  "version": "0.39.0-rc.native-sections.3",
+  "description": "KDNA CLI: bounded authored input, native asset creation, exclusive saving and explicit local Read disclosure.",
   "type": "commonjs",
   "bin": {
     "kdna": "src/cli.js"
   },
   "files": [
     "LICENSE",
+    "LICENSE-DOCS",
     "NOTICE",
     "README.md",
     "public-contract-binding.json",
     "src/cli.js",
-    "src/public-cli.js"
+    "src/public-cli.js",
+    "src/authored-input.js",
+    "src/source-input.js",
+    "SECURITY.md",
+    "docs/asset-authorization.md",
+    "docs/consumption-runtime.md",
+    "docs/native-delivery.md",
+    "examples/native-workflow.cjs",
+    "examples/team-update/author.json",
+    "examples/team-update/README.md"
   ],
   "scripts": {
-    "build": "node --check src/cli.js && node --check src/public-cli.js",
+    "build": "node --check src/cli.js && node --check src/public-cli.js && node --check src/authored-input.js && node --check src/source-input.js",
     "check:surface": "node scripts/check-surface.cjs",
     "check:inventory": "node scripts/check-inventory.cjs",
     "check": "npm run check:surface && npm run check:inventory",
+    "release:check:prerelease": "node scripts/check-release-prerelease-readiness.mjs",
     "test": "npm run check:surface && npm run check:inventory && node --test tests/*.test.js",
-    "prepublishOnly": "node -e \"throw new Error('LOCAL_RC_NOT_AUTHORIZED_FOR_PUBLICATION')\""
+    "prepublishOnly": "node -e \"throw new Error('LOCAL_RC_NOT_AUTHORIZED_FOR_PUBLICATION')\"",
+    "test:transport": "node --test tests/authored-input.test.js"
   },
   "keywords": [
     "kdna",
@@ -44,15 +56,14 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@aikdna/kdna-core": "0.24.0-rc.component-semantics.2",
-    "@aikdna/kdna-read": "0.3.0-rc.component-semantics.2"
+    "@aikdna/kdna-core": "0.37.1-rc.browser.1",
+    "@aikdna/kdna-read": "0.11.2-rc.browser.1"
   },
   "directories": {
     "doc": "docs",
     "test": "tests"
   },
   "author": "",
-  "private": true,
   "exports": {
     ".": "./src/public-cli.js",
     "./package.json": "./package.json"

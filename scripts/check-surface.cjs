@@ -6,8 +6,8 @@ const root = path.resolve(__dirname, '..');
 const pkg = require('../package.json');
 const allow = require('../release-surface/npm-file-allowlist.json').files;
 assert.deepEqual([...pkg.files, 'package.json'].sort(), [...allow].sort());
-assert.equal(pkg.private, true);
-assert.deepEqual(pkg.dependencies, {'@aikdna/kdna-core':'0.24.0-rc.component-semantics.2','@aikdna/kdna-read':'0.3.0-rc.component-semantics.2'});
+assert.notEqual(pkg.private, true, 'rc publish path: package must not be private');
+assert.deepEqual(pkg.dependencies, {'@aikdna/kdna-core':'0.37.1-rc.browser.1','@aikdna/kdna-read':'0.11.2-rc.browser.1'});
 assert.deepEqual(pkg.exports, {'.':'./src/public-cli.js','./package.json':'./package.json'});
 const sourceFiles = [];
 for (const entry of fs.readdirSync(path.join(root, 'src'), { withFileTypes: true })) {
@@ -20,7 +20,7 @@ for (const entry of fs.readdirSync(path.join(root, 'src'), { withFileTypes: true
     sourceFiles.push(entry.name);
   }
 }
-assert.deepEqual(sourceFiles.sort(), ['cli.js', 'public-cli.js']);
+assert.deepEqual(sourceFiles.sort(), ['authored-input.js', 'cli.js', 'public-cli.js', 'source-input.js']);
 if (process.argv[2]) {
   const packed = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
   assert.equal(packed.length, 1);
