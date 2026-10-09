@@ -530,6 +530,16 @@ test('the post-publication dist-tag check re-reads within a bounded window only 
   const invocation = { command: '/tool/node', prefixArgs: ['/tool/npm-cli.js'] };
   const tags = (value) => JSON.stringify({ latest: '0.36.1', 'native-preview': value });
 
+  // The default window has to outlast an asynchronously processed publication:
+  // a provenance-bearing `npm publish` returns success minutes before the
+  // version appears in the registry document.
+  const windowMs =
+    (authority.DIST_TAG_RECHECK_ATTEMPTS - 1) * authority.DIST_TAG_RECHECK_DELAY_MS;
+  assert.ok(
+    windowMs >= 5 * 60 * 1000,
+    `the default re-read window is ${windowMs}ms, shorter than five minutes`,
+  );
+
   // The first read is already correct: no re-read, no sleep, no extra output.
   {
     const chunks = [];
