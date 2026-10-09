@@ -73,7 +73,7 @@ test('exact package/source record retains the public tuple and same Core module 
     "sha256": "0129de8550b549622d9eb2cb5c17de4776944b719e2edf7c1aca82caf293b2d4"
   }
 ]);
- assert.equal(binding.accepted_core.tar_sha256,'12a2d5f234ed3404aee1b394442251ad875c1531c01cd6a4f3c0366d55e5d773');
+ assert.equal(binding.accepted_core.tar_sha256,'81639dd57dc3a56a2d9171ce3a6ce956847f4877461b8722897e4f598aa8a8ca');
  assert.equal(binding.accepted_read.tar_sha256,'c5c2d6b65c44dd30aeddd49d6f2a4c915e9fd4d8f2a28297d6d677564e261cb7');
  const readLocal=createRequire(local.resolve('@aikdna/kdna-read/retained-sections-node'));
  assert.equal(local.resolve('@aikdna/kdna-core/retained-sections-node'),readLocal.resolve('@aikdna/kdna-core/retained-sections-node'));

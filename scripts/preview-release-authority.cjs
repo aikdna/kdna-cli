@@ -42,7 +42,7 @@ const COMPANIONS = Object.freeze([
   Object.freeze({
     name: '@aikdna/kdna-core',
     version: '0.37.1-rc.browser.1',
-    sha256: '12a2d5f234ed3404aee1b394442251ad875c1531c01cd6a4f3c0366d55e5d773',
+    sha256: '81639dd57dc3a56a2d9171ce3a6ce956847f4877461b8722897e4f598aa8a8ca',
   }),
   Object.freeze({
     name: '@aikdna/kdna-read',
