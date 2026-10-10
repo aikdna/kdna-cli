@@ -116,7 +116,7 @@ test('Plan, load and retired commands cannot authorize actions or execute the ol
     assert.equal(result.rows[0].action_authorized, false);
   }
   assert.notEqual(require('../package.json').private, true);
-  assert.deepEqual(require('../package.json').files, ['LICENSE', 'LICENSE-DOCS', 'NOTICE', 'README.md', 'public-contract-binding.json', 'src/cli.js', 'src/public-cli.js', 'src/authored-input.js', 'src/source-input.js', 'SECURITY.md', 'docs/asset-authorization.md', 'docs/consumption-runtime.md', 'docs/native-delivery.md', 'examples/native-workflow.cjs', 'examples/team-update/author.json', 'examples/team-update/README.md']);
+  assert.deepEqual(require('../package.json').files, ['LICENSE', 'LICENSE-DOCS', 'NOTICE', 'README.md', 'public-contract-binding.json', 'src/cli.js', 'src/public-cli.js', 'src/authored-input.js', 'src/source-input.js', 'SECURITY.md', 'docs/authoring-field-reference.md', 'docs/asset-authorization.md', 'docs/consumption-runtime.md', 'docs/native-delivery.md', 'examples/native-workflow.cjs', 'examples/team-update/author.json', 'examples/team-update/README.md']);
 });
 
 test('the actual executable handles version, valid input, rejection and unavailable Plan', () => {
