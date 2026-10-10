@@ -1,10 +1,12 @@
 # Exact native CLI delivery
 
-The unpublished CLI candidate `0.39.0-rc.native-sections.3` uses Core
+The CLI candidate `0.39.0-rc.native-sections.3` is **published** on the npm
+preview tag `native-preview`, while `latest` still resolves the earlier stable
+line. It uses Core
 `0.37.1-rc.browser.1` and Read `0.11.2-rc.browser.1`. The CLI package includes its support
 guides and the synthetic author example. Its exact archive and the complete
-offline host are delivered separately; no registry release or download service
-is announced here.
+offline host are delivered separately; this page announces no additional
+download service beyond that published preview coordinate.
 
 Obtain an authorized delivery containing `archives.json`, `package.json`,
 `package-lock.json` `LICENSE`, `LICENSE-DOCS`, `NOTICE`, and a `vendor/` directory with twelve exact `.tgz` files.
