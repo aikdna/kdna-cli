@@ -264,7 +264,7 @@ test('every retained artifact member is source-bound, exact set and mode require
       bytes = tarball(f.members);
     assert.equal(
       authority.validateArtifact(bytes, authority.POLICIES.cli, tree, f.root).files.length,
-      17,
+      18,
     );
     assert.throws(
       () =>

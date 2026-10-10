@@ -8,7 +8,14 @@ const INPUT_LIMIT = 20 * 1024 * 1024;
 const ASSET_LIMIT = 25 * 1024 * 1024;
 const MEMBER_LIMIT = 8 * 1024 * 1024;
 const TOTAL_LIMIT = 12 * 1024 * 1024;
-const invalid = () => { throw new Error('KDNA_AUTHORED_INPUT_INVALID'); };
+// Every transport failure carries the same stable code. Where the reader can
+// name the exact field and reason without guessing, it attaches a `diagnostic`
+// so the CLI can point at the input position instead of only refusing it.
+const invalid = (diagnostic) => {
+  const error = new Error('KDNA_AUTHORED_INPUT_INVALID');
+  if (diagnostic) error.diagnostic = diagnostic;
+  throw error;
+};
 
 // JSON.parse alone discards duplicate properties before Core can see them.
 // This transport reader checks decoded keys, finite numbers and Unicode first.
@@ -73,9 +80,15 @@ function parseJsonBytes(bytes) {
   return result;
 }
 
-function keys(value, expected) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)
-    || Object.keys(value).length !== expected.length || expected.some(key => !Object.hasOwn(value, key))) invalid();
+function keys(value, expected, field) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    invalid({ field, reason: 'not_an_object', expected: 'object' });
+  }
+  const missing = expected.filter(key => !Object.hasOwn(value, key));
+  const unexpected = Object.keys(value).filter(key => !expected.includes(key));
+  if (missing.length || unexpected.length) {
+    invalid({ field, reason: 'key_set', missing, unexpected, expected });
+  }
 }
 
 async function readBoundedFile(file, limit, code, assertActive = () => {}) {
@@ -109,20 +122,63 @@ async function readAssetBytes(file, assertActive = () => {}) {
 }
 
 async function readAuthoredInput(file) {
-  const bytes = await readBoundedFile(file, INPUT_LIMIT, 'KDNA_AUTHORED_INPUT_INVALID');
-  const authored = parseJsonBytes(bytes);
-  keys(authored, ['manifest', 'payload', 'members']);
-  if (!Array.isArray(authored.members) || authored.members.length > 128) invalid();
+  let bytes;
+  try {
+    bytes = await readBoundedFile(file, INPUT_LIMIT, 'KDNA_AUTHORED_INPUT_INVALID');
+  } catch {
+    // The reader cannot separate "cannot be opened" from "over the transport
+    // limit" here; it reports only what it knows.
+    invalid({ field: null, reason: 'unreadable_or_over_limit', limit_bytes: INPUT_LIMIT });
+  }
+  let authored;
+  try {
+    authored = parseJsonBytes(bytes);
+  } catch (error) {
+    invalid(error?.diagnostic ?? { field: '/', reason: 'not_json', expected: 'one UTF-8 JSON object' });
+  }
+  keys(authored, ['manifest', 'payload', 'members'], '/');
+  if (!Array.isArray(authored.members)) {
+    invalid({
+      field: '/members',
+      reason: authored.members === null ? 'null' : 'not_array',
+      expected: 'array of attachment descriptors',
+    });
+  }
+  if (authored.members.length > 128) {
+    invalid({ field: '/members', reason: 'too_many', limit: 128, actual: authored.members.length });
+  }
   let total = 0;
-  const members = authored.members.map(member => {
-    keys(member, ['name', 'type', 'mode', 'bytes_base64']);
-    if (typeof member.name !== 'string' || member.type !== 'file' || !Number.isInteger(member.mode)
-      || member.mode < 0 || member.mode > 65535 || typeof member.bytes_base64 !== 'string') invalid();
+  const members = authored.members.map((member, index) => {
+    const at = '/members/' + index;
+    keys(member, ['name', 'type', 'mode', 'bytes_base64'], at);
+    if (typeof member.name !== 'string') invalid({ field: at + '/name', reason: 'wrong_type', expected: 'string' });
+    if (member.type !== 'file') invalid({ field: at + '/type', reason: 'wrong_value', expected: 'file', actual: member.type });
+    if (!Number.isInteger(member.mode) || member.mode < 0 || member.mode > 65535) {
+      invalid({ field: at + '/mode', reason: 'wrong_value', expected: 'integer 0..65535', actual: member.mode });
+    }
+    if (typeof member.bytes_base64 !== 'string') {
+      invalid({ field: at + '/bytes_base64', reason: 'wrong_type', expected: 'canonical base64 string' });
+    }
     const encoded = member.bytes_base64;
-    if (encoded.length > 4 * Math.ceil(MEMBER_LIMIT / 3) || encoded.length % 4 !== 0) invalid();
-    const body = Buffer.from(encoded, 'base64');
+    if (encoded.length > 4 * Math.ceil(MEMBER_LIMIT / 3) || encoded.length % 4 !== 0) {
+      invalid({ field: at + '/bytes_base64', reason: 'over_limit_or_not_padded', limit_bytes: MEMBER_LIMIT });
+    }
+    let body;
+    try {
+      body = Buffer.from(encoded, 'base64');
+    } catch {
+      invalid({ field: at + '/bytes_base64', reason: 'not_base64' });
+    }
     total += body.length;
-    if (body.toString('base64') !== encoded || body.length > MEMBER_LIMIT || total > TOTAL_LIMIT) invalid();
+    if (body.toString('base64') !== encoded) {
+      invalid({ field: at + '/bytes_base64', reason: 'not_canonical_base64' });
+    }
+    if (body.length > MEMBER_LIMIT) {
+      invalid({ field: at + '/bytes_base64', reason: 'over_limit', limit_bytes: MEMBER_LIMIT, actual: body.length });
+    }
+    if (total > TOTAL_LIMIT) {
+      invalid({ field: '/members', reason: 'over_limit', limit_bytes: TOTAL_LIMIT, actual: total });
+    }
     return { name: member.name, type: member.type, mode: member.mode, bytes: new Uint8Array(body) };
   });
   return { manifest: authored.manifest, payload: authored.payload, members };
