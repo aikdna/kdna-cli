@@ -98,3 +98,44 @@ test('observed output failure prevents publication before and after staging', as
     }
   } finally { await fs.rm(directory, { recursive: true, force: true }); }
 });
+
+test('input-shape failures name the field and reason instead of only refusing', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'kdna-authored-diagnostic-'));
+  const file = path.join(directory, 'input.json');
+  const base = { manifest: {}, payload: {}, members: [] };
+  const member = { name: 'attachments/a.bin', type: 'file', mode: 420, bytes_base64: 'AAH/' };
+  const cases = [
+    ['top-level key missing', (() => { const d = { ...base }; delete d.members; return d; })(),
+      { field: '/', reason: 'key_set', missing: ['members'], unexpected: [], expected: ['manifest', 'payload', 'members'] }],
+    ['top-level key unexpected', { ...base, extra: 1 },
+      { field: '/', reason: 'key_set', missing: [], unexpected: ['extra'], expected: ['manifest', 'payload', 'members'] }],
+    ['members null', { ...base, members: null },
+      { field: '/members', reason: 'null', expected: 'array of attachment descriptors' }],
+    ['members not an array', { ...base, members: 'x' },
+      { field: '/members', reason: 'not_array', expected: 'array of attachment descriptors' }],
+    ['member key missing', { ...base, members: [{ name: 'a', type: 'file', mode: 420 }] },
+      { field: '/members/0', reason: 'key_set', missing: ['bytes_base64'], unexpected: [], expected: ['name', 'type', 'mode', 'bytes_base64'] }],
+    ['member value wrong type', { ...base, members: [{ ...member, mode: '420' }] },
+      { field: '/members/0/mode', reason: 'wrong_value', expected: 'integer 0..65535', actual: '420' }],
+    ['base64 not canonical', { ...base, members: [{ ...member, bytes_base64: 'AB==' }] },
+      { field: '/members/0/bytes_base64', reason: 'not_canonical_base64' }],
+  ];
+  try {
+    for (const [label, document, expected] of cases) {
+      await fs.writeFile(file, JSON.stringify(document));
+      await assert.rejects(readAuthoredInput(file), (error) => {
+        assert.equal(error.message, 'KDNA_AUTHORED_INPUT_INVALID', label);
+        assert.deepEqual(error.diagnostic, expected, label);
+        return true;
+      }, label);
+    }
+    await fs.writeFile(file, JSON.stringify({ ...base, members: [member] }));
+    const accepted = await readAuthoredInput(file);
+    assert.deepEqual(Array.from(accepted.members[0].bytes), [0, 1, 255]);
+    await fs.writeFile(file, 'not json at all');
+    await assert.rejects(readAuthoredInput(file), (error) => {
+      assert.deepEqual(error.diagnostic, { field: '/', reason: 'not_json', expected: 'one UTF-8 JSON object' });
+      return true;
+    });
+  } finally { await fs.rm(directory, { recursive: true, force: true }); }
+});

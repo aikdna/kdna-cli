@@ -195,7 +195,12 @@ async function run(argv, stdout = process.stdout, stdin = process.stdin) {
 
 async function runWithOutput(argv, write, stdin, assertActive) {
   const emit = value => write(JSON.stringify(value) + '\n');
-  const unavailable = async code => { await emit({ status: 'unavailable', code, action_authorized: false }); return 2; };
+  const unavailable = async (code, diagnostic) => {
+    const result = { status: 'unavailable', code, action_authorized: false };
+    if (diagnostic) result.diagnostic = diagnostic;
+    await emit(result);
+    return 2;
+  };
   if (!argv.length || argv.length === 1 && ['--help', '-h'].includes(argv[0])) { await write(help); return 0; }
   if (argv.length === 1 && argv[0] === '--version') { await write(require('../package.json').version + '\n'); return 0; }
   const parsed = parse(argv);
@@ -255,7 +260,7 @@ async function runWithOutput(argv, write, stdin, assertActive) {
     }
     let input;
     try { input = await readAuthoredInput(file); }
-    catch { return unavailable('KDNA_AUTHORED_INPUT_INVALID'); }
+    catch (error) { return unavailable('KDNA_AUTHORED_INPUT_INVALID', error?.diagnostic ?? null); }
     const request = admitNativeCreationRequest({ request_id: 'cli:' + randomUUID(), tuple: binding.tuple, operation: 'create_public_asset', timeout_ms: 60000 });
     if (request.status !== 'admitted_request') { await emit(request); return 1; }
     const authority = createNativeCreationAuthority(() => true);

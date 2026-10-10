@@ -30,6 +30,7 @@ const SOURCE_FILES = Object.freeze([
   'src/authored-input.js',
   'src/source-input.js',
   'SECURITY.md',
+  'docs/authoring-field-reference.md',
   'docs/asset-authorization.md',
   'docs/consumption-runtime.md',
   'docs/native-delivery.md',
