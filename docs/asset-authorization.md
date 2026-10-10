@@ -1,7 +1,9 @@
 # Native CLI authorization guide
 
-The unpublished `0.39.0-rc.native-sections.3` candidate uses explicit local
-operation permissions. It has no password or credential-store command.
+The `0.39.0-rc.native-sections.3` candidate is **published** on the npm preview
+tag `native-preview`, while `latest` still resolves the earlier stable line. It
+uses explicit local operation permissions and has no password or credential-store
+command.
 
 | Operation | Permission and scope |
 | --- | --- |
