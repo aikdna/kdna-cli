@@ -1,0 +1,17 @@
+{
+  "channel": "stable",
+  "version": "0.39.0",
+  "base_commit": "14e0813a968edc53d48f621a7d7713d2f17b4867",
+  "companions": [
+    {
+      "name": "@aikdna/kdna-core",
+      "version": "0.37.2",
+      "sha256": "6365329576ade98ca9cda78e39124b39cfe7da6bd56371a025bf6ed352fcc562"
+    },
+    {
+      "name": "@aikdna/kdna-read",
+      "version": "0.11.3",
+      "sha256": "5fd1efc5bfd28ce8c9724fefb09c1abed35dde2c16f8498b572da5c640679f4c"
+    }
+  ]
+}

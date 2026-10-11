@@ -7,6 +7,7 @@ const crypto = require('node:crypto');
 const assert = require('node:assert/strict');
 const { gunzipSync } = require('node:zlib');
 const { execFileSync } = require('node:child_process');
+const { selectOptionalLockNodes, verifyOptionalLockNodes } = require('./source-host-lock.cjs');
 const root = path.resolve(__dirname, '..');
 const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 function members(bytes) {
@@ -97,10 +98,10 @@ try {
     overrides: { '@aikdna/kdna-core': '$@aikdna/kdna-core', '@aikdna/kdna-read': '$@aikdna/kdna-read', 'fast-uri': '$fast-uri' } };
   fs.writeFileSync(path.join(destination, 'package.json'), JSON.stringify(manifest, null, 2) + '\n', { flag: 'wx' });
   for (const name of ['LICENSE','LICENSE-DOCS','NOTICE']) fs.copyFileSync(path.join(root,name),path.join(destination,name),fs.constants.COPYFILE_EXCL);
-  // Reuse the checked eleven-archive host graph; do not let npm resolution
-  // add platform-specific optional accelerators from the caller's cache.
+  // Retain the full validated lock declarations. --omit=optional keeps the
+  // accelerator out of the runtime; npm ci still requires its declarations.
   const sourceLock = JSON.parse(fs.readFileSync(path.join(root,'release-surface/native-offline-host/package-lock.json')));
-  assert.deepEqual(Object.keys(sourceLock.packages).sort(), ['', ...inputs.map(a=>'node_modules/'+a.name)].sort(), 'Companion lock closure differs');
+  const optionalNodes = selectOptionalLockNodes(sourceLock, ['', ...inputs.map(a=>'node_modules/'+a.name)]);
   const packages = {'': { name:manifest.name, version:manifest.version, dependencies }};
   for (const receipt of inputs) {
     const key = 'node_modules/'+receipt.name, node = sourceLock.packages[key];
@@ -113,10 +114,11 @@ try {
   const cliReceipt=archives.find(a=>a.name===pkg.name);
   packages['node_modules/'+pkg.name]={version:pkg.version,resolved:'file:vendor/'+cliReceipt.file,
     integrity:cliReceipt.integrity,license:pkg.license,dependencies:pkg.dependencies,bin:pkg.bin,engines:pkg.engines};
+  Object.assign(packages, optionalNodes);
   fs.writeFileSync(path.join(destination,'package-lock.json'),JSON.stringify({name:manifest.name,version:manifest.version,lockfileVersion:3,requires:true,packages},null,2)+'\n',{flag:'wx'});
   const finalLock = JSON.parse(fs.readFileSync(path.join(destination,'package-lock.json')));
   assert.deepEqual(finalLock.packages[''].dependencies, dependencies, 'Consumer root dependencies differ from receipts');
-  assert.deepEqual(Object.keys(finalLock.packages).sort(), ['', ...archives.map(a=>'node_modules/'+a.name)].sort(), 'Consumer package closure differs from receipts');
+  verifyOptionalLockNodes(finalLock, ['', ...archives.map(a=>'node_modules/'+a.name)], optionalNodes);
   for (const receipt of archives) {
     const node = finalLock.packages['node_modules/'+receipt.name];
     assert.equal(node.version,receipt.version,'Consumer version differs');

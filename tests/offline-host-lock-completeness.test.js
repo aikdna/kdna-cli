@@ -11,6 +11,7 @@ const fs = require("node:fs"), path = require("node:path");
 const ROOT = path.resolve(__dirname, "..");
 const LOCK_PATH = path.join(ROOT, "release-surface", "native-offline-host", "package-lock.json");
 const PACKAGE_PATH = path.join(ROOT, "release-surface", "native-offline-host", "package.json");
+const { selectOptionalLockNodes, verifyOptionalLockNodes } = require('../scripts/source-host-lock.cjs');
 
 function lockPathFor(name, packages) {
   const direct = `node_modules/${name}`;
@@ -50,4 +51,22 @@ test("no committed lock entry claims an optional package is required", () => {
   const accelerator = lock.packages["node_modules/cbor-extract"];
   assert.ok(accelerator, "the optional native accelerator must be described by the lock");
   assert.equal(accelerator.optional, true);
+});
+
+test('delivery locks retain the declared accelerator while rejecting cache additions or promotion', () => {
+  const lock = JSON.parse(fs.readFileSync(LOCK_PATH, 'utf8'));
+  const manifest = JSON.parse(fs.readFileSync(PACKAGE_PATH, 'utf8'));
+  const keys = ['', ...Object.keys(manifest.dependencies).map(name => 'node_modules/' + name)];
+  const optional = selectOptionalLockNodes(lock, keys);
+  assert.equal(Object.keys(optional).length, 9);
+  assert.equal(verifyOptionalLockNodes(structuredClone(lock), keys, optional), true);
+  const extra = structuredClone(lock);
+  extra.packages['node_modules/optional-from-cache'] = {version: '1.0.0', optional: true};
+  assert.throws(() => selectOptionalLockNodes(extra, keys), /closure/);
+  const promoted = structuredClone(lock);
+  promoted.packages['node_modules/cbor-extract'].optional = false;
+  assert.throws(() => selectOptionalLockNodes(promoted, keys), /remain optional/);
+  const altered = structuredClone(lock);
+  altered.packages['node_modules/cbor-extract'].integrity = 'changed';
+  assert.throws(() => verifyOptionalLockNodes(altered, keys, optional), /declarations changed/);
 });

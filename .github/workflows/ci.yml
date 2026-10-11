@@ -28,7 +28,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
-          node-version: '22.22.3'
+          node-version: '22.23.1'
           check-latest: false
       - run: npm run check:surface
       - run: npm run check:inventory
@@ -38,9 +38,9 @@ jobs:
       - name: Select the outside-repository audited npm archive
         run: echo "KDNA_TRUSTED_NPM_TARBALL=$RUNNER_TEMP/npm-11.17.0.tgz" >> "$GITHUB_ENV"
       - name: Authenticate the audited isolated npm client
-        run: node scripts/preview-release-authority.cjs provision-npm --artifact "$KDNA_TRUSTED_NPM_TARBALL"
+        run: node scripts/stable-release-authority.cjs provision-npm --artifact "$KDNA_TRUSTED_NPM_TARBALL"
       - name: Install and verify the declared source-test dependency graph
-        run: node scripts/preview-release-authority.cjs source-host
+        run: node scripts/stable-release-authority.cjs source-host
       - run: npm run build
       - name: Verify current CLI against the declared source-test graph
         run: npm test
@@ -48,6 +48,8 @@ jobs:
           NODE_PATH: ${{ github.workspace }}/release-surface/native-offline-host/node_modules
       - name: Verify standalone preview authority hostile cases
         run: node --test scripts/preview-release-authority.test.cjs
+      - name: Verify standalone stable authority hostile cases
+        run: node --test scripts/stable-release-authority.test.cjs
       - run: npm pack --ignore-scripts --json > packed-files.json
       - run: node scripts/check-surface.cjs packed-files.json
       # ---- the published baseline, restored from the pre-change contract ---

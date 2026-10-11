@@ -1,66 +1,98 @@
-name: Publish to npm
+name: Publish exact stable CLI
 
 on:
   release:
     types: [published]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.release.tag_name }}
+  group: stable-${{ github.event.release.tag_name }}
   cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
   publish:
     if: >-
+      github.repository == 'aikdna/kdna-cli' &&
+      github.event_name == 'release' &&
       github.event.action == 'published' &&
       github.event.release.draft == false &&
-      github.event.release.prerelease == false
-    runs-on: ubuntu-latest
+      github.event.release.prerelease == false &&
+      github.event.release.tag_name == '0.39.0'
+    runs-on: macos-latest
     timeout-minutes: 30
     permissions:
       contents: read
       id-token: write
-    env:
-      RELEASE_EVENT_ACTION: ${{ github.event.action }}
-      RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
-      RELEASE_IS_DRAFT: ${{ github.event.release.draft }}
-      RELEASE_IS_PRERELEASE: ${{ github.event.release.prerelease }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           fetch-tags: true
+          persist-credentials: false
           ref: ${{ github.event.release.tag_name }}
-      - name: Fetch the canonical release tag
-        run: git fetch --force --tags origin
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: '22.23.1'
           check-latest: false
-          registry-url: 'https://registry.npmjs.org'
-      - run: node scripts/run-trusted-npm.js ci --ignore-scripts --no-audit --no-fund
-      - name: Verify release event, tag, commit, package, and changelog
-        run: node scripts/release-check.js
-      - name: Run the complete release preflight
-        run: node scripts/release-preflight.js
-      - name: Build independently verified pack evidence
+      - name: Select outside-repository evidence paths
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const authority = require('./scripts/stable-release-authority.cjs');
+          const values = {
+            STABLE_EVIDENCE: path.join(process.env.RUNNER_TEMP, 'kdna-cli-stable-evidence.json'),
+            STABLE_ARTIFACT: path.join(process.env.RUNNER_TEMP, authority.filename(authority.POLICIES.cli)),
+            KDNA_TRUSTED_NPM_TARBALL: path.join(process.env.RUNNER_TEMP, 'npm-11.17.0.tgz'),
+          };
+          fs.appendFileSync(process.env.GITHUB_ENV, Object.entries(values).map(([k,v]) => k + '=' + v).join('\n') + '\n');
+          NODE
+      - name: Fetch main ancestry without modifying the selected source
+        run: git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
+      - name: Authenticate the audited isolated npm release
+        run: node scripts/stable-release-authority.cjs provision-npm --artifact "$KDNA_TRUSTED_NPM_TARBALL"
+      - name: Verify actual published stable event and exact reviewed artifact
+        run: node scripts/stable-release-authority.cjs check --unit cli
+      - name: Install declared source-test graph with the audited npm client
+        run: node scripts/stable-release-authority.cjs source-host
+      - name: Verify exact current source and standalone publication gates
+        run: |
+          node scripts/check-surface.cjs
+          node scripts/check-inventory.cjs
+          node --test scripts/preview-release-authority.test.cjs
+          node --test tests/*.test.js
+        env:
+          NODE_PATH: ${{ github.workspace }}/release-surface/native-offline-host/node_modules
+      - name: Export exact Git source twice and retain approved byte-identical artifact
         run: >-
-          node scripts/generate-release-evidence.js
-          --out "$RUNNER_TEMP/kdna-cli-release-evidence.json"
-          --artifact "$RUNNER_TEMP/kdna-cli-release.tgz"
-      - name: Apply fail-closed registry duplicate policy
-        id: registry
+          node scripts/stable-release-authority.cjs prepare --unit cli
+          --evidence "$STABLE_EVIDENCE" --artifact "$STABLE_ARTIFACT"
+      - name: Verify installed artifact with exact public Core and Read
         run: >-
-          node scripts/registry-duplicate-guard.js
-          --evidence "$RUNNER_TEMP/kdna-cli-release-evidence.json"
-          --artifact "$RUNNER_TEMP/kdna-cli-release.tgz"
-      - name: Publish the verified package
-        if: steps.registry.outputs.should_publish == 'true'
+          node scripts/stable-release-authority.cjs smoke --unit cli
+          --evidence "$STABLE_EVIDENCE" --artifact "$STABLE_ARTIFACT"
+      - name: Refuse conflicting registry bytes and changes to unrelated tags
         run: >-
-          node scripts/publish-verified-artifact.js
-          --evidence "$RUNNER_TEMP/kdna-cli-release-evidence.json"
-          --artifact "$RUNNER_TEMP/kdna-cli-release.tgz"
+          node scripts/stable-release-authority.cjs guard --unit cli
+          --evidence "$STABLE_EVIDENCE" --artifact "$STABLE_ARTIFACT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: kdna-stable-cli-release-evidence
+          path: |
+            ${{ env.STABLE_EVIDENCE }}
+            ${{ env.STABLE_ARTIFACT }}
+      - name: Rebind and publish the retained stable bytes on latest
+        run: >-
+          node scripts/stable-release-authority.cjs publish --unit cli
+          --evidence "$STABLE_EVIDENCE" --artifact "$STABLE_ARTIFACT"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: Remove transient release artifacts
+      - name: Verify official latest, unchanged other tags and a new public consumer
+        run: >-
+          node scripts/stable-release-authority.cjs verify-public --unit cli
+          --evidence "$STABLE_EVIDENCE" --artifact "$STABLE_ARTIFACT"
+      - name: Remove only this job's transient release outputs
         if: always()
-        run: rm -f "$RUNNER_TEMP/kdna-cli-release-evidence.json" "$RUNNER_TEMP/kdna-cli-release.tgz"
+        run: rm -f "$STABLE_EVIDENCE" "$STABLE_ARTIFACT" "$KDNA_TRUSTED_NPM_TARBALL"

@@ -1,9 +1,9 @@
 # Native CLI Read guide
 
 This guide's current entry is the
-`0.39.0-rc.native-sections.3` CLI — **published** on the npm preview tag
-`native-preview`, while `latest` still resolves the earlier stable line — and its
-exact native Core/Read archives.
+stable distribution candidate CLI `0.39.0` and its exact native Core `0.37.2` /
+Read `0.11.3` archives. Publication and registry acquisition require separate
+release evidence.
 Use the [binding](../public-contract-binding.json) and
 [installation instructions](../README.md#local-validation-and-packaging)
 together; a matching version string alone is insufficient.
