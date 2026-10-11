@@ -98,8 +98,11 @@ stays as declared rather than being invented.
 
 The middle column reports only what this CLI actually prints. The last column is
 guidance, not observed output. Rows marked *observed* were re-run against the
-current source; the rest are reported by the external evaluation and were not
-reproduced on this machine.
+current source; the container rows were observed on **all three native read
+entries** (this CLI, the browser section-bytes entry and the `sections-node`
+path entry), which report the same code, stage and diagnostic for the same file.
+The rest are reported by the external evaluation and were not reproduced on this
+machine.
 
 | Input                                              | Reported (observed)                                                                                                                                       | Guidance (not output)                                                                                    |
 | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -110,8 +113,9 @@ reproduced on this machine.
 | `bytes_base64` that is not canonical base64        | *observed* `SOURCE_INPUT_INVALID` with `field: /members/<i>/bytes_base64`, `reason: not_canonical_base64`                                                  | re-encode the bytes; no whitespace, no padding shortcuts, no URL-safe alphabet                           |
 | a fourth top-level key                             | *observed* `SOURCE_INPUT_INVALID` with `field: /`, `reason: key_set`, `unexpected: [...]`                                                                  | Core adds `format_version` and `payload` after creation; do not add them yourself                         |
 | invalid `method.components[].role`                 | `READ_CORE_INVALID` with `field: /payload/judgments/0/method/components/0/role`                                                                            | the vocabulary is fixed; a role the author did not give is not invented                                  |
-| empty file vs truncated container                  | **indistinguishable**: both `READ_CORE_INVALID`, stage `input`, `diagnostic: null`                                                                         | a truncated file is not reported differently from an empty one                                            |
-| container `0.5` (Studio) asset                     | `READ_CORE_INVALID`, `diagnostic: null` — **reported by the external evaluation, not reproduced here** (no `0.5` asset was available on this machine)      | this native entry admits the `0.6` container; Studio-authored assets belong to the separate Studio route   |
+| empty file (no container structure)                | *observed* `READ_INPUT_INVALID`, stage `input`, `diagnostic: null`                                                                                        | the input is not a container at all                                                                      |
+| truncated or damaged container                     | *observed* `READ_CORE_INVALID`, stage `input`, `diagnostic: null`                                                                                          | the container is recognisable but incomplete; structural damage is not reported as a missing container   |
+| container of another family (for example Studio `0.5`) | *observed* `READ_UNSUPPORTED_VERSION`, stage `metadata`, `field: /payload.kdnab`                                                                        | this native entry admits the `0.6` container; use the route that belongs to that family                  |
 
 The `diagnostic` object appears on the creation-input route; `inspect`, `read`
 and Source still report their own codes. The missing field pointer for
