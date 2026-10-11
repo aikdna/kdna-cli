@@ -6,8 +6,8 @@ const root = path.resolve(__dirname, '..');
 const pkg = require('../package.json');
 const allow = require('../release-surface/npm-file-allowlist.json').files;
 assert.deepEqual([...pkg.files, 'package.json'].sort(), [...allow].sort());
-assert.notEqual(pkg.private, true, 'rc publish path: package must not be private');
-assert.deepEqual(pkg.dependencies, {'@aikdna/kdna-core':'0.37.1-rc.browser.1','@aikdna/kdna-read':'0.11.2-rc.browser.1'});
+assert.notEqual(pkg.private, true, 'stable artifact path: package must not be private');
+assert.deepEqual(pkg.dependencies, {'@aikdna/kdna-core':'0.37.2','@aikdna/kdna-read':'0.11.3'});
 assert.deepEqual(pkg.exports, {'.':'./src/public-cli.js','./package.json':'./package.json'});
 const sourceFiles = [];
 for (const entry of fs.readdirSync(path.join(root, 'src'), { withFileTypes: true })) {

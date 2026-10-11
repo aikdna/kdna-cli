@@ -1,12 +1,11 @@
 # Exact native CLI delivery
 
-The CLI candidate `0.39.0-rc.native-sections.3` is **published** on the npm
-preview tag `native-preview`, while `latest` still resolves the earlier stable
-line. It uses Core
-`0.37.1-rc.browser.1` and Read `0.11.2-rc.browser.1`. The CLI package includes its support
+The stable distribution candidate CLI `0.39.0` uses exact Core
+`0.37.2` and Read `0.11.3`. Obtain it from the registry only after the
+corresponding approved release and exact registry artifacts are available. The CLI package includes its support
 guides and the synthetic author example. Its exact archive and the complete
 offline host are delivered separately; this page announces no additional
-download service beyond that published preview coordinate.
+download service for this candidate.
 
 Obtain an authorized delivery containing `archives.json`, `package.json`,
 `package-lock.json` `LICENSE`, `LICENSE-DOCS`, `NOTICE`, and a `vendor/` directory with twelve exact `.tgz` files.
@@ -15,7 +14,7 @@ the delivered receipt. Verify the host manifest and lock hashes recorded in that
 including this CLI candidate, with relative `file:vendor/` locations. Same-version
 checkouts and older archive receipts cannot substitute for those bytes.
 
-Use Node `22.22.3` for the reproducible environment. From the delivery directory:
+Use Node `22.23.1` for the reproducible environment. From the delivery directory:
 
 ```sh
 npm ci --offline --ignore-scripts --omit=optional --no-audit --no-fund
@@ -29,10 +28,9 @@ See the [author example](../examples/team-update/README.md) for the disclosed
 content, same-session expansion and full Source revision behavior. A successful
 scripted run does not prove that a person or another Agent used the content.
 
-The CLI's exact companion binding records Core archive SHA256
-`81639dd57dc3a56a2d9171ce3a6ce956847f4877461b8722897e4f598aa8a8ca`
-and Read archive SHA256
-`c5c2d6b65c44dd30aeddd49d6f2a4c915e9fd4d8f2a28297d6d677564e261cb7`.
+The CLI's [exact companion binding](../public-contract-binding.json) records
+the Core and Read archive SHA256 values. Match those values to the delivered
+receipt before installing.
 The candidate's own archive identity must come from its delivered receipt.
 Earlier archive lists and host templates describe their own byte identities;
 they do not identify this combination. Preserve a complete older set for rollback

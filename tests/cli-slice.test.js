@@ -44,37 +44,37 @@ function session(makeRequest, args=[]) {
  });
 }
 test('exact package/source record retains the public tuple and same Core module identity',()=>{
- assert.equal(pkg.version,'0.39.0-rc.native-sections.3');assert.equal(pkg.dependencies['@aikdna/kdna-core'],'0.37.1-rc.browser.1');assert.equal(pkg.dependencies['@aikdna/kdna-read'],'0.11.2-rc.browser.1');
+ assert.equal(pkg.version,'0.39.0');assert.equal(pkg.dependencies['@aikdna/kdna-core'],'0.37.2');assert.equal(pkg.dependencies['@aikdna/kdna-read'],'0.11.3');
  assert.equal(binding.tuple.read,'kdna.read/0.7.0-candidate');assert.equal(binding.tuple.container,'0.6.0');
  assert.deepEqual(binding.route_contracts, [
   {
     "file": "sections/contract.json",
     "bytes": 547981,
-    "sha256": "e9cf4069906c3bf30ecfda953de9d75983f3941a10695ce9546101057593c372"
+    "sha256": "f871a8be8a91105f4a1a7bd4930e712bf3b012ce8b6fd17def7cf4eaaef27379"
   },
   {
     "file": "sectionbytes/contract.json",
     "bytes": 31759,
-    "sha256": "617c4d2e2fcbfebaa4df559fb39b61e729064ff6e4b458a24321a6284d44074a"
+    "sha256": "208423043515f4149dd8d0cbf270ae07dc137bf6f0b79a70bfe61f7996365f9f"
   },
   {
     "file": "retained/contract.json",
     "bytes": 291233,
-    "sha256": "6675e6e72c76e89785da7d75c16fd29d66e2039047f14ef8b3a5e7517e0c4ac9"
+    "sha256": "c9ece7138801ceed528693d8277ea873e1eee874eb567ef35f0e38e72b238121"
   },
   {
     "file": "creation06/contract.json",
     "bytes": 71166,
-    "sha256": "bf1bb5bf0b6f3d7d38c2a3c63c413942f377c061bd01eb9b0868a2d9fdca6f8f"
+    "sha256": "255a9a9eff102f96d49c660c29cc5a291244fff5365dfb251ef66ebe7aaaad0f"
   },
   {
     "file": "source06/contract.json",
     "bytes": 76676,
-    "sha256": "0129de8550b549622d9eb2cb5c17de4776944b719e2edf7c1aca82caf293b2d4"
+    "sha256": "f34c71dc3cc0a28864b3151e13e45bc50923ddff18e1171abec6a1d6eee91914"
   }
 ]);
- assert.equal(binding.accepted_core.tar_sha256,'81639dd57dc3a56a2d9171ce3a6ce956847f4877461b8722897e4f598aa8a8ca');
- assert.equal(binding.accepted_read.tar_sha256,'c5c2d6b65c44dd30aeddd49d6f2a4c915e9fd4d8f2a28297d6d677564e261cb7');
+ assert.equal(binding.accepted_core.tar_sha256,'6365329576ade98ca9cda78e39124b39cfe7da6bd56371a025bf6ed352fcc562');
+ assert.equal(binding.accepted_read.tar_sha256,'5fd1efc5bfd28ce8c9724fefb09c1abed35dde2c16f8498b572da5c640679f4c');
  const readLocal=createRequire(local.resolve('@aikdna/kdna-read/retained-sections-node'));
  assert.equal(local.resolve('@aikdna/kdna-core/retained-sections-node'),readLocal.resolve('@aikdna/kdna-core/retained-sections-node'));
  assert.deepEqual(Object.keys(local('@aikdna/kdna-cli')),['run']);assert.equal(pkg.types,undefined);
@@ -127,7 +127,7 @@ test('all retired commands and public execution claims remain unavailable',()=>{
 
  const noCreate=binary(['create',file,'--output',path.join(os.tmpdir(),'cli-denied-'+process.pid+'.kdna')]);
  assert.equal(noCreate.status,1);const deniedCreate=JSON.parse(noCreate.stdout);assert.equal(deniedCreate.code,'KDNA_CREATE_PERMISSION_REQUIRED');assert.equal(deniedCreate.action_authorized,false);assert.equal(deniedCreate.creation_accepted,false);
- assert.notEqual(pkg.private,true);assert.match(pkg.scripts.prepublishOnly,/LOCAL_RC_NOT_AUTHORIZED_FOR_PUBLICATION/);
+ assert.notEqual(pkg.private,true);assert.match(pkg.scripts.prepublishOnly,/LOCAL_WORKTREE_NOT_AUTHORIZED_FOR_PUBLICATION/);
  for(const sub of ['/src/public-cli.js','/retired/src/cli.js'])assert.throws(()=>local('@aikdna/kdna-cli'+sub),{code:'ERR_PACKAGE_PATH_NOT_EXPORTED'});
 });
 for(const kind of ['async-error','close-before-callback']) test('stdout '+kind+' rejects without success acknowledgement or leaked listeners',async()=>{

@@ -1,9 +1,8 @@
 # Native CLI authorization guide
 
-The `0.39.0-rc.native-sections.3` candidate is **published** on the npm preview
-tag `native-preview`, while `latest` still resolves the earlier stable line. It
-uses explicit local operation permissions and has no password or credential-store
-command.
+CLI `0.39.0` uses explicit local operation permissions and has no password
+or credential-store command. Its stable distribution requires its own approved
+exact artifact and registry acquisition; version labels do not establish release.
 
 | Operation | Permission and scope |
 | --- | --- |

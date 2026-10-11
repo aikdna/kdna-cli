@@ -1,6 +1,6 @@
 {
   "name": "@aikdna/kdna-cli",
-  "version": "0.39.0-rc.native-sections.3",
+  "version": "0.39.0",
   "description": "KDNA CLI: bounded authored input, native asset creation, exclusive saving and explicit local Read disclosure.",
   "type": "commonjs",
   "bin": {
@@ -32,7 +32,7 @@
     "check": "npm run check:surface && npm run check:inventory",
     "release:check:prerelease": "node scripts/check-release-prerelease-readiness.mjs",
     "test": "npm run check:surface && npm run check:inventory && node --test tests/*.test.js",
-    "prepublishOnly": "node -e \"throw new Error('LOCAL_RC_NOT_AUTHORIZED_FOR_PUBLICATION')\"",
+    "prepublishOnly": "node -e \"throw new Error('LOCAL_WORKTREE_NOT_AUTHORIZED_FOR_PUBLICATION')\"",
     "test:transport": "node --test tests/authored-input.test.js"
   },
   "keywords": [
@@ -57,8 +57,8 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@aikdna/kdna-core": "0.37.1-rc.browser.1",
-    "@aikdna/kdna-read": "0.11.2-rc.browser.1"
+    "@aikdna/kdna-core": "0.37.2",
+    "@aikdna/kdna-read": "0.11.3"
   },
   "directories": {
     "doc": "docs",

@@ -733,9 +733,9 @@ test('required current CI uses the verified source-host entry and real full-hist
     const current = text.split('# ---- the published baseline,')[0];
     assert.match(current, /fetch-depth: 0/u);
     assert.match(current, /github\.event\.pull_request\.head\.sha \|\| github\.sha/u);
-    assert.match(current, /node-version: '22\.22\.3'/u);
-    assert.match(current, /preview-release-authority\.cjs provision-npm --artifact/u);
-    assert.match(current, /preview-release-authority\.cjs source-host/u);
+    assert.match(current, /node-version: '22\.23\.1'/u);
+    assert.match(current, /stable-release-authority\.cjs provision-npm --artifact/u);
+    assert.match(current, /stable-release-authority\.cjs source-host/u);
     assert.doesNotMatch(current, /npm --prefix release-surface\/native-offline-host ci/u);
     assert.match(current, /NODE_PATH:.*release-surface\/native-offline-host\/node_modules/u);
   };
@@ -743,7 +743,7 @@ test('required current CI uses the verified source-host entry and real full-hist
   assert.throws(() =>
     verify(
       workflow.replace(
-        'preview-release-authority.cjs source-host',
+        'stable-release-authority.cjs source-host',
         'npm --prefix release-surface/native-offline-host ci --offline',
       ),
     ),

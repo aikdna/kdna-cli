@@ -2,7 +2,7 @@
   "format": "kdna.consumer-exact-binding/1",
   "implementation": {
     "name": "@aikdna/kdna-cli",
-    "version": "0.39.0-rc.native-sections.3"
+    "version": "0.39.0"
   },
   "tuple": {
     "container": "0.6.0",
@@ -20,38 +20,38 @@
     {
       "file": "sections/contract.json",
       "bytes": 547981,
-      "sha256": "e9cf4069906c3bf30ecfda953de9d75983f3941a10695ce9546101057593c372"
+      "sha256": "f871a8be8a91105f4a1a7bd4930e712bf3b012ce8b6fd17def7cf4eaaef27379"
     },
     {
       "file": "sectionbytes/contract.json",
       "bytes": 31759,
-      "sha256": "617c4d2e2fcbfebaa4df559fb39b61e729064ff6e4b458a24321a6284d44074a"
+      "sha256": "208423043515f4149dd8d0cbf270ae07dc137bf6f0b79a70bfe61f7996365f9f"
     },
     {
       "file": "retained/contract.json",
       "bytes": 291233,
-      "sha256": "6675e6e72c76e89785da7d75c16fd29d66e2039047f14ef8b3a5e7517e0c4ac9"
+      "sha256": "c9ece7138801ceed528693d8277ea873e1eee874eb567ef35f0e38e72b238121"
     },
     {
       "file": "creation06/contract.json",
       "bytes": 71166,
-      "sha256": "bf1bb5bf0b6f3d7d38c2a3c63c413942f377c061bd01eb9b0868a2d9fdca6f8f"
+      "sha256": "255a9a9eff102f96d49c660c29cc5a291244fff5365dfb251ef66ebe7aaaad0f"
     },
     {
       "file": "source06/contract.json",
       "bytes": 76676,
-      "sha256": "0129de8550b549622d9eb2cb5c17de4776944b719e2edf7c1aca82caf293b2d4"
+      "sha256": "f34c71dc3cc0a28864b3151e13e45bc50923ddff18e1171abec6a1d6eee91914"
     }
   ],
   "accepted_core": {
-    "version": "0.37.1-rc.browser.1",
-    "tar_sha256": "81639dd57dc3a56a2d9171ce3a6ce956847f4877461b8722897e4f598aa8a8ca"
+    "version": "0.37.2",
+    "tar_sha256": "6365329576ade98ca9cda78e39124b39cfe7da6bd56371a025bf6ed352fcc562"
   },
   "accepted_read": {
-    "version": "0.11.2-rc.browser.1",
-    "tar_sha256": "c5c2d6b65c44dd30aeddd49d6f2a4c915e9fd4d8f2a28297d6d677564e261cb7"
+    "version": "0.11.3",
+    "tar_sha256": "5fd1efc5bfd28ce8c9724fefb09c1abed35dde2c16f8498b572da5c640679f4c"
   },
-  "release_state": "RELEASE_CANDIDATE",
+  "release_state": "STABLE_RELEASE_CANDIDATE",
   "authority_limit": "Producer observation, filesystem save, Core admission and explicit local read permission do not establish authorship, human confirmation, Creation completion, task adoption or action authorization.",
   "source_binding_note": "This CLI native-section route binds the exact Core/Read companion archives. Native tuple and browser protection tuple remain separate contracts; package versions do not replace byte identity."
 }
