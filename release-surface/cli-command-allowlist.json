@@ -24,6 +24,11 @@
     "exact_selection",
     "expand"
   ],
+  "read_views": [
+    "body",
+    "full"
+  ],
+  "read_view_note": "`--view body` is the default and answers with the author body plus one fingerprint only when the installed Read artifact provides that projection; otherwise the CLI prints the full surface exactly as before. `--view full` is the full surface.",
   "expand_requires": "same process-local session and issuing Host provider",
   "retired_commands": "All other commands return KDNA_COMMAND_UNAVAILABLE with exit 2; no action authorization",
   "create_input": "Bounded UTF-8 JSON with manifest, payload and members containing canonical bytes_base64; no unknown fields are dropped.",

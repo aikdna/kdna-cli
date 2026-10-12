@@ -10,6 +10,16 @@ const { createTrustedHostReadProvider, readRetainedSection } = require('@aikdna/
 const { admitNativeCreationRequest, createNativeCreationAuthority, createSectionAssetNode } = require('@aikdna/kdna-core/creation-sections-node');
 const { admitSourceOperationRequest, createNativeSourceOperationAuthority, openSectionSourceNode, packSectionSourceNode } = require('@aikdna/kdna-core/source-sections-node');
 const binding = require('../public-contract-binding.json');
+// The body projection is a capability of the installed Read package, not of this
+// CLI. It is detected once per process: an artifact that does not provide it must
+// leave every byte of this CLI's output exactly as it was, and an artifact that
+// does provide it becomes the default surface.
+function loadModelView(){
+  try{
+    const module=require('@aikdna/kdna-read');
+    return typeof module.projectModelView==='function'?module:null;
+  }catch{return null;}
+}
 const commands = new Set(['create', 'source-open', 'source-pack', 'inspect', 'validate', 'read', 'plan', 'load']);
 const independentStates = () => ({ writer: 'not_evaluated', confirmation: 'not_evaluated', read_permission: 'not_evaluated', action_authorization: 'not_evaluated' });
 const help = [
@@ -22,7 +32,9 @@ const help = [
   'kdna inspect <asset.kdna> [--json]',
   'kdna validate <asset.kdna> [--json]',
   'kdna read <asset.kdna> --mode catalog|whole_asset|exact_selection --budget <bytes>',
-  '  [--asset-id <id> --asset-version <version> --judgment-id <id>] [--allow-read]',
+  '  [--asset-id <id> --asset-version <version> --judgment-id <id>] [--allow-read] [--view body|full]',
+  '  --view body answers with the author body and one fingerprint when the installed',
+  '  Read package provides that projection; --view full is what this CLI printed before it.',
   'kdna read <asset.kdna> --session [--allow-read]',
   '  One public ReadRequest JSON object per input line; one public result per output line.',
   '  Reuse a returned handle for expand within this session.',
@@ -33,7 +45,7 @@ function parse(argv) {
   const [command, ...rest] = argv;
   if (!commands.has(command)) return { error: 'KDNA_COMMAND_UNAVAILABLE' };
   const options = Object.create(null);
-  const valued = new Set(['--mode', '--asset-id', '--asset-version', '--judgment-id', '--budget', '--output', '--expected-a', '--edits']);
+  const valued = new Set(['--mode', '--asset-id', '--asset-version', '--judgment-id', '--budget', '--output', '--expected-a', '--edits', '--view']);
   let file;
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
@@ -50,12 +62,14 @@ function parse(argv) {
   const allowed = command === 'create' ? ['--output', '--allow-create', '--json']
     : command === 'source-open' ? ['--expected-a', '--allow-source', '--json']
     : command === 'source-pack' ? ['--expected-a', '--edits', '--output', '--allow-source', '--json']
-    : command === 'read' ? ['--mode', '--asset-id', '--asset-version', '--judgment-id', '--budget', '--allow-read', '--json', '--session'] : ['--json'];
+    : command === 'read' ? ['--mode', '--asset-id', '--asset-version', '--judgment-id', '--budget', '--allow-read', '--json', '--session', '--view'] : ['--json'];
   if (Object.keys(options).some(k => !allowed.includes(k))) return { error: 'KDNA_ARGUMENT_INVALID' };
   if (command === 'create' && (!options['--output'] || !options['--output'].endsWith('.kdna'))) return { error: 'KDNA_ARGUMENT_INVALID' };
   if (command.startsWith('source-') && !/^sha256:[0-9a-f]{64}$/.test(options['--expected-a'] || '')) return { error: 'KDNA_ARGUMENT_INVALID' };
   if (command === 'source-pack' && (!options['--edits'] || !options['--output'] || !options['--output'].endsWith('.kdna'))) return { error: 'KDNA_ARGUMENT_INVALID' };
-  if (options['--session'] && Object.keys(options).some(k => valued.has(k))) return { error: 'KDNA_ARGUMENT_INVALID' };
+  // A session carries one ReadRequest per line, so a CLI-level request option may
+  // not accompany it. --view names the output surface, not the request, so it may.
+  if (options['--session'] && Object.keys(options).some(k => k !== '--view' && valued.has(k))) return { error: 'KDNA_ARGUMENT_INVALID' };
   return { command, file, options };
 }
 
@@ -298,6 +312,15 @@ async function runWithOutput(argv, write, stdin, assertActive) {
     return 1;
   }
   const authority = createRetainedSectionReadAuthority(() => allow);
+  const viewOption = options['--view'];
+  if (viewOption !== undefined && !['body', 'full'].includes(viewOption)) return unavailable('KDNA_ARGUMENT_INVALID');
+  const modelView = loadModelView();
+  const view = viewOption ?? 'body';
+  // Without the capability the default path prints exactly what this CLI printed
+  // before the flag existed; an explicit body request that cannot be honoured is
+  // refused rather than quietly answered with the full surface.
+  if (viewOption === 'body' && !modelView) return unavailable('KDNA_MODEL_VIEW_UNAVAILABLE');
+  const projected = result => (!modelView || view === 'full' ? result : modelView.projectModelView(result, { view: 'body', mode: result?.envelope?.mode }));
   const host = createTrustedHostReadProvider({
     observe({ request, preparation }) {
       const now = Date.now();
@@ -307,7 +330,7 @@ async function runWithOutput(argv, write, stdin, assertActive) {
         scope: retainedView.ir.nodes.map(node => node.id), issued_at: now, expires_at: now + 60000,
         decision: allow ? 'allow' : 'deny', policy_id: 'kdna-cli:explicit-local-read-consent', current_ms: now };
     },
-    async deliver(result) { await emit(result); delivered = true; return true; },
+    async deliver(result) { await emit(projected(result)); delivered = true; return true; },
   });
   async function read(request) {
     // Explicit CLI consent and native request admission precede asset reads.
