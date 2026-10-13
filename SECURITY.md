@@ -3,9 +3,9 @@
 ## Supported versions
 
 The published `latest` line remains supported; earlier versions are unsupported.
-The current source candidate is `0.40.0`; it becomes a published npm release
-only after its exact approved artifact and registry acquisition. Reports should
-identify which surface is affected.
+The current source is `0.40.0`, published on `latest` after its exact approved
+artifact and registry acquisition. Reports should identify which surface is
+affected.
 
 ## Current source boundary
 
