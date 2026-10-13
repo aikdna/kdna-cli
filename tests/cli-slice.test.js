@@ -44,7 +44,7 @@ function session(makeRequest, args=[]) {
  });
 }
 test('exact package/source record retains the public tuple and same Core module identity',()=>{
- assert.equal(pkg.version,'0.39.0');assert.equal(pkg.dependencies['@aikdna/kdna-core'],'0.37.2');assert.equal(pkg.dependencies['@aikdna/kdna-read'],'0.11.3');
+ assert.equal(pkg.version,'0.40.0');assert.equal(pkg.dependencies['@aikdna/kdna-core'],'0.37.3');assert.equal(pkg.dependencies['@aikdna/kdna-read'],'0.12.0');
  assert.equal(binding.tuple.read,'kdna.read/0.7.0-candidate');assert.equal(binding.tuple.container,'0.6.0');
  assert.deepEqual(binding.route_contracts, [
   {
@@ -73,8 +73,8 @@ test('exact package/source record retains the public tuple and same Core module 
     "sha256": "f34c71dc3cc0a28864b3151e13e45bc50923ddff18e1171abec6a1d6eee91914"
   }
 ]);
- assert.equal(binding.accepted_core.tar_sha256,'16234f84440252b0c449c529de71435630cc79816f88ff0d0a8a2b4d852c1274');
- assert.equal(binding.accepted_read.tar_sha256,'5fd1efc5bfd28ce8c9724fefb09c1abed35dde2c16f8498b572da5c640679f4c');
+ assert.equal(binding.accepted_core.tar_sha256,'b4f3a6593b0fd55e8d245009835123578722f09fd71f6bc579b2e3b988a144f1');
+ assert.equal(binding.accepted_read.tar_sha256,'c815b4df97cc0ce844b94295df3802bf7cc5a68056c3aca587efed90251b4cbb');
  const readLocal=createRequire(local.resolve('@aikdna/kdna-read/retained-sections-node'));
  assert.equal(local.resolve('@aikdna/kdna-core/retained-sections-node'),readLocal.resolve('@aikdna/kdna-core/retained-sections-node'));
  assert.deepEqual(Object.keys(local('@aikdna/kdna-cli')),['run']);assert.equal(pkg.types,undefined);
