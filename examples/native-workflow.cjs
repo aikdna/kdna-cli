@@ -37,6 +37,18 @@ function ready(row, expected = 'ready') {
   return row.envelope;
 }
 
+// The installed Read package projects the default surface to the author body
+// plus one fingerprint; the fingerprint names the full-view recovery. The
+// session read below asks for `--view full` because expansion handles are
+// audit machinery, not body content.
+function bodyView(row, expected = 'ready') {
+  assert.equal(row?.view_contract, 'kdna.read.model-view/0.1.0');
+  assert.equal(row.view, 'body');
+  assert.equal(row.status, expected);
+  assert.equal(row.fingerprint?.recovery?.view, 'full');
+  return row;
+}
+
 async function main() {
   assert.equal(process.argv.length, 4, 'Usage: node native-workflow.cjs <author.json> <new-output-directory>');
   const authorFile = path.resolve(process.argv[2]);
@@ -70,7 +82,10 @@ async function main() {
   assert.equal(asset.asset_id, authored.manifest.asset_id);
   assert.equal(asset.asset_version, authored.manifest.version);
   const catalog = (await invoke('catalog.json', ['read', original, '--mode', 'catalog', '--allow-read']))[0];
-  ready(catalog, 'catalog_only');
+  const catalogBody = bodyView(catalog, 'catalog_only');
+  assert.ok(Array.isArray(catalogBody.content.catalog) && catalogBody.content.catalog.length > 0);
+  const catalogFull = (await invoke('catalog-full.json', ['read', original, '--mode', 'catalog', '--allow-read', '--view', 'full']))[0];
+  ready(catalogFull, 'catalog_only');
 
   const selection = { asset_id: asset.asset_id, asset_version: asset.asset_version, judgment_ids: ['update:order'] };
   const request = (mode, selected, handle) => ({
@@ -92,7 +107,7 @@ async function main() {
     assert.equal(expanded.snapshot_id, selected.snapshot_id);
     assert.ok(expanded.content.closure.some(node => node.role === 'judgment' && node.value.id === 'update:rationale'));
   }
-  const sessionCode = await run(['read', original, '--session', '--allow-read'], sessionOutput, sessionInput());
+  const sessionCode = await run(['read', original, '--session', '--allow-read', '--view', 'full'], sessionOutput, sessionInput());
   sessionOutput.finish();
   save('selection-and-expansion.json', { exit_code: sessionCode, responses: sessionOutput.rows });
   assert.equal(sessionCode, 0);
@@ -126,7 +141,7 @@ async function main() {
 
   const consumed = (await invoke('revised-read.json', ['read', revised, '--mode', 'exact_selection',
     '--asset-id', asset.asset_id, '--asset-version', '1.0.1', '--judgment-id', 'update:order', '--allow-read']))[0];
-  const revisedContent = ready(consumed).content;
+  const revisedContent = bodyView(consumed).content;
   const revisedJudgment = revisedContent.closure.find(node => node.role === 'judgment' && node.value.id === 'update:order');
   assert.equal(revisedJudgment?.value.core_expression.statement, revisedStatement);
   const summary = { status: 'example_completed', original_sha256: originalDigest,
