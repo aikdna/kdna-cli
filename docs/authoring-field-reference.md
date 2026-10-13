@@ -3,7 +3,7 @@
 This page is for the `kdna create <authored.json>` input. It is bound to the
 coordinate this package ships against: container `0.6.0`, `kdna.core/0.8.2`,
 `kdna.canonical-ir/0.6.1`, `kdna.read/0.7.0-candidate`, CLI
-`0.39.0`. Declaring a version here does not make an asset
+`0.40.0`. Declaring a version here does not make an asset
 valid, and admission is not read permission.
 
 Working example: `examples/team-update/author.json` (the only input this

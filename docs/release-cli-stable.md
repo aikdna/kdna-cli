@@ -1,8 +1,8 @@
 # Exact stable CLI publication
 
-The stable channel declares `@aikdna/kdna-cli@0.39.0`, Git tag `0.39.0`,
+The stable channel declares `@aikdna/kdna-cli@0.40.0`, Git tag `0.40.0`,
 repository `aikdna/kdna-cli` and npm dist-tag `latest`. The channel binds exact
-Core `0.37.2` and Read `0.11.3` companion archives. The committed stable profile
+Core `0.37.3` and Read `0.12.0` companion archives. The committed stable profile
 selects their exact SHA256 identities. Version strings alone cannot substitute
 for those bytes.
 
@@ -25,7 +25,7 @@ The workflow verifies the publicly released Core and Read companions before
 publication. Duplicate version handling compares exact registry metadata and
 archive identity; missing bytes or a conflict fail closed. Publication rebinds
 the retained artifact immediately before the audited publisher receives it.
-Only `latest` may move to `0.39.0`; all other dist-tags must retain the complete
+Only `latest` may move to `0.40.0`; all other dist-tags must retain the complete
 pre-publication map. Final verification downloads the published bytes again and
 creates a fresh public-registry consumer. A local candidate or successful upload
 without this acquisition check is not a completed release.
