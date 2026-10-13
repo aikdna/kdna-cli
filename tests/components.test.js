@@ -17,7 +17,7 @@ before(async()=>{scratch=fs.mkdtempSync(path.join(os.tmpdir(),'cli-native-compon
 after(()=>fs.rmSync(scratch,{recursive:true,force:true}));
 test('native create, inspect, validate and retained Read preserve three supported profiles and authored roles',async()=>{
  for(const command of ['inspect','validate']){const r=await invoke([command,file]);assert.equal(r.code,0);assert.equal(r.rows[0].status,'accepted');assert.equal(r.rows[0].states.action_authorization,'not_evaluated');assert.equal(r.rows[0].content,undefined);}
- const r=await invoke(['read',file,'--session','--allow-read'],[request('catalog'),request(),request()]);assert.equal(r.code,0);assert.equal(r.rows[0].envelope.status,'catalog_only');assert.equal(new Set(r.rows.map(x=>x.envelope.snapshot_id)).size,1);
+ const r=await invoke(['read',file,'--session','--allow-read','--view','full'],[request('catalog'),request(),request()]);assert.equal(r.code,0);assert.equal(r.rows[0].envelope.status,'catalog_only');assert.equal(new Set(r.rows.map(x=>x.envelope.snapshot_id)).size,1);
  const judgment=r.rows[1].envelope.content.closure.find(n=>n.role==='judgment'&&n.value.id==='j:0');
  assert.deepEqual(judgment.value.method.components.map(c=>c.role),['识别特征','类别定义','匹配办法','易混淆情况']);
  const interpretations=judgment.method_interpretation.component_interpretations;
@@ -50,7 +50,7 @@ for(const [name,edit,reason] of [
 ])test('native component creation preserves rebuilt-claim '+name+' classification',async()=>{const x=fixture();edit(x);const r=await create(claims(x.asset,x.contents));assert.equal(r.code,1);assert.equal(fs.existsSync(r.file),false);assert.ok(JSON.stringify(r.rows[0]).includes(reason),JSON.stringify(r.rows[0]));});
 test('unopted typed meanings stay undeclared, current authored roles stay declared',async()=>{
  const a=fixture().asset,j=a.payload.judgments[0];j.extensions=[];a.payload.extensions=[];j.method.bindings=j.method.bindings.map(({target_ref,...b})=>({...b,target:{kind:'judgment',id:target_ref}}));
- const c=await create(a);assert.equal(c.code,0,JSON.stringify(c.rows));const r=await invoke(['read',c.file,'--session','--allow-read'],[request()]);assert.equal(r.code,0);
+ const c=await create(a);assert.equal(c.code,0,JSON.stringify(c.rows));const r=await invoke(['read',c.file,'--session','--allow-read','--view','full'],[request()]);assert.equal(r.code,0);
  const m=r.rows[0].envelope.content.closure.find(n=>n.role==='judgment'&&n.value.id==='j:0').method_interpretation;assert.ok(m.component_interpretations.every(c=>c.status==='undeclared'&&c.body===null));assert.deepEqual(m.declaration_presence,{components_state:'declared',bindings_state:'declared'});
 });
 test('native component read keeps consent, zero budget and mixed tuple boundaries',async()=>{

@@ -62,10 +62,20 @@ test('local read consent defaults to denial and exact selection preserves requir
   assert.deepEqual(denied.rows[0], {status:'rejected',code:'KDNA_READ_PERMISSION_REQUIRED',action_authorized:false});
   const allowed = await invoke([...args, '--allow-read']);
   assert.equal(allowed.code, 0);
-  const body = allowed.rows[0].envelope;
-  assert.equal(body.states.action_authorization, 'not_evaluated');
+  // The installed Read package projects the default answer to the body view.
+  const body = allowed.rows[0];
+  assert.equal(body.view_contract, 'kdna.read.model-view/0.1.0');
+  assert.equal(body.view, 'body');
+  assert.equal(body.status, 'ready');
+  assert.equal(body.fingerprint.recovery.view, 'full');
+  assert.ok(body.fingerprint.omitted.envelope.includes('states'));
   for (const role of ['actor', 'boundary', 'exception']) assert.ok(body.content.closure.some(n => n.role === role));
   assert.deepEqual(body.content.closure.filter(n => n.role === 'judgment').map(n => n.value.id), ['j:0']);
+  // The explicit full view keeps the enveloped answer and its state record.
+  const full = await invoke([...args, '--allow-read', '--view', 'full']);
+  assert.equal(full.code, 0);
+  assert.equal(full.rows[0].envelope.states.action_authorization, 'not_evaluated');
+  assert.deepEqual(full.rows[0].envelope.content.closure, body.content.closure);
 });
 
 test('one real session supports all four modes and preserves stable expansion', async () => {
@@ -80,7 +90,7 @@ test('one real session supports all four modes and preserves stable expansion', 
     yield JSON.stringify(request('expand', handle)) + '\n';
     yield JSON.stringify(request('expand', handle)) + '\n';
   }
-  assert.equal(await run(['read', file, '--session', '--allow-read'], out, input()), 0);
+  assert.equal(await run(['read', file, '--session', '--allow-read', '--view', 'full'], out, input()), 0);
   const rows = output();
   assert.equal(rows.length, 5);
   assert.ok(rows.every((r, i) => r.envelope.status === (i === 0 ? 'catalog_only' : 'ready')));
@@ -93,6 +103,14 @@ test('one real session supports all four modes and preserves stable expansion', 
   assert.equal(rejected.code, 1);
   assert.equal(rejected.rows[0].diagnostic.code, 'READ_HANDLE_STALE');
   assert.equal(rejected.rows[0].body, null); assert.equal(rejected.rows[0].body_bytes, 0);
+  // The default session surface projects every answer to the body view.
+  async function* defaultSession() { yield JSON.stringify(request('catalog')) + '\n'; yield JSON.stringify(request('whole_asset')) + '\n'; }
+  const projected = await invoke(['read', file, '--session', '--allow-read'], defaultSession());
+  assert.equal(projected.code, 0);
+  assert.equal(projected.rows.length, 2);
+  assert.ok(projected.rows.every((row, i) => row.view === 'body' && row.status === (i === 0 ? 'catalog_only' : 'ready') && row.fingerprint.recovery.view === 'full'));
+  assert.equal(new Set(projected.rows.map(row => row.fingerprint.snapshot_id)).size, 1);
+  assert.deepEqual(projected.rows[1].content.closure, rows[1].envelope.content.closure);
 });
 
 test('budget and session transport errors fail closed', async () => {

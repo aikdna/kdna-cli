@@ -81,29 +81,29 @@ test('exact package/source record retains the public tuple and same Core module 
 });
 test('real bin preserves all four modes, in-process handles, mutation rejection and cross-process isolation',async()=>{
  const modes=['catalog','whole_asset','exact_selection','expand','expand'];
- const first=await session(rows=>rows.length===5?null:request(modes[rows.length],rows.length>=3?rows[2].envelope.content.expansion_handles.find(h=>h.target.kind==='dependency'&&h.target.id==='dependency:optional'):null));
+ const first=await session(rows=>rows.length===5?null:request(modes[rows.length],rows.length>=3?rows[2].envelope.content.expansion_handles.find(h=>h.target.kind==='dependency'&&h.target.id==='dependency:optional'):null),['--view','full']);
  assert.equal(first.code,0);assert.equal(first.signal,null);assert.equal(first.stderr,'');assert.equal(first.inputEnded,true);
  assert.ok(first.rows.every((r,i)=>r.envelope.status===(i===0?'catalog_only':'ready')));assert.equal(new Set(first.rows.map(r=>r.envelope.snapshot_id)).size,1);
  assert.deepEqual(first.rows[3].envelope.content,first.rows[4].envelope.content);
  assert.deepEqual(first.rows[3].envelope.content.closure.filter(n=>n.role==='judgment').map(n=>n.value.id),['j:0','j:2']);
  const handle=first.rows[2].envelope.content.expansion_handles.find(h=>h.target.kind==='dependency'&&h.target.id==='dependency:optional');
- const second=await session(rows=>rows.length?null:request('expand',handle));
+ const second=await session(rows=>rows.length?null:request('expand',handle),['--view','full']);
  assert.notEqual(first.pid,second.pid);assert.equal(second.code,1);assert.equal(second.rows[0].status,'rejected');assert.equal(second.rows[0].diagnostic.code,'READ_HANDLE_STALE');assert.equal(second.rows[0].detail,'handle_invalid');assert.equal(second.rows[0].body,null);assert.equal(second.rows[0].body_bytes,0);
- const changed=await session(rows=>rows.length===2?null:rows.length?request('expand',{...rows[0].envelope.content.expansion_handles.find(h=>h.target.kind==='dependency'&&h.target.id==='dependency:optional'),scope:[]}):request());
+ const changed=await session(rows=>rows.length===2?null:rows.length?request('expand',{...rows[0].envelope.content.expansion_handles.find(h=>h.target.kind==='dependency'&&h.target.id==='dependency:optional'),scope:[]}):request(),['--view','full']);
  assert.equal(changed.code,1);assert.equal(changed.rows[1].status,'rejected');assert.equal(changed.rows[1].diagnostic.code,'READ_INPUT_INVALID');assert.equal(changed.rows[1].body,null);assert.equal(changed.rows[1].body_bytes,0);
- const forged=await session(rows=>rows.length===2?null:rows.length?request('expand',{...rows[0].envelope.content.expansion_handles.find(h=>h.target.kind==='dependency'&&h.target.id==='dependency:optional'),handle_id:'handle:unissued'}):request());
+ const forged=await session(rows=>rows.length===2?null:rows.length?request('expand',{...rows[0].envelope.content.expansion_handles.find(h=>h.target.kind==='dependency'&&h.target.id==='dependency:optional'),handle_id:'handle:unissued'}):request(),['--view','full']);
  assert.equal(forged.code,1);assert.equal(forged.rows[1].envelope.diagnostics[0].code,'READ_HANDLE_UNTRUSTED');
 });
 test('bin admission, explicit consent and zero budget keep reading and action separate',()=>{
  for(const command of ['inspect','validate']) {const p=binary([command,file]);assert.equal(p.status,0);const out=JSON.parse(p.stdout);assert.equal(out.states.action_authorization,'not_evaluated');assert.equal(out.states.read_permission,'not_evaluated');}
  const denied=binary(['read',file]);assert.equal(denied.status,1);assert.deepEqual(JSON.parse(denied.stdout),{status:'rejected',code:'KDNA_READ_PERMISSION_REQUIRED',action_authorized:false});
  const zero=binary(['read',file,'--allow-read','--budget','0']);assert.equal(zero.status,1);assert.equal(JSON.parse(zero.stdout).control.body_bytes,0);
- const allowed=binary(['read',file,'--allow-read']);assert.equal(allowed.status,0);assert.equal(JSON.parse(allowed.stdout).envelope.states.action_authorization,'not_evaluated');
+ const allowed=binary(['read',file,'--allow-read','--view','full']);assert.equal(allowed.status,0);assert.equal(JSON.parse(allowed.stdout).envelope.states.action_authorization,'not_evaluated');
 });
 test('session handles chunked UTF8, CRLF, empty EOF and final line without newline',async()=>{
  const good=Buffer.from(JSON.stringify({...request('catalog'),request_id:'request:🙂'})+'\r\n');
  const chunks=Array.from(good,byte=>Buffer.from([byte]));assert.equal((await invoke(['read',file,'--session','--allow-read'],chunks)).code,0);
- const final=binary(['read',file,'--session','--allow-read'],JSON.stringify(request('catalog')));assert.equal(final.status,0);assert.equal(JSON.parse(final.stdout).envelope.status,'catalog_only');
+ const final=binary(['read',file,'--session','--allow-read','--view','full'],JSON.stringify(request('catalog')));assert.equal(final.status,0);assert.equal(JSON.parse(final.stdout).envelope.status,'catalog_only');
  const empty=binary(['read',file,'--session','--allow-read'],Buffer.alloc(0));assert.equal(empty.status,0);assert.equal(empty.stdout,'');assert.equal(empty.stderr,'');
  const three=binary(['read',file,'--session','--allow-read'],[request('catalog'),request('whole_asset')].map(JSON.stringify).join('\n'));assert.equal(three.status,0);assert.equal(three.stdout.trim().split('\n').length,2);
 });
@@ -197,7 +197,7 @@ for (const phase of ['before-first-input', 'after-ready']) {
   for (const event of ['error', 'close']) test('idle output '+event+' at '+phase+' rejects and returns cooperative input', async () => {
     const observed = idleInput({ first: phase === 'after-ready' }), lines = [];
     const output = new Writable({ write(chunk, encoding, callback) { lines.push(chunk.toString()); callback(); } });
-    const result = run(['read', file, '--session', '--allow-read'], output, observed.input).then(code => ({ code }), error => ({ error }));
+    const result = run(['read', file, '--session', '--allow-read', '--view', 'full'], output, observed.input).then(code => ({ code }), error => ({ error }));
     await bounded(observed.waiting);
     const first = new Error('IDLE_OUTPUT_FIRST_FAILURE');
     output.destroy(event === 'error' ? first : undefined);
@@ -247,13 +247,13 @@ test('already closed output rejects before idle input and requests return', asyn
 test('healthy multi-message EOF preserves all catalog rows without ending caller output', async () => {
   const lines = []; const output = new Writable({ highWaterMark: 1, write(chunk, encoding, cb) { lines.push(chunk.toString()); setImmediate(cb); } });
   const input = Readable.from([Array.from({ length: 64 }, (_, i) => JSON.stringify({ ...request('catalog'), request_id: 'multi:'+i })+'\n').join('')]);
-  assert.equal(await run(['read', file, '--session', '--allow-read'], output, input), 0);
+  assert.equal(await run(['read', file, '--session', '--allow-read', '--view', 'full'], output, input), 0);
   assert.equal(lines.length, 64); assert.ok(lines.every(line => JSON.parse(line).envelope.status === 'catalog_only'));
   assert.equal(output.writableEnded, false); assert.equal(output.listenerCount('error'), 0); output.end();
 });
 test('actual bin preserves first row then exits when a later write observes closed pipe', async () => {
   await new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [bin, 'read', file, '--session', '--allow-read'], { stdio: ['pipe','pipe','pipe'], env: process.env });
+    const child = spawn(process.execPath, [bin, 'read', file, '--session', '--allow-read', '--view', 'full'], { stdio: ['pipe','pipe','pipe'], env: process.env });
     let stderr = '', first = '', sent = false;
     const timer = setTimeout(() => { child.kill(); reject(new Error('late closed pipe did not terminate')); }, 5000);
     child.on('error', reject); child.stdin.on('error', () => {}); child.stderr.on('data', part => stderr += part);
