@@ -69,15 +69,57 @@ Optional keys (5): `attributions`, `cohesion`, `content_risk`, `extensions`,
 Optional keys (9): `answer_other`, `answer_parts`, `boundaries`, `exceptions`,
 `extensions`, `formation_rule`, `lifecycle`, `misuse`, `result`
 
+An undecided question inside the author's domain stays a judgment with
+`answer_kind: "other"` and an `answer_other` definition saying the author has
+not decided. Moving it to `out_of_domain`/`none` or dropping it is not
+equivalent to keeping it, and nothing downstream can tell the difference —
+see §6 for the matching rule about a method the author never stated.
+
 ## 6. `judgment.method.components[]`
 
 Required: `id`, `method`, `role`, `material_refs`. Optional: `content_ref`,
 `statement`.
 
-`role` is required and takes its value from the contract vocabulary (for example
-`识别特征`, `类别定义`, `匹配办法`). Do not drop a required role and do not add an
-undefined property; a required component that does not fit the author's material
-stays as declared rather than being invented.
+Every component's `method.term` equals the judgment's `method.method.term`,
+and `components` is never empty. `role` is required and takes its value from
+the fixed per-term vocabulary below; a duplicate role, a role from another
+term's set, or a missing required role is refused with `READ_CORE_INVALID`
+pointing at `…/method/components` (the pointer names the array, not the
+offending role). Do not add an undefined property; a required component that
+does not fit the author's material stays as declared rather than being
+invented.
+
+The required and optional role sets per method term, generated from the
+contract this CLI binds (`composite` instead carries `plan` and `units`):
+
+<!-- method-role-table:start -->
+| method term | required roles | optional roles |
+| --- | --- | --- |
+| `analogy` | 参照对象、对应关系、借用办法 | 关键差异、不可迁移之处 |
+| `calculation` | 输入与含义、计算关系 | 计算假设、取值边界、误差说明 |
+| `causal_analysis` | 待解释现象、原因关系 | 候选原因、区分依据、反向情况 |
+| `criteria_comparison` | 判断标准、对照办法、归结办法 | 底线要求、例外情况 |
+| `elimination` | 候选范围、排除条件、保留办法 | 特殊情况处理 |
+| `evidence_analysis` | 所用材料、材料与判断的联系 | 反向材料、材料取舍 |
+| `experience` | 经验要点 | 参考经历、适用情形、例外情况 |
+| `feedback` | 调整目标、反馈信号、调整办法 | 停止条件、冲突处理 |
+| `feeling` | 个人感受 | 体验说明、偏好变化 |
+| `inference` | 判断前提、推导关系 | 关键假设、例外情况 |
+| `interpretation` | 解读对象、解释关系 | 相关语境、理解线索、替代解读 |
+| `observation` | 观察依据 | 判定口径、观察限制 |
+| `other` | 方法说明、判断依据、作用关系 | 补充说明、适用限制 |
+| `recognition` | 识别特征、类别定义、匹配办法 | 易混淆情况 |
+| `simulation` | 起点条件、变化假设、演变关系 | 情景分叉、转折信号 |
+| `tradeoff` | 候选方案、比较因素、取舍原则 | 不可兼得之处、优先变化 |
+<!-- method-role-table:end -->
+
+When the author has not stated a method at all, do not pick a term for them:
+use `method.term: "other"` with the required `other` definition
+(`name` / `definition` / `exclusion_reason`) stating the absence, and keep the
+three `other` roles (方法说明、判断依据、作用关系) as explicit not-stated
+components. A term chosen by the encoder passes admission silently and reads
+back exactly like a stated method, so this substitution is the one error no
+downstream check can detect.
 
 ## 7. Before you create
 
@@ -87,7 +129,8 @@ stays as declared rather than being invented.
 3. all 13 manifest keys present, spelled exactly as above;
 4. all 22 payload keys present and 15 required keys in each judgment;
 5. every method component has its four required keys, with `role` from the
-   vocabulary;
+   per-term table in §6, every required role present exactly once, and the
+   component's `method.term` equal to the judgment's;
 6. timestamps are UTC `YYYY-MM-DDTHH:MM:SS(.sss)Z`;
 7. when revising, change the version in all four places: `manifest.version`,
    `manifest.judgment_version`, `payload.asset.asset_version`,
@@ -112,7 +155,10 @@ machine.
 | member entry missing a key or carrying an extra one | *observed* `SOURCE_INPUT_INVALID` with `field: /members/<i>`, `reason: key_set`, `missing`/`unexpected`                                                    | member entries have exactly the four keys in §2                                                          |
 | `bytes_base64` that is not canonical base64        | *observed* `SOURCE_INPUT_INVALID` with `field: /members/<i>/bytes_base64`, `reason: not_canonical_base64`                                                  | re-encode the bytes; no whitespace, no padding shortcuts, no URL-safe alphabet                           |
 | a fourth top-level key                             | *observed* `SOURCE_INPUT_INVALID` with `field: /`, `reason: key_set`, `unexpected: [...]`                                                                  | Core adds `format_version` and `payload` after creation; do not add them yourself                         |
-| invalid `method.components[].role`                 | `READ_CORE_INVALID` with `field: /payload/judgments/0/method/components/0/role`                                                                            | the vocabulary is fixed; a role the author did not give is not invented                                  |
+| role outside the term's set, duplicate role, or a missing required role | *observed* `READ_CORE_INVALID` with `field: /payload/judgments/0/method/components` (the array, not the offending role; no reason sentence)                | check the per-term role table in §6; empty `components` is also refused here                             |
+| `method` key absent from a judgment                | *observed* `READ_CORE_INVALID` with `field: /payload/judgments/0/method`                                                                                   | when the author has stated no method, use the `other` encoding in §6 rather than choosing a term         |
+| judgment `exceptions.value[]` entry is only an id  | *observed* `READ_CORE_INVALID` with `field: /payload/judgments/0/exceptions/value/0/statement`                                                             | `exceptions.value[]` carries complete exception objects (`statement`, `boundary_ref`, `applies_to`, `when`, `effect`), not references                                   |
+| material missing `source_refs`                     | *observed* `READ_CORE_INVALID` with `field: /payload/materials/0/source_refs`                                                                              | every material declares `source_refs`; an empty array is allowed but the key is required                 |
 | empty file (no container structure)                | *observed* `READ_INPUT_INVALID`, stage `input`, `diagnostic: null`                                                                                        | the input is not a container at all                                                                      |
 | truncated or damaged container                     | *observed* `READ_CORE_INVALID`, stage `input`, `diagnostic: null`                                                                                          | the container is recognisable but incomplete; structural damage is not reported as a missing container   |
 | container of another family (for example Studio `0.5`) | *observed* `READ_UNSUPPORTED_VERSION`, stage `metadata`, `field: /payload.kdnab`                                                                        | this native entry admits the `0.6` container; use the route that belongs to that family                  |
