@@ -2,10 +2,10 @@
 
 ## Supported versions
 
-The published `0.36.x` line remains supported; earlier versions are unsupported.
-The current source candidate is `0.39.0-rc.native-sections.3`. It is not an
-npm release and does not change the published version's command contract.
-Reports should identify which surface is affected.
+The published `latest` line remains supported; earlier versions are unsupported.
+The current source candidate is `0.40.0`; it becomes a published npm release
+only after its exact approved artifact and registry acquisition. Reports should
+identify which surface is affected.
 
 ## Current source boundary
 

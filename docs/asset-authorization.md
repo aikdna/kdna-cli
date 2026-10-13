@@ -1,6 +1,6 @@
 # Native CLI authorization guide
 
-CLI `0.39.0` uses explicit local operation permissions and has no password
+CLI `0.40.0` uses explicit local operation permissions and has no password
 or credential-store command. Its stable distribution requires its own approved
 exact artifact and registry acquisition; version labels do not establish release.
 

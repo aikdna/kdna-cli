@@ -1,6 +1,6 @@
-# KDNA CLI 0.39.0
+# KDNA CLI 0.40.0
 
-`0.39.0` is published on `latest` with exact Core `0.37.2` and Read `0.11.3`, from a reviewed source commit whose retained artifact was matched byte for byte at the registry. Verify the actual registry version and release evidence before installation. Earlier `native-preview` releases retain their own artifacts and locks.
+The source in this repository is the stable distribution candidate `0.40.0`, with exact Core `0.37.3` and Read `0.12.0`. Its release authority targets `latest` only after the exact retained artifact and companion graph are approved. Verify the actual registry version and release evidence before installation. Earlier `native-preview` releases retain their own artifacts and locks.
 
 This candidate delegates native container production, admission and disclosure to the exact companion Core and Read archives. It does not interpret assets independently.
 
@@ -82,7 +82,7 @@ The native CLI source and dependency graph are candidates. Source feedback revis
 
 ## Contract and authority
 
-Core `0.37.2` and Read `0.11.3` supply the required native public export targets. Their exact archive SHA256 values are recorded in the [binding](./public-contract-binding.json); verify the delivered archives against those values. The current tuple is container `0.6.0`, Core `kdna.core/0.8.2`, IR `kdna.canonical-ir/0.6.1` and Read `kdna.read/0.7.0-candidate`; route-definition content identities are recorded in the binding file. A source checkout with the same versions is not automatically byte-equivalent to these archives.
+Core `0.37.3` and Read `0.12.0` supply the required native public export targets. Their exact archive SHA256 values are recorded in the [binding](./public-contract-binding.json); verify the delivered archives against those values. The current tuple is container `0.6.0`, Core `kdna.core/0.8.2`, IR `kdna.canonical-ir/0.6.1` and Read `kdna.read/0.7.0-candidate`; route-definition content identities are recorded in the binding file. A source checkout with the same versions is not automatically byte-equivalent to these archives.
 
 Technical validity, producer observation, filesystem saving, author confirmation, reading permission, task adoption and action authorization remain separate. No CLI operation creates human confirmation or grants network, payment, execution or other Host permissions. There is no legacy loader fallback, automatic asset migration or action executor. Historical material under `retired/` is excluded from builds and distribution.
 
