@@ -11,15 +11,15 @@ const COMMIT = 'a'.repeat(40), TREE = 'b'.repeat(40), BASE = 'c'.repeat(40);
 const configuration = {
   channel: 'stable', version: '0.39.0', base_commit: BASE,
   companions: [
-    {name: '@aikdna/kdna-core', version: '0.37.2', sha256: 'd'.repeat(64)},
-    {name: '@aikdna/kdna-read', version: '0.11.3', sha256: 'e'.repeat(64)},
+    {name: '@aikdna/kdna-core', version: '0.37.3', sha256: 'd'.repeat(64)},
+    {name: '@aikdna/kdna-read', version: '0.12.0', sha256: 'e'.repeat(64)},
   ],
 };
 const authority = createAuthority(configuration);
 function fixture() {
   const pkg = {name: '@aikdna/kdna-cli', version: '0.39.0',
     files: authority.SOURCE_FILES.filter(file => file !== 'package.json'),
-    bin: {kdna: 'src/cli.js'}, dependencies: {'@aikdna/kdna-core': '0.37.2', '@aikdna/kdna-read': '0.11.3'}};
+    bin: {kdna: 'src/cli.js'}, dependencies: {'@aikdna/kdna-core': '0.37.3', '@aikdna/kdna-read': '0.12.0'}};
   const notes = '## CLI 0.39.0\n\nExact stable native source and independently approved companion bytes.';
   const approval = {schema: 'kdna.stable-release-approval/1', unit: 'cli', repository: 'aikdna/kdna-cli',
     source_commit: COMMIT, source_tree: TREE, base_commit: BASE, version: pkg.version,
