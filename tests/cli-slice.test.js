@@ -36,7 +36,10 @@ function session(makeRequest, args=[]) {
  return new Promise((resolve,reject)=>{
   const child=spawn(process.execPath,[bin,'read',file,'--session','--allow-read',...args],{stdio:['pipe','pipe','pipe'],env:process.env});
   const rows=[];let stderr='';let finished=false;
-  const timer=setTimeout(()=>{child.kill();reject(new Error('CLI session did not close'));},5000);
+  // Watchdog only: it guards against a hung child, not a latency budget. A cold
+  // CI runner has been observed to need more than five seconds for the first
+  // full-surface session, so the kill timer has generous headroom.
+  const timer=setTimeout(()=>{child.kill();reject(new Error('CLI session did not close'));},30000);
   child.on('error',reject);child.stderr.on('data',part=>stderr+=part);
   createInterface({input:child.stdout}).on('line',line=>{try {rows.push(JSON.parse(line));const next=makeRequest(rows);if(next)child.stdin.write(JSON.stringify(next)+'\n');else {finished=true;child.stdin.end();}}catch(e){child.kill();reject(e);}});
   child.on('close',(code,signal)=>{clearTimeout(timer);resolve({rows,code,signal,stderr,pid:child.pid,inputEnded:finished});});
