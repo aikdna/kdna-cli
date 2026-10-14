@@ -1,0 +1,1608 @@
+{
+  "provenance": {
+    "cli": {
+      "name": "@aikdna/kdna-cli",
+      "version": "0.40.1",
+      "registry_integrity": "sha512-FEPGf6konXiYhv5IrHl7EvxlAQ06TtyRs8nAmdW+8Zn3ESUuO47+rSLyGLUaKkY8w/SOSRJ04ph0ZhSgAZv9+Q==",
+      "registry_shasum": "d72a9c7ee7a85771325ab94229fa6c2d0f040c62"
+    },
+    "fixture": "tests/fixtures/graph-expand-session.authored.json",
+    "asset": {
+      "sha256": "2030f259a4b3766985044e2e23cd3a4d0130f75bfe88984d860285a5e5b9653d",
+      "bytes": 41224
+    },
+    "selection": {
+      "mode": "exact_selection",
+      "asset_id": "asset:bytes",
+      "asset_version": "1.0.0",
+      "judgment_ids": [
+        "j:0"
+      ]
+    },
+    "command": "kdna read <asset.kdna> --mode exact_selection --asset-id asset:bytes --asset-version 1.0.0 --judgment-id j:0 --allow-read --view full",
+    "note": "Produced by this script from the registry install of the named CLI version; volatile fields are replaced per the normalization list in this script."
+  },
+  "output": {
+    "channel": "read_envelope",
+    "envelope": {
+      "contract": {
+        "id": "kdna.retained-sections",
+        "version": "0.1.0-candidate",
+        "definition_digest": "sha256:017807a18e4a3bd671e1098a2ec0b63268577396a5f0b88b85bad662b10e0d83"
+      },
+      "mode": "exact_selection",
+      "request_id": "cli:<id>",
+      "status": "ready",
+      "tuple": {
+        "container": "0.6.0",
+        "payload_profile": "kdna.payload.judgment",
+        "payload_version": "0.5.1",
+        "core": "kdna.core/0.8.2",
+        "ir": "kdna.canonical-ir/0.6.1",
+        "runtime": "kdna.runtime-capsule/0.3.1",
+        "plan": "kdna.consumption-plan/0.3.1",
+        "host": "kdna.agent-host/0.3.1",
+        "trace": "kdna.judgment-trace/0.3.1",
+        "read": "kdna.read/0.7.0-candidate"
+      },
+      "asset": {
+        "asset_id": "asset:bytes",
+        "asset_version": "1.0.0",
+        "judgment_version": "1.0.0"
+      },
+      "snapshot_id": "section-snapshot:<id>",
+      "digests": {
+        "A": {
+          "basis": "container_bytes",
+          "profile": "kdna.digest-basis.container-bytes",
+          "profile_version": "0.2.0",
+          "algorithm": "SHA-256",
+          "observed": "sha256:2030f259a4b3766985044e2e23cd3a4d0130f75bfe88984d860285a5e5b9653d",
+          "comparison": {
+            "state": "not_compared",
+            "expected": null,
+            "expected_source": null
+          }
+        },
+        "C": {
+          "basis": "content_tree",
+          "profile": "kdna.digest-basis.content-tree",
+          "profile_version": "0.2.0",
+          "algorithm": "SHA-256",
+          "observed": "sha256:82885543f21809cc8fc73db81d591cb6c69a0f3d0f11306b4c80197c4aab9df9",
+          "comparison": {
+            "state": "not_compared",
+            "expected": null,
+            "expected_source": null
+          }
+        },
+        "E": {
+          "basis": "runtime_entry_set",
+          "profile": "kdna.digest-basis.runtime-entry-set",
+          "profile_version": "0.3.0-candidate",
+          "algorithm": "SHA-256",
+          "observed": "sha256:b7da0b1e0fcd4ef00a38470694efb90ce8512efcb35acb952dd0a18d7a1e26e0",
+          "comparison": {
+            "state": "not_compared",
+            "expected": null,
+            "expected_source": null
+          }
+        }
+      },
+      "content": {
+        "declarations": [
+          {
+            "id": "asset_declaration:3d4d0f99a1913cccf7d6a55923d41f60d5c3f290",
+            "role": "asset_declaration",
+            "target": {
+              "kind": "asset",
+              "id": "uid:bytes"
+            },
+            "owner": {
+              "kind": "asset",
+              "id": "uid:bytes"
+            },
+            "owner_judgment_id": null,
+            "value": {
+              "asset_id": "asset:bytes",
+              "asset_type": "fixture",
+              "asset_uid": "uid:bytes",
+              "version": "1.0.0",
+              "judgment_version": "1.0.0",
+              "title": "From-zero conformance asset",
+              "summary": "Synthetic asset for isolated contract regression checks.",
+              "languages": [
+                "en"
+              ],
+              "created_at": "2026-09-06T00:00:00Z",
+              "updated_at": "2026-09-06T00:00:00Z",
+              "lineage": [],
+              "scope": {
+                "statement": "Asset scope"
+              },
+              "kernel": {
+                "purpose": {
+                  "kind": "summary"
+                },
+                "foundation_refs": []
+              },
+              "extensions": [],
+              "history": {
+                "coverage": "complete",
+                "statement": "Initial engineering fixture only."
+              },
+              "declarations": {
+                "highest_question": {
+                  "state": "provided",
+                  "value": "What does this engineering fixture declare?"
+                },
+                "boundaries": {
+                  "state": "none"
+                }
+              }
+            }
+          }
+        ],
+        "catalog": [
+          {
+            "judgment_id": "j:0",
+            "focus": "Explicit issue 0",
+            "node_ref": "judgment:58cb2724cbc46855b30351eaae28e759ffbd1cd0",
+            "parent_ref": null
+          },
+          {
+            "judgment_id": "j:1",
+            "focus": "Explicit issue 1",
+            "node_ref": "judgment:e06cc4af1e02c79d340fe8cdd9a893074cd26a46",
+            "parent_ref": null
+          }
+        ],
+        "selected": {
+          "asset_id": "asset:bytes",
+          "asset_version": "1.0.0",
+          "judgment_ids": [
+            "j:0"
+          ]
+        },
+        "closure": [
+          {
+            "id": "asset_declaration:3d4d0f99a1913cccf7d6a55923d41f60d5c3f290",
+            "role": "asset_declaration",
+            "target": {
+              "kind": "asset",
+              "id": "uid:bytes"
+            },
+            "owner": {
+              "kind": "asset",
+              "id": "uid:bytes"
+            },
+            "owner_judgment_id": null,
+            "value": {
+              "asset_id": "asset:bytes",
+              "asset_type": "fixture",
+              "asset_uid": "uid:bytes",
+              "version": "1.0.0",
+              "judgment_version": "1.0.0",
+              "title": "From-zero conformance asset",
+              "summary": "Synthetic asset for isolated contract regression checks.",
+              "languages": [
+                "en"
+              ],
+              "created_at": "2026-09-06T00:00:00Z",
+              "updated_at": "2026-09-06T00:00:00Z",
+              "lineage": [],
+              "scope": {
+                "statement": "Asset scope"
+              },
+              "kernel": {
+                "purpose": {
+                  "kind": "summary"
+                },
+                "foundation_refs": []
+              },
+              "extensions": [],
+              "history": {
+                "coverage": "complete",
+                "statement": "Initial engineering fixture only."
+              },
+              "declarations": {
+                "highest_question": {
+                  "state": "provided",
+                  "value": "What does this engineering fixture declare?"
+                },
+                "boundaries": {
+                  "state": "none"
+                }
+              }
+            }
+          },
+          {
+            "id": "actor:c98371640f441dac1f09fe051b13c92559f8d3e7",
+            "role": "actor",
+            "target": {
+              "kind": "actor",
+              "id": "actor:boundary"
+            },
+            "owner": {
+              "kind": "asset",
+              "id": "uid:bytes"
+            },
+            "owner_judgment_id": null,
+            "value": {
+              "id": "actor:boundary",
+              "kind": "person",
+              "name": "Engineering boundary author"
+            }
+          },
+          {
+            "id": "relationship:cc27c77171d063c9d64868e20226f515809692e8",
+            "role": "relationship",
+            "target": {
+              "kind": "relationship",
+              "id": "relationship:support-1"
+            },
+            "owner": {
+              "kind": "asset",
+              "id": "uid:bytes"
+            },
+            "owner_judgment_id": null,
+            "value": {
+              "id": "relationship:support-1",
+              "kind": {
+                "term": "support"
+              },
+              "direction": "directed",
+              "operator": {
+                "term": "supports"
+              },
+              "effect": {
+                "term": "offers_support"
+              },
+              "statement": "Synthetic support: j:1 offers supporting basis for j:0.",
+              "participants": [
+                {
+                  "role": {
+                    "term": "supporter"
+                  },
+                  "judgment_ref": "j:1"
+                },
+                {
+                  "role": {
+                    "term": "claim"
+                  },
+                  "judgment_ref": "j:0"
+                }
+              ]
+            }
+          },
+          {
+            "id": "condition:ad6d2f9a2714d32a8440eeaff4de3107eb332571",
+            "role": "condition",
+            "target": {
+              "kind": "condition",
+              "id": "condition:exception"
+            },
+            "owner": {
+              "kind": "asset",
+              "id": "uid:bytes"
+            },
+            "owner_judgment_id": null,
+            "value": {
+              "id": "condition:exception",
+              "owner_ref": {
+                "kind": "exception",
+                "id": "exception:selected"
+              },
+              "expression": {
+                "kind": "interpreted",
+                "statement": "Author-supplied qualification, never evaluated by Core or Read."
+              }
+            }
+          },
+          {
+            "id": "judgment:58cb2724cbc46855b30351eaae28e759ffbd1cd0",
+            "role": "judgment",
+            "target": {
+              "kind": "judgment",
+              "id": "j:0"
+            },
+            "owner": {
+              "kind": "asset",
+              "id": "uid:bytes"
+            },
+            "owner_judgment_id": "j:0",
+            "value": {
+              "id": "j:0",
+              "focus": "Explicit issue 0",
+              "subject": {
+                "actor_ids": [],
+                "statement": "Example subject"
+              },
+              "scope": {
+                "statement": "Bounded scope 0"
+              },
+              "answer_kind": "preference",
+              "parent_ref": null,
+              "form": "conclusion",
+              "core_expression": {
+                "kind": "authored",
+                "statement": "Synthetic authored answer 0",
+                "qualification_refs": []
+              },
+              "method": {
+                "method": {
+                  "term": "feeling"
+                },
+                "components": [
+                  {
+                    "id": "component:0",
+                    "method": {
+                      "term": "feeling"
+                    },
+                    "role": "个人感受",
+                    "material_refs": [],
+                    "statement": "Synthetic subjective basis for regression testing."
+                  }
+                ],
+                "bindings": []
+              },
+              "material_refs": [],
+              "reason_refs": [],
+              "content_uses": [],
+              "ports": [
+                {
+                  "name": "input:dependency:optional",
+                  "meaning": "Optional source judgment",
+                  "direction": "input",
+                  "input_role": "context",
+                  "contract_ref": {
+                    "kind": "contract",
+                    "id": "result-contract:2"
+                  }
+                }
+              ],
+              "inputs": [
+                {
+                  "name": "context",
+                  "meaning": "Optional source judgment",
+                  "contract_ref": {
+                    "kind": "contract",
+                    "id": "result-contract:2"
+                  }
+                }
+              ],
+              "boundaries": {
+                "state": "provided",
+                "value": [
+                  {
+                    "id": "boundary:required",
+                    "effect": "limit",
+                    "statement": "Required qualification",
+                    "declared_by": "actor:boundary",
+                    "applies_to": {
+                      "kind": "judgments",
+                      "judgment_refs": [
+                        "j:0"
+                      ]
+                    },
+                    "exception_refs": [
+                      "exception:selected"
+                    ]
+                  }
+                ]
+              },
+              "exceptions": {
+                "state": "provided",
+                "value": [
+                  {
+                    "id": "exception:selected",
+                    "statement": "Explicit conditional exception",
+                    "boundary_ref": "boundary:required",
+                    "applies_to": {
+                      "kind": "judgments",
+                      "judgment_refs": [
+                        "j:0"
+                      ]
+                    },
+                    "when": {
+                      "kind": "condition",
+                      "id": "condition:exception"
+                    },
+                    "effect": {
+                      "kind": "waive"
+                    }
+                  }
+                ]
+              },
+              "misuse": {
+                "state": "none",
+                "value": null
+              },
+              "extensions": [],
+              "result_contract": {
+                "id": "result-contract:0",
+                "form": {
+                  "term": "scalar",
+                  "vocabulary": "core"
+                },
+                "shape": {
+                  "kind": "scalar",
+                  "scalar_type": "text"
+                },
+                "minimum": 1,
+                "maximum": 1,
+                "allowed_result_types": [
+                  {
+                    "term": "text",
+                    "vocabulary": "core"
+                  }
+                ]
+              },
+              "result": {
+                "contract_ref": "result-contract:0",
+                "result_type": {
+                  "term": "text",
+                  "vocabulary": "core"
+                },
+                "value": {
+                  "kind": "text",
+                  "value": "Authored result 0"
+                }
+              }
+            },
+            "method_interpretation": {
+              "declaration": {
+                "method": {
+                  "term": "feeling"
+                },
+                "components": [
+                  {
+                    "id": "component:0",
+                    "method": {
+                      "term": "feeling"
+                    },
+                    "role": "个人感受",
+                    "material_refs": [],
+                    "statement": "Synthetic subjective basis for regression testing."
+                  }
+                ],
+                "bindings": []
+              },
+              "declaration_presence": {
+                "components_state": "declared",
+                "bindings_state": "declared"
+              },
+              "component_interpretations": [
+                {
+                  "judgment_ref": "j:0",
+                  "component_ref": "component:0",
+                  "component_type": null,
+                  "definition_digest": "sha256:37e857cc4e43f7283a51ee6abe1f6e8401803902e8dc47f6d14d712aa7d7b089",
+                  "status": "undeclared",
+                  "declaration_digest": null,
+                  "content_digest": null,
+                  "profile_id": null,
+                  "component_declaration_digest": null,
+                  "statement_origin": null,
+                  "bindings_digest": null,
+                  "adoption_proposal_digest": null,
+                  "authored_content": null,
+                  "body": null
+                }
+              ]
+            }
+          },
+          {
+            "id": "result_contract:6a1f330d0791b255f0337c50714598f561402cdf",
+            "role": "result_contract",
+            "target": {
+              "kind": "contract",
+              "id": "result-contract:0"
+            },
+            "owner": {
+              "kind": "judgment",
+              "id": "j:0"
+            },
+            "owner_judgment_id": "j:0",
+            "value": {
+              "id": "result-contract:0",
+              "form": {
+                "term": "scalar",
+                "vocabulary": "core"
+              },
+              "shape": {
+                "kind": "scalar",
+                "scalar_type": "text"
+              },
+              "minimum": 1,
+              "maximum": 1,
+              "allowed_result_types": [
+                {
+                  "term": "text",
+                  "vocabulary": "core"
+                }
+              ]
+            }
+          },
+          {
+            "id": "result:2f8910087c36575d663edffcff260e16d9c66b84",
+            "role": "result",
+            "target": {
+              "kind": "result",
+              "id": "j:0"
+            },
+            "owner": {
+              "kind": "judgment",
+              "id": "j:0"
+            },
+            "owner_judgment_id": "j:0",
+            "value": {
+              "contract_ref": "result-contract:0",
+              "result_type": {
+                "term": "text",
+                "vocabulary": "core"
+              },
+              "value": {
+                "kind": "text",
+                "value": "Authored result 0"
+              }
+            }
+          },
+          {
+            "id": "method_component:f2d980fe4d70b51fce1502a2af6dc04bf73fb794",
+            "role": "method_component",
+            "target": {
+              "kind": "component",
+              "id": "component:0"
+            },
+            "owner": {
+              "kind": "judgment",
+              "id": "j:0"
+            },
+            "owner_judgment_id": "j:0",
+            "value": {
+              "id": "component:0",
+              "method": {
+                "term": "feeling"
+              },
+              "role": "个人感受",
+              "material_refs": [],
+              "statement": "Synthetic subjective basis for regression testing."
+            }
+          },
+          {
+            "id": "boundary:65516bd5ef9247fb562e74864c5e44d77116e232",
+            "role": "boundary",
+            "target": {
+              "kind": "boundary",
+              "id": "boundary:required"
+            },
+            "owner": {
+              "kind": "judgment",
+              "id": "j:0"
+            },
+            "owner_judgment_id": "j:0",
+            "value": {
+              "id": "boundary:required",
+              "effect": "limit",
+              "statement": "Required qualification",
+              "declared_by": "actor:boundary",
+              "applies_to": {
+                "kind": "judgments",
+                "judgment_refs": [
+                  "j:0"
+                ]
+              },
+              "exception_refs": [
+                "exception:selected"
+              ]
+            },
+            "activation": {
+              "kind": "always"
+            }
+          },
+          {
+            "id": "exception:d29e140108678ba47226509941feb7b9edffccdd",
+            "role": "exception",
+            "target": {
+              "kind": "exception",
+              "id": "exception:selected"
+            },
+            "owner": {
+              "kind": "judgment",
+              "id": "j:0"
+            },
+            "owner_judgment_id": "j:0",
+            "value": {
+              "id": "exception:selected",
+              "statement": "Explicit conditional exception",
+              "boundary_ref": "boundary:required",
+              "applies_to": {
+                "kind": "judgments",
+                "judgment_refs": [
+                  "j:0"
+                ]
+              },
+              "when": {
+                "kind": "condition",
+                "id": "condition:exception"
+              },
+              "effect": {
+                "kind": "waive"
+              }
+            }
+          },
+          {
+            "id": "judgment:e06cc4af1e02c79d340fe8cdd9a893074cd26a46",
+            "role": "judgment",
+            "target": {
+              "kind": "judgment",
+              "id": "j:1"
+            },
+            "owner": {
+              "kind": "asset",
+              "id": "uid:bytes"
+            },
+            "owner_judgment_id": "j:1",
+            "value": {
+              "id": "j:1",
+              "focus": "Explicit issue 1",
+              "subject": {
+                "actor_ids": [],
+                "statement": "Example subject"
+              },
+              "scope": {
+                "statement": "Bounded scope 1"
+              },
+              "answer_kind": "preference",
+              "parent_ref": null,
+              "form": "conclusion",
+              "core_expression": {
+                "kind": "authored",
+                "statement": "Synthetic authored answer 1",
+                "qualification_refs": []
+              },
+              "method": {
+                "method": {
+                  "term": "feeling"
+                },
+                "components": [
+                  {
+                    "id": "component:1",
+                    "method": {
+                      "term": "feeling"
+                    },
+                    "role": "个人感受",
+                    "material_refs": [],
+                    "statement": "Synthetic subjective basis for regression testing."
+                  }
+                ],
+                "bindings": []
+              },
+              "material_refs": [],
+              "reason_refs": [],
+              "content_uses": [],
+              "ports": [],
+              "inputs": [],
+              "boundaries": {
+                "state": "none",
+                "value": null
+              },
+              "exceptions": {
+                "state": "none",
+                "value": null
+              },
+              "misuse": {
+                "state": "none",
+                "value": null
+              },
+              "extensions": [],
+              "result_contract": {
+                "id": "result-contract:1",
+                "form": {
+                  "term": "scalar",
+                  "vocabulary": "core"
+                },
+                "shape": {
+                  "kind": "scalar",
+                  "scalar_type": "text"
+                },
+                "minimum": 1,
+                "maximum": 1,
+                "allowed_result_types": [
+                  {
+                    "term": "text",
+                    "vocabulary": "core"
+                  }
+                ]
+              },
+              "result": {
+                "contract_ref": "result-contract:1",
+                "result_type": {
+                  "term": "text",
+                  "vocabulary": "core"
+                },
+                "value": {
+                  "kind": "text",
+                  "value": "Authored result 1"
+                }
+              }
+            },
+            "method_interpretation": {
+              "declaration": {
+                "method": {
+                  "term": "feeling"
+                },
+                "components": [
+                  {
+                    "id": "component:1",
+                    "method": {
+                      "term": "feeling"
+                    },
+                    "role": "个人感受",
+                    "material_refs": [],
+                    "statement": "Synthetic subjective basis for regression testing."
+                  }
+                ],
+                "bindings": []
+              },
+              "declaration_presence": {
+                "components_state": "declared",
+                "bindings_state": "declared"
+              },
+              "component_interpretations": [
+                {
+                  "judgment_ref": "j:1",
+                  "component_ref": "component:1",
+                  "component_type": null,
+                  "definition_digest": "sha256:37e857cc4e43f7283a51ee6abe1f6e8401803902e8dc47f6d14d712aa7d7b089",
+                  "status": "undeclared",
+                  "declaration_digest": null,
+                  "content_digest": null,
+                  "profile_id": null,
+                  "component_declaration_digest": null,
+                  "statement_origin": null,
+                  "bindings_digest": null,
+                  "adoption_proposal_digest": null,
+                  "authored_content": null,
+                  "body": null
+                }
+              ]
+            }
+          },
+          {
+            "id": "result_contract:37695e32b0bf7b0b1a91fcd3ddf981b4e4f76c4b",
+            "role": "result_contract",
+            "target": {
+              "kind": "contract",
+              "id": "result-contract:1"
+            },
+            "owner": {
+              "kind": "judgment",
+              "id": "j:1"
+            },
+            "owner_judgment_id": "j:1",
+            "value": {
+              "id": "result-contract:1",
+              "form": {
+                "term": "scalar",
+                "vocabulary": "core"
+              },
+              "shape": {
+                "kind": "scalar",
+                "scalar_type": "text"
+              },
+              "minimum": 1,
+              "maximum": 1,
+              "allowed_result_types": [
+                {
+                  "term": "text",
+                  "vocabulary": "core"
+                }
+              ]
+            }
+          },
+          {
+            "id": "result:711ddef8eb79f11aa37d4de8981affa5fa31d91a",
+            "role": "result",
+            "target": {
+              "kind": "result",
+              "id": "j:1"
+            },
+            "owner": {
+              "kind": "judgment",
+              "id": "j:1"
+            },
+            "owner_judgment_id": "j:1",
+            "value": {
+              "contract_ref": "result-contract:1",
+              "result_type": {
+                "term": "text",
+                "vocabulary": "core"
+              },
+              "value": {
+                "kind": "text",
+                "value": "Authored result 1"
+              }
+            }
+          },
+          {
+            "id": "method_component:6ac57146701fb6025993d8a0a678b202bef920db",
+            "role": "method_component",
+            "target": {
+              "kind": "component",
+              "id": "component:1"
+            },
+            "owner": {
+              "kind": "judgment",
+              "id": "j:1"
+            },
+            "owner_judgment_id": "j:1",
+            "value": {
+              "id": "component:1",
+              "method": {
+                "term": "feeling"
+              },
+              "role": "个人感受",
+              "material_refs": [],
+              "statement": "Synthetic subjective basis for regression testing."
+            }
+          },
+          {
+            "id": "result_contract:a8ada7584a4cda752a1d2b098e85f26db5b44805",
+            "role": "result_contract",
+            "target": {
+              "kind": "contract",
+              "id": "result-contract:2"
+            },
+            "owner": {
+              "kind": "judgment",
+              "id": "j:2"
+            },
+            "owner_judgment_id": "j:2",
+            "value": {
+              "id": "result-contract:2",
+              "form": {
+                "term": "scalar",
+                "vocabulary": "core"
+              },
+              "shape": {
+                "kind": "scalar",
+                "scalar_type": "text"
+              },
+              "minimum": 1,
+              "maximum": 1,
+              "allowed_result_types": [
+                {
+                  "term": "text",
+                  "vocabulary": "core"
+                }
+              ]
+            }
+          }
+        ],
+        "references": [
+          {
+            "id": "reference:d0b29451e40791856f1baaba69ed7b97253fa23f",
+            "source_node": "relationship:cc27c77171d063c9d64868e20226f515809692e8",
+            "target_node": "judgment:e06cc4af1e02c79d340fe8cdd9a893074cd26a46",
+            "role": "optional_expansion",
+            "mandatory": false
+          },
+          {
+            "id": "reference:3ec6ea25bc0370f97f0a7a51fc37ee2dee71a744",
+            "source_node": "relationship:cc27c77171d063c9d64868e20226f515809692e8",
+            "target_node": "judgment:58cb2724cbc46855b30351eaae28e759ffbd1cd0",
+            "role": "optional_expansion",
+            "mandatory": false
+          },
+          {
+            "id": "reference:3dec6b6ab8eb82189cd95e8d3143353a0a4300df",
+            "source_node": "condition:ad6d2f9a2714d32a8440eeaff4de3107eb332571",
+            "target_node": "exception:d29e140108678ba47226509941feb7b9edffccdd",
+            "role": "optional_expansion",
+            "mandatory": false
+          },
+          {
+            "id": "reference:5cb1bd95222d7f7fc0e26cab965ab21c14a0461b",
+            "source_node": "judgment:58cb2724cbc46855b30351eaae28e759ffbd1cd0",
+            "target_node": "result_contract:6a1f330d0791b255f0337c50714598f561402cdf",
+            "role": "mandatory_support",
+            "mandatory": true
+          },
+          {
+            "id": "reference:436f30c66658e0fd7bcfc17a7169dffd11bd4316",
+            "source_node": "judgment:58cb2724cbc46855b30351eaae28e759ffbd1cd0",
+            "target_node": "result:2f8910087c36575d663edffcff260e16d9c66b84",
+            "role": "mandatory_support",
+            "mandatory": true
+          },
+          {
+            "id": "reference:eeb8ce1146b6ff466937f5ddde9f7e057fc93a29",
+            "source_node": "judgment:58cb2724cbc46855b30351eaae28e759ffbd1cd0",
+            "target_node": "method_component:f2d980fe4d70b51fce1502a2af6dc04bf73fb794",
+            "role": "mandatory_support",
+            "mandatory": true
+          },
+          {
+            "id": "reference:10e58deb2c5f3a83c4a1c83d60a54fc7deabfb34",
+            "source_node": "judgment:58cb2724cbc46855b30351eaae28e759ffbd1cd0",
+            "target_node": "boundary:65516bd5ef9247fb562e74864c5e44d77116e232",
+            "role": "mandatory_support",
+            "mandatory": true
+          },
+          {
+            "id": "reference:bb0509a7b61ef72fbff77952deb1f9c44e120d28",
+            "source_node": "judgment:58cb2724cbc46855b30351eaae28e759ffbd1cd0",
+            "target_node": "exception:d29e140108678ba47226509941feb7b9edffccdd",
+            "role": "mandatory_support",
+            "mandatory": true
+          },
+          {
+            "id": "reference:b5e19dc4ed878a0d56787f2dfdd4b971c92653aa",
+            "source_node": "judgment:58cb2724cbc46855b30351eaae28e759ffbd1cd0",
+            "target_node": "result_contract:a8ada7584a4cda752a1d2b098e85f26db5b44805",
+            "role": "mandatory_support",
+            "mandatory": true
+          },
+          {
+            "id": "reference:23cf99a46bdd265dc72e5f08314938c7291e3d1b",
+            "source_node": "judgment:58cb2724cbc46855b30351eaae28e759ffbd1cd0",
+            "target_node": "relationship:cc27c77171d063c9d64868e20226f515809692e8",
+            "role": "mandatory_support",
+            "mandatory": true
+          },
+          {
+            "id": "reference:4a2fa1adbbbf54c843fd52a08b0871cc512a81d9",
+            "source_node": "judgment:58cb2724cbc46855b30351eaae28e759ffbd1cd0",
+            "target_node": "judgment:e06cc4af1e02c79d340fe8cdd9a893074cd26a46",
+            "role": "mandatory_support",
+            "mandatory": true
+          },
+          {
+            "id": "reference:457957436db77f3275fd40dcf8ceeb38bb828d7d",
+            "source_node": "result:2f8910087c36575d663edffcff260e16d9c66b84",
+            "target_node": "result_contract:6a1f330d0791b255f0337c50714598f561402cdf",
+            "role": "mandatory_support",
+            "mandatory": true
+          },
+          {
+            "id": "reference:6bc5ae8e86a866b92a41db997f4d4490649d0d6e",
+            "source_node": "boundary:65516bd5ef9247fb562e74864c5e44d77116e232",
+            "target_node": "actor:c98371640f441dac1f09fe051b13c92559f8d3e7",
+            "role": "mandatory_support",
+            "mandatory": true
+          },
+          {
+            "id": "reference:a107747be6b68423c8adac6ebdd606ff34dc1a54",
+            "source_node": "boundary:65516bd5ef9247fb562e74864c5e44d77116e232",
+            "target_node": "exception:d29e140108678ba47226509941feb7b9edffccdd",
+            "role": "mandatory_support",
+            "mandatory": true
+          },
+          {
+            "id": "reference:1998898359ba287e2b7977e80e83cadfbd7b8226",
+            "source_node": "exception:d29e140108678ba47226509941feb7b9edffccdd",
+            "target_node": "boundary:65516bd5ef9247fb562e74864c5e44d77116e232",
+            "role": "mandatory_support",
+            "mandatory": true
+          },
+          {
+            "id": "reference:885a99a468beee09e4a5951bf5258a351d66f396",
+            "source_node": "exception:d29e140108678ba47226509941feb7b9edffccdd",
+            "target_node": "condition:ad6d2f9a2714d32a8440eeaff4de3107eb332571",
+            "role": "mandatory_support",
+            "mandatory": true
+          },
+          {
+            "id": "reference:9eed649e1da6c247efc2b160ebeb02cc5a595285",
+            "source_node": "judgment:e06cc4af1e02c79d340fe8cdd9a893074cd26a46",
+            "target_node": "result_contract:37695e32b0bf7b0b1a91fcd3ddf981b4e4f76c4b",
+            "role": "mandatory_support",
+            "mandatory": true
+          },
+          {
+            "id": "reference:b68cf2ac33f2fe622eb7266180a1e7aecdbe3b98",
+            "source_node": "judgment:e06cc4af1e02c79d340fe8cdd9a893074cd26a46",
+            "target_node": "result:711ddef8eb79f11aa37d4de8981affa5fa31d91a",
+            "role": "mandatory_support",
+            "mandatory": true
+          },
+          {
+            "id": "reference:f6474fba6c2358529d6f53fe3672f65aaf962a72",
+            "source_node": "judgment:e06cc4af1e02c79d340fe8cdd9a893074cd26a46",
+            "target_node": "method_component:6ac57146701fb6025993d8a0a678b202bef920db",
+            "role": "mandatory_support",
+            "mandatory": true
+          },
+          {
+            "id": "reference:6dccf9d7b22196c8e46dfa630010d815c6ee73a3",
+            "source_node": "judgment:e06cc4af1e02c79d340fe8cdd9a893074cd26a46",
+            "target_node": "relationship:cc27c77171d063c9d64868e20226f515809692e8",
+            "role": "mandatory_support",
+            "mandatory": true
+          },
+          {
+            "id": "reference:a3438df3061d78f0cca251f6f19f4a38c2cc514f",
+            "source_node": "result:711ddef8eb79f11aa37d4de8981affa5fa31d91a",
+            "target_node": "result_contract:37695e32b0bf7b0b1a91fcd3ddf981b4e4f76c4b",
+            "role": "mandatory_support",
+            "mandatory": true
+          }
+        ],
+        "relationships": [
+          {
+            "id": "relationship:support-1",
+            "kind": {
+              "term": "support"
+            },
+            "direction": "directed",
+            "operator": {
+              "term": "supports"
+            },
+            "effect": {
+              "term": "offers_support"
+            },
+            "statement": "Synthetic support: j:1 offers supporting basis for j:0.",
+            "participants": [
+              {
+                "role": {
+                  "term": "supporter"
+                },
+                "judgment_ref": "j:1"
+              },
+              {
+                "role": {
+                  "term": "claim"
+                },
+                "judgment_ref": "j:0"
+              }
+            ]
+          }
+        ],
+        "missing": [],
+        "provenance": {
+          "declarations": [
+            {
+              "id": "actor:c98371640f441dac1f09fe051b13c92559f8d3e7",
+              "role": "actor",
+              "target": {
+                "kind": "actor",
+                "id": "actor:boundary"
+              },
+              "owner": {
+                "kind": "asset",
+                "id": "uid:bytes"
+              },
+              "owner_judgment_id": null,
+              "value": {
+                "id": "actor:boundary",
+                "kind": "person",
+                "name": "Engineering boundary author"
+              }
+            }
+          ],
+          "confirmation": "claimed_unverified",
+          "verifier_id": null,
+          "evidence_ref": null
+        },
+        "asset_capability": "asserted_answers",
+        "asset_index": [
+          {
+            "target": {
+              "kind": "asset",
+              "id": "uid:bytes"
+            },
+            "owner": {
+              "kind": "asset",
+              "id": "uid:bytes"
+            },
+            "display_name": "From-zero conformance asset",
+            "body_delivery": "inline",
+            "node_ref": "asset_declaration:3d4d0f99a1913cccf7d6a55923d41f60d5c3f290"
+          },
+          {
+            "target": {
+              "kind": "actor",
+              "id": "actor:boundary"
+            },
+            "owner": {
+              "kind": "asset",
+              "id": "uid:bytes"
+            },
+            "display_name": "Engineering boundary author",
+            "body_delivery": "inline",
+            "node_ref": "actor:c98371640f441dac1f09fe051b13c92559f8d3e7"
+          },
+          {
+            "target": {
+              "kind": "relationship",
+              "id": "relationship:support-1"
+            },
+            "owner": {
+              "kind": "asset",
+              "id": "uid:bytes"
+            },
+            "display_name": "relationship:relationship:support-1",
+            "body_delivery": "inline",
+            "node_ref": "relationship:cc27c77171d063c9d64868e20226f515809692e8"
+          },
+          {
+            "target": {
+              "kind": "dependency",
+              "id": "dependency:optional"
+            },
+            "owner": {
+              "kind": "asset",
+              "id": "uid:bytes"
+            },
+            "display_name": "dependency:dependency:optional",
+            "body_delivery": "deferred",
+            "node_ref": "dependency:6783b1702a79e811fcdfe2df113196e44a3ddb75",
+            "handle_id": "retained-handle:<id>"
+          },
+          {
+            "target": {
+              "kind": "condition",
+              "id": "condition:exception"
+            },
+            "owner": {
+              "kind": "asset",
+              "id": "uid:bytes"
+            },
+            "display_name": "condition:condition:exception",
+            "body_delivery": "inline",
+            "node_ref": "condition:ad6d2f9a2714d32a8440eeaff4de3107eb332571"
+          },
+          {
+            "target": {
+              "kind": "judgment",
+              "id": "j:0"
+            },
+            "owner": {
+              "kind": "asset",
+              "id": "uid:bytes"
+            },
+            "display_name": "Explicit issue 0",
+            "body_delivery": "inline",
+            "node_ref": "judgment:58cb2724cbc46855b30351eaae28e759ffbd1cd0"
+          },
+          {
+            "target": {
+              "kind": "contract",
+              "id": "result-contract:0"
+            },
+            "owner": {
+              "kind": "judgment",
+              "id": "j:0"
+            },
+            "display_name": "contract:result-contract:0",
+            "body_delivery": "inline",
+            "node_ref": "result_contract:6a1f330d0791b255f0337c50714598f561402cdf"
+          },
+          {
+            "target": {
+              "kind": "result",
+              "id": "j:0"
+            },
+            "owner": {
+              "kind": "judgment",
+              "id": "j:0"
+            },
+            "display_name": "result:j:0",
+            "body_delivery": "inline",
+            "node_ref": "result:2f8910087c36575d663edffcff260e16d9c66b84"
+          },
+          {
+            "target": {
+              "kind": "component",
+              "id": "component:0"
+            },
+            "owner": {
+              "kind": "judgment",
+              "id": "j:0"
+            },
+            "display_name": "个人感受",
+            "body_delivery": "inline",
+            "node_ref": "method_component:f2d980fe4d70b51fce1502a2af6dc04bf73fb794"
+          },
+          {
+            "target": {
+              "kind": "boundary",
+              "id": "boundary:required"
+            },
+            "owner": {
+              "kind": "judgment",
+              "id": "j:0"
+            },
+            "display_name": "boundary:boundary:required",
+            "body_delivery": "inline",
+            "node_ref": "boundary:65516bd5ef9247fb562e74864c5e44d77116e232"
+          },
+          {
+            "target": {
+              "kind": "exception",
+              "id": "exception:selected"
+            },
+            "owner": {
+              "kind": "judgment",
+              "id": "j:0"
+            },
+            "display_name": "exception:exception:selected",
+            "body_delivery": "inline",
+            "node_ref": "exception:d29e140108678ba47226509941feb7b9edffccdd"
+          },
+          {
+            "target": {
+              "kind": "judgment",
+              "id": "j:1"
+            },
+            "owner": {
+              "kind": "asset",
+              "id": "uid:bytes"
+            },
+            "display_name": "Explicit issue 1",
+            "body_delivery": "inline",
+            "node_ref": "judgment:e06cc4af1e02c79d340fe8cdd9a893074cd26a46"
+          },
+          {
+            "target": {
+              "kind": "contract",
+              "id": "result-contract:1"
+            },
+            "owner": {
+              "kind": "judgment",
+              "id": "j:1"
+            },
+            "display_name": "contract:result-contract:1",
+            "body_delivery": "inline",
+            "node_ref": "result_contract:37695e32b0bf7b0b1a91fcd3ddf981b4e4f76c4b"
+          },
+          {
+            "target": {
+              "kind": "result",
+              "id": "j:1"
+            },
+            "owner": {
+              "kind": "judgment",
+              "id": "j:1"
+            },
+            "display_name": "result:j:1",
+            "body_delivery": "inline",
+            "node_ref": "result:711ddef8eb79f11aa37d4de8981affa5fa31d91a"
+          },
+          {
+            "target": {
+              "kind": "component",
+              "id": "component:1"
+            },
+            "owner": {
+              "kind": "judgment",
+              "id": "j:1"
+            },
+            "display_name": "个人感受",
+            "body_delivery": "inline",
+            "node_ref": "method_component:6ac57146701fb6025993d8a0a678b202bef920db"
+          },
+          {
+            "target": {
+              "kind": "contract",
+              "id": "result-contract:2"
+            },
+            "owner": {
+              "kind": "judgment",
+              "id": "j:2"
+            },
+            "display_name": "contract:result-contract:2",
+            "body_delivery": "inline",
+            "node_ref": "result_contract:a8ada7584a4cda752a1d2b098e85f26db5b44805"
+          }
+        ],
+        "expansion_handles": [
+          {
+            "binding_kind": "retained_section_snapshot",
+            "handle_id": "retained-handle:<id>",
+            "asset": {
+              "asset_id": "asset:bytes",
+              "asset_version": "1.0.0",
+              "judgment_version": "1.0.0"
+            },
+            "tuple": {
+              "container": "0.6.0",
+              "payload_profile": "kdna.payload.judgment",
+              "payload_version": "0.5.1",
+              "core": "kdna.core/0.8.2",
+              "ir": "kdna.canonical-ir/0.6.1",
+              "runtime": "kdna.runtime-capsule/0.3.1",
+              "plan": "kdna.consumption-plan/0.3.1",
+              "host": "kdna.agent-host/0.3.1",
+              "trace": "kdna.judgment-trace/0.3.1",
+              "read": "kdna.read/0.7.0-candidate"
+            },
+            "origin": {
+              "snapshot_id": "section-snapshot:<id>",
+              "kind": "whole",
+              "capture_id": "capture:<id>",
+              "admission_request_digest": "sha256:<volatile>",
+              "verification_digest": "sha256:<volatile>",
+              "checked_sections_digest": "sha256:<volatile>"
+            },
+            "issuing_operation_id": "retained:<id>",
+            "issuing_request_digest": "sha256:<volatile>",
+            "anchor": {
+              "kind": "selection_set",
+              "selection": {
+                "asset_id": "asset:bytes",
+                "asset_version": "1.0.0",
+                "judgment_ids": [
+                  "j:0"
+                ]
+              }
+            },
+            "target": {
+              "kind": "dependency",
+              "id": "dependency:optional"
+            },
+            "scope": [
+              "asset_declaration:3d4d0f99a1913cccf7d6a55923d41f60d5c3f290",
+              "actor:c98371640f441dac1f09fe051b13c92559f8d3e7",
+              "relationship:cc27c77171d063c9d64868e20226f515809692e8",
+              "dependency:6783b1702a79e811fcdfe2df113196e44a3ddb75",
+              "condition:ad6d2f9a2714d32a8440eeaff4de3107eb332571",
+              "judgment:58cb2724cbc46855b30351eaae28e759ffbd1cd0",
+              "result_contract:6a1f330d0791b255f0337c50714598f561402cdf",
+              "result:2f8910087c36575d663edffcff260e16d9c66b84",
+              "method_component:f2d980fe4d70b51fce1502a2af6dc04bf73fb794",
+              "boundary:65516bd5ef9247fb562e74864c5e44d77116e232",
+              "exception:d29e140108678ba47226509941feb7b9edffccdd",
+              "judgment:e06cc4af1e02c79d340fe8cdd9a893074cd26a46",
+              "result_contract:37695e32b0bf7b0b1a91fcd3ddf981b4e4f76c4b",
+              "result:711ddef8eb79f11aa37d4de8981affa5fa31d91a",
+              "method_component:6ac57146701fb6025993d8a0a678b202bef920db",
+              "judgment:de6832f1a1f51da1115aafd7d68c4e92e6a41ebd",
+              "result_contract:a8ada7584a4cda752a1d2b098e85f26db5b44805",
+              "result:dd7a64c294c9cca06bf1052b00885c5bba1ee1d1",
+              "method_component:13e30fcf9d5accc28f4c8e7fb52653365438223b"
+            ],
+            "issued_at": 0,
+            "expires_at": 0,
+            "host_id": "kdna-cli:local",
+            "host_epoch": "process:<pid>"
+          }
+        ]
+      },
+      "states": {
+        "core": "valid",
+        "interpretation": "complete",
+        "writer": "not_evaluated",
+        "confirmation": "claimed_unverified",
+        "read_permission": "allowed",
+        "action_authorization": "not_evaluated"
+      },
+      "diagnostics": [],
+      "omissions": [
+        {
+          "state": "explicitly_omitted",
+          "target": "asset_declaration:3d4d0f99a1913cccf7d6a55923d41f60d5c3f290",
+          "field": "reading_order",
+          "reason": "not_in_mode",
+          "expandable": false,
+          "handle_id": null
+        }
+      ],
+      "assessment": {
+        "state": "not_evaluated",
+        "kind": null,
+        "assessor_id": null,
+        "evidence_ref": null
+      },
+      "verification": {
+        "contract": {
+          "id": "kdna.retained-sections",
+          "version": "0.1.0-candidate",
+          "definition_digest": "sha256:017807a18e4a3bd671e1098a2ec0b63268577396a5f0b88b85bad662b10e0d83"
+        },
+        "operation_id": "retained:<id>",
+        "origin": {
+          "snapshot_id": "section-snapshot:<id>",
+          "kind": "whole",
+          "capture_id": "capture:<id>",
+          "admission_request_digest": "sha256:<volatile>",
+          "verification_digest": "sha256:<volatile>",
+          "checked_sections_digest": "sha256:<volatile>"
+        },
+        "request_digest": "sha256:<volatile>",
+        "intent_digest": "sha256:<volatile>",
+        "mode": "exact_selection",
+        "origin_verification": {
+          "signature_integrity": {
+            "status": "absent",
+            "policy": {
+              "requireSignature": false,
+              "expectedPublicKeyHex": null
+            },
+            "policy_digest": "sha256:<volatile>",
+            "read_intent_digest": "sha256:<volatile>",
+            "capture_id": "capture:<id>",
+            "request_digest": "sha256:<volatile>"
+          },
+          "checksum_integrity": {
+            "status": "absent"
+          },
+          "capture": {
+            "capture_id": "capture:<id>",
+            "input_byte_length": 41224,
+            "manifest_bytes_digest": "sha256:<volatile>",
+            "zip_directory_bytes_digest": "sha256:<volatile>",
+            "identity_scope": "observed_metadata_and_loaded_sections_only",
+            "table_frames": [
+              {
+                "section_id": "table:sections:0",
+                "member": "sections/pack-1.kdnab",
+                "offset_bytes": 0,
+                "length_bytes": 1841,
+                "digest": "sha256:<volatile>"
+              },
+              {
+                "section_id": "table:topics:0",
+                "member": "sections/pack-1.kdnab",
+                "offset_bytes": 1841,
+                "length_bytes": 121,
+                "digest": "sha256:<volatile>"
+              },
+              {
+                "section_id": "table:node_sections:0",
+                "member": "sections/pack-1.kdnab",
+                "offset_bytes": 1962,
+                "length_bytes": 1645,
+                "digest": "sha256:<volatile>"
+              }
+            ]
+          },
+          "request_digest": "sha256:<volatile>",
+          "checked_sections": [
+            {
+              "section_id": "xref:0:0",
+              "member": "sections/pack-0.kdnab",
+              "offset_bytes": 0,
+              "length_bytes": 5303,
+              "digest": "sha256:<volatile>"
+            },
+            {
+              "section_id": "topic:j:0",
+              "member": "sections/pack-0.kdnab",
+              "offset_bytes": 5303,
+              "length_bytes": 4193,
+              "digest": "sha256:<volatile>"
+            },
+            {
+              "section_id": "xref:1:0",
+              "member": "sections/pack-0.kdnab",
+              "offset_bytes": 9496,
+              "length_bytes": 4433,
+              "digest": "sha256:<volatile>"
+            },
+            {
+              "section_id": "topic:j:1",
+              "member": "sections/pack-0.kdnab",
+              "offset_bytes": 13929,
+              "length_bytes": 2765,
+              "digest": "sha256:<volatile>"
+            },
+            {
+              "section_id": "xref:2:0",
+              "member": "sections/pack-0.kdnab",
+              "offset_bytes": 16694,
+              "length_bytes": 2294,
+              "digest": "sha256:<volatile>"
+            },
+            {
+              "section_id": "topic:j:2",
+              "member": "sections/pack-0.kdnab",
+              "offset_bytes": 18988,
+              "length_bytes": 2915,
+              "digest": "sha256:<volatile>"
+            },
+            {
+              "section_id": "xref:3:0",
+              "member": "sections/pack-0.kdnab",
+              "offset_bytes": 21903,
+              "length_bytes": 1107,
+              "digest": "sha256:<volatile>"
+            },
+            {
+              "section_id": "volume:0",
+              "member": "sections/pack-0.kdnab",
+              "offset_bytes": 23010,
+              "length_bytes": 2395,
+              "digest": "sha256:<volatile>"
+            },
+            {
+              "section_id": "table:sections:0",
+              "member": "sections/pack-1.kdnab",
+              "offset_bytes": 0,
+              "length_bytes": 1841,
+              "digest": "sha256:<volatile>"
+            },
+            {
+              "section_id": "table:topics:0",
+              "member": "sections/pack-1.kdnab",
+              "offset_bytes": 1841,
+              "length_bytes": 121,
+              "digest": "sha256:<volatile>"
+            },
+            {
+              "section_id": "table:node_sections:0",
+              "member": "sections/pack-1.kdnab",
+              "offset_bytes": 1962,
+              "length_bytes": 1645,
+              "digest": "sha256:<volatile>"
+            }
+          ],
+          "unchecked_sections": [],
+          "routing_integrity": "checked",
+          "runtime_entry_digest": {
+            "status": "verified",
+            "profile": "kdna.digest-basis.runtime-entry-set/0.3.0-candidate",
+            "digest": "sha256:<volatile>",
+            "member_names": [
+              "kdna.json",
+              "sections/pack-0.kdnab",
+              "sections/pack-1.kdnab"
+            ]
+          },
+          "whole_container_digest": {
+            "profile": "kdna.digest-basis.container-bytes/0.2.0",
+            "status": "verified",
+            "digest": "sha256:<volatile>"
+          },
+          "whole_content_digest": {
+            "profile": "kdna.digest-basis.content-tree/0.2.0",
+            "status": "verified",
+            "digest": "sha256:<volatile>"
+          },
+          "ir_digest": {
+            "profile": "CanonicalIR:SHA-256(RFC8785):existing-digestCanonical",
+            "status": "verified",
+            "digest": "sha256:<volatile>"
+          },
+          "mode": "whole_asset",
+          "semantic_status": "verified_whole_graph"
+        },
+        "signature_policy_check": {
+          "basis": "immutable_origin_signature_receipt",
+          "policy": {
+            "requireSignature": false,
+            "expectedPublicKeyHex": null
+          },
+          "policy_digest": "sha256:8cee815a00ec4bcabd633e2b6cb939b490c3774bb3e47a385c33638a6c37f846",
+          "origin_receipt_digest": "sha256:<volatile>",
+          "result": "satisfied",
+          "new_signature_verification": false
+        },
+        "new_capture": false,
+        "io": [],
+        "new_domain_validation": false,
+        "new_digest_computation": false
+      },
+      "receipt": {
+        "receipt_id": "retained-receipt:<id>",
+        "request_id": "cli:<id>",
+        "snapshot_id": "section-snapshot:<id>",
+        "host_id": "kdna-cli:local",
+        "host_epoch": "process:<pid>",
+        "decision_id": "decision:cli:<id>",
+        "disclosed_at": 0,
+        "delivery": "delivered"
+      },
+      "budget": {
+        "limit_bytes": 1000000,
+        "required_bytes": "0000000000032358",
+        "actual_bytes": "0000000000032358"
+      }
+    },
+    "admission_rejection": null,
+    "control": null,
+    "transport_failure": null
+  }
+}

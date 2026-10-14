@@ -92,7 +92,7 @@ test("the default read output is the body view when the installed Read package p
   if (!projection) return;
   const body = await invoke(readArgs()), full = await invoke([...readArgs(), "--view", "full"]);
   assert.equal(body.code, 0, JSON.stringify(body.rows));
-  assert.equal(body.rows[0].view_contract, "kdna.read.model-view/0.1.0");
+  assert.equal(body.rows[0].view_contract, "kdna.read.model-view/0.2.0");
   assert.equal(Object.hasOwn(body.rows[0], "fingerprint"), true);
   assert.equal(Object.hasOwn(body.rows[0].content, "asset_index"), false);
   assert.equal(Object.hasOwn(body.rows[0].content, "expansion_handles"), false);
@@ -119,4 +119,27 @@ test("--view may accompany a session because it names the output surface, not th
   assert.equal(withView.status, 0, withView.stderr);
   const withMode = binary(["read", file, "--session", "--allow-read", "--mode", "catalog"], "");
   assert.equal(withMode.status, 2, "a per-line request option stays refused with --session");
+});
+
+test("a view-accept pins the contract one way and never selects an older service", async () => {
+  if (!projection) {
+    // Without an installed projection an explicit acceptance has nothing to accept.
+    const refused = await invoke([...readArgs(), "--view-accept", "kdna.read.model-view/0.2.0"]);
+    assert.equal(refused.code, 2);
+    assert.equal(refused.rows[0].code, "KDNA_MODEL_VIEW_UNAVAILABLE");
+    return;
+  }
+  const accepted = await invoke([...readArgs(), "--view-accept", "kdna.read.model-view/0.2.0"]);
+  assert.equal(accepted.code, 0, accepted.text);
+  assert.equal(accepted.rows[0].view_contract, "kdna.read.model-view/0.2.0");
+  const fullAccepted = await invoke([...readArgs(), "--view", "full", "--view-accept", "kdna.read.model-view/0.2.0"]);
+  assert.equal(fullAccepted.code, 0, fullAccepted.text);
+  assert.equal(Object.hasOwn(fullAccepted.rows[0], "view_contract"), false);
+  const refused = await invoke([...readArgs(), "--view-accept", "kdna.read.model-view/0.1.0"]);
+  assert.equal(refused.code, 2);
+  assert.equal(refused.rows[0].status, "unavailable");
+  assert.equal(refused.rows[0].code, "READ_MODEL_VIEW_UNSUPPORTED_VERSION");
+  assert.equal(refused.rows[0].guidance.requires, "kdna.read.model-view/0.2.0");
+  assert.match(refused.rows[0].guidance.action, /view contract/u);
+  assert.equal((await invoke([...readArgs(), "--view-accept"])).code, 2, "a flag without a value");
 });

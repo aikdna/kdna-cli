@@ -57,8 +57,8 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@aikdna/kdna-core": "0.37.4",
-    "@aikdna/kdna-read": "0.12.1"
+    "@aikdna/kdna-core": "0.37.6",
+    "@aikdna/kdna-read": "0.13.0"
   },
   "directories": {
     "doc": "docs",
