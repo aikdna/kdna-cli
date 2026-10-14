@@ -1,5 +1,23 @@
 # Stable CLI change notes
 
+## CLI 0.41.0
+
+This source candidate binds the exact released Core 0.37.6 and Read 0.13.0
+archives and carries the paired model-view 0.2.0 projection. The delivered read
+request answers with the author body while the non-selected closure members
+arrive behind their own expansion handles; `--view full` prints the complete
+surface without the reduction machinery, and `--view-accept` pins the
+model-view contract the caller accepts, defaulting to the contract this CLI is
+built against. A session may expand a returned handle either by echoing it or
+by naming the compact `handle_id` a reduced entry carries; the CLI resolves it
+within the same session with explicit refusals and still passes the complete
+read admission. The 0.40.1 method-role guidance sibling is unchanged.
+
+No content, field or route is removed. Publication targets `latest` only, keeps
+every other dist-tag and the prior version in place, retains exact companion
+archive identities, and re-verifies the published bytes through a fresh
+registry consumer.
+
 ## CLI 0.40.1
 
 This source candidate binds the exact released Core 0.37.4 and Read 0.12.1
