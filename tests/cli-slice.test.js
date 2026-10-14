@@ -353,3 +353,22 @@ test('packaged example version literals track the package and its dependencies',
     }
   }
 });
+test('packaged example model-view contract literals track the installed Read contract', () => {
+  // The bare-version guard above cannot see an embedded contract, so a stale
+  // 'kdna.read.model-view/0.1.0' literal in examples/ would again pass here and
+  // fail only in the release smoke, after the release exists. This guard
+  // compares every such literal to the contract the installed Read exports.
+  const read = local('@aikdna/kdna-read');
+  assert.equal(typeof read.MODEL_VIEW_CONTRACT, 'string', 'the installed Read package must export its model-view contract');
+  let seen = 0;
+  const examplesDir = path.join(target, 'examples');
+  const files = fs.readdirSync(examplesDir, { recursive: true }).filter((name) => /\.(cjs|js|mjs)$/.test(String(name)));
+  for (const name of files) {
+    const text = fs.readFileSync(path.join(examplesDir, String(name)), 'utf8');
+    for (const match of text.matchAll(/'kdna\.read\.model-view\/\d+\.\d+\.\d+'/g)) {
+      seen++;
+      assert.equal(match[0].slice(1, -1), read.MODEL_VIEW_CONTRACT, `${String(name)}: literal ${match[0]} does not match the installed Read contract`);
+    }
+  }
+  assert.ok(seen > 0, 'the packaged example must assert the model-view contract it ships against');
+});
