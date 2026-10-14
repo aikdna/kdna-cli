@@ -73,8 +73,14 @@ const help = [
   '  Emits an observation and edits:{manifest,payload}; original resource bytes stay in the asset.',
   'kdna source-pack <asset.kdna> --edits <edits.json> --expected-a <sha256:...> --output <new-asset.kdna> --allow-source',
   '  Edit transport: exactly {manifest,payload}; public source only, old files are never replaced.',
+  '  A saved pack reports affected_by_change: the direct downstream (support, qualify, conflict)',
+  '  of the judgments this revision changed; complement carries no dependence and is excluded.',
   'kdna inspect <asset.kdna> [--json]',
-  'kdna validate <asset.kdna> [--json]',
+  'kdna validate <asset.kdna> [--json] [--system]',
+  '  --system adds warnings-only system-integrity checks: support cycles, a pair that is',
+  '  both supported and in conflict, a withdrawn judgment with an active downstream, and',
+  '  ordered declarations that repeat an entry or rank fewer items than their scope. A',
+  '  warning never refuses a structurally valid asset; the exit status stays 0.',
   'kdna read <asset.kdna> --mode catalog|whole_asset|exact_selection --budget <bytes>',
   '  [--asset-id <id> --asset-version <version> --judgment-id <id>] [--allow-read] [--view body|full|raw]',
   '  [--view-accept <model-view-contract>]',
@@ -92,6 +98,188 @@ const help = [
   'plan/load are unavailable until public Plan admission and execution exist.',
 ].join('\n') + '\n';
 
+// System-integrity warnings and change propagation. Both read only the result
+// the same admission already returned: they re-parse nothing, verify nothing
+// and refuse nothing. The relation families are the contract's own vocabulary —
+// support (supporter -> claim), qualify (qualifier -> qualified) and conflict
+// (undirected, both sides). complement carries `adds_perspective`: it neither
+// sustains nor constrains its base, so it is deliberately outside the
+// dependency warnings and outside affected_by_change.
+function normalizedRelations(source) {
+  const rows = Array.isArray(source?.relationships)
+    ? source.relationships
+    : (source?.nodes ?? []).filter(node => node.role === 'relationship').map(node => node.value ?? {});
+  const relations = [];
+  for (const row of rows) {
+    const kind = row.kind?.term;
+    if (!['support', 'qualify', 'conflict', 'complement'].includes(kind)) continue;
+    const participants = (row.participants ?? [])
+      .map(participant => ({ role: participant.role?.term ?? null, ref: typeof participant.judgment_ref === 'string' ? participant.judgment_ref : null }))
+      .filter(participant => participant.ref !== null);
+    relations.push({ id: typeof row.id === 'string' ? row.id : null, kind, participants });
+  }
+  return relations;
+}
+function dependencyEdges(relations) {
+  const edges = [];
+  for (const relation of relations) {
+    if (relation.kind === 'support' || relation.kind === 'qualify') {
+      const source = relation.participants.find(participant => participant.role === 'supporter' || participant.role === 'qualifier');
+      const target = relation.participants.find(participant => participant.role === 'claim' || participant.role === 'qualified');
+      if (source && target) edges.push({ from: source.ref, to: target.ref, role: target.role, relation_id: relation.id, kind: relation.kind });
+      continue;
+    }
+    if (relation.kind === 'conflict' && relation.participants.length === 2) {
+      const [a, b] = relation.participants;
+      edges.push({ from: a.ref, to: b.ref, role: b.role, relation_id: relation.id, kind: 'conflict' });
+      edges.push({ from: b.ref, to: a.ref, role: a.role, relation_id: relation.id, kind: 'conflict' });
+    }
+  }
+  return edges;
+}
+function lifecycleStatuses(ir) {
+  const statuses = new Map();
+  for (const node of ir.nodes) {
+    if (node.role !== 'judgment' || typeof node.value?.id !== 'string') continue;
+    const status = node.value?.lifecycle?.status;
+    statuses.set(node.value.id, typeof status === 'string' ? status : null);
+  }
+  return statuses;
+}
+const systemWarning = (code, message, detail) => ({ code, severity: 'warning', stage: 'system', subject: null, field: null, message, detail });
+const pairKey = (a, b) => (a < b ? a + '\u0000' + b : b + '\u0000' + a);
+function supportCycleWarnings(relations) {
+  const adjacency = new Map();
+  for (const edge of dependencyEdges(relations.filter(relation => relation.kind === 'support'))) {
+    if (!adjacency.has(edge.from)) adjacency.set(edge.from, []);
+    adjacency.get(edge.from).push(edge);
+  }
+  const warnings = [], reported = new Set(), state = new Map();
+  const stack = [];
+  const visit = id => {
+    state.set(id, 1); stack.push(id);
+    for (const edge of adjacency.get(id) ?? []) {
+      if (state.get(edge.to) === 1) {
+        const cycle = stack.slice(stack.indexOf(edge.to));
+        // Canonical rotation: the smallest judgment id leads, so one cycle is
+        // one warning regardless of where the traversal entered it.
+        const pivot = cycle.indexOf([...cycle].sort()[0]);
+        const rotated = [...cycle.slice(pivot), ...cycle.slice(0, pivot)];
+        const key = rotated.join('\u0000');
+        if (!reported.has(key)) {
+          reported.add(key);
+          warnings.push(systemWarning('KDNA_SYSTEM_SUPPORT_CYCLE',
+            'Support relations form a cycle; no judgment in it can rest on the others.',
+            { judgment_ids: rotated, relation_ids: [...new Set(edgesWithin(rotated, adjacency).map(edge => edge.relation_id))].filter(Boolean).sort() }));
+        }
+      } else if (state.get(edge.to) !== 2) visit(edge.to);
+    }
+    state.set(id, 2); stack.pop();
+  };
+  for (const id of [...adjacency.keys()].sort()) if (!state.has(id)) visit(id);
+  return warnings;
+}
+function edgesWithin(cycle, adjacency) {
+  const edges = [];
+  for (let i = 0; i < cycle.length; i++) {
+    const from = cycle[i], to = cycle[(i + 1) % cycle.length];
+    for (const edge of adjacency.get(from) ?? []) if (edge.to === to) edges.push(edge);
+  }
+  return edges;
+}
+function supportConflictPairWarnings(relations) {
+  const supports = new Map(), conflicts = new Map();
+  for (const relation of relations) {
+    if (relation.participants.length !== 2) continue;
+    const key = pairKey(relation.participants[0].ref, relation.participants[1].ref);
+    if (relation.kind === 'support') (supports.get(key) ?? supports.set(key, []).get(key)).push(relation.id);
+    if (relation.kind === 'conflict') (conflicts.get(key) ?? conflicts.set(key, []).get(key)).push(relation.id);
+  }
+  const warnings = [];
+  for (const key of [...supports.keys()].sort()) {
+    if (!conflicts.has(key)) continue;
+    warnings.push(systemWarning('KDNA_SYSTEM_SUPPORT_CONFLICT_PAIR',
+      'One judgment pair is both supported and in conflict; the recorded standing of each is ambiguous.',
+      { judgment_ids: key.split('\u0000').sort(), relation_ids: [...supports.get(key), ...conflicts.get(key)].filter(Boolean).sort() }));
+  }
+  return warnings;
+}
+function withdrawnUpstreamWarnings(ir, relations) {
+  const statuses = lifecycleStatuses(ir), grouped = new Map();
+  for (const edge of dependencyEdges(relations.filter(relation => relation.kind === 'support' || relation.kind === 'qualify'))) {
+    if (statuses.get(edge.from) !== 'withdrawn') continue;
+    const downstream = statuses.get(edge.to);
+    if (downstream !== null && downstream !== 'active') continue;
+    const key = edge.from + '\u0000' + edge.to;
+    if (!grouped.has(key)) grouped.set(key, { upstream: edge.from, downstream: edge.to, downstream_status: downstream ?? 'undeclared', relation_ids: new Set() });
+    if (edge.relation_id) grouped.get(key).relation_ids.add(edge.relation_id);
+  }
+  return [...grouped.keys()].sort().map(key => {
+    const entry = grouped.get(key);
+    return systemWarning('KDNA_SYSTEM_WITHDRAWN_UPSTREAM',
+      'A withdrawn judgment still carries an active downstream that depends on it.',
+      { upstream_judgment_id: entry.upstream, downstream_judgment_id: entry.downstream, downstream_status: entry.downstream_status, relation_ids: [...entry.relation_ids].sort() });
+  });
+}
+function valueOrderWarnings(ir) {
+  const warnings = [];
+  for (const node of ir.nodes) {
+    if (node.role !== 'shared_declaration' || node.value?.kind !== 'value_order') continue;
+    const declaration = node.value;
+    const entries = Array.isArray(declaration.value) ? declaration.value : [];
+    const counts = new Map();
+    for (const entry of entries) counts.set(entry, (counts.get(entry) ?? 0) + 1);
+    const duplicated = [...counts].filter(([, count]) => count > 1).map(([entry]) => entry).sort();
+    if (duplicated.length) warnings.push(systemWarning('KDNA_SYSTEM_VALUE_ORDER_DUPLICATE',
+      'The ordered declaration repeats an entry, so the ranking is not a strict order.',
+      { declaration_id: declaration.id, duplicated_entries: duplicated }));
+    const scope = declaration.applies_to;
+    if (scope?.kind === 'judgments' && Array.isArray(scope.judgment_refs)) {
+      const scoped = new Set(scope.judgment_refs);
+      if (entries.length < scoped.size) warnings.push(systemWarning('KDNA_SYSTEM_VALUE_ORDER_MISSING_ENTRIES',
+        'The ordered declaration is scoped to more judgments than it ranks; scoped items may be missing from the order.',
+        { declaration_id: declaration.id, scoped_judgment_count: scoped.size, entry_count: entries.length }));
+    }
+  }
+  return warnings;
+}
+function systemWarnings(ir) {
+  const relations = normalizedRelations(ir);
+  const warnings = [...supportCycleWarnings(relations), ...supportConflictPairWarnings(relations), ...withdrawnUpstreamWarnings(ir, relations), ...valueOrderWarnings(ir)];
+  warnings.sort((a, b) => a.code < b.code ? -1 : a.code > b.code ? 1 : JSON.stringify(a.detail) < JSON.stringify(b.detail) ? -1 : 1);
+  return { status: warnings.length ? 'warnings' : 'clean', warning_count: warnings.length, warnings };
+}
+function canonicalJson(value) {
+  if (Array.isArray(value)) return '[' + value.map(canonicalJson).join(',') + ']';
+  if (value !== null && typeof value === 'object') return '{' + Object.keys(value).sort().map(key => JSON.stringify(key) + ':' + canonicalJson(value[key])).join(',') + '}';
+  return JSON.stringify(value === undefined ? null : value);
+}
+const edgeKey = edge => JSON.stringify([edge.relation_id, edge.kind, edge.from, edge.to]);
+function affectedByChange(originalPayload, editedPayload) {
+  const before = new Map((originalPayload?.judgments ?? []).map(judgment => [judgment.id, canonicalJson(judgment)]));
+  const after = new Map((editedPayload?.judgments ?? []).map(judgment => [judgment.id, canonicalJson(judgment)]));
+  const changed = new Set();
+  for (const [id, value] of after) if (!before.has(id) || before.get(id) !== value) changed.add(id);
+  for (const id of before.keys()) if (!after.has(id)) changed.add(id);
+  const producedEdges = dependencyEdges(normalizedRelations(editedPayload));
+  const producedKeys = new Set(producedEdges.map(edgeKey));
+  const grouped = new Map();
+  for (const edge of [...producedEdges, ...dependencyEdges(normalizedRelations(originalPayload))]) {
+    if (!changed.has(edge.from) || changed.has(edge.to) || edge.from === edge.to) continue;
+    const state = producedKeys.has(edgeKey(edge)) ? 'in_produced_asset' : 'changed_by_this_revision';
+    if (!grouped.has(edge.to)) grouped.set(edge.to, new Map());
+    grouped.get(edge.to).set(edgeKey(edge), { relation_id: edge.relation_id, kind: edge.kind, role: edge.role, state });
+  }
+  return {
+    changed_judgment_ids: [...changed].sort(),
+    relation_kinds: ['support', 'qualify', 'conflict'],
+    direct_downstream: [...grouped.keys()].sort().map(judgment_id => ({
+      judgment_id,
+      via: [...grouped.get(judgment_id).values()].sort((a, b) => (a.relation_id ?? '') < (b.relation_id ?? '') ? -1 : (a.relation_id ?? '') > (b.relation_id ?? '') ? 1 : a.kind < b.kind ? -1 : 1),
+    })),
+  };
+}
+
 function parse(argv) {
   const [command, ...rest] = argv;
   if (!commands.has(command)) return { error: 'KDNA_COMMAND_UNAVAILABLE' };
@@ -100,7 +288,7 @@ function parse(argv) {
   let file;
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
-    if (['--allow-create', '--allow-read', '--allow-source', '--json', '--session'].includes(arg)) {
+    if (['--allow-create', '--allow-read', '--allow-source', '--json', '--session', '--system'].includes(arg)) {
       if (options[arg] !== undefined) return { error: 'KDNA_ARGUMENT_INVALID' };
       options[arg] = true;
     } else if (valued.has(arg)) {
@@ -113,7 +301,8 @@ function parse(argv) {
   const allowed = command === 'create' ? ['--output', '--allow-create', '--json']
     : command === 'source-open' ? ['--expected-a', '--allow-source', '--json']
     : command === 'source-pack' ? ['--expected-a', '--edits', '--output', '--allow-source', '--json']
-    : command === 'read' ? ['--mode', '--asset-id', '--asset-version', '--judgment-id', '--budget', '--allow-read', '--json', '--session', '--view', '--view-accept'] : ['--json'];
+    : command === 'read' ? ['--mode', '--asset-id', '--asset-version', '--judgment-id', '--budget', '--allow-read', '--json', '--session', '--view', '--view-accept']
+    : command === 'validate' ? ['--json', '--system'] : ['--json'];
   if (Object.keys(options).some(k => !allowed.includes(k))) return { error: 'KDNA_ARGUMENT_INVALID' };
   if (command === 'create' && (!options['--output'] || !options['--output'].endsWith('.kdna'))) return { error: 'KDNA_ARGUMENT_INVALID' };
   if (command.startsWith('source-') && !/^sha256:[0-9a-f]{64}$/.test(options['--expected-a'] || '')) return { error: 'KDNA_ARGUMENT_INVALID' };
@@ -296,6 +485,20 @@ async function runWithOutput(argv, write, stdin, assertActive, now = () => Date.
     if (request.status !== 'admitted_request') { await emit(request); return 1; }
     assertActive();
     const authority = createNativeSourceOperationAuthority(() => { assertActive(); return true; });
+    // Change propagation is computed from what this run actually discloses: the
+    // same original bytes reopened through the same authority, then diffed
+    // against the edit payload the pack itself consumes.
+    let sourcePayload = null;
+    if (command === 'source-pack') {
+      const disclosure = admitSourceOperationRequest({ request_id: 'cli:' + randomUUID(), tuple: binding.tuple,
+        operation: 'open_source', expected_A: options['--expected-a'], timeout_ms: 60000,
+        signature_policy: { requireSignature: false, expectedPublicKeyHex: null } });
+      if (disclosure.status === 'admitted_request') {
+        const opened = await openSectionSourceNode(bytes, disclosure.request, authority);
+        if (opened.status === 'source_opened') sourcePayload = opened.source.payload;
+      }
+      assertActive();
+    }
     const result = command === 'source-open'
       ? await openSectionSourceNode(bytes, request.request, authority)
       : await packSectionSourceNode(bytes, request.request, authority, edits);
@@ -315,6 +518,7 @@ async function runWithOutput(argv, write, stdin, assertActive, now = () => Date.
     assertActive();
     await emit({ status: 'saved', output: { file: options['--output'], bytes: result.bytes.length,
       sha256: createHash('sha256').update(result.bytes).digest('hex'), cleanup: saved.cleanup },
+      ...(command === 'source-pack' && sourcePayload ? { affected_by_change: affectedByChange(sourcePayload, edits.payload) } : {}),
       evidence: result.evidence, states: independentStates(), action_authorized: false, creation_accepted: false, adoption: 'not_observed' });
     return 0;
   }
@@ -357,6 +561,9 @@ async function runWithOutput(argv, write, stdin, assertActive, now = () => Date.
     if (!view) { await emit({ status: 'rejected', reason: 'READ_SNAPSHOT_UNATTESTED' }); return 1; }
     const result = { status: 'accepted', format_valid: true, states: { ...independentStates(), core: 'valid', interpretation: 'complete' }, diagnostics: [] };
     if (command === 'inspect') Object.assign(result, { tuple: view.tuple, asset: view.asset, digests: view.digests, ir_digest: view.verification.ir_digest.digest, verification: view.verification, judgment_count: view.ir.catalog.length, runtime_entry_names: view.runtime_entry_names });
+    // --system adds warnings-only integrity findings; they never change the
+    // acceptance, the exit status or any field of the unchanged output shape.
+    if (command === 'validate' && options['--system'] === true) result.system = systemWarnings(view.ir);
     await emit(result);
     return 0;
   }
