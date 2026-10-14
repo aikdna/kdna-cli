@@ -1,5 +1,16 @@
 # Stable CLI change notes
 
+## CLI 0.42.0
+
+This source candidate adds the explicit `--view raw` adapter carrier. Raw
+prints the library envelope exactly as the library returns it — reduction
+machinery and issued handles included — for adapters that apply the installed
+Read projection themselves; it is not a model view, and an explicit
+`--view-accept` beside it is refused rather than ignored. The default body,
+`--view full`, and every model-view contract value, including the 0.41.0
+paired projection, are unchanged, so existing consumers keep their exact
+surfaces.
+
 ## CLI 0.41.0
 
 This source candidate binds the exact released Core 0.37.6 and Read 0.13.0

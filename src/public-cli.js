@@ -76,10 +76,13 @@ const help = [
   'kdna inspect <asset.kdna> [--json]',
   'kdna validate <asset.kdna> [--json]',
   'kdna read <asset.kdna> --mode catalog|whole_asset|exact_selection --budget <bytes>',
-  '  [--asset-id <id> --asset-version <version> --judgment-id <id>] [--allow-read] [--view body|full]',
+  '  [--asset-id <id> --asset-version <version> --judgment-id <id>] [--allow-read] [--view body|full|raw]',
   '  [--view-accept <model-view-contract>]',
   '  --view body answers with the author body and one fingerprint when the installed',
   '  Read package provides that projection; --view full is what this CLI printed before it.',
+  '  --view raw prints the library envelope unchanged, reduction machinery and issued',
+  '  handles included, for adapters that apply their own projection; it is not a model',
+  '  view and never pairs with --view-accept.',
   '  --view-accept pins the model-view contract this run accepts; the default is the',
   '  contract this CLI is built against, and no value ever selects an older service.',
   'kdna read <asset.kdna> --session [--allow-read]',
@@ -365,9 +368,12 @@ async function runWithOutput(argv, write, stdin, assertActive, now = () => Date.
   }
   const authority = createRetainedSectionReadAuthority(() => allow);
   const viewOption = options['--view'];
-  if (viewOption !== undefined && !['body', 'full'].includes(viewOption)) return unavailable('KDNA_ARGUMENT_INVALID');
+  if (viewOption !== undefined && !['body', 'full', 'raw'].includes(viewOption)) return unavailable('KDNA_ARGUMENT_INVALID');
   const modelView = loadModelView();
   const view = viewOption ?? 'body';
+  // Raw is the library envelope itself, not a model view: the acceptance pin has
+  // nothing to accept there, so the combination is refused instead of ignored.
+  if (viewOption === 'raw' && options['--view-accept'] !== undefined) return unavailable('KDNA_ARGUMENT_INVALID');
   // Without the capability the default path prints exactly what this CLI printed
   // before the flag existed; an explicit body request that cannot be honoured is
   // refused rather than quietly answered with the full surface.
@@ -377,10 +383,12 @@ async function runWithOutput(argv, write, stdin, assertActive, now = () => Date.
   if (options['--view-accept'] !== undefined && !modelView) return unavailable('KDNA_MODEL_VIEW_UNAVAILABLE');
   let projectionFailure = null;
   // The full surface is the raw answer without the reduction machinery; the body
-  // surface is the author body. Both are asked of the installed projection, and
-  // both carry the accepted contract. A refusal is emitted verbatim instead of
-  // silently degrading to another surface.
+  // surface is the author body; raw prints the library envelope unchanged for
+  // adapters that project themselves. Every projection surface is asked of the
+  // installed projection and carries the accepted contract; a refusal is emitted
+  // verbatim instead of silently degrading to another surface.
   const projected = result => {
+    if (view === 'raw') return result;
     if (!modelView) return result;
     try { return modelView.projectModelView(result, { view, mode: result?.envelope?.mode, accept: viewAccept }); }
     catch (error) {

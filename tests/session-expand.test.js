@@ -30,7 +30,7 @@ test.before(async () => {
 test.after(() => { if (scratch) fs.rmSync(scratch, { recursive: true, force: true }); });
 // One session per call. Each builder receives the answers so far and returns
 // the next request object, or null to end the input.
-async function session(builders, options) {
+async function session(builders, options, extraArgs = []) {
   const answers = [];
   const out = { write(text) { answers.push(String(text)); return true; } };
   const input = (async function* () {
@@ -44,7 +44,7 @@ async function session(builders, options) {
       while (answers.length === previous) await new Promise((resolve) => setTimeout(resolve, 1));
     }
   })();
-  const code = await run(["read", asset, "--session", "--allow-read"], out, input, options);
+  const code = await run(["read", asset, "--session", "--allow-read", ...extraArgs], out, input, options);
   return { code, answers };
 }
 const request = (id, extra) => ({ request_id: id, tuple: binding.tuple, budget_bytes: 1000000, selection: SELECTION, handle: null, ...extra });
@@ -139,4 +139,50 @@ test("an expired handle is refused once the local clock passes its window", asyn
   assert.equal(refusal.status, "unavailable");
   assert.equal(refusal.code, "READ_HANDLE_EXPIRED");
   assert.match(refusal.guidance.action, /fresh read/u);
+});
+test("raw prints the library envelope with the reduction machinery and issued handles", async () => {
+  // The adapter carrier: the exact library result before any projection. The
+  // folded member's descriptor and its issued handle are present, no model-view
+  // label is attached, and the handle the carrier exposes is genuinely usable
+  // within the session — the property an out-of-process adapter depends on.
+  const { code, answers } = await session([
+    () => request("cli:raw", { mode: "exact_selection" }),
+    (answers) => {
+      const raw = JSON.parse(answers[0]);
+      const descriptor = (raw.envelope.content.asset_index ?? []).find((entry) => entry.target?.id === "j:1");
+      assert.match(descriptor?.handle_id, /^retained-handle:/u);
+      return request("cli:raw-expand", { mode: "expand", handle_id: descriptor.handle_id });
+    },
+  ], undefined, ["--view", "raw"]);
+  assert.equal(code, 0, answers.join(""));
+  const raw = JSON.parse(answers[0]);
+  assert.equal(raw.channel, "read_envelope");
+  assert.equal(raw.envelope?.status, "ready");
+  assert.equal(Object.hasOwn(raw, "view_contract"), false);
+  const descriptor = (raw.envelope.content.asset_index ?? []).find((entry) => entry.target?.id === "j:1");
+  assert.equal(typeof descriptor?.handle_id, "string", "the folded member's descriptor carries its issued handle");
+  assert.ok((raw.envelope.content.expansion_handles ?? []).some((entry) => entry.handle_id === descriptor.handle_id));
+  const expanded = JSON.parse(answers[1]);
+  assert.equal(expanded.envelope?.status ?? expanded.status, "ready", answers[1]);
+  const member = (expanded.envelope?.content?.closure ?? []).find((entry) => entry.role === "judgment" && entry.target?.id === "j:1");
+  assert.equal(member?.value?.focus, "Explicit issue 1", "the carrier's handle expands to the member in full");
+  // The public default surface folds that member and names a handle minted for
+  // that delivery; raw differs from body by carrying the machinery, not by
+  // inventing a different member set.
+  const body = await session([() => request("cli:body", { mode: "exact_selection" })]);
+  assert.equal(body.code, 0);
+  const entry = reducedMember(JSON.parse(body.answers[0]));
+  assert.equal(entry?.target?.id, "j:1");
+  assert.match(entry.handle_id, /^retained-handle:/u);
+});
+test("raw never pairs with an explicit view-accept", async () => {
+  // The acceptance pin belongs to the model-view surfaces; combined with raw it
+  // is refused as an argument error instead of being silently ignored.
+  const oneShot = sink();
+  const oneShotCode = await run(["read", asset, "--mode", "catalog", "--allow-read", "--view", "raw", "--view-accept", "kdna.read.model-view/0.2.0"], oneShot);
+  assert.equal(oneShotCode, 2);
+  assert.equal(JSON.parse(oneShot.lines.join("")).code, "KDNA_ARGUMENT_INVALID");
+  const refused = await session([], undefined, ["--view", "raw", "--view-accept", "kdna.read.model-view/0.2.0"]);
+  assert.equal(refused.code, 2);
+  assert.equal(JSON.parse(refused.answers[0]).code, "KDNA_ARGUMENT_INVALID");
 });
