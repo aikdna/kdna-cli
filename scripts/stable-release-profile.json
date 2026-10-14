@@ -1,7 +1,7 @@
 {
   "channel": "stable",
-  "version": "0.41.0",
-  "base_commit": "c3127f781c38901aa368b821d712292b3510e296",
+  "version": "0.42.0",
+  "base_commit": "ac1f70ebb81f28bb1afe9dfe9c07fbb3ed026093",
   "companions": [
     {
       "name": "@aikdna/kdna-core",

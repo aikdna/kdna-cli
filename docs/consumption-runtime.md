@@ -28,6 +28,9 @@ session resolve it. An `expand` request repeats the issuing request's
 `selection`. The `--view body` (default) surface answers with the author body
 while the folded closure members arrive behind their own handles;
 `--view full` prints the complete surface without the reduction machinery.
+`--view raw` prints the library envelope unchanged, reduction machinery and
+issued handles included, for adapters that apply the projection themselves;
+it is not a model view and never pairs with `--view-accept`.
 `--view-accept` pins the model-view contract this run accepts and never
 selects an older projection. Do not reopen the file, reconstruct a
 handle or treat it as persistent permission. Each request has a byte budget
