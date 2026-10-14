@@ -176,3 +176,52 @@ test('a missing method and an empty component list report their exact coordinate
   assert.equal(empty.last.status, 'core_rejected');
   assert.equal(empty.last.core.diagnostics[0].field, '/payload/judgments/0/method/components');
 });
+
+test('a method-role rejection carries an actionable guidance sibling from the installed Core', async () => {
+  const emptied = variant('fidelity-guidance-empty-components', (document) => {
+    judgmentOf(document, 'update:order').method.components = [];
+  });
+  const rejected = await create(emptied);
+  assert.equal(rejected.code, 1);
+  assert.equal(rejected.last.status, 'core_rejected');
+  assert.equal(rejected.last.core.diagnostics[0].field, '/payload/judgments/0/method/components');
+  assert.deepEqual(rejected.last.guidance, [{
+    field: '/payload/judgments/0/method/components',
+    reason: 'method_component_roles',
+    term: 'feeling',
+    missing: ['个人感受'],
+    expected: ['个人感受'],
+    optional: ['体验说明', '偏好变化'],
+  }]);
+
+  const wrongRole = variant('fidelity-guidance-wrong-role', (document) => {
+    judgmentOf(document, 'update:order').method.components[0].role = '经验要点';
+  });
+  const wrong = await create(wrongRole);
+  assert.equal(wrong.last.status, 'core_rejected');
+  assert.equal(wrong.last.guidance[0].reason, 'method_component_roles');
+  assert.deepEqual(wrong.last.guidance[0].missing, ['个人感受']);
+
+  const omitted = variant('fidelity-guidance-method-missing', (document) => {
+    delete judgmentOf(document, 'update:order').method;
+  });
+  const noMethod = await create(omitted);
+  assert.equal(noMethod.last.core.diagnostics[0].field, '/payload/judgments/0/method');
+  assert.equal(noMethod.last.guidance[0].reason, 'method_missing');
+  assert.equal(noMethod.last.guidance[0].field, '/payload/judgments/0/method');
+});
+
+test('an accepted creation carries no guidance key and the five core fields stay intact on rejection', async () => {
+  const accepted = variant('fidelity-guidance-absent', () => {});
+  const created = await create(accepted);
+  assert.equal(created.last.status, 'saved');
+  assert.equal(Object.hasOwn(created.last, 'guidance'), false);
+
+  const emptied = variant('fidelity-guidance-fields', (document) => {
+    judgmentOf(document, 'update:order').method.components = [];
+  });
+  const rejected = await create(emptied);
+  const diagnostic = rejected.last.core.diagnostics[0];
+  assert.deepEqual(Object.keys(diagnostic).sort(), ['code', 'field', 'severity', 'stage', 'subject']);
+  assert.deepEqual(Object.keys(rejected.last.core).sort(), ['component_failure', 'diagnostics', 'reason', 'states', 'status']);
+});

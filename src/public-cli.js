@@ -20,6 +20,45 @@ function loadModelView(){
     return typeof module.projectModelView==='function'?module:null;
   }catch{return null;}
 }
+// The per-term method-role vocabulary is a capability of the installed Core
+// package, detected once per process. When it is available, a method-role
+// rejection can carry a guidance sibling that quotes the required roles and
+// names which of them the authored input does not contain. The guidance is a
+// presentation aid: it decides nothing and never replaces the Core diagnostic.
+function loadMethodRoleTable(){
+  try{
+    const module=require('@aikdna/kdna-core/components');
+    return typeof module.getMethodRoleTable==='function'?module.getMethodRoleTable():null;
+  }catch{return null;}
+}
+const METHOD_COMPONENTS_FIELD=/^\/payload\/judgments\/(\d+)\/method\/components$/;
+const METHOD_FIELD=/^\/payload\/judgments\/(\d+)\/method$/;
+function authoringGuidance(input,rejected){
+  if(rejected?.status!=='core_rejected')return null;
+  const diagnostics=rejected?.core?.diagnostics;
+  if(!Array.isArray(diagnostics))return null;
+  const table=loadMethodRoleTable();
+  const judgments=Array.isArray(input?.payload?.judgments)?input.payload.judgments:[];
+  const guidance=[];
+  for(const diagnostic of diagnostics){
+    const field=typeof diagnostic?.field==='string'?diagnostic.field:'';
+    const componentsMatch=METHOD_COMPONENTS_FIELD.exec(field);
+    if(componentsMatch){
+      const judgment=judgments[Number(componentsMatch[1])];
+      const term=judgment?.method?.method?.term;
+      const roles=table&&typeof term==='string'?table.roles?.[term]:null;
+      if(!roles)continue;
+      const used=new Set((judgment.method.components??[]).map(component=>component?.role));
+      guidance.push({field,reason:'method_component_roles',term,missing:roles.required.filter(role=>!used.has(role)),expected:roles.required,optional:roles.optional});
+      continue;
+    }
+    const methodMatch=METHOD_FIELD.exec(field);
+    if(methodMatch){
+      guidance.push({field,reason:'method_missing',expected:'a method declaration; when the author has stated none, the documented other encoding keeps that absence explicit (authoring field reference, method components)'});
+    }
+  }
+  return guidance.length?guidance:null;
+}
 const commands = new Set(['create', 'source-open', 'source-pack', 'inspect', 'validate', 'read', 'plan', 'load']);
 const independentStates = () => ({ writer: 'not_evaluated', confirmation: 'not_evaluated', read_permission: 'not_evaluated', action_authorization: 'not_evaluated' });
 const help = [
@@ -280,7 +319,11 @@ async function runWithOutput(argv, write, stdin, assertActive) {
     const authority = createNativeCreationAuthority(() => true);
     assertActive();
     const produced = await createSectionAssetNode(input, request.request, authority);
-    if (produced.status !== 'produced') { await emit(produced); return 1; }
+    if (produced.status !== 'produced') {
+      const guidance = authoringGuidance(input, produced);
+      await emit(guidance ? { ...produced, guidance } : produced);
+      return 1;
+    }
     let saved;
     try { saved = await saveNewAsset(options['--output'], produced.bytes, assertActive); }
     catch (error) { await emit({ status: 'save_failed', code: error.message === 'KDNA_OUTPUT_EXISTS' ? error.message : 'KDNA_SAVE_FAILED', action_authorized: false, creation_accepted: false }); return 1; }

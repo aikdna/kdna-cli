@@ -2,7 +2,7 @@
   "format": "kdna.consumer-exact-binding/1",
   "implementation": {
     "name": "@aikdna/kdna-cli",
-    "version": "0.40.0"
+    "version": "0.40.1"
   },
   "tuple": {
     "container": "0.6.0",
