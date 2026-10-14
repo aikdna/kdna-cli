@@ -5,13 +5,13 @@
   "companions": [
     {
       "name": "@aikdna/kdna-core",
-      "version": "0.37.4",
-      "sha256": "b8517580fb3fb92798fef12109a232612b8503a5431b30818a2cbb4c73b18ba5"
+      "version": "0.37.6",
+      "sha256": "17137ebdd316f5e44b64c6164d6fca07b0e8486b42b5eb6e85347d92ad25087f"
     },
     {
       "name": "@aikdna/kdna-read",
-      "version": "0.12.1",
-      "sha256": "f1f1572e70076a5d2c1b6b027c4480e536ef617b53075670824327af93838cd1"
+      "version": "0.13.0",
+      "sha256": "26f62bb703c7ad92acdfa02e44b3b981f73ec2e9c20bec29e1412937968170a7"
     }
   ]
 }
