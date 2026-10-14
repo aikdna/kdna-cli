@@ -13,7 +13,9 @@
 //   1. identifier values: <prefix>:<uuid> for the retained handle, receipt,
 //      operation, capture, snapshot, CLI request and local host epoch, plus
 //      `process:<pid>`;
-//   2. timestamps: the numeric fields issued_at, expires_at and disclosed_at;
+//   2. timestamps: the numeric fields issued_at, expires_at and disclosed_at,
+//      and the budget counters required_bytes and actual_bytes, whose padded
+//      decimal values include the volatile identifier lengths;
 //   3. digests computed over volatile input, at exactly these paths:
 //      envelope.verification.{intent_digest,request_digest},
 //      envelope.verification.origin.*, envelope.verification.origin_verification.*,
@@ -42,6 +44,7 @@ const ID_PATTERNS = [
   [/^process:\d+$/u, 'process:<pid>'],
 ];
 const VOLATILE_TIME_KEYS = new Set(['issued_at', 'expires_at', 'disclosed_at']);
+const VOLATILE_COUNT_PATHS = new Set(['/envelope/budget/required_bytes', '/envelope/budget/actual_bytes']);
 const VOLATILE_DIGEST_PATHS = [
   /^\/envelope\/verification\/(intent_digest|request_digest)$/u,
   /^\/envelope\/verification\/origin(?:\/.*)?$/u,
@@ -51,6 +54,7 @@ const VOLATILE_DIGEST_PATHS = [
   /^\/envelope\/content\/expansion_handles\/\d+\/(issuing_request_digest|origin(?:\/.*)?)$/u,
 ];
 function normalize(value, path = '') {
+  if (VOLATILE_COUNT_PATHS.has(path)) return typeof value === 'string' ? '<volatile-count>' : value;
   if (typeof value === 'string') {
     for (const [pattern, replacement] of ID_PATTERNS) if (pattern.test(value)) return replacement;
     if (/^sha256:[0-9a-f]{64}$/u.test(value) && VOLATILE_DIGEST_PATHS.some((pattern) => pattern.test(path)))
