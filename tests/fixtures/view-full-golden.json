@@ -1597,8 +1597,8 @@
       },
       "budget": {
         "limit_bytes": 1000000,
-        "required_bytes": "0000000000032358",
-        "actual_bytes": "0000000000032358"
+        "required_bytes": "<volatile-count>",
+        "actual_bytes": "<volatile-count>"
       }
     },
     "admission_rejection": null,
