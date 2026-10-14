@@ -337,3 +337,19 @@ for (const reason of [undefined, null, false, 0, '']) for (const phase of ['outp
     assert.equal(result.rejected, true); assert.equal(result.error, reason); assert.equal(returns, 1);
   });
 }
+test('packaged example version literals track the package and its dependencies', () => {
+  // A version literal inside examples/ ships in the artifact and runs in the
+  // release smoke; when it drifts from package.json the journey fails only
+  // after the release exists. This guard makes that drift loud before packing.
+  const allowed = new Set([pkg.version, ...Object.values(pkg.dependencies || {})]);
+  const examplesDir = path.join(target, 'examples');
+  const files = fs.readdirSync(examplesDir, { recursive: true }).filter((name) => /\.(cjs|js|mjs)$/.test(String(name)));
+  assert.ok(files.length > 0, 'examples must contain packed executable files');
+  for (const name of files) {
+    const text = fs.readFileSync(path.join(examplesDir, String(name)), 'utf8');
+    for (const match of text.matchAll(/'0\.\d+\.\d+'/g)) {
+      const value = match[0].slice(1, -1);
+      assert.ok(allowed.has(value), `${String(name)}: literal ${match[0]} is neither the package version nor a declared dependency version`);
+    }
+  }
+});
