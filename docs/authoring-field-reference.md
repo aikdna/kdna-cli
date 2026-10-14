@@ -50,6 +50,12 @@ Optional keys (8): `creator`, `content_digest`, `authoring`, `access`, `license`
 `format_version` and `payload` are not part of the creation input; Core adds them
 to the produced asset.
 
+`asset_capability` is not free text: it must equal the closed mapping of the
+judgment `form` values — every judgment `conclusion` → `asserted_answers`,
+every judgment `rule` → `result_forming_rules`, both forms present → `mixed`.
+A contradicting value is refused with `READ_CORE_INVALID` at
+`/payload/asset_capability` (observed).
+
 ## 4. `payload` required keys (22)
 
 `profile`, `profile_version`, `asset`, `actors`, `scope`, `judgments`,
@@ -66,8 +72,14 @@ Optional keys (5): `attributions`, `cohesion`, `content_risk`, `extensions`,
 `result_contract`, `method`, `material_refs`, `reason_refs`, `parent_ref`,
 `ports`, `inputs`, `content_uses`
 
-Optional keys (9): `answer_other`, `answer_parts`, `boundaries`, `exceptions`,
-`extensions`, `formation_rule`, `lifecycle`, `misuse`, `result`
+Optional keys (7): `answer_other`, `answer_parts`, `boundaries`, `exceptions`,
+`extensions`, `lifecycle`, `misuse`
+
+Conditional keys (2): `result` and `formation_rule` follow `form` —
+`form: "conclusion"` requires `result` and refuses `formation_rule`;
+`form: "rule"` requires `formation_rule` and refuses `result`. `answer_kind:
+"other"` requires `answer_other` carrying all three keys (`name`, `definition`,
+`exclusion_reason`); `answer_kind: "composite"` requires `answer_parts`.
 
 An undecided question inside the author's domain stays a judgment with
 `answer_kind: "other"` and an `answer_other` definition saying the author has
@@ -130,7 +142,9 @@ downstream check can detect.
 4. all 22 payload keys present and 15 required keys in each judgment;
 5. every method component has its four required keys, with `role` from the
    per-term table in §6, every required role present exactly once, and the
-   component's `method.term` equal to the judgment's;
+   component's `method.term` equal to the judgment's; each judgment's `form`
+   conditions from §5 hold (`result` for `conclusion`, `formation_rule` for
+   `rule`);
 6. timestamps are UTC `YYYY-MM-DDTHH:MM:SS(.sss)Z`;
 7. when revising, change the version in all four places: `manifest.version`,
    `manifest.judgment_version`, `payload.asset.asset_version`,
@@ -162,8 +176,55 @@ machine.
 | empty file (no container structure)                | *observed* `READ_INPUT_INVALID`, stage `input`, `diagnostic: null`                                                                                        | the input is not a container at all                                                                      |
 | truncated or damaged container                     | *observed* `READ_CORE_INVALID`, stage `input`, `diagnostic: null`                                                                                          | the container is recognisable but incomplete; structural damage is not reported as a missing container   |
 | container of another family (for example Studio `0.5`) | *observed* `READ_UNSUPPORTED_VERSION`, stage `metadata`, `field: /payload.kdnab`                                                                        | this native entry admits the `0.6` container; use the route that belongs to that family                  |
+| `form: "conclusion"` judgment without `result`     | *observed* `READ_CORE_INVALID` with `field: /payload/judgments/0/result`                                                                                  | `conclusion` requires `result`; `rule` requires `formation_rule` and refuses `result` (§5)               |
+| `answer_other` carrying plain text instead of the definition object | *observed* `READ_CORE_INVALID` with `field: /payload/judgments/5/answer_other`                                                            | `answer_other` needs all three keys `name`, `definition`, `exclusion_reason` (§5)                        |
+| `asset_capability` contradicting the judgment forms | *observed* `READ_CORE_INVALID` with `field: /payload/asset_capability`                                                                                    | use the closed mapping in §4; the judgment-level `form` stays authoritative                              |
 
 The `diagnostic` object appears on the creation-input route; `inspect`, `read`
 and Source still report their own codes. The missing field pointer for
 Core-level shape errors is a known gap; this page is the reference to check
 against until the diagnostic carries one.
+
+## 9. `relationships[]`, `shared_declarations[]` and boundary entry shapes
+
+The shapes below are generated from the exact Core this CLI binds; the entries
+themselves are optional and stay empty when the author's material produces no
+such content.
+
+A `relationships[]` entry carries exactly `id`, `kind`, `direction`,
+`participants` (exactly two `{judgment_ref, role}`), `operator`, `effect` and
+`statement`. `kind`, `operator`, `effect` and each `participants[].role` are
+plain `{term}` references; the four normative tuples are:
+
+<!-- entry-shapes:start -->
+| relation kind | direction    | participant roles            | operator           | effect                   |
+| ------------- | ------------ | ---------------------------- | ------------------ | ------------------------ |
+| `support`     | `directed`   | `supporter` → `claim`        | `supports`         | `offers_support`         |
+| `complement`  | `directed`   | `supplement` → `base`        | `complements`      | `adds_perspective`       |
+| `qualify`     | `directed`   | `qualifier` → `qualified`    | `qualifies`        | `limits_interpretation`  |
+| `conflict`    | `undirected` | `side_a` ↔ `side_b`          | `conflicts_with`   | `preserves_disagreement` |
+
+- `boundary_effect`: `exclude`, `limit`, `out_of_domain`
+- shared text declaration `kind`: `worldview`, `value_order`
+- declaration unprovided `state`: `unknown`, `none`, `not_applicable`
+<!-- entry-shapes:end -->
+
+A `shared_declarations[]` entry is one of two shapes, both carrying `id`,
+`subject` (`{actor_ids, statement}`), `applies_to` and `kind`:
+
+- `kind: "worldview"` or `"value_order"` — `value` is a non-empty list of texts
+  (`value_order` is ordered; write the ranking in the author's stated order);
+- `kind: "role"` — `value` carries at least one of `acts_as`,
+  `does_not_act_as`, `responsibility` as `{state, value}` declarations.
+
+`applies_to` is `{"kind": "asset"}` for the whole work, or
+`{"kind": "judgments", "judgment_refs": [...]}` for named judgments.
+
+A boundary declaration (`declarations.boundaries`, and a judgment's own
+`boundaries`) is one of:
+
+- `{"state": "provided", "value": [Boundary, ...]}`, each `Boundary` carrying
+  exactly `id`, `effect`, `statement`, `declared_by`, `applies_to`,
+  `exception_refs` (an empty array when the author names no exceptions);
+- `{"state": "unknown" | "none" | "not_applicable", "value": null}` — the
+  unprovided states stay distinct; `unknown` is not `none`.
