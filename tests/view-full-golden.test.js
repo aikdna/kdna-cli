@@ -14,6 +14,11 @@ const { normalize, FIXTURE, SELECTION } = require("../scripts/generate-view-full
 const target = process.env.KDNA_CLI_TARGET_ROOT || path.resolve(__dirname, "..");
 const local = createRequire(path.join(target, "package.json"));
 const { run } = local("@aikdna/kdna-cli");
+// The installed Read package's own response meter, reached by file because the
+// package does not export it; the recomputation must use the exact routine that
+// produced the printed counters.
+const readRoot = path.dirname(local.resolve("@aikdna/kdna-read/package.json"));
+const { measureInternalResponse } = require(path.join(readRoot, "src/retained-response-meter.js"));
 const golden = require("./fixtures/view-full-golden.json");
 let scratch, asset;
 const sink = () => { const lines = []; return { lines, write(text) { lines.push(String(text)); return true; } }; };
@@ -36,5 +41,11 @@ test("the full print matches the published 0.40.1 baseline field for field", asy
   );
   assert.equal(code, 0, out.lines.join(""));
   const answer = JSON.parse(out.lines.join(""));
+  // In-run self-consistency: the printed counters are the canonical byte size
+  // of the printed envelope; recompute them with the meter that produced them.
+  const recomputed = structuredClone(answer.envelope);
+  measureInternalResponse(recomputed);
+  assert.equal(answer.envelope.budget.actual_bytes, recomputed.budget.actual_bytes);
+  assert.equal(answer.envelope.budget.required_bytes, recomputed.budget.required_bytes);
   assert.deepEqual(normalize(answer), golden.output);
 });
