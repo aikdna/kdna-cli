@@ -156,7 +156,11 @@ test('stdout failure during Read closes its input and rejects delivery',async()=
 test('actual bin exits on a closed stdout pipe and releases its session input', async()=>{
  await new Promise((resolve,reject)=>{
   const child=spawn(process.execPath,[bin,'read',file,'--session','--allow-read'],{stdio:['pipe','pipe','pipe'],env:process.env});
-  let stderr='';const timer=setTimeout(()=>{child.kill();reject(new Error('closed output did not terminate CLI'));},5000);
+  // Watchdog only: it guards against a hung child, not a latency budget. This
+  // spawn is the first cold child of the publish job, and one attempt was
+  // observed to burn the full five-second budget (duration_ms 5049) on a
+  // healthy child, so the kill timer gets the sibling watchdog's headroom.
+  let stderr='';const timer=setTimeout(()=>{child.kill();reject(new Error('closed output did not terminate CLI'));},30000);
   child.on('error',reject);child.stdin.on('error',()=>{});child.stderr.on('data',chunk=>stderr+=chunk);
   child.stdout.destroy();
   child.on('close',(code,signal)=>{clearTimeout(timer);try{assert.equal(code,1);assert.equal(signal,null);assert.equal(stderr,'KDNA_CLI_UNAVAILABLE\n');resolve();}catch(error){reject(error);}});
