@@ -1,6 +1,6 @@
 # KDNA CLI 0.40.0
 
-`0.40.0` is published on `latest` with exact Core `0.37.3` and Read `0.12.0`, from a reviewed source commit whose retained artifact was matched byte for byte at the registry. Verify the actual registry version and release evidence before installation. Earlier `native-preview` releases retain their own artifacts and locks.
+`0.40.0` is published on `latest` with exact Core `0.37.3` and Read `0.12.0`, from a reviewed source commit whose retained artifact was matched byte for byte at the registry. Verify the actual registry version and release evidence before installation. Earlier `native-preview` releases retain their own artifacts and locks. The current source carries the next candidate `0.40.1` with exact Core `0.37.4` and Read `0.12.1`; it is not yet published, and until its own release and registry verification complete this page keeps naming the published combination.
 
 This candidate delegates native container production, admission and disclosure to the exact companion Core and Read archives. It does not interpret assets independently.
 

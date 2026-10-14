@@ -1,5 +1,23 @@
 # Stable CLI change notes
 
+## CLI 0.40.1
+
+This source candidate binds the exact released Core 0.37.4 and Read 0.12.1
+archives and adds one authoring aid: when `create` is refused by Core with a
+method or method-component diagnostic, the output carries a `guidance` sibling
+that quotes the per-term role vocabulary from the installed Core's read-only
+method-role table, names which required roles the authored input does not
+contain, and points at the documented encoding for a method the author never
+stated. The guidance presents authored input and the public vocabulary only; it
+decides nothing, and the Core diagnostic object, its fields and the complete
+core result remain exactly as the installed Core produced them. An installation
+without the read-only table keeps byte-identical previous output.
+
+No content, field or route is removed. Publication targets `latest` only, keeps
+every other dist-tag and the prior version in place, retains exact companion
+archive identities, and re-verifies the published bytes through a fresh registry
+consumer.
+
 ## CLI 0.40.0
 
 This source candidate binds Core 0.37.3 and Read 0.12.0 to the exact approved
