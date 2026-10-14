@@ -21,8 +21,15 @@ action authorization remain separate. There is no model or action execution.
 For dependency expansion, use `read --session --allow-read`. Send one current
 ReadRequest JSON object per line, using the exact tuple from the binding.
 An `exact_selection` request uses `judgment_ids: ["j:example"]`. Read the
-response, then send its returned `expansion_handles` object unchanged in an
-`expand` request in the same session. Do not reopen the file, reconstruct a
+response, then expand in the same session in one of two equivalent ways: send
+its returned `expansion_handles` object unchanged in an `expand` request, or
+name the compact `handle_id` that a reduced body entry carries and let the
+session resolve it. An `expand` request repeats the issuing request's
+`selection`. The `--view body` (default) surface answers with the author body
+while the folded closure members arrive behind their own handles;
+`--view full` prints the complete surface without the reduction machinery.
+`--view-accept` pins the model-view contract this run accepts and never
+selects an older projection. Do not reopen the file, reconstruct a
 handle or treat it as persistent permission. Each request has a byte budget
 and a fresh, single-use preparation.
 

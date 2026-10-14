@@ -10,6 +10,11 @@ const { createTrustedHostReadProvider, readRetainedSection } = require('@aikdna/
 const { admitNativeCreationRequest, createNativeCreationAuthority, createSectionAssetNode } = require('@aikdna/kdna-core/creation-sections-node');
 const { admitSourceOperationRequest, createNativeSourceOperationAuthority, openSectionSourceNode, packSectionSourceNode } = require('@aikdna/kdna-core/source-sections-node');
 const binding = require('../public-contract-binding.json');
+// The model-view contract this CLI is built against. It is the one-way gate for
+// the projection: a caller may accept this contract or nothing, and a Read
+// artifact that serves only an older projection is refused rather than
+// silently used.
+const REQUIRED_MODEL_VIEW = 'kdna.read.model-view/0.2.0';
 // The body projection is a capability of the installed Read package, not of this
 // CLI. It is detected once per process: an artifact that does not provide it must
 // leave every byte of this CLI's output exactly as it was, and an artifact that
@@ -72,11 +77,15 @@ const help = [
   'kdna validate <asset.kdna> [--json]',
   'kdna read <asset.kdna> --mode catalog|whole_asset|exact_selection --budget <bytes>',
   '  [--asset-id <id> --asset-version <version> --judgment-id <id>] [--allow-read] [--view body|full]',
+  '  [--view-accept <model-view-contract>]',
   '  --view body answers with the author body and one fingerprint when the installed',
   '  Read package provides that projection; --view full is what this CLI printed before it.',
+  '  --view-accept pins the model-view contract this run accepts; the default is the',
+  '  contract this CLI is built against, and no value ever selects an older service.',
   'kdna read <asset.kdna> --session [--allow-read]',
   '  One public ReadRequest JSON object per input line; one public result per output line.',
-  '  Reuse a returned handle for expand within this session.',
+  '  Reuse a returned handle, or name a compact handle_id from the reduced body, for',
+  '  expand within this session.',
   'plan/load are unavailable until public Plan admission and execution exist.',
 ].join('\n') + '\n';
 
@@ -84,7 +93,7 @@ function parse(argv) {
   const [command, ...rest] = argv;
   if (!commands.has(command)) return { error: 'KDNA_COMMAND_UNAVAILABLE' };
   const options = Object.create(null);
-  const valued = new Set(['--mode', '--asset-id', '--asset-version', '--judgment-id', '--budget', '--output', '--expected-a', '--edits', '--view']);
+  const valued = new Set(['--mode', '--asset-id', '--asset-version', '--judgment-id', '--budget', '--output', '--expected-a', '--edits', '--view', '--view-accept']);
   let file;
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
@@ -101,14 +110,14 @@ function parse(argv) {
   const allowed = command === 'create' ? ['--output', '--allow-create', '--json']
     : command === 'source-open' ? ['--expected-a', '--allow-source', '--json']
     : command === 'source-pack' ? ['--expected-a', '--edits', '--output', '--allow-source', '--json']
-    : command === 'read' ? ['--mode', '--asset-id', '--asset-version', '--judgment-id', '--budget', '--allow-read', '--json', '--session', '--view'] : ['--json'];
+    : command === 'read' ? ['--mode', '--asset-id', '--asset-version', '--judgment-id', '--budget', '--allow-read', '--json', '--session', '--view', '--view-accept'] : ['--json'];
   if (Object.keys(options).some(k => !allowed.includes(k))) return { error: 'KDNA_ARGUMENT_INVALID' };
   if (command === 'create' && (!options['--output'] || !options['--output'].endsWith('.kdna'))) return { error: 'KDNA_ARGUMENT_INVALID' };
   if (command.startsWith('source-') && !/^sha256:[0-9a-f]{64}$/.test(options['--expected-a'] || '')) return { error: 'KDNA_ARGUMENT_INVALID' };
   if (command === 'source-pack' && (!options['--edits'] || !options['--output'] || !options['--output'].endsWith('.kdna'))) return { error: 'KDNA_ARGUMENT_INVALID' };
   // A session carries one ReadRequest per line, so a CLI-level request option may
   // not accompany it. --view names the output surface, not the request, so it may.
-  if (options['--session'] && Object.keys(options).some(k => k !== '--view' && valued.has(k))) return { error: 'KDNA_ARGUMENT_INVALID' };
+  if (options['--session'] && Object.keys(options).some(k => k !== '--view' && k !== '--view-accept' && valued.has(k))) return { error: 'KDNA_ARGUMENT_INVALID' };
   return { command, file, options };
 }
 
@@ -233,12 +242,12 @@ function outputWriter(stdout) {
   };
 }
 
-async function run(argv, stdout = process.stdout, stdin = process.stdin) {
+async function run(argv, stdout = process.stdout, stdin = process.stdin, { now = () => Date.now() } = {}) {
   const output = outputWriter(stdout);
   const input = sessionInput(stdin);
   output.onFailure(input.cancel);
   let code, failure, rejected = false;
-  try { code = await output.settle(runWithOutput(argv, text => output.write(text), input.iterable, () => output.check())); }
+  try { code = await output.settle(runWithOutput(argv, text => output.write(text), input.iterable, () => output.check(), now)); }
   catch (error) { rejected = true; failure = error; input.cancel(); }
   finally { await output.release(); }
   output.check();
@@ -246,7 +255,7 @@ async function run(argv, stdout = process.stdout, stdin = process.stdin) {
   return code;
 }
 
-async function runWithOutput(argv, write, stdin, assertActive) {
+async function runWithOutput(argv, write, stdin, assertActive, now = () => Date.now()) {
   const emit = value => write(JSON.stringify(value) + '\n');
   const unavailable = async (code, diagnostic) => {
     const result = { status: 'unavailable', code, action_authorized: false };
@@ -363,15 +372,34 @@ async function runWithOutput(argv, write, stdin, assertActive) {
   // before the flag existed; an explicit body request that cannot be honoured is
   // refused rather than quietly answered with the full surface.
   if (viewOption === 'body' && !modelView) return unavailable('KDNA_MODEL_VIEW_UNAVAILABLE');
-  const projected = result => (!modelView || view === 'full' ? result : modelView.projectModelView(result, { view: 'body', mode: result?.envelope?.mode }));
+  const viewAccept = options['--view-accept'] ?? REQUIRED_MODEL_VIEW;
+  // An explicit acceptance without an installed projection has nothing to accept.
+  if (options['--view-accept'] !== undefined && !modelView) return unavailable('KDNA_MODEL_VIEW_UNAVAILABLE');
+  let projectionFailure = null;
+  // The full surface is the raw answer without the reduction machinery; the body
+  // surface is the author body. Both are asked of the installed projection, and
+  // both carry the accepted contract. A refusal is emitted verbatim instead of
+  // silently degrading to another surface.
+  const projected = result => {
+    if (!modelView) return result;
+    try { return modelView.projectModelView(result, { view, mode: result?.envelope?.mode, accept: viewAccept }); }
+    catch (error) {
+      projectionFailure = error;
+      const refusal = { status: 'unavailable', code: typeof error?.code === 'string' ? error.code : 'KDNA_MODEL_VIEW_UNAVAILABLE' };
+      if (typeof error?.message === 'string') refusal.message = error.message;
+      if (error?.guidance !== undefined) refusal.guidance = error.guidance;
+      return refusal;
+    }
+  };
+  const sessionHandles = options['--session'] && modelView && typeof modelView.collectExpansionHandles === 'function' ? new Map() : null;
   const host = createTrustedHostReadProvider({
     observe({ request, preparation }) {
-      const now = Date.now();
+      const observedAt = now();
       return { host_id: 'kdna-cli:local', host_epoch: 'process:' + process.pid, decision_id: 'decision:' + request.request_id,
         operation_id: preparation.intent.operation_id, request_id: request.request_id, request_digest: preparation.request_digest,
         origin: preparation.origin, intent_digest: preparation.intent_digest, asset: preparation.asset, tuple: preparation.tuple,
-        scope: retainedView.ir.nodes.map(node => node.id), issued_at: now, expires_at: now + 60000,
-        decision: allow ? 'allow' : 'deny', policy_id: 'kdna-cli:explicit-local-read-consent', current_ms: now };
+        scope: retainedView.ir.nodes.map(node => node.id), issued_at: observedAt, expires_at: observedAt + 60000,
+        decision: allow ? 'allow' : 'deny', policy_id: 'kdna-cli:explicit-local-read-consent', current_ms: observedAt };
     },
     async deliver(result) { await emit(projected(result)); delivered = true; return true; },
   });
@@ -389,8 +417,13 @@ async function runWithOutput(argv, write, stdin, assertActive) {
     const preparation = await prepareRetainedSectionRead(retainedSnapshot, admitted.request, authority);
     if (preparation.status !== 'prepared') { await emit(preparation); return 1; }
     delivered = false;
+    projectionFailure = null;
     const result = await readRetainedSection(preparation.prepared, host);
     if (!delivered) await emit(result);
+    if (projectionFailure) return 2;
+    // The delivered answer's handles are kept for this session so a later
+    // expand request can name one by its compact id.
+    if (sessionHandles) modelView.collectExpansionHandles(result, sessionHandles);
     return result.channel === 'read_envelope' && ['ready', 'catalog_only'].includes(result.envelope.status) ? 0 : 1;
   }
   if (options['--session']) {
@@ -400,6 +433,25 @@ async function runWithOutput(argv, write, stdin, assertActive) {
         let request;
         try { request = parseJsonBytes(bytes); }
         catch { return await unavailable('KDNA_SESSION_JSON_INVALID'); }
+        if (request && typeof request === 'object' && request.handle_id !== undefined) {
+          // A compact id from a reduced body entry resolves to the exact handle
+          // this session was issued. The resolution refuses what it cannot prove
+          // and grants nothing: the resolved handle still passes the complete
+          // read admission below.
+          if (request.mode !== 'expand' || (request.handle !== undefined && request.handle !== null)) return await unavailable('KDNA_ARGUMENT_INVALID');
+          const resolve = modelView && typeof modelView.resolveExpansionHandle === 'function' ? modelView.resolveExpansionHandle : null;
+          const resolution = resolve && sessionHandles
+            ? resolve(sessionHandles, request.handle_id, {
+                current_ms: now(),
+                snapshot_id: retainedView?.snapshot_id,
+                asset_id: retainedView?.asset?.asset_id,
+                asset_version: retainedView?.asset?.asset_version,
+              })
+            : { status: 'unavailable', code: 'READ_HANDLE_UNKNOWN', message: 'the id does not name an expansion handle this session was issued', guidance: { action: 'request a fresh read and use one of the handle ids that answer returned' } };
+          if (resolution.status !== 'ready') { await emit(resolution); code = Math.max(code, 2); continue; }
+          request = { ...request, handle: resolution.handle };
+          delete request.handle_id;
+        }
         code = Math.max(code, await read(request));
       }
     } catch (error) {

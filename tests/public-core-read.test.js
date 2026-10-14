@@ -64,7 +64,7 @@ test('local read consent defaults to denial and exact selection preserves requir
   assert.equal(allowed.code, 0);
   // The installed Read package projects the default answer to the body view.
   const body = allowed.rows[0];
-  assert.equal(body.view_contract, 'kdna.read.model-view/0.1.0');
+  assert.equal(body.view_contract, 'kdna.read.model-view/0.2.0');
   assert.equal(body.view, 'body');
   assert.equal(body.status, 'ready');
   assert.equal(body.fingerprint.recovery.view, 'full');
