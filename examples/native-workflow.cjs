@@ -42,7 +42,7 @@ function ready(row, expected = 'ready') {
 // session read below asks for `--view full` because expansion handles are
 // audit machinery, not body content.
 function bodyView(row, expected = 'ready') {
-  assert.equal(row?.view_contract, 'kdna.read.model-view/0.1.0');
+  assert.equal(row?.view_contract, 'kdna.read.model-view/0.2.0');
   assert.equal(row.view, 'body');
   assert.equal(row.status, expected);
   assert.equal(row.fingerprint?.recovery?.view, 'full');
