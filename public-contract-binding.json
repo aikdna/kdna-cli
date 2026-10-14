@@ -20,27 +20,27 @@
     {
       "file": "sections/contract.json",
       "bytes": 547981,
-      "sha256": "f871a8be8a91105f4a1a7bd4930e712bf3b012ce8b6fd17def7cf4eaaef27379"
+      "sha256": "fcaea073a9d3ae14011a1f849d0508170a79f78dccd7c25d9969eb57d18aec9a"
     },
     {
       "file": "sectionbytes/contract.json",
       "bytes": 31759,
-      "sha256": "208423043515f4149dd8d0cbf270ae07dc137bf6f0b79a70bfe61f7996365f9f"
+      "sha256": "adb7c735e68f9bf72b7b3be19c9b38f5940989aae8e2da6ead3a375fcdeeb159"
     },
     {
       "file": "retained/contract.json",
       "bytes": 291233,
-      "sha256": "c9ece7138801ceed528693d8277ea873e1eee874eb567ef35f0e38e72b238121"
+      "sha256": "3f75b5f8cf08d99faccd2dcb3eb7fcba368aacaede889ebb95528f66e1c2535d"
     },
     {
       "file": "creation06/contract.json",
       "bytes": 71166,
-      "sha256": "255a9a9eff102f96d49c660c29cc5a291244fff5365dfb251ef66ebe7aaaad0f"
+      "sha256": "b2d9cb22f6fe09c0df8c504ccfef4d832b5e16fefc4f706912a15c9087dcf781"
     },
     {
       "file": "source06/contract.json",
       "bytes": 76676,
-      "sha256": "f34c71dc3cc0a28864b3151e13e45bc50923ddff18e1171abec6a1d6eee91914"
+      "sha256": "a75d760ffe31f8aeef6359dafe07971f6b8021a7d12d06718024b3dfc9faeeea"
     }
   ],
   "accepted_core": {

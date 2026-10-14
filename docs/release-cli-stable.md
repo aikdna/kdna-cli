@@ -4,7 +4,11 @@ The stable channel declares `@aikdna/kdna-cli@0.42.0`, Git tag `0.42.0`,
 repository `aikdna/kdna-cli` and npm dist-tag `latest`. The channel binds exact
 Core `0.37.6` and Read `0.13.0` companion archives. The committed stable profile
 selects their exact SHA256 identities. Version strings alone cannot substitute
-for those bytes.
+for those bytes. The committed binding's `route_contracts` digests name the
+exact contract bytes of the bound Core and move with it in the same commit as
+any companion re-pin; `tests/route-contracts-binding.test.js` recomputes every
+digest from the installed Core so a forgotten re-pin fails closed instead of
+shipping stale values.
 
 The common release engine preserves the preview channel's original policy and
 implements an independent stable event and approval policy. The stable workflow
