@@ -1581,7 +1581,7 @@ function sourceHost({ root = ROOT, env = process.env } = {}) {
       JSON.stringify(names.sort()) === JSON.stringify(packages.map((x) => x.name).sort()),
       'CLI source host installed package closure differs',
     );
-    const rebound = inspectSource('cli', root);
+    const rebound = inspectSource('cli', root, { allowPinnedFileCoordinates: true });
     assert(
       rebound.commit === source.commit && rebound.tree === source.tree,
       'CLI source host source changed',
