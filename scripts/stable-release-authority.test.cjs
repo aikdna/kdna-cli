@@ -132,12 +132,12 @@ test('stable publisher passes only exact retained bytes and stable identity to t
   try {
     const artifactPath = path.join(directory, 'artifact.tgz'), manifestPath = path.join(directory, 'manifest.json');
     const bytes = Buffer.from('retained fixture bytes');
-    fs.writeFileSync(artifactPath, bytes);fs.writeFileSync(manifestPath, JSON.stringify({name: '@aikdna/kdna-cli', version: '0.42.0', gitHead: COMMIT}));
+    fs.writeFileSync(artifactPath, bytes);fs.writeFileSync(manifestPath, JSON.stringify({name: '@aikdna/kdna-cli', version: '0.43.0', gitHead: COMMIT}));
     let calls = 0;
     const options = {libraryPath: path.join(directory, 'audited-library.js'), artifactPath, manifestPath,
       artifactSha256: trusted.sha256(bytes), token: 'synthetic-token',
       library: {async publish(manifest, actual, settings) {
-        calls++; assert.equal(manifest.version, '0.42.0'); assert.deepEqual(actual, bytes);
+        calls++; assert.equal(manifest.version, '0.43.0'); assert.deepEqual(actual, bytes);
         assert.equal(settings.defaultTag, 'latest');assert.equal(settings.provenance, true);
       }}};
     assert.equal(await publisher.publishVerified(options), true);assert.equal(calls, 1);

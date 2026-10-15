@@ -3,11 +3,11 @@
   "archives": [
     {
       "name": "@aikdna/kdna-core",
-      "version": "0.37.6",
-      "file": "aikdna-kdna-core-0.37.6.tgz",
-      "sha256": "287932b98272d243d43f3f6603b13c82f9eb62ce14a9a52160c910cc38f41c5a",
-      "bytes": 8319228,
-      "integrity": "sha512-q4/RoWDFBKzeDvZS6UyYF1ZiupW71F179JYWXxqooFGh8mtSbxnRWfJyLGir1y3DzWZSHv8lHu3JYZM4BPsJxQ==",
+      "version": "0.37.7",
+      "file": "aikdna-kdna-core-0.37.7.tgz",
+      "sha256": "3dd7c560e86fd1fa6085d3162d781f33b797c73b27bce435a25bf8d997121560",
+      "bytes": 8319222,
+      "integrity": "sha512-DtVJskvlhWwJiiUUFHF85SPC6Zeab7+mQq8Krpayun4aDBH18hmNpYVlz73PSPzQ8Os8nCAXQ+NNVpQtcOUxbA==",
       "members": 465,
       "license": "Apache-2.0",
       "licenseMembers": [
@@ -27,11 +27,11 @@
     },
     {
       "name": "@aikdna/kdna-read",
-      "version": "0.13.0",
-      "file": "aikdna-kdna-read-0.13.0.tgz",
-      "sha256": "26f62bb703c7ad92acdfa02e44b3b981f73ec2e9c20bec29e1412937968170a7",
-      "bytes": 3210521,
-      "integrity": "sha512-9JmJGxisfMim1EJtYERiYy0jPFJTE5juQHk21bWnrLs7N5nGdFLzrVlpeyphZdCgmKXHMhhFflLimXVMoMOb5w==",
+      "version": "0.13.1",
+      "file": "aikdna-kdna-read-0.13.1.tgz",
+      "sha256": "2d367c9c9105350ffa7a4aa180ab9dcf4487489a91e0f5b4f62853f736cc0899",
+      "bytes": 3217262,
+      "integrity": "sha512-8tqWKnkqjirmaq9J70Y7iTCLQnJnD4cX6cnlix99RfJN2KgPp4bDKbv8ya8nCeuijAfYU7R7dVF2yFMvmQvB/A==",
       "members": 99,
       "license": "Apache-2.0",
       "licenseMembers": [

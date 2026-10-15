@@ -1,5 +1,19 @@
 # Stable CLI change notes
 
+## CLI 0.43.0
+
+This source binds the published Core `0.37.7` and Read `0.13.1` and adds the
+explicit `kdna convert` command: it reads exactly the current `0.5` public
+source generation and writes an admitted `0.6` container with a confirmed
+`representation_origin`, saves a new file under the existing no-replace
+policy, refuses historical tuples, protected sources and extension members by
+name before any conversion, and never converts implicitly on the read or
+source routes. Every byte-pinned coordinate — the six route-contract digests,
+the accepted companion pair, the dependency and delivery archive receipts and
+the offline host lock — moves back to the exact published archives in this
+release batch, and the publish-coordinate gate reports zero findings again.
+Earlier published coordinates remain in place.
+
 ## CLI 0.42.0
 
 This source candidate adds the explicit `--view raw` adapter carrier. Raw

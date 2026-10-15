@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.43.0 (2026-10-15)
 
 - Add the explicit `kdna convert` command: it reads exactly the current `0.5`
   public source generation (container `0.5.0`, `kdna.payload.judgment` profile
@@ -9,11 +9,13 @@
   policy. Historical tuples, protected sources and extension members are
   refused by name before any conversion; the read and source routes are
   unchanged and never convert implicitly.
-- Consume the merged source-migration Core tree (aikdna/kdna PR #394) as the
-  current candidate archive, recorded in `vendor/current-sources.json` and
-  bound by `public-contract-binding.json`. This is a deliberate
-  unreleased-candidate state: the new publish-coordinate gate reports exactly
-  this one finding and refuses the tree, and `publish.yml` now runs the gate.
+- Consume the published Core `0.37.7` and Read `0.13.1` from the registry:
+  every byte-pinned coordinate — the six route-contract digests, the accepted
+  companion pair, the dependency and delivery archive receipts and the offline
+  host lock — moves back to the exact published archives in this release
+  batch, and the publish-coordinate gate reports zero findings again.
+- The package includes the updated Read/Source/authorization guides and the
+  Native delivery guide; earlier published coordinates remain in place.
 
 ## 0.36.1 (2026-08-04)
 

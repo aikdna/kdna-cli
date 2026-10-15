@@ -1,6 +1,6 @@
-# KDNA CLI 0.40.1
+# KDNA CLI 0.43.0
 
-`0.41.0` is published on `latest` with exact Core `0.37.6` and Read `0.13.0`, from a reviewed source commit whose retained artifact was matched byte for byte at the registry. Verify the actual registry version and release evidence before installation. Earlier `native-preview` releases retain their own artifacts and locks. The current source carries the next candidate `0.42.0` with exact Core `0.37.6` and Read `0.13.0`; it is not yet published, and until its own release and registry verification complete this page keeps naming the published combination.
+`0.42.0` is published on `latest` with exact Core `0.37.6` and Read `0.13.0`, from a reviewed source commit whose retained artifact was matched byte for byte at the registry. Verify the actual registry version and release evidence before installation. Earlier `native-preview` releases retain their own artifacts and locks. The current source carries the next candidate `0.43.0` with exact Core `0.37.7` and Read `0.13.1`; it is not yet published, and until its own release and registry verification complete this page keeps naming the published combination.
 
 This candidate delegates native container production, admission and disclosure to the exact companion Core and Read archives. It does not interpret assets independently.
 
@@ -69,7 +69,7 @@ const exitCode = await run(['validate', '/absolute/path/asset.kdna'], process.st
 
 ## Local validation and packaging
 
-Use Node 22 or later with the exact companion archives in `vendor/`; do not substitute packages based on matching version strings. `release-surface/dependency-archives.json` lists eleven active SHA256/SRI-bound archive inputs. Earlier archives remain as historical inputs and are not selected by the current development lock. The root lock declares the exact candidate archive: currently the merged source-migration Core build recorded in `vendor/current-sources.json` (deliberately not the published `0.37.6` tar), plus the published Read coordinate. Before those versions are published, use the committed development host lock with the verified companion archives. Optional native acceleration is excluded.
+Use Node 22 or later with the exact companion archives in `vendor/`; do not substitute packages based on matching version strings. `release-surface/dependency-archives.json` lists eleven active SHA256/SRI-bound archive inputs. Earlier archives remain as historical inputs and are not selected by the current development lock. The root lock declares the exact registry coordinates: published Core `0.37.7` and published Read `0.13.1`. Use the committed development host lock with the verified companion archives. Optional native acceleration is excluded.
 
 ```sh
 npm ci --prefix release-surface/native-offline-host --offline --ignore-scripts --omit=optional --no-audit --no-fund

@@ -47,43 +47,42 @@ function session(makeRequest, args=[]) {
  });
 }
 test('exact package/source record retains the public tuple and same Core module identity',()=>{
- assert.equal(pkg.version,'0.42.0');assert.equal(pkg.dependencies['@aikdna/kdna-core'],'file:vendor/aikdna-kdna-core-0.37.6.tgz');assert.equal(pkg.dependencies['@aikdna/kdna-read'],'0.13.0');
+ assert.equal(pkg.version,'0.43.0');assert.equal(pkg.dependencies['@aikdna/kdna-core'],'0.37.7');assert.equal(pkg.dependencies['@aikdna/kdna-read'],'0.13.1');
  assert.equal(binding.tuple.read,'kdna.read/0.7.0-candidate');assert.equal(binding.tuple.container,'0.6.0');
  assert.deepEqual(binding.route_contracts, [
   {
     "file": "sections/contract.json",
     "bytes": 570835,
-    "sha256": "a0e8fd4f738798613aafa1b8a6de8f635401f0af5221f56a1b0787135e68116a"
+    "sha256": "30f3fa6be25d4b5a26e44c82e755f1458b03553f847a926f1d762789107ee498"
   },
   {
     "file": "sectionbytes/contract.json",
     "bytes": 31759,
-    "sha256": "c12f134d16cbf458ca4b4e401d7f4664b1f81c4ddc567707703105035ca8c892"
+    "sha256": "1d4a9c5bb2aa2b6ab7ede82cc9d1bf0365e255349d2d932b8f364b2ab506c627"
   },
   {
     "file": "retained/contract.json",
     "bytes": 291233,
-    "sha256": "8171e758867d28e8789eeb235a6a9a7b57636d7d83a9e8f6a605efd402697649"
+    "sha256": "ef6a860471e4d2214f724c55551d180d93c5102f6c37de082700323e451d9166"
   },
   {
     "file": "creation06/contract.json",
     "bytes": 71166,
-    "sha256": "4dbf052dc31e912498ba8529b1e127ca6aeef18eaf5bfefecb271f654cdd5cfa"
+    "sha256": "3d87b83cb467ccc67aba6a180245b1209536508d290493a5019f5a4586dd2abf"
   },
   {
     "file": "source06/contract.json",
     "bytes": 76676,
-    "sha256": "2a94482d0cdc04d45922a25eb52fc376c29f9fcf2dcf3b21fc6491e9ed43a036"
+    "sha256": "b918ca0dc1dcc94733df73848e8499e7e62ec45722536e3d4f141156fe1f9580"
   },
   {
     "file": "migration06/contract.json",
     "bytes": 46892,
-    "sha256": "4906d69a868dc9d0f23bb1dedfda697b263fa09b99bb10dc55ba0aac6fc1e3de"
+    "sha256": "226218eaa7fef946503567020943c9c27b30dfda24b7864bdb3f1a8e6724060f"
   }
 ]);
- assert.equal(binding.accepted_core.tar_sha256,'287932b98272d243d43f3f6603b13c82f9eb62ce14a9a52160c910cc38f41c5a');
- assert.equal(binding.accepted_core.source,'vendor/aikdna-kdna-core-0.37.6.tgz');
- assert.equal(binding.accepted_read.tar_sha256,'26f62bb703c7ad92acdfa02e44b3b981f73ec2e9c20bec29e1412937968170a7');
+ assert.equal(binding.accepted_core.tar_sha256,'3dd7c560e86fd1fa6085d3162d781f33b797c73b27bce435a25bf8d997121560');
+ assert.equal(binding.accepted_read.tar_sha256,'2d367c9c9105350ffa7a4aa180ab9dcf4487489a91e0f5b4f62853f736cc0899');
  const readLocal=createRequire(local.resolve('@aikdna/kdna-read/retained-sections-node'));
  assert.equal(local.resolve('@aikdna/kdna-core/retained-sections-node'),readLocal.resolve('@aikdna/kdna-core/retained-sections-node'));
  assert.deepEqual(Object.keys(local('@aikdna/kdna-cli')),['run']);assert.equal(pkg.types,undefined);
