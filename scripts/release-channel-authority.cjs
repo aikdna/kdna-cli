@@ -234,8 +234,13 @@ function validateManifest(pkg, unit, { allowPinnedFileCoordinates = false } = {}
       JSON.stringify(COMPANIONS.map((x) => x.name).sort()),
     'CLI preview requires exactly Core/Read dependencies',
   );
-  for (const peer of COMPANIONS)
-    assert(pkg.dependencies[peer.name] === peer.version, 'CLI preview companion version mismatch');
+  for (const peer of COMPANIONS) {
+    const pinned = 'file:vendor/' + peer.name.slice(1).replace('/', '-') + '-' + peer.version + '.tgz';
+    assert(
+      pkg.dependencies[peer.name] === peer.version || (allowPinnedFileCoordinates && pkg.dependencies[peer.name] === pinned),
+      'CLI preview companion version mismatch',
+    );
+  }
   assert(
     !pkg.peerDependencies && !pkg.optionalDependencies && !pkg.bundledDependencies,
     'CLI preview dependency fields invalid',
