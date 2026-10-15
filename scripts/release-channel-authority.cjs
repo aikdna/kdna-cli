@@ -214,7 +214,7 @@ function previewNotes(text, unit) {
   assert(notes.length > heading.length + 30, 'preview change notes are empty');
   return notes;
 }
-function validateManifest(pkg, unit) {
+function validateManifest(pkg, unit, { allowPinnedFileCoordinates = false } = {}) {
   const expected = policy(unit);
   assert(
     pkg && pkg.name === expected.name && pkg.version === expected.version && pkg.private !== true,
@@ -224,7 +224,8 @@ function validateManifest(pkg, unit) {
     for (const spec of Object.values(pkg[field] || {}))
       assert(
         typeof spec === 'string' &&
-          /^\d+\.\d+\.\d+(?:-[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)?$/u.test(spec),
+          (/^\d+\.\d+\.\d+(?:-[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)?$/u.test(spec) ||
+            (allowPinnedFileCoordinates && /^file:vendor\/[a-z0-9][a-z0-9.-]*\.tgz$/u.test(spec))),
         'preview package requires exact registry dependency coordinates',
       );
   }
@@ -404,7 +405,7 @@ function validateContext({ pkg, unit, notes, approval, event, env, observation }
     release_id: event.release.id,
   };
 }
-function inspectSource(unit, root = ROOT, { requireMain = false, baseline = BASE_COMMIT } = {}) {
+function inspectSource(unit, root = ROOT, { requireMain = false, baseline = BASE_COMMIT, allowPinnedFileCoordinates = false } = {}) {
   const pkg = policy(unit);
   assert(
     fs.realpathSync(git(['rev-parse', '--show-toplevel'], root)) === fs.realpathSync(root),
@@ -430,7 +431,7 @@ function inspectSource(unit, root = ROOT, { requireMain = false, baseline = BASE
     readSource(tree, sourcePath(pkg, 'package.json'), root),
     'preview source manifest',
   );
-  validateManifest(manifest, unit);
+  validateManifest(manifest, unit, { allowPinnedFileCoordinates });
   const allowlist = trusted.strictJson(
     readSource(tree, 'release-surface/npm-file-allowlist.json', root),
     'CLI package file allowlist',
@@ -1451,7 +1452,11 @@ function validateSourceHostCompanions(receipts) {
   return true;
 }
 function sourceHost({ root = ROOT, env = process.env } = {}) {
-  const source = inspectSource('cli', root);
+  // The development graph setup may describe exactly the pinned candidate
+  // coordinate (file:vendor/<name>-<version>.tgz); every release-path
+  // inspection stays registry-only, and the standalone publish-coordinate
+  // gate refuses the same file: coordinate at the publish path.
+  const source = inspectSource('cli', root, { allowPinnedFileCoordinates: true });
   const receipts = trusted.strictJson(
     readSource(source.treeState, 'release-surface/native-delivery-archives.json', root),
     'CLI source host receipts',
