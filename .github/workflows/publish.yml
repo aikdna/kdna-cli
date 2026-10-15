@@ -19,7 +19,7 @@ jobs:
       github.event.action == 'published' &&
       github.event.release.draft == false &&
       github.event.release.prerelease == false &&
-      github.event.release.tag_name == '0.42.0'
+      github.event.release.tag_name == '0.43.0'
     runs-on: macos-latest
     timeout-minutes: 30
     permissions:
