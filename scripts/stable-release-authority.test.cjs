@@ -16,6 +16,21 @@ const configuration = {
   ],
 };
 const authority = createAuthority(configuration);
+test('release-path manifest validation refuses the pinned candidate coordinate; only the source-host check may opt in', () => {
+  const pinned = {name: '@aikdna/kdna-cli', version: '0.39.0',
+    dependencies: {'@aikdna/kdna-core': 'file:vendor/aikdna-kdna-core-0.37.3.tgz', '@aikdna/kdna-read': '0.12.0'}};
+  // Default (release-path) contexts keep the strict registry-only rule: the
+  // pinned candidate coordinate is refused even though the source-host source
+  // check accepts the exact same graph under its explicit allowance.
+  assert.throws(() => authority.validateManifest(pinned, 'cli'), /exact registry dependency coordinates/);
+  // The allowance names the exact pinned shape: any other file: form is still
+  // refused when the allowance is requested.
+  assert.throws(
+    () => authority.validateManifest({...pinned, dependencies: {'@aikdna/kdna-core': 'file:../outside.tgz', '@aikdna/kdna-read': '0.12.0'}},
+      'cli', {allowPinnedFileCoordinates: true}),
+    /exact registry dependency coordinates/,
+  );
+});
 function fixture() {
   const pkg = {name: '@aikdna/kdna-cli', version: '0.39.0',
     files: authority.SOURCE_FILES.filter(file => file !== 'package.json'),
