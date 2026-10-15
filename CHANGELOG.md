@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- Add the explicit `kdna convert` command: it reads exactly the current `0.5`
+  public source generation (container `0.5.0`, `kdna.payload.judgment` profile
+  `0.5.1`), writes an admitted `0.6` container with a confirmed
+  `representation_origin`, and saves a new file under the existing no-replace
+  policy. Historical tuples, protected sources and extension members are
+  refused by name before any conversion; the read and source routes are
+  unchanged and never convert implicitly.
+- Consume the merged source-migration Core tree (aikdna/kdna PR #394) as the
+  current candidate archive, recorded in `vendor/current-sources.json` and
+  bound by `public-contract-binding.json`. This is a deliberate
+  unreleased-candidate state: the new publish-coordinate gate reports exactly
+  this one finding and refuses the tree, and `publish.yml` now runs the gate.
+
 ## 0.36.1 (2026-08-04)
 
 - Correct the package README to acknowledge the workspace attachment surface

@@ -61,6 +61,7 @@ jobs:
         run: |
           node scripts/check-surface.cjs
           node scripts/check-inventory.cjs
+          node scripts/check-publish-coordinates.js
           node --test scripts/preview-release-authority.test.cjs
           node --test tests/*.test.js
         env:

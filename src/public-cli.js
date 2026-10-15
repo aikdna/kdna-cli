@@ -9,6 +9,7 @@ const { admitRetainedSectionRequest, createRetainedSectionReadAuthority, prepare
 const { createTrustedHostReadProvider, readRetainedSection } = require('@aikdna/kdna-read/retained-sections-node');
 const { admitNativeCreationRequest, createNativeCreationAuthority, createSectionAssetNode } = require('@aikdna/kdna-core/creation-sections-node');
 const { admitSourceOperationRequest, createNativeSourceOperationAuthority, openSectionSourceNode, packSectionSourceNode } = require('@aikdna/kdna-core/source-sections-node');
+const { admitSourceMigrationRequest, createNativeSourceMigrationAuthority, migratePublicSourceNode } = require('@aikdna/kdna-core/source-migration-node');
 const binding = require('../public-contract-binding.json');
 // The model-view contract this CLI is built against. It is the one-way gate for
 // the projection: a caller may accept this contract or nothing, and a Read
@@ -64,7 +65,7 @@ function authoringGuidance(input,rejected){
   }
   return guidance.length?guidance:null;
 }
-const commands = new Set(['create', 'source-open', 'source-pack', 'inspect', 'validate', 'read', 'plan', 'load']);
+const commands = new Set(['create', 'source-open', 'source-pack', 'convert', 'inspect', 'validate', 'read', 'plan', 'load']);
 const independentStates = () => ({ writer: 'not_evaluated', confirmation: 'not_evaluated', read_permission: 'not_evaluated', action_authorization: 'not_evaluated' });
 const help = [
   'kdna create <authored.json> --output <new-asset.kdna> --allow-create',
@@ -75,6 +76,12 @@ const help = [
   '  Edit transport: exactly {manifest,payload}; public source only, old files are never replaced.',
   '  A saved pack reports affected_by_change: the direct downstream (support, qualify, conflict)',
   '  of the judgments this revision changed; complement carries no dependence and is excluded.',
+  'kdna convert <asset.kdna> --expected-a <sha256:...> --output <new-asset.kdna> --allow-source',
+  '  Explicit 0.5 -> 0.6 migration of a current-generation public source: reads exactly the',
+  '  container 0.5.0 / kdna.payload.judgment generation, writes an admitted 0.6 container with',
+  '  a confirmed representation_origin, and saves a new file; old files are never replaced.',
+  '  Historical tuples, protected sources and extension members are refused by name without',
+  '  conversion; the read and source routes are unchanged.',
   'kdna inspect <asset.kdna> [--json]',
   'kdna validate <asset.kdna> [--json] [--system]',
   '  --system adds warnings-only system-integrity checks: support cycles, a pair that is',
@@ -301,12 +308,14 @@ function parse(argv) {
   const allowed = command === 'create' ? ['--output', '--allow-create', '--json']
     : command === 'source-open' ? ['--expected-a', '--allow-source', '--json']
     : command === 'source-pack' ? ['--expected-a', '--edits', '--output', '--allow-source', '--json']
+    : command === 'convert' ? ['--expected-a', '--output', '--allow-source', '--json']
     : command === 'read' ? ['--mode', '--asset-id', '--asset-version', '--judgment-id', '--budget', '--allow-read', '--json', '--session', '--view', '--view-accept']
     : command === 'validate' ? ['--json', '--system'] : ['--json'];
   if (Object.keys(options).some(k => !allowed.includes(k))) return { error: 'KDNA_ARGUMENT_INVALID' };
   if (command === 'create' && (!options['--output'] || !options['--output'].endsWith('.kdna'))) return { error: 'KDNA_ARGUMENT_INVALID' };
-  if (command.startsWith('source-') && !/^sha256:[0-9a-f]{64}$/.test(options['--expected-a'] || '')) return { error: 'KDNA_ARGUMENT_INVALID' };
-  if (command === 'source-pack' && (!options['--edits'] || !options['--output'] || !options['--output'].endsWith('.kdna'))) return { error: 'KDNA_ARGUMENT_INVALID' };
+  if ((command.startsWith('source-') || command === 'convert') && !/^sha256:[0-9a-f]{64}$/.test(options['--expected-a'] || '')) return { error: 'KDNA_ARGUMENT_INVALID' };
+  if (command === 'source-pack' && !options['--edits']) return { error: 'KDNA_ARGUMENT_INVALID' };
+  if ((command === 'source-pack' || command === 'convert') && (!options['--output'] || !options['--output'].endsWith('.kdna'))) return { error: 'KDNA_ARGUMENT_INVALID' };
   // A session carries one ReadRequest per line, so a CLI-level request option may
   // not accompany it. --view names the output surface, not the request, so it may.
   if (options['--session'] && Object.keys(options).some(k => k !== '--view' && k !== '--view-accept' && valued.has(k))) return { error: 'KDNA_ARGUMENT_INVALID' };
@@ -520,6 +529,34 @@ async function runWithOutput(argv, write, stdin, assertActive, now = () => Date.
       sha256: createHash('sha256').update(result.bytes).digest('hex'), cleanup: saved.cleanup },
       ...(command === 'source-pack' && sourcePayload ? { affected_by_change: affectedByChange(sourcePayload, edits.payload) } : {}),
       evidence: result.evidence, states: independentStates(), action_authorized: false, creation_accepted: false, adoption: 'not_observed' });
+    return 0;
+  }
+  if (command === 'convert') {
+    if (!options['--allow-source']) {
+      await emit({ status: 'rejected', code: 'KDNA_SOURCE_PERMISSION_REQUIRED', action_authorized: false });
+      return 1;
+    }
+    assertActive();
+    let bytes;
+    try { bytes = await readAssetBytes(file, assertActive); }
+    catch { assertActive(); return unavailable('KDNA_ASSET_INPUT_INVALID'); }
+    assertActive();
+    const request = admitSourceMigrationRequest({ request_id: 'cli:' + randomUUID(), tuple: binding.tuple,
+      operation: 'migrate_public_source', source_expected_A: options['--expected-a'], timeout_ms: 60000,
+      signature_policy: { requireSignature: false, expectedPublicKeyHex: null } });
+    if (request.status !== 'admitted_request') { await emit(request); return 1; }
+    assertActive();
+    const authority = createNativeSourceMigrationAuthority(() => { assertActive(); return true; });
+    const result = await migratePublicSourceNode(bytes, request.request, authority);
+    assertActive();
+    if (result.status !== 'migrated') { await emit(result); return 1; }
+    let saved;
+    try { saved = await saveNewAsset(options['--output'], result.bytes, assertActive); }
+    catch (error) { assertActive(); await emit({ status: 'save_failed', code: error.message === 'KDNA_OUTPUT_EXISTS' ? error.message : 'KDNA_SAVE_FAILED', action_authorized: false, creation_accepted: false }); return 1; }
+    assertActive();
+    await emit({ status: 'saved', output: { file: options['--output'], bytes: result.bytes.length,
+      sha256: createHash('sha256').update(result.bytes).digest('hex'), cleanup: saved.cleanup },
+      observation: result.observation, states: independentStates(), action_authorized: false, creation_accepted: false, adoption: 'not_observed' });
     return 0;
   }
   if (command === 'create') {
