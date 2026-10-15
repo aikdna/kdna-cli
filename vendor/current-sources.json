@@ -1,0 +1,22 @@
+{
+  "schema": "kdna.current-candidate-sources",
+  "note": "Candidate source record for the vendored archive whose bytes are NOT the registry bytes of the same version number. It exists so the working graph can be traced to an exact merged tree while the release-wave flip-back to the registry coordinate is still pending.",
+  "packages": [
+    {
+      "name": "@aikdna/kdna-core",
+      "version": "0.37.6",
+      "artifact": "vendor/aikdna-kdna-core-0.37.6.tgz",
+      "sha256": "287932b98272d243d43f3f6603b13c82f9eb62ce14a9a52160c910cc38f41c5a",
+      "repository": "aikdna/kdna",
+      "commit": "a43c823cbabe629fbcc2b90c04b91b949728bac5",
+      "tree": "143a57ed037eb51c517c61f060a7488ddada8be5",
+      "packageDirectory": "packages/kdna-core",
+      "sourceEnvironment": "KDNA_CORE_CANDIDATE_SOURCE",
+      "registry_coordinate": {
+        "version": "0.37.6",
+        "tar_sha256": "17137ebdd316f5e44b64c6164d6fca07b0e8486b42b5eb6e85347d92ad25087f"
+      },
+      "candidate_note": "Merged source-migration tree (aikdna/kdna PR #394, main a43c823c). These bytes carry the kdna.source-migration/0.1.0-candidate route and are deliberately NOT the published 0.37.6 tar; the release wave flips this coordinate back to the registry once the successor Core is published."
+    }
+  ]
+}

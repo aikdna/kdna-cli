@@ -29,6 +29,7 @@
     "build": "node --check src/cli.js && node --check src/public-cli.js && node --check src/authored-input.js && node --check src/source-input.js",
     "check:surface": "node scripts/check-surface.cjs",
     "check:inventory": "node scripts/check-inventory.cjs",
+    "check:publish-coordinates": "node scripts/check-publish-coordinates.js",
     "check": "npm run check:surface && npm run check:inventory",
     "release:check:prerelease": "node scripts/check-release-prerelease-readiness.mjs",
     "test": "npm run check:surface && npm run check:inventory && node --test tests/*.test.js",
@@ -57,7 +58,7 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@aikdna/kdna-core": "0.37.6",
+    "@aikdna/kdna-core": "file:vendor/aikdna-kdna-core-0.37.6.tgz",
     "@aikdna/kdna-read": "0.13.0"
   },
   "directories": {

@@ -10,6 +10,7 @@ This candidate delegates native container production, admission and disclosure t
 | Technical admission and metadata | `inspect`, `validate` | Explicit file argument |
 | Catalog, selected content and retained expansion | `read` | `--allow-read` |
 | Open full authored values or save a revision | `source-open`, `source-pack` | `--allow-source` and exact `--expected-a` |
+| Convert a current-generation public source to 0.6 | `convert` | `--allow-source` and exact `--expected-a` |
 
 Plan admission, load/execution and retired commands remain unavailable (exit 2).
 The [Read guide](./docs/consumption-runtime.md) and
@@ -34,6 +35,7 @@ kdna read asset.kdna --mode exact_selection --asset-id asset:example --asset-ver
 kdna read asset.kdna --session --allow-read
 kdna source-open asset.kdna --expected-a 'sha256:<64-lowercase-hex-digits>' --allow-source
 kdna source-pack asset.kdna --edits edits.json --expected-a 'sha256:<64-lowercase-hex-digits>' --output revised.kdna --allow-source
+kdna convert asset.kdna --expected-a 'sha256:<64-lowercase-hex-digits>' --output converted.kdna --allow-source
 ```
 
 `create` accepts an Agent-authored UTF-8 JSON document with exactly `manifest`, `payload` and `members`. Each member has exactly `name`, `type: "file"`, `mode` and canonical `bytes_base64`. Generated container fields (`format_version`, `payload`, `representation_metadata`) do not belong in the authored Manifest. Core validates the complete Manifest, Payload, attachment names, references and native output. No authored fields are silently removed. An empty `members` array is valid for an asset without attachments. This is a public unsigned production route; it does not create encrypted containers, checksums or signatures.
@@ -48,11 +50,13 @@ Session mode consumes one current native retained Read request per line. Selecti
 
 `source-open` and `source-pack` require `--allow-source` before edit or asset files are opened. Supply the exact asset SHA256 as `--expected-a`; it is passed unchanged to the official Source API. A wrong or stale digest is rejected after Source authorization and native admission, before authoring content is returned. The CLI captures the original asset using the same bounded regular-file ingress as Read. Protected representations use a separate Host route and are not opened or revised through these commands.
 
+`convert` migrates one explicit, current-generation `0.5` public source (container `0.5.0`, `kdna.payload.judgment` profile `0.5.1`) to an admitted `0.6` container with a confirmed `representation_origin`; it requires `--allow-source` and the exact `--expected-a` digest, saves a new file under the same no-replace policy, and never rewrites the original. Historical tuples, protected sources and extension members (checksums, signatures) are refused by name before any conversion. Read and source admission paths remain unchanged and never convert implicitly.
+
 `source-open` returns an observation and an `edits` object containing the complete authored Manifest and Payload. Save only that `edits` object as the JSON input for `source-pack`, with exactly two non-null object fields, `manifest` and `payload`. These are full replacement values, not a merge patch. The observation is metadata, not an editing token. Resource bytes and derived logical-payload bytes are omitted from this JSON projection; pack requires the original asset and retains its original members through native Source. Core rebuilds the native tables, validates references and readmits the output. Original signature and checksum members are retained and reverified; this route does not strip them or re-sign an edited asset.
 
 Edit JSON has the same strict UTF-8, duplicate-key, surrogate, finite-number and nesting checks as authored input, with a 20 MiB regular-file transport limit. Core applies its own semantic and container limits. No nested authored fields are removed. When changing the asset version, update both `manifest.version` and `payload.asset.asset_version`; unchanged content still receives new native IDs under the new asset identity. Save to a new `.kdna` filename and consume the new file to obtain fresh process-local handles. Saving and output-failure behavior follow the no-replace policy above; already pending Source work can complete after output fails, without starting a new save once failure is observed.
 
-Exit codes: 0 for source-opened/saved/accepted/ready/catalog operations, 1 for rejection, failed save or non-ready Read, and 2 for invalid CLI arguments or unavailable commands. Plan admission and execution remain unavailable. Retired packing, conversion and execution commands are not supported.
+Exit codes: 0 for source-opened/saved/accepted/ready/catalog operations, 1 for rejection, failed save or non-ready Read, and 2 for invalid CLI arguments or unavailable commands. Plan admission and execution remain unavailable. Retired packing and execution commands are not supported; the explicit `convert` command is the only conversion route, and no admission path converts implicitly.
 
 ## JavaScript API
 
@@ -65,7 +69,7 @@ const exitCode = await run(['validate', '/absolute/path/asset.kdna'], process.st
 
 ## Local validation and packaging
 
-Use Node 22 or later with the exact companion archives in `vendor/`; do not substitute packages based on matching version strings. `release-surface/dependency-archives.json` lists eleven active SHA256/SRI-bound archive inputs. Earlier archives remain as historical inputs and are not selected by the current development lock. The root lock declares the exact registry candidate. Before those versions are published, use the committed development host lock with the verified companion archives. Optional native acceleration is excluded.
+Use Node 22 or later with the exact companion archives in `vendor/`; do not substitute packages based on matching version strings. `release-surface/dependency-archives.json` lists eleven active SHA256/SRI-bound archive inputs. Earlier archives remain as historical inputs and are not selected by the current development lock. The root lock declares the exact candidate archive: currently the merged source-migration Core build recorded in `vendor/current-sources.json` (deliberately not the published `0.37.6` tar), plus the published Read coordinate. Before those versions are published, use the committed development host lock with the verified companion archives. Optional native acceleration is excluded.
 
 ```sh
 npm ci --prefix release-surface/native-offline-host --offline --ignore-scripts --omit=optional --no-audit --no-fund
