@@ -32,6 +32,7 @@ jobs:
           check-latest: false
       - run: npm run check:surface
       - run: npm run check:inventory
+      - run: npm run check:packaged-readme
       - run: node scripts/check-required-contexts.cjs
       # The root publication manifest uses registry coordinates. Current source
       # tests use the explicitly declared eleven-archive host until publication.

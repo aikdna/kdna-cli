@@ -1,10 +1,10 @@
 # KDNA CLI 0.43.0
 
-`0.42.0` is published on `latest` with exact Core `0.37.6` and Read `0.13.0`, from a reviewed source commit whose retained artifact was matched byte for byte at the registry. Verify the actual registry version and release evidence before installation. Earlier `native-preview` releases retain their own artifacts and locks. The current source carries the next candidate `0.43.0` with exact Core `0.37.7` and Read `0.13.1`; it is not yet published, and until its own release and registry verification complete this page keeps naming the published combination.
+This package is `@aikdna/kdna-cli@0.43.0`, paired with exact Core `0.37.7` and Read `0.13.1`, from a reviewed source commit whose retained artifact was matched byte for byte at the registry. Verify the exact registry version and release evidence for the installation you rely on. Earlier `native-preview` releases retain their own artifacts and locks. Which coordinate a registry serves, and how to install it, is rendered from the release-coordinate matrix in the [kdna top-level entry](https://github.com/aikdna/kdna/blob/main/docs/release-coordinates.json); this file states the identity of the version it ships with and makes no publication-state claim, so it stays true for this artifact after later versions appear.
 
-This candidate delegates native container production, admission and disclosure to the exact companion Core and Read archives. It does not interpret assets independently.
+This version delegates native container production, admission and disclosure to the exact companion Core and Read archives. It does not interpret assets independently.
 
-| Operation | Current candidate command | Explicit permission |
+| Operation | Command | Explicit permission |
 | --- | --- | --- |
 | Produce a new native asset | `create` | `--allow-create` |
 | Technical admission and metadata | `inspect`, `validate` | Explicit file argument |
