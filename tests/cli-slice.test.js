@@ -108,6 +108,17 @@ test('bin admission, explicit consent and zero budget keep reading and action se
  const zero=binary(['read',file,'--allow-read','--budget','0']);assert.equal(zero.status,1);assert.equal(JSON.parse(zero.stdout).control.body_bytes,0);
  const allowed=binary(['read',file,'--allow-read','--view','full']);assert.equal(allowed.status,0);assert.equal(JSON.parse(allowed.stdout).envelope.states.action_authorization,'not_evaluated');
 });
+test('one-shot budget rejection explains the envelope budget on stderr',()=>{
+ const tooSmall=binary(['read',file,'--allow-read','--budget','0']);
+ assert.equal(tooSmall.status,1);
+ assert.match(tooSmall.stderr,/READ_RESPONSE_BUDGET_TOO_SMALL: the budget is below the size of the rejection envelope/);
+ const rejected=binary(['read',file,'--allow-read','--budget','5000']);
+ assert.equal(rejected.status,1);
+ assert.equal(JSON.parse(rejected.stdout).envelope.status,'rejected');
+ assert.match(rejected.stderr,/READ_BUDGET_INSUFFICIENT: the complete final JCS envelope requires \d+ bytes at this limit; --budget was 5000/);
+ assert.equal(binary(['read',file,'--allow-read','--budget','20000']).stderr,'');
+ assert.equal(binary(['read',file,'--session','--allow-read'],JSON.stringify({...request('catalog'),budget_bytes:0})+'\n').stderr,'');
+});
 test('session handles chunked UTF8, CRLF, empty EOF and final line without newline',async()=>{
  const good=Buffer.from(JSON.stringify({...request('catalog'),request_id:'request:🙂'})+'\r\n');
  const chunks=Array.from(good,byte=>Buffer.from([byte]));assert.equal((await invoke(['read',file,'--session','--allow-read'],chunks)).code,0);

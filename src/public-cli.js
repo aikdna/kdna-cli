@@ -113,6 +113,25 @@ const help = [
   'plan/load are unavailable until public Plan admission and execution exist.',
 ].join('\n') + '\n';
 
+function budgetNote(result) {
+  if (!result || typeof result !== 'object') return null;
+  if (result.channel === 'read_envelope' && result.envelope?.status === 'rejected') {
+    const diagnostics = Array.isArray(result.envelope.diagnostics) ? result.envelope.diagnostics : [];
+    if (!diagnostics.some((entry) => entry?.code === 'READ_BUDGET_INSUFFICIENT')) return null;
+    const budget = result.envelope.budget;
+    const required = typeof budget?.required_bytes === 'string' && /^[0-9]+$/.test(budget.required_bytes)
+      ? BigInt(budget.required_bytes).toString()
+      : null;
+    const limit = Number.isSafeInteger(budget?.limit_bytes) ? budget.limit_bytes : null;
+    if (required === null || limit === null) return 'kdna: READ_BUDGET_INSUFFICIENT: the complete final JCS envelope exceeds --budget; retry with a larger budget or --view raw to see required_bytes. No content was delivered.';
+    return `kdna: READ_BUDGET_INSUFFICIENT: the complete final JCS envelope requires ${required} bytes at this limit; --budget was ${limit}. The printed body is usually smaller; --budget does not count it, and the limit field itself is counted, so retry above the reported size. Content was not truncated.`;
+  }
+  if (result.channel === 'no_body_control' && result.control?.semantic_cause === 'READ_BUDGET_INSUFFICIENT') {
+    return 'kdna: READ_RESPONSE_BUDGET_TOO_SMALL: the budget is below the size of the rejection envelope; retry with a larger budget (the default is 1000000) to see required_bytes. No content was delivered.';
+  }
+  return null;
+}
+
 // System-integrity warnings and change propagation. Both read only the result
 // the same admission already returned: they re-parse nothing, verify nothing
 // and refuse nothing. The relation families are the contract's own vocabulary —
@@ -680,6 +699,10 @@ async function runWithOutput(argv, write, stdin, assertActive, now = () => Date.
     projectionFailure = null;
     const result = await readRetainedSection(preparation.prepared, host);
     if (!delivered) await emit(result);
+    if (!options['--session']) {
+      const note = budgetNote(result);
+      if (note) process.stderr.write(note + '\n');
+    }
     if (projectionFailure) return 2;
     // The delivered answer's handles are kept for this session so a later
     // expand request can name one by its compact id.
