@@ -1,5 +1,17 @@
 # Stable CLI change notes
 
+## CLI 0.43.1
+
+This source binds the published Core `0.37.8` and Read `0.13.2` archives and
+moves every byte-pinned coordinate — the six route-contract digests, the
+accepted companion pair, the dependency and delivery archive receipts, the
+offline host lock, the root lock and the stable profile — to those exact
+registry tarballs. It does not change runtime behavior or protocol semantics.
+Read `0.13.2` has no registry `gitHead` or provenance attestation; the release
+binds its exact archive SHA256/SRI/SHA1 only and does not claim provenance for
+it. Core `0.37.8` retains its registry `gitHead` and provenance. Earlier
+published coordinates remain in place.
+
 ## CLI 0.43.0
 
 This source binds the published Core `0.37.7` and Read `0.13.1` and adds the

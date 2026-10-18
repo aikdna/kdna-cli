@@ -4,7 +4,7 @@
   "scope": "@aikdna/kdna-cli public repository",
   "authority": "Declaration of what must be tracked, what may be present untracked, and what may be present ignored. Verified against real git state by scripts/check-inventory.cjs; it is not a self-report.",
   "why": "A broad .gitignore pattern can hide a file that must travel with the repository, so the loss is invisible to `git status` and to any review that counts status lines. This declaration makes that ignore surface explicit and checkable.",
-  "tracked_count": 583,
+  "tracked_count": 585,
   "must_track_globs": [
     "vendor/*.tgz",
     "retired/**/*.tgz"
@@ -28,6 +28,6 @@
     "allowed_untracked_globs and allowed_ignored_globs are the reviewed exception list. Anything present but untracked or ignored that is not listed here is a failure, because it means the ignore surface changed without a declaration.",
     "packed-files.json and aikdna-kdna-cli-*.tgz are local build outputs of `npm pack`; they exist only while a pack report is being produced and are never repository content.",
     "tracked_count is the exact number of tracked files. Re-pin it in the same change that adds or removes tracked files; the gate prints the command in its failure message.",
-    "Eleven exact companion inputs support current native development. The delivery generator packs this CLI and emits an independent twelve-archive consumer with its own lock; earlier vendor archives remain historical. The declared Core and Read inputs are the published 0.37.7 and 0.13.1 registry archives; the root lock declares the exact registry coordinates."
+    "Eleven exact companion inputs support current native development. The delivery generator packs this CLI and emits an independent twelve-archive consumer with its own lock; earlier vendor archives remain historical. The declared Core and Read inputs are the published 0.37.8 and 0.13.2 registry archives; the root lock declares the exact registry coordinates."
   ]
 }

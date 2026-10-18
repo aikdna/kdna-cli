@@ -1,6 +1,6 @@
-# KDNA CLI 0.43.0
+# KDNA CLI 0.43.1
 
-This package is `@aikdna/kdna-cli@0.43.0`, paired with exact Core `0.37.7` and Read `0.13.1`, from a reviewed source commit whose retained artifact was matched byte for byte at the registry. Verify the exact registry version and release evidence for the installation you rely on. Earlier `native-preview` releases retain their own artifacts and locks. Which coordinate a registry serves, and how to install it, is rendered from the release-coordinate matrix in the [kdna top-level entry](https://github.com/aikdna/kdna/blob/main/docs/release-coordinates.json); this file states the identity of the version it ships with and makes no publication-state claim, so it stays true for this artifact after later versions appear.
+This package is `@aikdna/kdna-cli@0.43.1`, paired with exact Core `0.37.8` and Read `0.13.2`, from a reviewed source commit whose retained artifact was matched byte for byte at the registry. Verify the exact registry version and release evidence for the installation you rely on. Earlier `native-preview` releases retain their own artifacts and locks. Which coordinate a registry serves, and how to install it, is rendered from the release-coordinate matrix in the [kdna top-level entry](https://github.com/aikdna/kdna/blob/main/docs/release-coordinates.json); this file states the identity of the version it ships with and makes no publication-state claim, so it stays true for this artifact after later versions appear.
 
 This version delegates native container production, admission and disclosure to the exact companion Core and Read archives. It does not interpret assets independently.
 
@@ -69,7 +69,7 @@ const exitCode = await run(['validate', '/absolute/path/asset.kdna'], process.st
 
 ## Local validation and packaging
 
-Use Node 22 or later with the exact companion archives in `vendor/`; do not substitute packages based on matching version strings. `release-surface/dependency-archives.json` lists eleven active SHA256/SRI-bound archive inputs. Earlier archives remain as historical inputs and are not selected by the current development lock. The root lock declares the exact registry coordinates: published Core `0.37.7` and published Read `0.13.1`. Use the committed development host lock with the verified companion archives. Optional native acceleration is excluded.
+Use Node 22 or later with the exact companion archives in `vendor/`; do not substitute packages based on matching version strings. `release-surface/dependency-archives.json` lists eleven active SHA256/SRI-bound archive inputs. Earlier archives remain as historical inputs and are not selected by the current development lock. The root lock declares the exact registry coordinates: Core `0.37.8` and Read `0.13.2`. Use the committed development host lock with the verified companion archives. Optional native acceleration is excluded.
 
 ```sh
 npm ci --prefix release-surface/native-offline-host --offline --ignore-scripts --omit=optional --no-audit --no-fund
@@ -86,7 +86,7 @@ The native CLI source and dependency graph are candidates. Source feedback revis
 
 ## Contract and authority
 
-Core `0.37.3` and Read `0.12.0` supply the required native public export targets. Their exact archive SHA256 values are recorded in the [binding](./public-contract-binding.json); verify the delivered archives against those values. The current tuple is container `0.6.0`, Core `kdna.core/0.8.2`, IR `kdna.canonical-ir/0.6.1` and Read `kdna.read/0.7.0-candidate`; route-definition content identities are recorded in the binding file. A source checkout with the same versions is not automatically byte-equivalent to these archives.
+Core `0.37.8` and Read `0.13.2` supply the required native public export targets. Their exact archive SHA256 values are recorded in the [binding](./public-contract-binding.json); verify the delivered archives against those values. The current tuple is container `0.6.0`, Core `kdna.core/0.8.2`, IR `kdna.canonical-ir/0.6.1` and Read `kdna.read/0.7.0-candidate`; route-definition content identities are recorded in the binding file. A source checkout with the same versions is not automatically byte-equivalent to these archives.
 
 Technical validity, producer observation, filesystem saving, author confirmation, reading permission, task adoption and action authorization remain separate. No CLI operation creates human confirmation or grants network, payment, execution or other Host permissions. There is no legacy loader fallback, automatic asset migration or action executor. Historical material under `retired/` is excluded from builds and distribution.
 

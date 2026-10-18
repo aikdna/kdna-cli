@@ -298,14 +298,17 @@ function validateApproval(approval, unit) {
       'CLI preview companion identity/bytes mismatch',
     );
     assert(
-      HEX40.test(peer.gitHead) &&
+      (i === 0
+        ? HEX40.test(peer.gitHead)
+        : peer.gitHead === null || HEX40.test(peer.gitHead)) &&
         HEX40.test(peer.shasum) &&
         /^sha512-[A-Za-z0-9+/]+={0,2}$/u.test(peer.integrity),
       'CLI preview companion registry coordinate invalid',
     );
   }
   assert(
-    approval.companions[0].gitHead === approval.companions[1].gitHead,
+    approval.companions[1].gitHead === null ||
+      approval.companions[1].gitHead === approval.companions[0].gitHead,
     'CLI preview companion source pair mismatch',
   );
   return approval;
@@ -889,17 +892,18 @@ function registryDecision(result, expected) {
   }
   assert(result.status === 0, 'preview registry lookup failed');
   const data = trusted.strictJson(result.stdout, 'preview registry metadata');
-  exactKeys(
-    data,
-    ['name', 'version', 'dist.integrity', 'dist.shasum', 'gitHead'],
-    'preview registry metadata',
-  );
+  const gitHeadRequired = expected.gitHead !== null && expected.gitHead !== undefined;
+  const metadataKeys = ['name', 'version', 'dist.integrity', 'dist.shasum'];
+  if (gitHeadRequired) metadataKeys.push('gitHead');
+  exactKeys(data, metadataKeys, 'preview registry metadata');
   assert(
     data.name === expected.name &&
       data.version === expected.version &&
       data['dist.integrity'] === expected.integrity &&
       data['dist.shasum'] === expected.shasum &&
-      data.gitHead === expected.gitHead,
+      (gitHeadRequired
+        ? data.gitHead === expected.gitHead
+        : !Object.hasOwn(data, 'gitHead')),
     'preview registry version collision',
   );
   return { decision: 'skip-identical', shouldPublish: false };

@@ -1,7 +1,7 @@
 # Exact native CLI delivery
 
-The stable distribution candidate CLI `0.40.0` uses exact Core
-`0.37.3` and Read `0.12.0`. Obtain it from the registry only after the
+The stable distribution candidate CLI `0.43.1` uses exact Core
+`0.37.8` and Read `0.13.2`. Obtain it from the registry only after the
 corresponding approved release and exact registry artifacts are available. The CLI package includes its support
 guides and the synthetic author example. Its exact archive and the complete
 offline host are delivered separately; this page announces no additional
