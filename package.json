@@ -1,6 +1,6 @@
 {
   "name": "@aikdna/kdna-cli",
-  "version": "0.43.0",
+  "version": "0.43.1",
   "description": "KDNA CLI: bounded authored input, native asset creation, exclusive saving and explicit local Read disclosure.",
   "type": "commonjs",
   "bin": {
@@ -60,8 +60,8 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@aikdna/kdna-core": "0.37.7",
-    "@aikdna/kdna-read": "0.13.1"
+    "@aikdna/kdna-core": "0.37.8",
+    "@aikdna/kdna-read": "0.13.2"
   },
   "directories": {
     "doc": "docs",

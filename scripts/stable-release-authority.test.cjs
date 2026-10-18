@@ -49,6 +49,44 @@ function fixture() {
       GITHUB_EVENT_NAME: 'release', GITHUB_REF: 'refs/tags/0.39.0', GITHUB_REF_TYPE: 'tag', GITHUB_REF_NAME: '0.39.0', GITHUB_SHA: COMMIT},
     observation: {commit: COMMIT, tree: TREE, tagCommit: COMMIT, clean: true, mainContainsSource: true, dco: true, baseCommit: BASE}};
 }
+function rebuildBody(f) {
+  f.event.release.body = f.notes + '\n\n```kdna-stable-release\n' + JSON.stringify(f.approval, null, 2) + '\n```';
+  return f;
+}
+test('stable approval accepts an absent Read gitHead without claiming provenance', () => {
+  const accepted = rebuildBody(fixture());
+  accepted.approval.companions[1].gitHead = null;
+  rebuildBody(accepted);
+  const context = authority.validateContext(accepted);
+  assert.equal(context.approval.companions[1].gitHead, null);
+  for (const change of [
+    (f) => { f.approval.companions[0].gitHead = null; },
+    (f) => { f.approval.companions[1].gitHead = BASE; },
+    (f) => { delete f.approval.companions[1].gitHead; },
+  ]) {
+    const bad = fixture();
+    change(bad);
+    rebuildBody(bad);
+    assert.throws(() => authority.validateContext(bad));
+  }
+});
+test('companion registry metadata without gitHead is accepted only when approved as absent', () => {
+  const integrity = 'sha512-' + Buffer.alloc(64).toString('base64');
+  const shasum = 'a'.repeat(40);
+  const metadata = {
+    name: '@aikdna/kdna-read',
+    version: '0.13.2',
+    'dist.integrity': integrity,
+    'dist.shasum': shasum,
+  };
+  const expectedRead = {name: '@aikdna/kdna-read', version: '0.13.2', integrity, shasum, gitHead: null};
+  const result = (data) => ({status: 0, stdout: JSON.stringify(data), stderr: '', error: null});
+  assert.equal(authority.registryDecision(result(metadata), expectedRead).decision, 'skip-identical');
+  assert.throws(() => authority.registryDecision(result({...metadata, gitHead: 'b'.repeat(40)}), expectedRead));
+  const expectedCore = {...expectedRead, name: '@aikdna/kdna-core', gitHead: 'b'.repeat(40)};
+  assert.throws(() => authority.registryDecision(result(metadata), expectedCore));
+  assert.equal(authority.registryDecision(result({...metadata, name: '@aikdna/kdna-core', gitHead: 'b'.repeat(40)}), expectedCore).decision, 'skip-identical');
+});
 test('stable channel requires its own exact non-prerelease event and approval', () => {
   const f = fixture();
   const context = authority.validateContext(f);
@@ -132,12 +170,12 @@ test('stable publisher passes only exact retained bytes and stable identity to t
   try {
     const artifactPath = path.join(directory, 'artifact.tgz'), manifestPath = path.join(directory, 'manifest.json');
     const bytes = Buffer.from('retained fixture bytes');
-    fs.writeFileSync(artifactPath, bytes);fs.writeFileSync(manifestPath, JSON.stringify({name: '@aikdna/kdna-cli', version: '0.43.0', gitHead: COMMIT}));
+    fs.writeFileSync(artifactPath, bytes);fs.writeFileSync(manifestPath, JSON.stringify({name: '@aikdna/kdna-cli', version: '0.43.1', gitHead: COMMIT}));
     let calls = 0;
     const options = {libraryPath: path.join(directory, 'audited-library.js'), artifactPath, manifestPath,
       artifactSha256: trusted.sha256(bytes), token: 'synthetic-token',
       library: {async publish(manifest, actual, settings) {
-        calls++; assert.equal(manifest.version, '0.43.0'); assert.deepEqual(actual, bytes);
+        calls++; assert.equal(manifest.version, '0.43.1'); assert.deepEqual(actual, bytes);
         assert.equal(settings.defaultTag, 'latest');assert.equal(settings.provenance, true);
       }}};
     assert.equal(await publisher.publishVerified(options), true);assert.equal(calls, 1);

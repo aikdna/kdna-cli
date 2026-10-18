@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.43.1 (2026-10-18)
+
+- Consume the published Core `0.37.8` and Read `0.13.2` from the registry:
+  every byte-pinned coordinate — the six route-contract digests, the accepted
+  companion pair, the dependency and delivery archive receipts, the offline
+  host lock, the root lock and the stable profile — moves to those exact
+  registry tarballs. No runtime behavior or protocol semantics change.
+- Read `0.13.2` has no registry `gitHead` or provenance attestation; the
+  release binds its exact archive SHA256/SRI/SHA1 only and does not claim
+  provenance. Core `0.37.8` retains both.
+- Earlier published coordinates remain in place.
+
 ## 0.43.0 (2026-10-15)
 
 - Add the explicit `kdna convert` command: it reads exactly the current `0.5`
