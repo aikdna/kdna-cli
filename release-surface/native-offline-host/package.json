@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
-    "@aikdna/kdna-core": "file:../../vendor/aikdna-kdna-core-0.37.8.tgz",
-    "@aikdna/kdna-read": "file:../../vendor/aikdna-kdna-read-0.13.2.tgz",
+    "@aikdna/kdna-core": "file:../../vendor/aikdna-kdna-core-0.37.9.tgz",
+    "@aikdna/kdna-read": "file:../../vendor/aikdna-kdna-read-0.13.3.tgz",
     "ajv": "file:../../vendor/ajv-8.20.0.tgz",
     "ajv-formats": "file:../../vendor/ajv-formats-3.0.1.tgz",
     "cbor-x": "file:../../vendor/cbor-x-1.6.5.tgz",

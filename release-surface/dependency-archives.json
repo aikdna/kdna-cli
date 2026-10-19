@@ -1,20 +1,20 @@
 [
   {
     "name": "@aikdna/kdna-core",
-    "version": "0.37.8",
-    "file": "aikdna-kdna-core-0.37.8.tgz",
-    "sha256": "4b7f27f46a000e199578fd191716eef3b34aaa41890e59a8ea4945d468d75bd7",
-    "bytes": 8319363,
-    "integrity": "sha512-vK6hcqiPdImIdgdtUbU+8L0dQMQ80rucbiAMrn47b3EPL3/GxeNXFZalvcqcefVl5rm84CdKdiEp+pAk3zMBEQ==",
+    "version": "0.37.9",
+    "file": "aikdna-kdna-core-0.37.9.tgz",
+    "sha256": "084afc94fb808a4327995d6d47be8262d53e339e415db2879ff334d5d742362b",
+    "bytes": 8319313,
+    "integrity": "sha512-vDjxO7Q10JyNIbBGfeGFKMbu+vbA7me3KXB8S38HbHXNpaq56gqnAd/XJwUjiyCFSmLB6DH3bLguEHatFSj1dA==",
     "members": 465
   },
   {
     "name": "@aikdna/kdna-read",
-    "version": "0.13.2",
-    "file": "aikdna-kdna-read-0.13.2.tgz",
-    "sha256": "623f67f8643da6e158de2ae6063a5a9988e79e431eb1c548803c94a78e677688",
-    "bytes": 3217260,
-    "integrity": "sha512-fJU5cyZBvVA/95jodywOEm1sl49iZAkt6EcjfIqEznBKd9cdohsVI4/tz3UsPdk44Yi70yW3mzhR9djnJvILhg==",
+    "version": "0.13.3",
+    "file": "aikdna-kdna-read-0.13.3.tgz",
+    "sha256": "52f5b05f4565e623af6e7a381d90ae2c75ef04edc82e2db2b88f7aa8d6ac0f50",
+    "bytes": 3217262,
+    "integrity": "sha512-8ursWqUqM7cEJz5ja8GNVZ11xrsK3f2bGCpEISJPEORXrX2Y5jz8paNu8NPZv2gDObFwHkT2b7PY1f1W5ppJjQ==",
     "members": 99
   },
   {
