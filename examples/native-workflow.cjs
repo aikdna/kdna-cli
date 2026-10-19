@@ -56,7 +56,7 @@ async function main() {
   const authored = JSON.parse(fs.readFileSync(authorFile, 'utf8'));
   const host = createRequire(path.resolve('package.json'));
   const { run } = host('@aikdna/kdna-cli');
-  assert.equal(host('@aikdna/kdna-cli/package.json').version, '0.43.1');
+  assert.equal(host('@aikdna/kdna-cli/package.json').version, '0.43.2');
   fs.mkdirSync(outputDirectory, { mode: 0o700 }); // Existing directory is refused.
   const file = name => path.join(outputDirectory, name);
   const save = (name, value) => fs.writeFileSync(file(name), JSON.stringify(value, null, 2) + '\n', { flag: 'wx', mode: 0o600 });

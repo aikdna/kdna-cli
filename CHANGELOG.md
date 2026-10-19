@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.43.2 (2026-10-19)
+
+- Consume the published Core `0.37.9` and Read `0.13.3` from the registry:
+  every byte-pinned coordinate — the six route-contract digests, the accepted
+  companion pair, the dependency and delivery archive receipts, the offline
+  host lock, the root lock and the stable profile — moves to those exact
+  registry tarballs. No runtime behavior or protocol semantics change.
+- Include the read-help clarification that `--budget` counts the complete final
+  JCS envelope, the body/full/raw view differences and the three read modes,
+  plus the one-shot read stderr guidance for budget rejections. Stdout, exit
+  codes and session behavior are unchanged.
+- Both Core `0.37.9` and Read `0.13.3` carry registry `gitHead` and provenance
+  attestations. Earlier published coordinates, including CLI `0.43.1`, remain
+  in place.
+
 ## 0.43.1 (2026-10-18)
 
 - Consume the published Core `0.37.8` and Read `0.13.2` from the registry:

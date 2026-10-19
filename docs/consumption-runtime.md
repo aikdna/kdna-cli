@@ -1,8 +1,8 @@
 # Native CLI Read guide
 
 This guide's current entry is the
-stable distribution candidate CLI `0.43.1` and its exact native Core `0.37.8` /
-Read `0.13.2` archives. Publication and registry acquisition require separate
+stable distribution candidate CLI `0.43.2` and its exact native Core `0.37.9` /
+Read `0.13.3` archives. Publication and registry acquisition require separate
 release evidence.
 Use the [binding](../public-contract-binding.json) and
 [installation instructions](../README.md#local-validation-and-packaging)

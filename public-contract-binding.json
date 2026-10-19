@@ -2,7 +2,7 @@
   "format": "kdna.consumer-exact-binding/1",
   "implementation": {
     "name": "@aikdna/kdna-cli",
-    "version": "0.43.1"
+    "version": "0.43.2"
   },
   "tuple": {
     "container": "0.6.0",
@@ -20,41 +20,41 @@
     {
       "file": "sections/contract.json",
       "bytes": 570835,
-      "sha256": "34c8f813f0fa3a46a2ce571d909d22e0d0ec66b5be3162963a0f7372ec2f5643"
+      "sha256": "1c31eec617080c9fd460dbb0d4a4c430f1eb3d0e22f34e2b5f1b545ac5a094d3"
     },
     {
       "file": "sectionbytes/contract.json",
       "bytes": 31759,
-      "sha256": "0f2b09ff07731bb77ffb26cf4038bd27346875fd328e4e004146129dbc4e6a0f"
+      "sha256": "61a46ac0642655497e8896f49d0a9e13a164c355895c91a4824cf61b50b30c6d"
     },
     {
       "file": "retained/contract.json",
       "bytes": 291233,
-      "sha256": "0e2f144e27ba4816225ad2946e2851b22a0eeb62d3074eb82689622d36c0948b"
+      "sha256": "3d965e9502a741d75e5742d9528de5ebd1db92ce82a1f04c7a0ccc77d049d52b"
     },
     {
       "file": "creation06/contract.json",
       "bytes": 71166,
-      "sha256": "e177e33b2bad6e6a090bfd81cb81855d076824c445386a2b81570158a323e486"
+      "sha256": "89317373dc0f322392669b82647c04ef9bd750cc471b648e6d9a9ecde14eac0c"
     },
     {
       "file": "source06/contract.json",
       "bytes": 76676,
-      "sha256": "afe74280c57ef30b17416ec97780834bcf9a64c361e09aa1827fb45880aed424"
+      "sha256": "05a855e4ed9d16c5581f6518a9424beaa08297889899ac4b3cb8cf5eadea18dd"
     },
     {
       "file": "migration06/contract.json",
       "bytes": 46892,
-      "sha256": "79c8e1a4065786cd2d35ef1a562de1121d10c1b39ffd9c6f2615e060b83d83a5"
+      "sha256": "13657c017dc430942bb1bff7069629766e5c5dd0f0bbf3d46ee0f7102c1a84b8"
     }
   ],
   "accepted_core": {
-    "version": "0.37.8",
-    "tar_sha256": "4b7f27f46a000e199578fd191716eef3b34aaa41890e59a8ea4945d468d75bd7"
+    "version": "0.37.9",
+    "tar_sha256": "084afc94fb808a4327995d6d47be8262d53e339e415db2879ff334d5d742362b"
   },
   "accepted_read": {
-    "version": "0.13.2",
-    "tar_sha256": "623f67f8643da6e158de2ae6063a5a9988e79e431eb1c548803c94a78e677688"
+    "version": "0.13.3",
+    "tar_sha256": "52f5b05f4565e623af6e7a381d90ae2c75ef04edc82e2db2b88f7aa8d6ac0f50"
   },
   "release_state": "STABLE_RELEASE_CANDIDATE",
   "authority_limit": "Producer observation, filesystem save, Core admission and explicit local read permission do not establish authorship, human confirmation, Creation completion, task adoption or action authorization.",
