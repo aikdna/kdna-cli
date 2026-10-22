@@ -1,0 +1,5 @@
+# CodeQL scan scope: exclude the preserved retired baseline from analysis.
+# retired/ is not part of the build or the published npm package
+# (see package.json files allowlist). Owner-approved 2026-10-22 (O201/D452).
+paths-ignore:
+  - retired
