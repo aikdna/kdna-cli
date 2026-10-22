@@ -38,6 +38,8 @@ kdna source-pack asset.kdna --edits edits.json --expected-a 'sha256:<64-lowercas
 kdna convert asset.kdna --expected-a 'sha256:<64-lowercase-hex-digits>' --output converted.kdna --allow-source
 ```
 
+Byte budgets apply to the complete final JCS read envelope (not the printed body), and byte counts are UTF-8 canonical JSON, not model tokens — see the kdna-read README for details.
+
 `create` accepts an Agent-authored UTF-8 JSON document with exactly `manifest`, `payload` and `members`. Each member has exactly `name`, `type: "file"`, `mode` and canonical `bytes_base64`. Generated container fields (`format_version`, `payload`, `representation_metadata`) do not belong in the authored Manifest. Core validates the complete Manifest, Payload, attachment names, references and native output. No authored fields are silently removed. An empty `members` array is valid for an asset without attachments. This is a public unsigned production route; it does not create encrypted containers, checksums or signatures.
 
 The transport rejects duplicate decoded JSON keys, invalid UTF-8, lone surrogate escapes and non-finite numbers. It accepts regular files up to 20 MiB and nesting up to 128, with decoded attachments limited to 8 MiB each and 12 MiB total. Core independently applies its semantic and final container limits. Attachment base64 is a transport representation, not a Payload string or file path.
