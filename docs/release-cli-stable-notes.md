@@ -1,5 +1,14 @@
 # Stable CLI change notes
 
+## Source after 0.43.2 (unreleased)
+
+The read-help clarification merged after 0.43.2 is source-only for now. It
+states that `whole_asset` may defer judgment bodies, that a ready body view can
+contain the catalog with zero inline judgment bodies, and that `--budget` is
+the complete JCS envelope limit rather than a model context or token budget.
+npm `latest` remains 0.43.2 and does not contain this text. Include it in the
+next CLI release before describing installed users as having it.
+
 ## CLI 0.43.2
 
 This source binds the published Core `0.37.9` and Read `0.13.3` archives and
