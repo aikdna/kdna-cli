@@ -1,13 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.43.3 (2026-11-10)
 
-- Source-only read-help clarification: `whole_asset` may defer judgment bodies,
-  a ready body view can list the catalog with zero inline judgments, and
-  `--budget` is the complete JCS envelope limit rather than a model context or
-  token budget. This text is merged on `main` after the 0.43.2 publication and
-  is not present in the npm `latest` package. Include it in the next CLI
-  release before citing installed help as carrying it.
+- Deliver the read-help clarification merged after 0.43.2: `whole_asset` may
+  defer judgment bodies, a ready body view can list the catalog with zero
+  inline judgment bodies, one session request can select multiple
+  `judgment_ids`, and `--budget` is the complete final JCS envelope limit
+  rather than a model context or token budget.
+- Keep exact Core `0.37.9` and Read `0.13.3`. No runtime behavior, protocol
+  semantics or packaged dependency coordinate changes.
 
 ## 0.43.2 (2026-10-19)
 
