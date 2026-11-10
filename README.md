@@ -1,6 +1,6 @@
-# KDNA CLI 0.43.2
+# KDNA CLI 0.43.3
 
-This package is `@aikdna/kdna-cli@0.43.2`, paired with exact Core `0.37.9` and Read `0.13.3`, from a reviewed source commit whose retained artifact was matched byte for byte at the registry. Verify the exact registry version and release evidence for the installation you rely on. Earlier `native-preview` releases retain their own artifacts and locks. Which coordinate a registry serves, and how to install it, is rendered from the release-coordinate matrix in the [kdna top-level entry](https://github.com/aikdna/kdna/blob/main/docs/release-coordinates.json); this file states the identity of the version it ships with and makes no publication-state claim, so it stays true for this artifact after later versions appear.
+This package is `@aikdna/kdna-cli@0.43.3`, paired with exact Core `0.37.9` and Read `0.13.3`. Verify this package's archive, both companion archives and the delivery receipt before relying on the installation. Earlier `native-preview` releases retain their own artifacts and locks. The release-coordinate matrix in the [kdna top-level entry](https://github.com/aikdna/kdna/blob/main/docs/release-coordinates.json) records acquisition coordinates; this file identifies the version it ships with and makes no publication-state claim.
 
 This version delegates native container production, admission and disclosure to the exact companion Core and Read archives. It does not interpret assets independently.
 
