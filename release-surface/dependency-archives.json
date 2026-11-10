@@ -64,12 +64,12 @@
   },
   {
     "name": "fast-uri",
-    "version": "3.1.8",
-    "file": "fast-uri-3.1.8.tgz",
-    "sha256": "86be033b406a7737c0521edc8fe3e15c7ac0cb6b5e509478cc9539a2efaa086c",
-    "bytes": 44269,
-    "integrity": "sha512-GZMtZUTNRpOVIECoXwLNZS5xUGE+mVNbTB8h/7Rwh2TFWcBQiPzTgyZi05BF9UMZKkLJv8XBRJTlU7zg8+ZfMg==",
-    "members": 44
+    "version": "3.1.9",
+    "file": "fast-uri-3.1.9.tgz",
+    "sha256": "4f5a67f7b61110aae7b3ad38e806627f5712f4c150bd38eb804a562e69a9ee5e",
+    "bytes": 50086,
+    "integrity": "sha512-hS/0Wt3Ya043oKXs0sIxrMpKQITXhMLIrVAKKXi4gozGC9v7YRWVnXIZzjNPTO02M9BdxLCWqK1yRXgNziVyJQ==",
+    "members": 47
   },
   {
     "name": "json-schema-traverse",
