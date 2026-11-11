@@ -202,3 +202,36 @@ test("validate-input --format human renders non-blocking advisories while keepin
   assert.match(humanRes.stdout, /Advisories \(non-blocking\):/);
   assert.match(humanRes.stdout, /\[tautological_statement\]/);
 });
+
+test("init --lang en|zh and --example run end-to-end through validate-input, create, read, protect and diff", () => {
+  const dir = tmp();
+  const draftPath = path.join(dir, "draft.json");
+  const assetPath = path.join(dir, "my-judgments.kdna");
+  const lockedPath = path.join(dir, "locked.kdna");
+  const pwPath = path.join(dir, "password.txt");
+  const revDraftPath = path.join(dir, "revised-draft.json");
+  const revAssetPath = path.join(dir, "revised.kdna");
+
+  assert.equal(run(["init", "--example", "--mode", "interview", "--output", draftPath]).status, 0);
+  assert.equal(run(["validate-input", draftPath, "--format", "human"]).status, 0);
+  assert.equal(run(["create", "--draft", draftPath, "--output", assetPath, "--allow-create"]).status, 0);
+  assert.equal(run(["read", assetPath, "--mode", "catalog", "--allow-read", "--format", "human"]).status, 0);
+  const compactRead = run(["read", assetPath, "--mode", "exact_selection", "--judgment-id", "decision:first-dilemma", "--allow-read", "--compact"]);
+  assert.equal(compactRead.status, 0, compactRead.stdout + compactRead.stderr);
+  assert.equal(JSON.parse(compactRead.stdout).judgments[0].id, "decision:first-dilemma");
+
+  fs.writeFileSync(pwPath, "a long passphrase");
+  assert.equal(run(["protect", assetPath, "--output", lockedPath, "--password-file", pwPath]).status, 0);
+  const lockedHuman = run(["read", lockedPath, "--mode", "exact_selection", "--judgment-id", "decision:first-dilemma", "--allow-read", "--password-file", pwPath, "--format", "human"]);
+  assert.equal(lockedHuman.status, 0, lockedHuman.stderr);
+  assert.match(lockedHuman.stdout, /Method \(tradeoff\):/);
+
+  assert.equal(run(["init", "--example", "--mode", "works", "--output", revDraftPath]).status, 0);
+  assert.equal(run(["create", "--draft", revDraftPath, "--output", revAssetPath, "--allow-create"]).status, 0);
+  assert.equal(run(["diff", assetPath, revAssetPath, "--format", "human"]).status, 0);
+
+  const zhInit = run(["init", "--mode", "interview", "--lang", "zh"]);
+  assert.equal(zhInit.status, 0);
+  assert.equal(JSON.parse(zhInit.stdout).asset.language, "zh-CN");
+  assert.equal(run(["init", "--lang", "fr"]).status, 2);
+});

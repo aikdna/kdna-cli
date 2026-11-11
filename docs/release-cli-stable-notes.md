@@ -1,5 +1,25 @@
 # Stable CLI change notes
 
+## CLI 0.43.4
+
+This source keeps the exact published Core `0.37.9` and Read `0.13.3` pair and
+delivers safety-closure preservation, bilingual authoring ergonomics, and
+human-readable diagnostics across the CLI: `kdna read --compact` preserves all
+asset-wide boundaries, anti-misuse declarations, shared declarations,
+inter-judgment relationships, reasons, materials, examples, sources, and
+mandatory-closure related judgments while continuing to strip repeated IR node
+wrappers and catalog bloat; `kdna read --format human` renders full reasoning
+components, reasons, boundaries, examples, and relationships with CJK-aware
+wrapping, and routes `read` and `diff` rejections through human text when
+`--format human` is requested; `kdna diff` deduplicates judgment-owned IR mirror
+nodes so single statement edits are reported once; `kdna init` adds English
+draft role aliases (`--lang en` default, `--lang zh` for canonical Chinese role
+keys) and `--example` ready-to-compile starter drafts; and `kdna read --mode
+whole_asset` defaults `--budget` to `4000000` bytes while `catalog` and
+`exact_selection` retain `1000000` bytes. Public, local, and password-protected
+`0.6.0` workflows remain permanently offline and account-free. Earlier published
+coordinates remain in place, including CLI `0.43.3`.
+
 ## CLI 0.43.3
 
 This source keeps the exact published Core `0.37.9` and Read `0.13.3` pair and

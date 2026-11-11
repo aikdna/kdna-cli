@@ -1,11 +1,10 @@
 'use strict';
 const { randomUUID, createHash } = require('node:crypto');
 const { parseJsonBytes, readAuthoredInput, readAssetBytes, readBoundedFile, saveNewAsset } = require('./authored-input.js');
-const { INIT_MODES, DUPLICATE_ROLE_FIX_HINT, inspectMethodComponents, scaffoldDraft, compileDraft, validateInput, validateWithCore } = require('./draft.js');
+const { INIT_MODES, INIT_LANGS, DUPLICATE_ROLE_FIX_HINT, inspectMethodComponents, scaffoldDraft, compileDraft, validateInput, validateWithCore } = require('./draft.js');
 const { protectAsset, admitProtectedWithPassword, readProtected, isProtectedBytes, readPasswordSource } = require('./protect.js');
 const { diffViews, renderDiffHuman } = require('./diff.js');
-const { renderInspectHuman, renderValidateHuman, renderValidateInputHuman, renderReadHuman, compactReadResult } = require('./human.js');
-const renderRejectionHuman = (command, result) => (command === 'inspect' ? renderInspectHuman : renderValidateHuman)(result);
+const { renderInspectHuman, renderValidateHuman, renderValidateInputHuman, renderReadHuman, renderRejectionHuman, compactReadResult } = require('./human.js');
 const { readSourceEdits } = require('./source-input.js');
 const { Readable, Writable } = require('node:stream');
 const { admitSectionRequest, inspectWholeSectionSnapshot } = require('@aikdna/kdna-core/sections-node');
@@ -80,9 +79,9 @@ function authoringGuidance(input,rejected){
 const commands = new Set(['init', 'compile', 'validate-input', 'create', 'protect', 'diff', 'source-open', 'source-pack', 'convert', 'inspect', 'validate', 'read', 'plan', 'load']);
 const independentStates = () => ({ writer: 'not_evaluated', confirmation: 'not_evaluated', read_permission: 'not_evaluated', action_authorization: 'not_evaluated' });
 const help = [
-  'kdna init [--mode minimal|interview|works|research] [--output <draft.json>]',
-  '  Scaffolds a 0.6.0 draft (kdna.draft/1) with one example judgment to edit (default minimal;',
-  '  or interview, works, research); prints it to stdout, or saves a new file with --output.',
+  'kdna init [--mode minimal|interview|works|research] [--lang en|zh] [--example] [--output <draft.json>]',
+  '  Scaffolds a 0.6.0 draft (kdna.draft/1) with English role keys (--lang en, default) or Core',
+  '  canonical Chinese role keys (--lang zh); --example emits a filled, ready-to-compile starter draft.',
   'kdna compile <draft.json> [--output <authored.json>]',
   '  Expands a draft into the full authored input that create accepts, filling every optional',
   '  empty collection; prints it, or saves a new file with --output.',
@@ -126,7 +125,8 @@ const help = [
   '  --judgment-id may repeat or carry a comma-separated list: with exact_selection and no --session the',
   '  asset id/version default to the admitted asset (also for a single id) and several ids are sent as one',
   '  catalog-ordered selection.',
-  '  --compact (body view only) drops the repeated asset-level declarations and catalog from each answer.',
+  '  --compact (body view only) strips repeated IR wrapper bloat and the full catalog while preserving',
+  '  mandatory safety and reasoning closure (boundaries, misuse, shared declarations, relationships, reasons).',
   '  --budget counts the complete final JCS read envelope (metadata, receipt, content and',
   '  the budget fields themselves), not the printed body, the full model view, model',
   '  input bytes or model tokens; --view raw or a rejection reports the envelope',
@@ -169,7 +169,7 @@ function budgetNote(result) {
     return `kdna: READ_BUDGET_INSUFFICIENT: the complete final JCS envelope requires ${required} bytes at this limit; --budget was ${limit}. The printed body is usually smaller; --budget does not count it, and the limit field itself is counted, so retry above the reported size. Content was not truncated.`;
   }
   if (result.channel === 'no_body_control' && result.control?.semantic_cause === 'READ_BUDGET_INSUFFICIENT') {
-    return 'kdna: READ_RESPONSE_BUDGET_TOO_SMALL: the budget is below the size of the rejection envelope; retry with a larger budget (the default is 1000000) to see required_bytes. No content was delivered.';
+    return 'kdna: READ_RESPONSE_BUDGET_TOO_SMALL: the budget is below the size of the rejection envelope; retry with a larger budget (the default is 1000000, or 4000000 for whole_asset) to see required_bytes. No content was delivered.';
   }
   return null;
 }
@@ -360,11 +360,11 @@ function parse(argv) {
   const [command, ...rest] = argv;
   if (!commands.has(command)) return { error: 'KDNA_COMMAND_UNAVAILABLE' };
   const options = Object.create(null);
-  const valued = new Set(['--mode', '--asset-id', '--asset-version', '--judgment-id', '--budget', '--output', '--expected-a', '--edits', '--view', '--view-accept', '--draft', '--password-fd', '--password-file', '--format']);
+  const valued = new Set(['--mode', '--lang', '--asset-id', '--asset-version', '--judgment-id', '--budget', '--output', '--expected-a', '--edits', '--view', '--view-accept', '--draft', '--password-fd', '--password-file', '--format']);
   let file, second;
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
-    if (['--allow-create', '--allow-read', '--allow-source', '--json', '--session', '--system', '--compact'].includes(arg)) {
+    if (['--allow-create', '--allow-read', '--allow-source', '--json', '--session', '--system', '--compact', '--example'].includes(arg)) {
       if (options[arg] !== undefined) return { error: 'KDNA_ARGUMENT_INVALID' };
       options[arg] = true;
     } else if (valued.has(arg)) {
@@ -381,7 +381,7 @@ function parse(argv) {
   if (!file && !['plan', 'load', 'init'].includes(command) && !draftCreate) return { error: 'KDNA_ARGUMENT_INVALID' };
   if (file && (command === 'init' || draftCreate)) return { error: 'KDNA_ARGUMENT_INVALID' };
   if ((command === 'diff') !== (second !== undefined)) return { error: 'KDNA_ARGUMENT_INVALID' };
-  const allowed = command === 'init' ? ['--output', '--mode', '--json']
+  const allowed = command === 'init' ? ['--output', '--mode', '--lang', '--example', '--json']
     : command === 'compile' ? ['--output', '--json']
     : command === 'validate-input' ? ['--format', '--json']
     : command === 'create' ? ['--output', '--allow-create', '--json', '--draft']
@@ -670,7 +670,9 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
   if (command === 'init') {
     const initMode = options['--mode'] ?? 'minimal';
     if (!INIT_MODES.has(initMode)) return unavailable('KDNA_INVALID_INIT_MODE');
-    const draft = scaffoldDraft(initMode);
+    const initLang = options['--lang'] ?? 'en';
+    if (!INIT_LANGS.has(initLang)) return unavailable('KDNA_INVALID_INIT_LANG');
+    const draft = scaffoldDraft(initMode, { lang: initLang, example: options['--example'] === true });
     if (options['--output'] !== undefined) return saveJson(options['--output'], draft);
     await write(JSON.stringify(draft, null, 2) + '\n');
     return 0;
@@ -801,11 +803,11 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
   }
   if (command === 'diff') {
     const left = await whole(file);
-    if (left.status !== 'accepted') { await emit(left); return 1; }
+    if (left.status !== 'accepted') { await emitResult(left, result => renderRejectionHuman('diff', result)); return 1; }
     const right = await whole(second);
-    if (right.status !== 'accepted') { await emit(right); return 1; }
+    if (right.status !== 'accepted') { await emitResult(right, result => renderRejectionHuman('diff', result)); return 1; }
     const leftView = viewOf(left), rightView = viewOf(right);
-    if (!leftView || !rightView) { await emit({ status: 'rejected', reason: 'READ_SNAPSHOT_UNATTESTED' }); return 1; }
+    if (!leftView || !rightView) { await emitResult({ status: 'rejected', reason: 'READ_SNAPSHOT_UNATTESTED' }, result => renderRejectionHuman('diff', result)); return 1; }
     const result = diffViews(leftView, rightView);
     await emitResult(result, renderDiffHuman);
     return 0;
@@ -814,7 +816,7 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
     const admission = await whole();
     if (admission.status !== 'accepted') { await emitResult(admission, result => renderRejectionHuman(command, result)); return 1; }
     const view = viewOf(admission);
-    if (!view) { await emit({ status: 'rejected', reason: 'READ_SNAPSHOT_UNATTESTED' }); return 1; }
+    if (!view) { await emitResult({ status: 'rejected', reason: 'READ_SNAPSHOT_UNATTESTED' }, result => renderRejectionHuman(command, result)); return 1; }
     const result = { status: 'accepted', format_valid: true, states: { ...independentStates(), core: 'valid', interpretation: 'complete' }, diagnostics: [] };
     if (command === 'inspect' && admission.protectedAdmission) {
       Object.assign(result, { tuple: view.tuple, asset: view.asset, digests: view.digests, ir_digest: view.ir_digest, judgment_count: view.ir.catalog.length, runtime_entry_names: view.runtime_entry_names,
@@ -831,7 +833,7 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
   let retainedSnapshot = null, retainedView = null, retainedProtected = null, delivered = false;
   const allow = options['--allow-read'] === true;
   if (!allow) {
-    await emit({ status: 'rejected', code: 'KDNA_READ_PERMISSION_REQUIRED', action_authorized: false });
+    await emitResult({ status: 'rejected', code: 'KDNA_READ_PERMISSION_REQUIRED', action_authorized: false }, renderReadHuman);
     return 1;
   }
   const authority = createRetainedSectionReadAuthority(() => allow);
@@ -893,7 +895,7 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
   async function ensureRetained() {
     if (retainedSnapshot || retainedProtected) return null;
     const admission = await whole();
-    if (admission.status !== 'accepted') { await emit(admission); return 1; }
+    if (admission.status !== 'accepted') { await emitResult(admission, renderReadHuman); return 1; }
     if (admission.protectedAdmission) {
       retainedProtected = admission.protectedAdmission;
       retainedView = retainedProtected.view;
@@ -901,13 +903,13 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
     }
     retainedSnapshot = admission.snapshot;
     retainedView = inspectWholeSectionSnapshot(retainedSnapshot);
-    if (!retainedView) { await emit({ status: 'rejected', reason: 'READ_SNAPSHOT_UNATTESTED' }); return 1; }
+    if (!retainedView) { await emitResult({ status: 'rejected', reason: 'READ_SNAPSHOT_UNATTESTED' }, renderReadHuman); return 1; }
     return null;
   }
   async function read(request) {
     // Explicit CLI consent and native request admission precede asset reads.
     const admitted = admitRetainedSectionRequest(request);
-    if (admitted.status !== 'admitted_request') { await emit(admitted); return 1; }
+    if (admitted.status !== 'admitted_request') { await emitResult(admitted, renderReadHuman); return 1; }
     const loadFailure = await ensureRetained();
     if (loadFailure !== null) return loadFailure;
     let result;
@@ -921,7 +923,7 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
       delivered = true;
     } else {
       const preparation = await prepareRetainedSectionRead(retainedSnapshot, admitted.request, authority);
-      if (preparation.status !== 'prepared') { await emit(preparation); return 1; }
+      if (preparation.status !== 'prepared') { await emitResult(preparation, renderReadHuman); return 1; }
       result = await readRetainedSection(preparation.prepared, host);
     }
     if (!delivered) await present(result);
@@ -957,7 +959,7 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
                 asset_version: retainedView?.asset?.asset_version,
               })
             : { status: 'unavailable', code: 'READ_HANDLE_UNKNOWN', message: 'the id does not name an expansion handle this session was issued', guidance: { action: 'request a fresh read and use one of the handle ids that answer returned' } };
-          if (resolution.status !== 'ready') { await emit(resolution); code = Math.max(code, 2); continue; }
+          if (resolution.status !== 'ready') { await emitResult(resolution, renderReadHuman); code = Math.max(code, 2); continue; }
           request = { ...request, handle: resolution.handle };
           delete request.handle_id;
         }
@@ -970,7 +972,7 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
     return code;
   }
   const mode = options['--mode'] ?? 'catalog';
-  const budgetText = options['--budget'] ?? '1000000';
+  const budgetText = options['--budget'] ?? (mode === 'whole_asset' ? '4000000' : '1000000');
   if (!/^(0|[1-9][0-9]*)$/.test(budgetText) || !Number.isSafeInteger(Number(budgetText))) return unavailable('KDNA_ARGUMENT_INVALID');
   if (mode === 'expand') return unavailable('KDNA_READ_SESSION_REQUIRED');
   const selectionValues = ['--asset-id', '--asset-version', '--judgment-id'].map(k => options[k]);
@@ -987,7 +989,7 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
     const known = retainedView.ir.catalog.map(entry => entry.judgment_id);
     const missing = judgmentIds.filter(id => !known.includes(id));
     if (missing.length) {
-      await emit({ status: 'rejected', code: 'KDNA_JUDGMENT_ID_UNKNOWN', unknown_judgment_ids: missing, catalog_judgment_ids: known, action_authorized: false });
+      await emitResult({ status: 'rejected', code: 'KDNA_JUDGMENT_ID_UNKNOWN', unknown_judgment_ids: missing, catalog_judgment_ids: known, action_authorized: false }, renderReadHuman);
       return 1;
     }
     const ordered = known.filter(id => judgmentIds.includes(id));

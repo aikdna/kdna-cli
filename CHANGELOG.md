@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.43.4 (2026-11-11)
+
+- Preserve full mandatory safety and reasoning closure in `kdna read --compact`
+  (`declarations.boundaries`, `declarations.misuse`, `shared_declarations`,
+  `relationships`, `reasons`, `materials`, `examples`, `sources`, and
+  closure-related upstream/qualifying judgments) while keeping repeated IR
+  wrapper envelopes and full catalog entries stripped.
+- Render complete reasoning and guardrails in `kdna read --format human`
+  (asset-level boundaries/anti-misuse/shared declarations, per-judgment method
+  components, reasons, examples, closure-related judgments, and relationships),
+  route `read` and `diff` admission/selection rejections through human
+  formatting when `--format human` is set, add CJK-width-aware line wrapping,
+  and deduplicate judgment-owned mirror nodes in `kdna diff`.
+- Add bidirectional English draft role aliases (`ROLE_ALIASES_EN`),
+  `kdna init --lang en|zh`, and `kdna init --example` (ready-to-compile starter
+  drafts), plus a `4000000`-byte default `--budget` for `--mode whole_asset`
+  reads so large multi-judgment works read cleanly out of the box.
+- Keep exact Core `0.37.9` and Read `0.13.3` companion archives unchanged.
+
 ## 0.43.3 (2026-11-10)
 
 - Deliver the read-help clarification merged after 0.43.2: `whole_asset` may
