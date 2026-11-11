@@ -2,7 +2,12 @@
   "document_type": "kdna.cli-command-allowlist",
   "schema_version": "0.2.0",
   "commands": [
+    "init",
+    "compile",
+    "validate-input",
     "create",
+    "protect",
+    "diff",
     "source-open",
     "source-pack",
     "inspect",
@@ -36,5 +41,13 @@
   "save_policy": "Atomic no-replace publication; old versions preserved.",
   "source_permission": "--allow-source; explicit sha256:... --expected-a required and passed unchanged to native Source",
   "source_edits": "Complete manifest and payload objects in strict bounded UTF-8 JSON; original members stay in the original asset and native Source rebuilds derived tables.",
-  "source_scope": "Public Source only; protected editing uses a separate Host route. Source observation and saving establish no author confirmation or action permission."
+  "source_scope": "Public Source only; protected editing uses a separate Host route. Source observation and saving establish no author confirmation or action permission.",
+  "read_options": [
+    "--judgment-id (repeatable or comma-separated)",
+    "--compact",
+    "--format",
+    "--password-fd",
+    "--password-file"
+  ],
+  "password_policy": "Passwords come only from --password-fd (3 or higher) or --password-file; a password is never accepted as an argv value."
 }
