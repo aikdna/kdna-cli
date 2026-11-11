@@ -324,4 +324,31 @@ function renderInspectHuman(result) { return safe(renderInspect, result, 'inspec
 function renderValidateHuman(result) { return safe(renderValidate, result, 'validate'); }
 function renderReadHuman(result) { return safe(renderRead, result, 'read'); }
 
-module.exports = { renderInspectHuman, renderValidateHuman, renderReadHuman, compactReadResult };
+function renderValidateInput(result) {
+  if (!isObject(result)) return fallback('validate-input: unexpected result', result);
+  if (result.status === 'valid') {
+    const out = [
+      `Valid input: yes (kind ${result.input_kind ?? '?'}, judgments ${result.judgment_count ?? '?'})`,
+      'Diagnostics: none',
+    ];
+    const advisories = Array.isArray(result.advisories) ? result.advisories : [];
+    if (advisories.length === 0) out.push('Advisories: none');
+    else {
+      out.push('Advisories (non-blocking):');
+      for (const adv of advisories) {
+        out.push(`  * [${adv?.code ?? '?'}] ${adv?.path ?? '?'}: ${adv?.message ?? ''}`.trimEnd());
+      }
+    }
+    return out.join('\n') + '\n';
+  }
+  const diags = Array.isArray(result.diagnostics) ? result.diagnostics : [];
+  const out = [`Valid input: no (${diags.length} diagnostic${diags.length === 1 ? '' : 's'})`];
+  for (const d of diags) {
+    out.push(`  ! [${d?.field || '/'}] (${d?.code ?? '?'}) ${d?.message ?? ''}${d?.hint ? ` — Hint: ${d.hint}` : ''}`.trimEnd());
+  }
+  return out.join('\n') + '\n';
+}
+
+function renderValidateInputHuman(result) { return safe(renderValidateInput, result, 'validate-input'); }
+
+module.exports = { renderInspectHuman, renderValidateHuman, renderValidateInputHuman, renderReadHuman, compactReadResult };

@@ -127,3 +127,78 @@ test("draft options are refused where they do not belong", () => {
   assert.equal(run(["init", file]).status, 2);
   assert.equal(run(["validate-input", file, "--output", "x.json"]).status, 2);
 });
+
+test("init --mode supports minimal, interview, works, research and returns exit 2 on unknown mode", () => {
+  const minimal = run(["init", "--mode", "minimal"]);
+  const def = run(["init"]);
+  assert.equal(minimal.status, 0);
+  assert.equal(minimal.stdout, def.stdout);
+  for (const [mode, expectedTerm] of [["interview", "tradeoff"], ["works", "criteria_comparison"], ["research", "evidence_analysis"]]) {
+    const res = run(["init", "--mode", mode]);
+    assert.equal(res.status, 0, res.stdout + res.stderr);
+    const parsed = JSON.parse(res.stdout);
+    assert.equal(parsed.format, "kdna.draft/1");
+    assert.equal(parsed.judgments[0].method.term, expectedTerm);
+  }
+  const bad = run(["init", "--mode", "nonexistent"]);
+  assert.equal(bad.status, 2);
+  assert.equal(last(bad.stdout).code, "KDNA_INVALID_INIT_MODE");
+});
+
+test("duplicate method component roles report duplicate_roles and fix_hint in both validate-input and create", () => {
+  const dir = tmp();
+  const authored = path.join(target, "examples", "team-update", "author.json");
+  const input = JSON.parse(fs.readFileSync(authored, "utf8"));
+  input.payload.judgments[0].method = {
+    method: { term: "tradeoff" },
+    components: [
+      { id: "c1", method: { term: "tradeoff" }, role: "候选方案", material_refs: [], statement: "A vs B." },
+      { id: "c2", method: { term: "tradeoff" }, role: "比较因素", material_refs: [], statement: "Speed vs clarity." },
+      { id: "c3", method: { term: "tradeoff" }, role: "取舍原则", material_refs: [], statement: "Clarity wins." },
+      { id: "c4", method: { term: "tradeoff" }, role: "不可兼得之处", material_refs: [], statement: "Extra review round." },
+      { id: "c5", method: { term: "tradeoff" }, role: "不可兼得之处", material_refs: [], statement: "Slightly longer text." },
+    ],
+    bindings: [],
+  };
+  const file = path.join(dir, "dup-role.json");
+  fs.writeFileSync(file, JSON.stringify(input));
+
+  const validated = run(["validate-input", file]);
+  assert.equal(validated.status, 1);
+  const vRes = last(validated.stdout);
+  const dupDiag = vRes.diagnostics.find((d) => d.code === "duplicate_method_roles");
+  assert.ok(dupDiag, validated.stdout);
+  assert.deepEqual(dupDiag.duplicate_roles, [{ role: "不可兼得之处", component_ids: ["c4", "c5"] }]);
+  assert.match(dupDiag.fix_hint, /must appear at most once/);
+
+  const created = run(["create", file, "--output", path.join(dir, "dup.kdna"), "--allow-create"]);
+  assert.equal(created.status, 1);
+  const cRes = last(created.stdout);
+  assert.equal(cRes.status, "core_rejected");
+  assert.ok(Array.isArray(cRes.guidance) && cRes.guidance.length > 0, created.stdout);
+  assert.deepEqual(cRes.guidance[0].duplicate_roles, [{ role: "不可兼得之处", component_ids: ["c4", "c5"] }]);
+  assert.match(cRes.guidance[0].fix_hint, /must appear at most once/);
+});
+
+test("validate-input --format human renders non-blocking advisories while keeping exit status 0", () => {
+  const dir = tmp();
+  const file = filledDraft(dir);
+  const draft = JSON.parse(fs.readFileSync(file, "utf8"));
+  draft.judgments[0].statement = draft.judgments[0].focus;
+  draft.judgments[0].applies_when = "all";
+  fs.writeFileSync(file, JSON.stringify(draft, null, 2));
+
+  const jsonRes = run(["validate-input", file]);
+  assert.equal(jsonRes.status, 0, jsonRes.stdout);
+  const parsed = last(jsonRes.stdout);
+  assert.equal(parsed.status, "valid");
+  assert.ok(parsed.advisories.some((a) => a.code === "tautological_statement"));
+  assert.ok(parsed.advisories.some((a) => a.code === "unbounded_judgment"));
+  assert.ok(parsed.advisories.some((a) => a.code === "overbroad_scope"));
+
+  const humanRes = run(["validate-input", file, "--format", "human"]);
+  assert.equal(humanRes.status, 0, humanRes.stdout);
+  assert.match(humanRes.stdout, /Valid input: yes \(kind draft, judgments 1\)/);
+  assert.match(humanRes.stdout, /Advisories \(non-blocking\):/);
+  assert.match(humanRes.stdout, /\[tautological_statement\]/);
+});
