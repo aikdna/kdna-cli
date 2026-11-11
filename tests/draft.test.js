@@ -5,8 +5,9 @@ const { randomUUID } = require('node:crypto');
 const { admitSectionRequest, inspectWholeSectionSnapshot } = require('@aikdna/kdna-core/sections-node');
 const { createNativeSectionByteReadAuthority, admitSectionBytesNode } = require('@aikdna/kdna-core/sections-bytes-node');
 const { admitNativeCreationRequest, createNativeCreationAuthority, createSectionAssetNode } = require('@aikdna/kdna-core/creation-sections-node');
+const { getMethodRoleTable } = require('@aikdna/kdna-core/components');
 const binding = require('../public-contract-binding.json');
-const { DUPLICATE_ROLE_FIX_HINT, scaffoldDraft, compileDraft, validateInput, validateWithCore } = require('../src/draft.js');
+const { ROLE_ALIASES_EN, DUPLICATE_ROLE_FIX_HINT, scaffoldDraft, compileDraft, validateInput, validateWithCore } = require('../src/draft.js');
 
 function filled() {
   const d = scaffoldDraft();
@@ -231,4 +232,36 @@ test('MP4 structural advisories stay non-blocking while flagging tautology, unbo
   assert.ok(codes.has('overbroad_scope'));
   assert.ok(codes.has('duplicate_focus'));
   assert.ok(codes.has('uniform_default_method'));
+});
+
+test('English role aliases cover 100% of Core method_roles and compile identically to canonical Chinese roles', async () => {
+  const coreRoles = getMethodRoleTable().roles;
+  assert.deepEqual(Object.keys(ROLE_ALIASES_EN).sort(), Object.keys(coreRoles).sort());
+  for (const [term, spec] of Object.entries(coreRoles)) {
+    const mapped = Object.values(ROLE_ALIASES_EN[term]).sort();
+    const expected = [...spec.required, ...spec.optional].sort();
+    assert.deepEqual(mapped, expected, `alias coverage for ${term}`);
+  }
+
+  for (const mode of ['minimal', 'interview', 'works', 'research']) {
+    const enScaffold = scaffoldDraft(mode, { lang: 'en' });
+    assert.equal(enScaffold.asset.type, 'domain');
+    if (typeof enScaffold.judgments[0].method === 'object') {
+      for (const rk of Object.keys(enScaffold.judgments[0].method.roles)) {
+        assert.match(rk, /^[a-z_]+$/, `English scaffold role key should be ASCII snake_case: ${rk}`);
+      }
+    }
+    const zhScaffold = scaffoldDraft(mode, { lang: 'zh' });
+    assert.equal(zhScaffold.asset.language, 'zh-CN');
+
+    for (const lang of ['en', 'zh']) {
+      const ex = scaffoldDraft(mode, { lang, example: true });
+      const checked = await validateWithCore(ex);
+      assert.equal(checked.status, 'valid', `${mode}/${lang}: ` + JSON.stringify(checked));
+      assert.deepEqual(checked.advisories, [], `${mode}/${lang} example should have zero advisories`);
+    }
+  }
+
+  const zhMinimal = compileDraft(scaffoldDraft('minimal', { lang: 'zh', example: true }));
+  assert.match(zhMinimal.payload.judgments[0].method.components[0].statement, /主观偏好/);
 });

@@ -3,6 +3,7 @@
 // (the objects returned by inspectWholeSectionSnapshot) and a plain-text renderer.
 // No I/O, no ANSI colour, deterministic ordering (code-point order of ids).
 
+const { wrap: wrapHuman } = require('./human.js');
 const FORMAT = 'kdna.diff/1';
 
 function canonicalJson(value) {
@@ -38,18 +39,31 @@ function nodesOf(view) { return Array.isArray(view?.ir?.nodes) ? view.ir.nodes :
 
 const CONDITION_ROLES = new Set(['condition', 'exception', 'boundary', 'misuse']);
 const RELATION_ROLES = new Set(['relationship']);
+// Core emits `result`, `result_contract`, and `method_component` IR mirror nodes owned by a judgment
+// whose full content is already embedded inside `judgment.value`; exclude judgment-owned mirror nodes
+// from `declarations` so every judgment edit is reported once under `judgments` instead of triplicated.
+const JUDGMENT_MIRROR_ROLES = new Set(['result', 'result_contract', 'method_component']);
 
 // Group nodes by role family, keyed by "<role>|<target id>" (node ids are content hashes, so they
 // cannot identify "the same item" across versions; the target id is the stable authored identity).
 function indexNodes(view) {
   const judgments = new Map(), conditions = new Map(), declarations = new Map();
   let assetDeclaration = null;
-  for (const node of nodesOf(view)) {
+  const allNodes = nodesOf(view);
+  for (const node of allNodes) {
+    if (node.role === 'judgment') {
+      const target = node?.target?.id ?? node?.value?.id ?? node?.id;
+      judgments.set(String(target), node.value);
+    }
+  }
+  for (const node of allNodes) {
+    if (node.role === 'judgment') continue;
     const target = node?.target?.id ?? node?.value?.id ?? node?.id;
     if (node.role === 'asset_declaration') { assetDeclaration = node.value ?? null; continue; }
     if (RELATION_ROLES.has(node.role)) continue;
-    if (node.role === 'judgment') judgments.set(String(target), node.value);
-    else if (CONDITION_ROLES.has(node.role)) conditions.set(node.role + '|' + target, node.value);
+    const ownerJudgment = node.owner_judgment_id ?? (node.owner?.kind === 'judgment' ? node.owner.id : null);
+    if (JUDGMENT_MIRROR_ROLES.has(node.role) && ownerJudgment && judgments.has(String(ownerJudgment))) continue;
+    if (CONDITION_ROLES.has(node.role)) conditions.set(node.role + '|' + target, node.value);
     else declarations.set(node.role + '|' + target, node.value);
   }
   return { judgments, conditions, declarations, assetDeclaration };
@@ -141,14 +155,7 @@ function diffViews(leftView, rightView) {
 }
 
 function wrap(text, width, indent) {
-  const words = String(text).split(/\s+/).filter(Boolean), lines = [];
-  let line = '';
-  for (const word of words) {
-    if (line && (indent + line + ' ' + word).length > width) { lines.push(indent + line); line = word; }
-    else line = line ? line + ' ' + word : word;
-  }
-  if (line || lines.length === 0) lines.push(indent + line);
-  return lines.join('\n');
+  return wrapHuman(text, indent, width);
 }
 
 function show(value) {
@@ -159,6 +166,16 @@ function show(value) {
 function assetLabel(side) {
   const asset = side?.asset;
   return asset ? `${asset.asset_id ?? '?'} @ ${asset.asset_version ?? '?'}` : '(unknown asset)';
+}
+
+function deduplicateHumanJudgmentFields(fields) {
+  if (!Array.isArray(fields)) return [];
+  const coreField = fields.find(f => f.path === 'core_expression.statement');
+  if (!coreField) return fields;
+  return fields.filter(f => {
+    if (f.path !== 'result.value.value') return true;
+    return canonicalJson(f.left) !== canonicalJson(coreField.left) || canonicalJson(f.right) !== canonicalJson(coreField.right);
+  });
 }
 
 /** Plain-text rendering of a kdna.diff/1 object; never throws on unknown shapes. */
@@ -194,7 +211,8 @@ function renderDiffHuman(diff) {
       for (const entry of added) out.push('  + ' + entry.id + (entry.focus ? '  ' + entry.focus : ''));
       for (const entry of changed) {
         out.push('  ~ ' + entry.id);
-        for (const field of entry.fields ?? []) {
+        const visibleFields = key === 'judgments' ? deduplicateHumanJudgmentFields(entry.fields) : (entry.fields ?? []);
+        for (const field of visibleFields) {
           out.push('      ' + field.path);
           out.push(wrap('- ' + show(field.left), 100, '        '));
           out.push(wrap('+ ' + show(field.right), 100, '        '));

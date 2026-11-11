@@ -1,7 +1,7 @@
 {
   "name": "@aikdna/kdna-cli",
-  "version": "0.43.3",
-  "description": "KDNA CLI: bounded authored input, native asset creation, exclusive saving and explicit local Read disclosure.",
+  "version": "0.43.4",
+  "description": "Official KDNA CLI: author (init, validate-input, create), selectively read (--mode catalog|exact_selection, --compact, --format human), password-protect (protect), and diff .kdna judgment assets offline with no account required.",
   "type": "commonjs",
   "bin": {
     "kdna": "src/cli.js"
@@ -30,7 +30,7 @@
     "examples/team-update/README.md"
   ],
   "scripts": {
-    "build": "node --check src/cli.js && node --check src/public-cli.js && node --check src/authored-input.js && node --check src/source-input.js",
+    "build": "node --check src/cli.js && node --check src/public-cli.js && node --check src/authored-input.js && node --check src/source-input.js && node --check src/draft.js && node --check src/protect.js && node --check src/diff.js && node --check src/human.js",
     "check:surface": "node scripts/check-surface.cjs",
     "check:inventory": "node scripts/check-inventory.cjs",
     "check:packaged-readme": "node scripts/check-packaged-readme.js",

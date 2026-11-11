@@ -197,3 +197,200 @@ test('compact: strips repeated asset-level bloat but keeps the judgment body', {
   assert.match(compactHuman.stdout, /Judgment update:order/);
   assert.match(compactHuman.stdout, /completed changes first/);
 });
+
+test('compact and human read preserve full mandatory safety closure, relationships, CJK wrapping, and human rejections', async () => {
+  const projected = {
+    view_contract: 'kdna.read.model-view/0.2.0',
+    view: 'body',
+    status: 'ready',
+    fingerprint: {
+      request_id: 'cli:closure-test',
+      snapshot_id: 'section-snapshot:closure-test',
+      asset: { asset_id: 'asset:closure-fixture', asset_version: '1.0.0', judgment_version: '1.0.0' },
+      attested: { A: 'sha256:' + 'a'.repeat(64), C: 'sha256:' + 'b'.repeat(64), E: 'sha256:' + 'c'.repeat(64) },
+    },
+    content: {
+      selected: { asset_id: 'asset:closure-fixture', asset_version: '1.0.0', judgment_ids: ['judgment:claim'] },
+      declarations: [{
+        id: 'ad:1',
+        role: 'asset_declaration',
+        value: {
+          title: '判断系统闭包测试作品',
+          scope: { statement: '适用于验证按需读取时的强制安全闭包与反误用规则保留。' },
+          declarations: {
+            highest_question: { state: 'provided', value: '如何在裁剪结构冗余的同时完整保留边界与关系闭包？' },
+            boundaries: { state: 'provided' },
+          },
+        },
+      }],
+      closure: [
+        {
+          id: 'b:1',
+          role: 'boundary',
+          owner: { kind: 'asset', id: 'uid:closure-fixture' },
+          owner_judgment_id: null,
+          value: {
+            id: 'boundary:asset-scope',
+            effect: 'limit',
+            statement: '本测试资产仅用于验证按需选读的强制闭包投射，不得把读取成功当作判断已经得到现实效果证明或取代人工授权决定。',
+            applies_to: { kind: 'asset' },
+          },
+        },
+        {
+          id: 'm:1',
+          role: 'misuse',
+          owner: { kind: 'asset', id: 'uid:closure-fixture' },
+          owner_judgment_id: null,
+          value: { id: 'misuse:no-silent-override', statement: '禁止在未核对任务相关性时机械套用全部判断。' },
+        },
+        {
+          id: 'sd:1',
+          role: 'shared_declaration',
+          owner: { kind: 'asset', id: 'uid:closure-fixture' },
+          owner_judgment_id: null,
+          value: { id: 'shared:order', kind: 'value_order', value: ['边界完整性优先于字节压缩率', '显式确认优先于静默升级'] },
+        },
+        {
+          id: 'r:1',
+          role: 'reason',
+          owner: { kind: 'asset', id: 'uid:closure-fixture' },
+          owner_judgment_id: null,
+          value: { id: 'reason:claim:1', role: 'support', judgment_ref: 'judgment:claim', statement: '一旦剥离资产级边界与限定关系，下游Agent就会在越界场景误用孤立结论。' },
+        },
+        {
+          id: 'ex:1',
+          role: 'example',
+          owner: { kind: 'asset', id: 'uid:closure-fixture' },
+          owner_judgment_id: null,
+          value: {
+            id: 'example:claim',
+            title: '选读带限定关系的判断',
+            context: '调用方仅请求单条目标判断。',
+            adopted_judgments: [{ kind: 'local', judgment_id: 'judgment:claim' }],
+            application: '连同资产边界、反误用声明及上游限定判断一并保留。',
+            results: [{ id: 'res:1', kind: 'disposition', statement: '避免断章取义。' }],
+          },
+        },
+        {
+          id: 'mat:1',
+          role: 'material',
+          owner: { kind: 'asset', id: 'uid:closure-fixture' },
+          owner_judgment_id: null,
+          value: { id: 'material:spec', kind: 'foundation', statement: '公共契约要求按需选读返回强制闭包。' },
+        },
+        {
+          id: 'j:claim',
+          role: 'judgment',
+          owner: { kind: 'asset', id: 'uid:closure-fixture' },
+          value: {
+            id: 'judgment:claim',
+            focus: '紧凑模式下的闭包完整性',
+            scope: { statement: '调用 kdna read --compact 读取单条或多条判断时。' },
+            core_expression: { kind: 'authored', statement: '裁剪重复包装字段时，必须保留资产边界、反误用声明、判断间关系及支撑理由。' },
+            method: {
+              method: { term: 'tradeoff' },
+              components: [
+                { id: 'c1', method: { term: 'tradeoff' }, role: '取舍原则', statement: '安全闭包完整性优先于极限体积压缩。' },
+              ],
+            },
+            reason_refs: ['reason:claim:1'],
+            material_refs: ['material:spec'],
+            boundaries: { state: 'provided', value: [{ id: 'b:j1', effect: 'limit', statement: '仅裁剪IR包装噪音，不改变Core原始语义。' }] },
+            result_contract: { id: 'rc:1' },
+          },
+        },
+        {
+          id: 'j:qualifier',
+          role: 'judgment',
+          owner: { kind: 'asset', id: 'uid:closure-fixture' },
+          value: {
+            id: 'judgment:qualifier',
+            focus: '上游限定前提',
+            scope: { statement: '解释主判断的适用前提时。' },
+            core_expression: { kind: 'authored', statement: '紧凑投影本身不构成新的协议层，完整信封仍由 --view raw 提供。' },
+          },
+        },
+      ],
+      relationships: [{
+        id: 'rel:qualify:1',
+        kind: { term: 'qualify' },
+        participants: [
+          { role: { term: 'qualifier' }, judgment_ref: 'judgment:qualifier' },
+          { role: { term: 'qualified' }, judgment_ref: 'judgment:claim' },
+        ],
+        statement: '上游前提限定了紧凑投影的职责边界。',
+      }],
+    },
+  };
+
+  const compact = compactReadResult(projected);
+  assert.equal(compact.declarations.boundaries.state, 'provided');
+  assert.equal(compact.declarations.boundaries.value[0].id, 'boundary:asset-scope');
+  assert.equal(compact.declarations.misuse.value[0].id, 'misuse:no-silent-override');
+  assert.equal(compact.declarations.shared_declarations[0].id, 'shared:order');
+  assert.equal(compact.related_judgments.length, 1);
+  assert.equal(compact.related_judgments[0].id, 'judgment:qualifier');
+  assert.equal(compact.relationships.length, 1);
+  assert.equal(compact.relationships[0].kind.term, 'qualify');
+  assert.equal(compact.reasons[0].id, 'reason:claim:1');
+  assert.equal(compact.materials[0].id, 'material:spec');
+  assert.equal(compact.examples[0].id, 'example:claim');
+
+  for (const source of [projected, compact]) {
+    const human = renderReadHuman(source);
+    assert.match(human, /Asset boundaries:/);
+    assert.match(human, /- \[limit\] 本测试资产仅用于验证/);
+    assert.doesNotMatch(human, /- \[limit\]\s*\n/, 'CJK line wrapper must not strand - [limit] alone on a line');
+    assert.match(human, /Asset anti-misuse:/);
+    assert.match(human, /Shared declarations:/);
+    assert.match(human, /Method \(tradeoff\):/);
+    assert.match(human, /Reasons:/);
+    assert.match(human, /Examples:/);
+    assert.match(human, /Related judgment \(closure\) judgment:qualifier/);
+    assert.match(human, /Relationships \(1\):/);
+    for (const line of human.split('\n')) assert.ok(line.length <= 100, 'CJK wrapped line length <= 100: ' + line);
+  }
+
+  // Human error routing never emits raw JSON or suggests --view raw on inspect/diff
+  const badInspect = spawnSync(process.execPath, [CLI, 'inspect', '/nonexistent/missing.kdna', '--format', 'human'], { encoding: 'utf8' });
+  assert.equal(badInspect.status, 1);
+  assert.ok(!badInspect.stdout.trimStart().startsWith('{'));
+  assert.doesNotMatch(badInspect.stdout, /--view raw/);
+
+  const badDiff = spawnSync(process.execPath, [CLI, 'diff', '/nonexistent/a.kdna', '/nonexistent/b.kdna', '--format', 'human'], { encoding: 'utf8' });
+  assert.equal(badDiff.status, 1);
+  assert.ok(!badDiff.stdout.trimStart().startsWith('{'));
+  assert.match(badDiff.stdout, /^diff: rejected KDNA_ASSET_INPUT_INVALID/);
+
+  if (have) {
+    const deniedHuman = spawnSync(process.execPath, [CLI, 'read', V1, '--mode', 'catalog', '--format', 'human'], { encoding: 'utf8' });
+    assert.equal(deniedHuman.status, 1);
+    assert.ok(!deniedHuman.stdout.trimStart().startsWith('{'));
+    assert.match(deniedHuman.stdout, /KDNA_READ_PERMISSION_REQUIRED/);
+  }
+});
+
+test('diff deduplicates judgment-owned IR mirror nodes and identical result/core_expression statement edits', { skip: !have }, async () => {
+  const left = await viewOf(V1), right = await viewOf(V11);
+  const diff = diffViews(left, right);
+  assert.ok(!diff.declarations.changed.some(c => c.id.startsWith('result|') || c.id.startsWith('method_component|')));
+  const text = renderDiffHuman(diff);
+  const changedSection = text.slice(text.indexOf('~ update:order'), text.indexOf('Relations'));
+  assert.match(changedSection, /core_expression\.statement/);
+  assert.doesNotMatch(changedSection, /result\.value\.value/);
+});
+
+const WHITEPAPER = path.resolve(__dirname, '..', '..', 'kdna-assets', 'references', 'public', 'kdna-whitepaper', 'kdna-whitepaper-1.0.0.kdna');
+test('flagship whitepaper whole_asset succeeds with default 4 MB budget and --compact retains closure', { skip: !fs.existsSync(WHITEPAPER) }, () => {
+  const whole = spawnSync(process.execPath, [CLI, 'read', WHITEPAPER, '--mode', 'whole_asset', '--allow-read'], { encoding: 'utf8', maxBuffer: 1 << 26 });
+  assert.equal(whole.status, 0, whole.stderr);
+  assert.equal(JSON.parse(whole.stdout).status, 'ready');
+
+  const compactRun = spawnSync(process.execPath, [CLI, 'read', WHITEPAPER, '--mode', 'exact_selection', '--judgment-id', 'judgment:creator-contribution', '--allow-read', '--compact'], { encoding: 'utf8', maxBuffer: 1 << 26 });
+  assert.equal(compactRun.status, 0, compactRun.stderr);
+  const compact = JSON.parse(compactRun.stdout);
+  assert.ok(compact.declarations?.boundaries?.value?.length > 0, 'asset-wide boundaries preserved');
+  assert.ok(compact.declarations?.misuse?.value?.length > 0, 'asset-wide misuse preserved');
+  assert.ok(compact.relationships?.length > 0, 'qualify relationship preserved');
+  assert.ok(compact.related_judgments?.some(j => j.id === 'judgment:stronger-ai'), 'mandatory closure qualifier judgment preserved');
+});
