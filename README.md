@@ -57,7 +57,8 @@ teaching content; it does not establish Agent task adoption or human acceptance.
 
 ```sh
 kdna init --output draft.json
-kdna validate-input draft.json
+kdna init --mode interview --output interview-draft.json
+kdna validate-input draft.json --format human
 kdna create --draft draft.json --output asset.kdna --allow-create
 kdna compile draft.json --output authored.json
 kdna create authored.json --output asset.kdna --allow-create

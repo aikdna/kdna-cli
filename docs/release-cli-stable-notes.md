@@ -3,18 +3,22 @@
 ## CLI 0.43.3
 
 This source keeps the exact published Core `0.37.9` and Read `0.13.3` pair and
-adds authoring, protection, comparison, and human-first terminal ergonomics:
-`kdna draft` scaffolds ready-to-edit authored JSON templates, `kdna create
---minimal` expands compact minimal input into the full native `0.6.0` input
-before Core admission, `kdna protect` produces password-protected `0.6.0` or
-`0.5.0` containers with `--password-stdin` and optional Ed25519 signing,
-`kdna inspect` / `validate` / `read` accept `--password-stdin` and
-`--allow-decrypt` on password-protected assets, `kdna diff` compares two `.kdna`
-revisions structurally at judgment granularity, and default TTY output renders
-concise human summaries while `--json` preserves deterministic machine
-envelopes. It also retains the post-`0.43.2` read-help clarification on
-`whole_asset`, multi-judgment `judgment_ids`, and final JCS `--budget` byte
-limits. Earlier published coordinates remain in place, including CLI `0.43.2`.
+adds authoring, local password protection, revision comparison, and human-first
+terminal ergonomics: `kdna init [--mode minimal|interview|works|research]`
+scaffolds ready-to-edit `kdna.draft/1` templates across minimal, interview,
+works-distillation, and research-choice authoring flows; `kdna validate-input
+[--format json|human]` validates both `kdna.draft/1` and full `0.6.0` authored
+inputs (pinpointing duplicate or invalid `method.components` roles and emitting
+non-blocking structural craft advisories); `kdna compile` and `kdna create
+--draft` expand `kdna.draft/1` into full native `0.6.0` input before Core
+admission; `kdna protect` produces offline password-protected `0.6.0` containers
+using `--password-file` or `--password-fd`; `kdna inspect`, `validate`, `read`,
+and `diff` accept `--password-file` or `--password-fd` on protected assets;
+`kdna validate --system` adds warnings-only system-integrity checks; `kdna diff`
+compares two `.kdna` revisions at judgment granularity; and `kdna read --compact`
+plus `--format human` provide lean agent and human projections while default
+JSON output remains deterministic. Earlier published coordinates remain in
+place, including CLI `0.43.2`.
 
 ## CLI 0.43.2
 

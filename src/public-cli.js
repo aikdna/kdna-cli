@@ -1,10 +1,10 @@
 'use strict';
 const { randomUUID, createHash } = require('node:crypto');
 const { parseJsonBytes, readAuthoredInput, readAssetBytes, readBoundedFile, saveNewAsset } = require('./authored-input.js');
-const { scaffoldDraft, compileDraft, validateInput, validateWithCore } = require('./draft.js');
+const { INIT_MODES, DUPLICATE_ROLE_FIX_HINT, inspectMethodComponents, scaffoldDraft, compileDraft, validateInput, validateWithCore } = require('./draft.js');
 const { protectAsset, admitProtectedWithPassword, readProtected, isProtectedBytes, readPasswordSource } = require('./protect.js');
 const { diffViews, renderDiffHuman } = require('./diff.js');
-const { renderInspectHuman, renderValidateHuman, renderReadHuman, compactReadResult } = require('./human.js');
+const { renderInspectHuman, renderValidateHuman, renderValidateInputHuman, renderReadHuman, compactReadResult } = require('./human.js');
 const renderRejectionHuman = (command, result) => (command === 'inspect' ? renderInspectHuman : renderValidateHuman)(result);
 const { readSourceEdits } = require('./source-input.js');
 const { Readable, Writable } = require('node:stream');
@@ -56,11 +56,18 @@ function authoringGuidance(input,rejected){
     const componentsMatch=METHOD_COMPONENTS_FIELD.exec(field);
     if(componentsMatch){
       const judgment=judgments[Number(componentsMatch[1])];
-      const term=judgment?.method?.method?.term;
-      const roles=table&&typeof term==='string'?table.roles?.[term]:null;
-      if(!roles)continue;
-      const used=new Set((judgment.method.components??[]).map(component=>component?.role));
-      guidance.push({field,reason:'method_component_roles',term,missing:roles.required.filter(role=>!used.has(role)),expected:roles.required,optional:roles.optional});
+      const compCheck=inspectMethodComponents(judgment,table);
+      if(!compCheck)continue;
+      guidance.push({
+        field,
+        reason:'method_component_roles',
+        term:compCheck.term,
+        missing:compCheck.missing_required_roles,
+        expected:compCheck.expected,
+        optional:compCheck.optional,
+        ...(compCheck.duplicate_roles.length?{duplicate_roles:compCheck.duplicate_roles,fix_hint:DUPLICATE_ROLE_FIX_HINT}:{}),
+        ...(compCheck.invalid_roles.length?{invalid_roles:compCheck.invalid_roles}:{}),
+      });
       continue;
     }
     const methodMatch=METHOD_FIELD.exec(field);
@@ -73,16 +80,17 @@ function authoringGuidance(input,rejected){
 const commands = new Set(['init', 'compile', 'validate-input', 'create', 'protect', 'diff', 'source-open', 'source-pack', 'convert', 'inspect', 'validate', 'read', 'plan', 'load']);
 const independentStates = () => ({ writer: 'not_evaluated', confirmation: 'not_evaluated', read_permission: 'not_evaluated', action_authorization: 'not_evaluated' });
 const help = [
-  'kdna init [--output <draft.json>]',
-  '  Scaffolds a minimal 0.6.0 draft (kdna.draft/1) with one example judgment to edit; prints it',
-  '  to stdout, or saves a new file (never replaces one) with --output.',
+  'kdna init [--mode minimal|interview|works|research] [--output <draft.json>]',
+  '  Scaffolds a 0.6.0 draft (kdna.draft/1) with one example judgment to edit (default minimal;',
+  '  or interview, works, research); prints it to stdout, or saves a new file with --output.',
   'kdna compile <draft.json> [--output <authored.json>]',
   '  Expands a draft into the full authored input that create accepts, filling every optional',
   '  empty collection; prints it, or saves a new file with --output.',
   'kdna create --draft <draft.json> --output <new-asset.kdna> --allow-create',
   '  Same as compile then create in one step.',
-  'kdna validate-input <draft-or-authored.json>',
-  '  Checks a draft or full authored input and names each missing or invalid field with a hint.',
+  'kdna validate-input <draft-or-authored.json> [--format json|human]',
+  '  Checks a draft or full authored input, names each missing or invalid field with a hint, and',
+  '  reports non-blocking structural craft advisories when valid.',
   'kdna create <authored.json> --output <new-asset.kdna> --allow-create',
   '  Input: {manifest,payload,members:[{name,type:"file",mode,bytes_base64}]}; never replaces a file.',
   'kdna source-open <asset.kdna> --expected-a <sha256:...> --allow-source',
@@ -373,8 +381,9 @@ function parse(argv) {
   if (!file && !['plan', 'load', 'init'].includes(command) && !draftCreate) return { error: 'KDNA_ARGUMENT_INVALID' };
   if (file && (command === 'init' || draftCreate)) return { error: 'KDNA_ARGUMENT_INVALID' };
   if ((command === 'diff') !== (second !== undefined)) return { error: 'KDNA_ARGUMENT_INVALID' };
-  const allowed = command === 'init' || command === 'compile' ? ['--output', '--json']
-    : command === 'validate-input' ? ['--json']
+  const allowed = command === 'init' ? ['--output', '--mode', '--json']
+    : command === 'compile' ? ['--output', '--json']
+    : command === 'validate-input' ? ['--format', '--json']
     : command === 'create' ? ['--output', '--allow-create', '--json', '--draft']
     : command === 'protect' ? ['--output', '--password-fd', '--password-file', '--json']
     : command === 'diff' ? ['--format', '--password-fd', '--password-file', '--json']
@@ -659,7 +668,9 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
     return 0;
   };
   if (command === 'init') {
-    const draft = scaffoldDraft();
+    const initMode = options['--mode'] ?? 'minimal';
+    if (!INIT_MODES.has(initMode)) return unavailable('KDNA_INVALID_INIT_MODE');
+    const draft = scaffoldDraft(initMode);
     if (options['--output'] !== undefined) return saveJson(options['--output'], draft);
     await write(JSON.stringify(draft, null, 2) + '\n');
     return 0;
@@ -682,7 +693,9 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
     const loaded = await readJson(file);
     if (loaded.error) return loaded.error;
     const checked = await validateWithCore(loaded.value);
-    await emit({ ...checked, action_authorized: false, creation_accepted: false });
+    const payload = { ...checked, action_authorized: false, creation_accepted: false };
+    if (options['--format'] === 'human') await write(renderValidateInputHuman(payload));
+    else await emit(payload);
     return checked.status === 'valid' ? 0 : 1;
   }
   if (command === 'create') {
