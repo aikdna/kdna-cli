@@ -3,14 +3,18 @@
 ## CLI 0.43.3
 
 This source keeps the exact published Core `0.37.9` and Read `0.13.3` pair and
-delivers the read-help clarification merged after 0.43.2. The help now states
-that `whole_asset` may defer judgment bodies, that a ready body view can
-contain the catalog with zero inline judgment bodies, that one session request
-can select multiple `judgment_ids`, and that `--budget` is the complete final
-JCS envelope limit rather than a model context or token budget. No runtime
-behavior, protocol semantics or packaged dependency coordinate changes.
-Installed users obtain this clarification only from an artifact whose own
-registry acquisition and package help readback succeed.
+adds authoring, protection, comparison, and human-first terminal ergonomics:
+`kdna draft` scaffolds ready-to-edit authored JSON templates, `kdna create
+--minimal` expands compact minimal input into the full native `0.6.0` input
+before Core admission, `kdna protect` produces password-protected `0.6.0` or
+`0.5.0` containers with `--password-stdin` and optional Ed25519 signing,
+`kdna inspect` / `validate` / `read` accept `--password-stdin` and
+`--allow-decrypt` on password-protected assets, `kdna diff` compares two `.kdna`
+revisions structurally at judgment granularity, and default TTY output renders
+concise human summaries while `--json` preserves deterministic machine
+envelopes. It also retains the post-`0.43.2` read-help clarification on
+`whole_asset`, multi-judgment `judgment_ids`, and final JCS `--budget` byte
+limits. Earlier published coordinates remain in place, including CLI `0.43.2`.
 
 ## CLI 0.43.2
 

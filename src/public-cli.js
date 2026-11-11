@@ -858,9 +858,10 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
   // refusal or another view is shown exactly as it is. --format human renders
   // the same facts as text.
   const present = async result => {
+    if (humanOutput) { await write(renderReadHuman(result) + '\n'); return; }
     let shown = result;
     if (options['--compact'] === true && view === 'body' && result?.view === 'body') { try { shown = compactReadResult(result); } catch { shown = result; } }
-    if (humanOutput) await write(renderReadHuman(shown) + '\n'); else await emit(shown);
+    await emit(shown);
   };
   const sessionHandles = options['--session'] && modelView && typeof modelView.collectExpansionHandles === 'function' ? new Map() : null;
   const host = createTrustedHostReadProvider({
