@@ -10,7 +10,7 @@ const binding = require('../public-contract-binding.json');
 const { diffViews, renderDiffHuman } = require('../src/diff.js');
 const { renderInspectHuman, renderValidateHuman, renderReadHuman, compactReadResult } = require('../src/human.js');
 
-const EXAMPLES = '/Users/aikdna/open/kdna/examples/native-team-update/';
+const EXAMPLES = path.resolve(__dirname, '..', '..', 'kdna', 'examples', 'native-team-update') + '/';
 const V1 = EXAMPLES + 'team-update-1.0.0.kdna', V11 = EXAMPLES + 'team-update-1.1.0.kdna';
 const have = fs.existsSync(V1) && fs.existsSync(V11);
 const CLI = path.join(__dirname, '..', 'src', 'cli.js');
@@ -191,4 +191,9 @@ test('compact: strips repeated asset-level bloat but keeps the judgment body', {
   // rejected / non-model-view input is returned unchanged
   const rejected = cli('read', V1, ...SEL, '--view', 'raw', '--budget', '3000').json;
   assert.equal(compactReadResult(rejected), rejected);
+  // --compact + --format human preserves full human-rendered judgment bodies instead of dropping content
+  const compactHuman = spawnSync(process.execPath, [CLI, 'read', V1, ...SEL, '--compact', '--format', 'human'], { encoding: 'utf8', maxBuffer: 1 << 26 });
+  assert.equal(compactHuman.status, 0, compactHuman.stderr);
+  assert.match(compactHuman.stdout, /Judgment update:order/);
+  assert.match(compactHuman.stdout, /completed changes first/);
 });

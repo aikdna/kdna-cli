@@ -10,7 +10,7 @@ const binding = require('../public-contract-binding.json');
 const sectionsBytes = require('@aikdna/kdna-core/sections-bytes-node');
 const sectionsNode = require('@aikdna/kdna-core/sections-node');
 
-const FIXTURE = '/Users/aikdna/open/kdna/examples/native-team-update/team-update-1.0.0.kdna';
+const FIXTURE = path.resolve(__dirname, '..', '..', 'kdna', 'examples', 'native-team-update', 'team-update-1.0.0.kdna');
 const PASS = new TextEncoder().encode('test-passphrase-2026');
 const enc = s => new TextEncoder().encode(s);
 const plain = () => new Uint8Array(fs.readFileSync(FIXTURE));
