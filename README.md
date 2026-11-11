@@ -6,9 +6,12 @@ This version delegates native container production, admission and disclosure to 
 
 | Operation | Command | Explicit permission |
 | --- | --- | --- |
+| Scaffold, compile and check authoring input | `init`, `compile`, `validate-input` | None; they only read or print input, or save a new JSON file |
 | Produce a new native asset | `create` | `--allow-create` |
-| Technical admission and metadata | `inspect`, `validate` | Explicit file argument |
-| Catalog, selected content and retained expansion | `read` | `--allow-read` |
+| Protect a native asset with a local password | `protect` | Password from `--password-fd` or `--password-file` |
+| Technical admission and metadata | `inspect`, `validate` | Explicit file argument (and a password source for a protected asset) |
+| Catalog, selected content and retained expansion | `read` | `--allow-read` (and a password source for a protected asset) |
+| Compare two assets | `diff` | Explicit file arguments (and a password source for protected assets) |
 | Open full authored values or save a revision | `source-open`, `source-pack` | `--allow-source` and exact `--expected-a` |
 | Convert a current-generation public source to 0.6 | `convert` | `--allow-source` and exact `--expected-a` |
 
@@ -27,12 +30,21 @@ teaching content; it does not establish Agent task adoption or human acceptance.
 ## Commands
 
 ```sh
+kdna init --output draft.json
+kdna validate-input draft.json
+kdna create --draft draft.json --output asset.kdna --allow-create
+kdna compile draft.json --output authored.json
 kdna create authored.json --output asset.kdna --allow-create
+kdna protect asset.kdna --output protected.kdna --password-file ./password.txt
 kdna inspect asset.kdna
+kdna inspect protected.kdna --password-fd 3 3< ./password.txt
 kdna validate asset.kdna
 kdna read asset.kdna --mode catalog --budget 1000000 --allow-read
 kdna read asset.kdna --mode exact_selection --asset-id asset:example --asset-version 1.0.0 --judgment-id j:example --budget 1000000 --allow-read
+kdna read asset.kdna --mode exact_selection --judgment-id j:one --judgment-id j:two --allow-read --compact
+kdna read asset.kdna --mode exact_selection --judgment-id j:one,j:two --allow-read --format human
 kdna read asset.kdna --session --allow-read
+kdna diff old.kdna new.kdna --format human
 kdna source-open asset.kdna --expected-a 'sha256:<64-lowercase-hex-digits>' --allow-source
 kdna source-pack asset.kdna --edits edits.json --expected-a 'sha256:<64-lowercase-hex-digits>' --output revised.kdna --allow-source
 kdna convert asset.kdna --expected-a 'sha256:<64-lowercase-hex-digits>' --output converted.kdna --allow-source
@@ -42,7 +54,7 @@ Byte budgets apply to the complete final JCS read envelope (not the printed body
 
 `catalog` lists judgment ids without bodies; `exact_selection` returns the selected judgments and their mandatory closure; `whole_asset` returns the Core asset closure and may defer judgment bodies behind handles. A body-view `whole_asset` answer can therefore contain the catalog with zero inline judgment bodies and without the asset index or handles. When the task needs the judgment bodies, use `catalog` then `exact_selection` for each judgment, or one session request selecting multiple `judgment_ids`. `--view full` shows what is inline and deferred. The disclosure budget is not a model context budget: measure the projected model input bytes and tokens separately.
 
-`create` accepts an Agent-authored UTF-8 JSON document with exactly `manifest`, `payload` and `members`. Each member has exactly `name`, `type: "file"`, `mode` and canonical `bytes_base64`. Generated container fields (`format_version`, `payload`, `representation_metadata`) do not belong in the authored Manifest. Core validates the complete Manifest, Payload, attachment names, references and native output. No authored fields are silently removed. An empty `members` array is valid for an asset without attachments. This is a public unsigned production route; it does not create encrypted containers, checksums or signatures.
+`create` accepts an Agent-authored UTF-8 JSON document with exactly `manifest`, `payload` and `members`. Each member has exactly `name`, `type: "file"`, `mode` and canonical `bytes_base64`. Generated container fields (`format_version`, `payload`, `representation_metadata`) do not belong in the authored Manifest. Core validates the complete Manifest, Payload, attachment names, references and native output. No authored fields are silently removed. An empty `members` array is valid for an asset without attachments. `create` is a public unsigned production route and produces no checksums or signatures; local password protection is the separate `protect` command.
 
 The transport rejects duplicate decoded JSON keys, invalid UTF-8, lone surrogate escapes and non-finite numbers. It accepts regular files up to 20 MiB and nesting up to 128, with decoded attachments limited to 8 MiB each and 12 MiB total. Core independently applies its semantic and final container limits. Attachment base64 is a transport representation, not a Payload string or file path.
 
@@ -61,6 +73,22 @@ Session mode consumes one current native retained Read request per line. Selecti
 Edit JSON has the same strict UTF-8, duplicate-key, surrogate, finite-number and nesting checks as authored input, with a 20 MiB regular-file transport limit. Core applies its own semantic and container limits. No nested authored fields are removed. When changing the asset version, update both `manifest.version` and `payload.asset.asset_version`; unchanged content still receives new native IDs under the new asset identity. Save to a new `.kdna` filename and consume the new file to obtain fresh process-local handles. Saving and output-failure behavior follow the no-replace policy above; already pending Source work can complete after output fails, without starting a new save once failure is observed.
 
 Exit codes: 0 for source-opened/saved/accepted/ready/catalog operations, 1 for rejection, failed save or non-ready Read, and 2 for invalid CLI arguments or unavailable commands. Plan admission and execution remain unavailable. Retired packing and execution commands are not supported; the explicit `convert` command is the only conversion route, and no admission path converts implicitly.
+
+### Authoring drafts
+
+`init` prints (or, with `--output`, saves as a new `.json` file) a minimal `kdna.draft/1` draft: asset id, title, summary, scope, actors, the highest question, optional asset boundaries and one or more judgments each with a focus, statement, scope sentence, optional boundaries and a method. `compile` expands a draft into the full authored input that `create` accepts, filling every optional empty collection Core requires; `create --draft` is compile followed by create in one step and refuses a draft that still carries scaffold placeholder text. `validate-input` accepts a draft or a full authored input and names each missing or invalid field with a hint; Core remains the authority, and a Core refusal from `create` still carries the Core diagnostic, now with `input_diagnostics` beside it. None of these commands interprets an asset or weakens a Core check.
+
+### Several judgments in one read
+
+`--judgment-id` may repeat or carry a comma-separated list. With `exact_selection` and no `--session`, the CLI admits the asset, orders the ids by the asset's own catalog, defaults the asset id and version to the admitted asset, and sends one selection. An id the asset does not contain is refused by name with the catalog (`KDNA_JUDGMENT_ID_UNKNOWN`). A single `--judgment-id` behaves exactly as before. `--compact` (body view) drops the repeated asset-level declarations and catalog from each answer; `--view full` and `--view raw` are unchanged. A budget rejection still reports the envelope `required_bytes` against `--budget`.
+
+### Local password protection
+
+`protect` writes a new container whose `payload.kdnab` is an authenticated-encryption envelope with a password entitlement and no online dependency; no account, network or key service is involved. The password is read once from an inherited file descriptor (`--password-fd`, 3 or higher) or a file (`--password-file`), one trailing newline is stripped, and it is zeroed when the run ends. A password is never accepted as a command-line value. `inspect`, `validate`, `read` and `diff` take the same two options; without one, a protected asset is refused by name (`KDNA_PASSWORD_REQUIRED`), and a wrong password is refused with a stable code (`PROTECTION_AUTHENTICATION_FAILED`). Protected editing through `source-open` and `source-pack` is not part of this route. Password protection is a local confidentiality measure for a file you hand to someone; it does not create author confirmation, an action permission or an account.
+
+### Reading output and diff
+
+`--format human` (default `json`) renders `inspect`, `validate`, `read` and `diff` as plain text. `diff` compares two assets: identity, digests, judgments added, removed and changed (by authored field), conditions and relations, in a deterministic order, as JSON or text.
 
 ## JavaScript API
 
@@ -84,7 +112,7 @@ npm test
 npm pack --ignore-scripts
 ```
 
-The native CLI source and dependency graph are candidates. Source feedback revision, the full native CLI product chain and the final combined archive/clean installation must be verified before distribution acceptance; prior tests of the retired tuple are not evidence for this combination. The source publish hook fails closed; publication must use a reviewed retained artifact through the release authority. Eighteen package members are allowlisted, including support guides, the field reference and the authored example. Tests, retired code, dependency archives, host locks and local caches are excluded from the CLI tarball. The distributor supplies the exact archive receipt and offline host separately.
+The native CLI source and dependency graph are candidates. Source feedback revision, the full native CLI product chain and the final combined archive/clean installation must be verified before distribution acceptance; prior tests of the retired tuple are not evidence for this combination. The source publish hook fails closed; publication must use a reviewed retained artifact through the release authority. Twenty-two package members are allowlisted, including support guides, the field reference and the authored example. Tests, retired code, dependency archives, host locks and local caches are excluded from the CLI tarball. The distributor supplies the exact archive receipt and offline host separately.
 
 `npm ci` validates the committed host lock against the complete dependency graph, optional entries included, before it installs anything, while `--omit=optional` only decides what is placed in `node_modules`. The committed lock therefore describes the optional native accelerator as well; a lock generated with `--omit=optional` fails with `EUSAGE` on npm 11 even though the documented command passes the same flag. `tests/offline-host-lock-completeness.test.js` keeps that complete.
 

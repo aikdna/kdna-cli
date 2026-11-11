@@ -1,6 +1,11 @@
 'use strict';
 const { randomUUID, createHash } = require('node:crypto');
-const { parseJsonBytes, readAuthoredInput, readAssetBytes, saveNewAsset } = require('./authored-input.js');
+const { parseJsonBytes, readAuthoredInput, readAssetBytes, readBoundedFile, saveNewAsset } = require('./authored-input.js');
+const { scaffoldDraft, compileDraft, validateInput, validateWithCore } = require('./draft.js');
+const { protectAsset, admitProtectedWithPassword, readProtected, isProtectedBytes, readPasswordSource } = require('./protect.js');
+const { diffViews, renderDiffHuman } = require('./diff.js');
+const { renderInspectHuman, renderValidateHuman, renderReadHuman, compactReadResult } = require('./human.js');
+const renderRejectionHuman = (command, result) => (command === 'inspect' ? renderInspectHuman : renderValidateHuman)(result);
 const { readSourceEdits } = require('./source-input.js');
 const { Readable, Writable } = require('node:stream');
 const { admitSectionRequest, inspectWholeSectionSnapshot } = require('@aikdna/kdna-core/sections-node');
@@ -65,9 +70,19 @@ function authoringGuidance(input,rejected){
   }
   return guidance.length?guidance:null;
 }
-const commands = new Set(['create', 'source-open', 'source-pack', 'convert', 'inspect', 'validate', 'read', 'plan', 'load']);
+const commands = new Set(['init', 'compile', 'validate-input', 'create', 'protect', 'diff', 'source-open', 'source-pack', 'convert', 'inspect', 'validate', 'read', 'plan', 'load']);
 const independentStates = () => ({ writer: 'not_evaluated', confirmation: 'not_evaluated', read_permission: 'not_evaluated', action_authorization: 'not_evaluated' });
 const help = [
+  'kdna init [--output <draft.json>]',
+  '  Scaffolds a minimal 0.6.0 draft (kdna.draft/1) with one example judgment to edit; prints it',
+  '  to stdout, or saves a new file (never replaces one) with --output.',
+  'kdna compile <draft.json> [--output <authored.json>]',
+  '  Expands a draft into the full authored input that create accepts, filling every optional',
+  '  empty collection; prints it, or saves a new file with --output.',
+  'kdna create --draft <draft.json> --output <new-asset.kdna> --allow-create',
+  '  Same as compile then create in one step.',
+  'kdna validate-input <draft-or-authored.json>',
+  '  Checks a draft or full authored input and names each missing or invalid field with a hint.',
   'kdna create <authored.json> --output <new-asset.kdna> --allow-create',
   '  Input: {manifest,payload,members:[{name,type:"file",mode,bytes_base64}]}; never replaces a file.',
   'kdna source-open <asset.kdna> --expected-a <sha256:...> --allow-source',
@@ -82,15 +97,27 @@ const help = [
   '  a confirmed representation_origin, and saves a new file; old files are never replaced.',
   '  Historical tuples, protected sources and extension members are refused by name without',
   '  conversion; the read and source routes are unchanged.',
-  'kdna inspect <asset.kdna> [--json]',
-  'kdna validate <asset.kdna> [--json] [--system]',
+  'kdna protect <asset.kdna> --output <protected.kdna> (--password-fd <fd> | --password-file <path>)',
+  '  Local password protection, no account and no network: writes a new 0.6.0 container whose',
+  '  payload.kdnab is an AEAD envelope (password entitlement, offline). The password is read once',
+  '  from an inherited descriptor (3 or higher) or a file, one trailing newline stripped; it is never',
+  '  accepted on the command line. A protected asset is refused by name until a password is given.',
+  'kdna diff <left.kdna> <right.kdna> [--format json|human] [--password-fd <fd> | --password-file <path>]',
+  '  Compares two assets: identity, digests, judgments added/removed/changed, conditions and',
+  '  relations. One password source serves every protected side.',
+  'kdna inspect <asset.kdna> [--json] [--format json|human] [--password-fd <fd> | --password-file <path>]',
+  'kdna validate <asset.kdna> [--json] [--system] [--format json|human] [--password-fd <fd> | --password-file <path>]',
   '  --system adds warnings-only system-integrity checks: support cycles, a pair that is',
   '  both supported and in conflict, a withdrawn judgment with an active downstream, and',
   '  ordered declarations that repeat an entry or rank fewer items than their scope. A',
   '  warning never refuses a structurally valid asset; the exit status stays 0.',
   'kdna read <asset.kdna> --mode catalog|whole_asset|exact_selection --budget <bytes>',
   '  [--asset-id <id> --asset-version <version> --judgment-id <id>] [--allow-read] [--view body|full|raw]',
-  '  [--view-accept <model-view-contract>]',
+  '  [--view-accept <model-view-contract>] [--compact] [--format json|human]',
+  '  [--password-fd <fd> | --password-file <path>]',
+  '  --judgment-id may repeat or carry a comma-separated list: with exact_selection and no --session the',
+  '  asset id/version default to the admitted asset and the ids are sent as one catalog-ordered selection.',
+  '  --compact (body view only) drops the repeated asset-level declarations and catalog from each answer.',
   '  --budget counts the complete final JCS read envelope (metadata, receipt, content and',
   '  the budget fields themselves), not the printed body, the full model view, model',
   '  input bytes or model tokens; --view raw or a rejection reports the envelope',
@@ -324,35 +351,52 @@ function parse(argv) {
   const [command, ...rest] = argv;
   if (!commands.has(command)) return { error: 'KDNA_COMMAND_UNAVAILABLE' };
   const options = Object.create(null);
-  const valued = new Set(['--mode', '--asset-id', '--asset-version', '--judgment-id', '--budget', '--output', '--expected-a', '--edits', '--view', '--view-accept']);
-  let file;
+  const valued = new Set(['--mode', '--asset-id', '--asset-version', '--judgment-id', '--budget', '--output', '--expected-a', '--edits', '--view', '--view-accept', '--draft', '--password-fd', '--password-file', '--format']);
+  let file, second;
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
-    if (['--allow-create', '--allow-read', '--allow-source', '--json', '--session', '--system'].includes(arg)) {
+    if (['--allow-create', '--allow-read', '--allow-source', '--json', '--session', '--system', '--compact'].includes(arg)) {
       if (options[arg] !== undefined) return { error: 'KDNA_ARGUMENT_INVALID' };
       options[arg] = true;
     } else if (valued.has(arg)) {
-      if (options[arg] !== undefined || i + 1 >= rest.length || rest[i + 1].startsWith('--')) return { error: 'KDNA_ARGUMENT_INVALID' };
-      options[arg] = rest[++i];
-    } else if (arg.startsWith('-') || file !== undefined) return { error: 'KDNA_ARGUMENT_INVALID' };
-    else file = arg;
+      // --judgment-id may repeat (and may carry a comma-separated list); the
+      // values are kept together so every other option stays single-valued.
+      const repeatable = arg === '--judgment-id' && options[arg] !== undefined;
+      if ((options[arg] !== undefined && !repeatable) || i + 1 >= rest.length || rest[i + 1].startsWith('--')) return { error: 'KDNA_ARGUMENT_INVALID' };
+      options[arg] = repeatable ? options[arg] + ',' + rest[++i] : rest[++i];
+    } else if (arg.startsWith('-') || (file !== undefined && !(command === 'diff' && second === undefined))) return { error: 'KDNA_ARGUMENT_INVALID' };
+    else if (file === undefined) file = arg;
+    else second = arg;
   }
-  if (!file && command !== 'plan' && command !== 'load') return { error: 'KDNA_ARGUMENT_INVALID' };
-  const allowed = command === 'create' ? ['--output', '--allow-create', '--json']
+  const draftCreate = command === 'create' && options['--draft'] !== undefined;
+  if (!file && !['plan', 'load', 'init'].includes(command) && !draftCreate) return { error: 'KDNA_ARGUMENT_INVALID' };
+  if (file && (command === 'init' || draftCreate)) return { error: 'KDNA_ARGUMENT_INVALID' };
+  if ((command === 'diff') !== (second !== undefined)) return { error: 'KDNA_ARGUMENT_INVALID' };
+  const allowed = command === 'init' || command === 'compile' ? ['--output', '--json']
+    : command === 'validate-input' ? ['--json']
+    : command === 'create' ? ['--output', '--allow-create', '--json', '--draft']
+    : command === 'protect' ? ['--output', '--password-fd', '--password-file', '--json']
+    : command === 'diff' ? ['--format', '--password-fd', '--password-file', '--json']
     : command === 'source-open' ? ['--expected-a', '--allow-source', '--json']
     : command === 'source-pack' ? ['--expected-a', '--edits', '--output', '--allow-source', '--json']
     : command === 'convert' ? ['--expected-a', '--output', '--allow-source', '--json']
-    : command === 'read' ? ['--mode', '--asset-id', '--asset-version', '--judgment-id', '--budget', '--allow-read', '--json', '--session', '--view', '--view-accept']
-    : command === 'validate' ? ['--json', '--system'] : ['--json'];
+    : command === 'read' ? ['--mode', '--asset-id', '--asset-version', '--judgment-id', '--budget', '--allow-read', '--json', '--session', '--view', '--view-accept', '--compact', '--format', '--password-fd', '--password-file']
+    : command === 'validate' ? ['--json', '--system', '--format', '--password-fd', '--password-file'] : ['--json', '--format', '--password-fd', '--password-file'];
   if (Object.keys(options).some(k => !allowed.includes(k))) return { error: 'KDNA_ARGUMENT_INVALID' };
-  if (command === 'create' && (!options['--output'] || !options['--output'].endsWith('.kdna'))) return { error: 'KDNA_ARGUMENT_INVALID' };
+  if ((command === 'create' || command === 'protect') && (!options['--output'] || !options['--output'].endsWith('.kdna'))) return { error: 'KDNA_ARGUMENT_INVALID' };
+  if (options['--password-fd'] !== undefined && options['--password-file'] !== undefined) return { error: 'KDNA_ARGUMENT_INVALID' };
+  if (options['--password-fd'] !== undefined && !/^(?:[3-9]|[1-9][0-9]+)$/.test(options['--password-fd'])) return { error: 'KDNA_ARGUMENT_INVALID' };
+  if (command === 'protect' && options['--password-fd'] === undefined && options['--password-file'] === undefined) return { error: 'KDNA_PASSWORD_SOURCE_REQUIRED' };
+  if (options['--format'] !== undefined && !['json', 'human'].includes(options['--format'])) return { error: 'KDNA_ARGUMENT_INVALID' };
+  if (options['--compact'] && options['--view'] !== undefined && options['--view'] !== 'body') return { error: 'KDNA_ARGUMENT_INVALID' };
+  if ((command === 'init' || command === 'compile') && options['--output'] !== undefined && !options['--output'].endsWith('.json')) return { error: 'KDNA_ARGUMENT_INVALID' };
   if ((command.startsWith('source-') || command === 'convert') && !/^sha256:[0-9a-f]{64}$/.test(options['--expected-a'] || '')) return { error: 'KDNA_ARGUMENT_INVALID' };
   if (command === 'source-pack' && !options['--edits']) return { error: 'KDNA_ARGUMENT_INVALID' };
   if ((command === 'source-pack' || command === 'convert') && (!options['--output'] || !options['--output'].endsWith('.kdna'))) return { error: 'KDNA_ARGUMENT_INVALID' };
   // A session carries one ReadRequest per line, so a CLI-level request option may
   // not accompany it. --view names the output surface, not the request, so it may.
-  if (options['--session'] && Object.keys(options).some(k => k !== '--view' && k !== '--view-accept' && valued.has(k))) return { error: 'KDNA_ARGUMENT_INVALID' };
-  return { command, file, options };
+  if (options['--session'] && Object.keys(options).some(k => !['--view', '--view-accept', '--format', '--password-fd', '--password-file'].includes(k) && valued.has(k))) return { error: 'KDNA_ARGUMENT_INVALID' };
+  return { command, file, second, options };
 }
 
 async function* requestLines(input) {
@@ -490,6 +534,13 @@ async function run(argv, stdout = process.stdout, stdin = process.stdin, { now =
 }
 
 async function runWithOutput(argv, write, stdin, assertActive, now = () => Date.now()) {
+  // Whatever a run unlocked or read for a password is released when it ends.
+  const cleanups = [];
+  try { return await runCommand(argv, write, stdin, assertActive, now, cleanups); }
+  finally { for (const cleanup of cleanups) { try { cleanup(); } catch { /* already released */ } } }
+}
+
+async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
   const emit = value => write(JSON.stringify(value) + '\n');
   const unavailable = async (code, diagnostic) => {
     const result = { status: 'unavailable', code, action_authorized: false };
@@ -501,7 +552,7 @@ async function runWithOutput(argv, write, stdin, assertActive, now = () => Date.
   if (argv.length === 1 && argv[0] === '--version') { await write(require('../package.json').version + '\n'); return 0; }
   const parsed = parse(argv);
   if (parsed.error) return unavailable(parsed.error);
-  const { command, file, options } = parsed;
+  const { command, file, second, options } = parsed;
   if (command === 'plan' || command === 'load') {
     await emit({ status: 'unavailable', code: command === 'plan' ? 'KDNA_PLAN_ADMISSION_UNAVAILABLE' : 'KDNA_PLAN_EXECUTION_UNAVAILABLE', action_authorized: false, creation_accepted: false });
     return 2;
@@ -592,14 +643,73 @@ async function runWithOutput(argv, write, stdin, assertActive, now = () => Date.
       observation: result.observation, states: independentStates(), action_authorized: false, creation_accepted: false, adoption: 'not_observed' });
     return 0;
   }
+  const readJson = async path => {
+    let bytes;
+    try { bytes = await readBoundedFile(path, 20 * 1024 * 1024, 'KDNA_AUTHORED_INPUT_INVALID', assertActive); }
+    catch { assertActive(); return { error: unavailable('KDNA_AUTHORED_INPUT_INVALID', { field: null, reason: 'unreadable_or_over_limit' }) }; }
+    try { return { value: parseJsonBytes(bytes) }; }
+    catch (error) { return { error: unavailable('KDNA_AUTHORED_INPUT_INVALID', error?.diagnostic ?? { field: '/', reason: 'not_json', expected: 'one UTF-8 JSON object' }) }; }
+  };
+  const saveJson = async (outputPath, value) => {
+    const bytes = Buffer.from(JSON.stringify(value, null, 2) + '\n');
+    try { await saveNewAsset(outputPath, bytes, assertActive); }
+    catch (error) { assertActive(); await emit({ status: 'save_failed', code: error.message === 'KDNA_OUTPUT_EXISTS' ? error.message : 'KDNA_SAVE_FAILED', action_authorized: false, creation_accepted: false }); return 1; }
+    await emit({ status: 'saved', output: { file: outputPath, bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') }, action_authorized: false, creation_accepted: false });
+    return 0;
+  };
+  if (command === 'init') {
+    const draft = scaffoldDraft();
+    if (options['--output'] !== undefined) return saveJson(options['--output'], draft);
+    await write(JSON.stringify(draft, null, 2) + '\n');
+    return 0;
+  }
+  if (command === 'compile') {
+    const loaded = await readJson(file);
+    if (loaded.error) return loaded.error;
+    let authored;
+    try { authored = compileDraft(loaded.value); }
+    catch (error) {
+      if (error?.message !== 'KDNA_DRAFT_INVALID') throw error;
+      await emit({ status: 'rejected', code: 'KDNA_DRAFT_INVALID', diagnostics: error.diagnostics ?? [], action_authorized: false, creation_accepted: false });
+      return 1;
+    }
+    if (options['--output'] !== undefined) return saveJson(options['--output'], authored);
+    await write(JSON.stringify(authored, null, 2) + '\n');
+    return 0;
+  }
+  if (command === 'validate-input') {
+    const loaded = await readJson(file);
+    if (loaded.error) return loaded.error;
+    const checked = await validateWithCore(loaded.value);
+    await emit({ ...checked, action_authorized: false, creation_accepted: false });
+    return checked.status === 'valid' ? 0 : 1;
+  }
   if (command === 'create') {
     if (!options['--allow-create']) {
       await emit({ status: 'rejected', code: 'KDNA_CREATE_PERMISSION_REQUIRED', action_authorized: false, creation_accepted: false });
       return 1;
     }
     let input;
-    try { input = await readAuthoredInput(file); }
-    catch (error) { return unavailable('KDNA_AUTHORED_INPUT_INVALID', error?.diagnostic ?? null); }
+    if (options['--draft'] !== undefined) {
+      const loaded = await readJson(options['--draft']);
+      if (loaded.error) return loaded.error;
+      // A scaffold that still carries its placeholder text is flagged here so it
+      // cannot become an asset by accident; compile alone tolerates it.
+      const checked = validateInput(loaded.value);
+      if (checked.status !== 'valid') {
+        await emit({ status: 'rejected', code: 'KDNA_DRAFT_INVALID', diagnostics: checked.diagnostics, action_authorized: false, creation_accepted: false });
+        return 1;
+      }
+      try { input = compileDraft(loaded.value); }
+      catch (error) {
+        if (error?.message !== 'KDNA_DRAFT_INVALID') throw error;
+        await emit({ status: 'rejected', code: 'KDNA_DRAFT_INVALID', diagnostics: error.diagnostics ?? [], action_authorized: false, creation_accepted: false });
+        return 1;
+      }
+    } else {
+      try { input = await readAuthoredInput(file); }
+      catch (error) { return unavailable('KDNA_AUTHORED_INPUT_INVALID', error?.diagnostic ?? null); }
+    }
     const request = admitNativeCreationRequest({ request_id: 'cli:' + randomUUID(), tuple: binding.tuple, operation: 'create_public_asset', timeout_ms: 60000 });
     if (request.status !== 'admitted_request') { await emit(request); return 1; }
     const authority = createNativeCreationAuthority(() => true);
@@ -607,7 +717,11 @@ async function runWithOutput(argv, write, stdin, assertActive, now = () => Date.
     const produced = await createSectionAssetNode(input, request.request, authority);
     if (produced.status !== 'produced') {
       const guidance = authoringGuidance(input, produced);
-      await emit(guidance ? { ...produced, guidance } : produced);
+      // Field-level hints are a presentation aid beside the Core diagnostic,
+      // never a replacement for it.
+      let inputDiagnostics = null;
+      try { const checked = validateInput(input); if (checked.status === 'invalid') inputDiagnostics = checked.diagnostics; } catch { inputDiagnostics = null; }
+      await emit({ ...produced, ...(guidance ? { guidance } : {}), ...(inputDiagnostics ? { input_diagnostics: inputDiagnostics } : {}) });
       return 1;
     }
     let saved;
@@ -616,28 +730,91 @@ async function runWithOutput(argv, write, stdin, assertActive, now = () => Date.
     await emit({ status: 'saved', output: { file: options['--output'], bytes: produced.bytes.length, sha256: createHash('sha256').update(produced.bytes).digest('hex'), cleanup: saved.cleanup }, evidence: produced.evidence, states: independentStates(), action_authorized: false, creation_accepted: false, adoption: 'not_observed' });
     return 0;
   }
-  async function whole() {
+  // A password comes from an inherited descriptor or a file, never from argv, is
+  // read once per run and is zeroed when the run ends.
+  let passwordValue;
+  const passwordBytes = () => {
+    if (passwordValue !== undefined) return passwordValue;
+    const fd = options['--password-fd'], passwordFile = options['--password-file'];
+    if (fd === undefined && passwordFile === undefined) return (passwordValue = null);
+    passwordValue = readPasswordSource({ fd: fd === undefined ? undefined : Number(fd), file: passwordFile });
+    cleanups.push(() => passwordValue?.fill(0));
+    return passwordValue;
+  };
+  const passwordRefusal = error => ({ status: 'rejected', code: typeof error?.code === 'string' ? error.code : 'KDNA_PASSWORD_INVALID', action_authorized: false });
+  // The asset is admitted either as a public asset or, for a password-protected
+  // one, through the protected route with the password the caller supplied.
+  async function whole(target = file) {
     const request = admitSectionRequest({ request_id: 'cli:' + randomUUID(), tuple: binding.tuple, budget_bytes: 100000000, mode: 'whole_asset', selection: null, handle: null });
     let bytes;
-    try { bytes = await readAssetBytes(file, assertActive); }
+    try { bytes = await readAssetBytes(target, assertActive); }
     catch { assertActive(); return { status: 'rejected', code: 'KDNA_ASSET_INPUT_INVALID', action_authorized: false }; }
     assertActive();
+    if (isProtectedBytes(bytes)) {
+      let password;
+      try { password = passwordBytes(); } catch (error) { return passwordRefusal(error); }
+      if (!password) {
+        return { status: 'rejected', code: 'KDNA_PASSWORD_REQUIRED', reason: 'the asset is password-protected', next: 'pass --password-fd <fd> or --password-file <path>; the password is never accepted on the command line', action_authorized: false };
+      }
+      const admitted = await admitProtectedWithPassword(bytes, password, { now });
+      assertActive();
+      if (admitted.status !== 'accepted') return { status: 'rejected', code: admitted.code, stage: 'protected_admission', action_authorized: false };
+      cleanups.push(() => admitted.dispose());
+      return { status: 'accepted', protectedAdmission: admitted };
+    }
     return admitSectionBytesNode(bytes, request, createNativeSectionByteReadAuthority(() => true));
+  }
+  const viewOf = admission => admission.protectedAdmission ? admission.protectedAdmission.view : inspectWholeSectionSnapshot(admission.snapshot);
+  const humanOutput = options['--format'] === 'human';
+  const emitResult = async (result, render) => humanOutput ? write(render(result) + '\n') : emit(result);
+  if (command === 'protect') {
+    let bytes, password;
+    try { password = passwordBytes(); } catch (error) { await emit(passwordRefusal(error)); return 1; }
+    try { bytes = await readAssetBytes(file, assertActive); }
+    catch { assertActive(); return unavailable('KDNA_ASSET_INPUT_INVALID'); }
+    assertActive();
+    const result = await protectAsset(bytes, password);
+    assertActive();
+    if (result.status !== 'produced') { await emit({ status: 'rejected', code: result.code ?? 'KDNA_PROTECT_FAILED', stage: 'protect', action_authorized: false, creation_accepted: false }); return 1; }
+    let saved;
+    try { saved = await saveNewAsset(options['--output'], result.bytes, assertActive); }
+    catch (error) { assertActive(); await emit({ status: 'save_failed', code: error.message === 'KDNA_OUTPUT_EXISTS' ? error.message : 'KDNA_SAVE_FAILED', action_authorized: false, creation_accepted: false }); return 1; }
+    assertActive();
+    await emit({ status: 'saved', output: { file: options['--output'], bytes: result.bytes.length, sha256: createHash('sha256').update(result.bytes).digest('hex'), cleanup: saved.cleanup },
+      protection: { kind: 'password', profile: 'password', encrypted_entries: ['payload.kdnab'], offline: true },
+      evidence: result.evidence, states: independentStates(), action_authorized: false, creation_accepted: false, adoption: 'not_observed' });
+    return 0;
+  }
+  if (command === 'diff') {
+    const left = await whole(file);
+    if (left.status !== 'accepted') { await emit(left); return 1; }
+    const right = await whole(second);
+    if (right.status !== 'accepted') { await emit(right); return 1; }
+    const leftView = viewOf(left), rightView = viewOf(right);
+    if (!leftView || !rightView) { await emit({ status: 'rejected', reason: 'READ_SNAPSHOT_UNATTESTED' }); return 1; }
+    const result = diffViews(leftView, rightView);
+    await emitResult(result, renderDiffHuman);
+    return 0;
   }
   if (command === 'inspect' || command === 'validate') {
     const admission = await whole();
-    if (admission.status !== 'accepted') { await emit(admission); return 1; }
-    const view = inspectWholeSectionSnapshot(admission.snapshot);
+    if (admission.status !== 'accepted') { await emitResult(admission, result => renderRejectionHuman(command, result)); return 1; }
+    const view = viewOf(admission);
     if (!view) { await emit({ status: 'rejected', reason: 'READ_SNAPSHOT_UNATTESTED' }); return 1; }
     const result = { status: 'accepted', format_valid: true, states: { ...independentStates(), core: 'valid', interpretation: 'complete' }, diagnostics: [] };
-    if (command === 'inspect') Object.assign(result, { tuple: view.tuple, asset: view.asset, digests: view.digests, ir_digest: view.verification.ir_digest.digest, verification: view.verification, judgment_count: view.ir.catalog.length, runtime_entry_names: view.runtime_entry_names });
+    if (command === 'inspect' && admission.protectedAdmission) {
+      Object.assign(result, { tuple: view.tuple, asset: view.asset, digests: view.digests, ir_digest: view.ir_digest, judgment_count: view.ir.catalog.length, runtime_entry_names: view.runtime_entry_names,
+        protection: { status: 'unlocked', profile: 'password', encrypted_entries: ['payload.kdnab'] } });
+    } else if (command === 'inspect') {
+      Object.assign(result, { tuple: view.tuple, asset: view.asset, digests: view.digests, ir_digest: view.verification.ir_digest.digest, verification: view.verification, judgment_count: view.ir.catalog.length, runtime_entry_names: view.runtime_entry_names });
+    }
     // --system adds warnings-only integrity findings; they never change the
     // acceptance, the exit status or any field of the unchanged output shape.
     if (command === 'validate' && options['--system'] === true) result.system = systemWarnings(view.ir);
-    await emit(result);
+    await emitResult(result, command === 'inspect' ? renderInspectHuman : renderValidateHuman);
     return 0;
   }
-  let retainedSnapshot = null, retainedView = null, delivered = false;
+  let retainedSnapshot = null, retainedView = null, retainedProtected = null, delivered = false;
   const allow = options['--allow-read'] === true;
   if (!allow) {
     await emit({ status: 'rejected', code: 'KDNA_READ_PERMISSION_REQUIRED', action_authorized: false });
@@ -676,6 +853,14 @@ async function runWithOutput(argv, write, stdin, assertActive, now = () => Date.
       return refusal;
     }
   };
+  // --compact trims the repeated asset-level material from the body view; a
+  // refusal or another view is shown exactly as it is. --format human renders
+  // the same facts as text.
+  const present = async result => {
+    let shown = result;
+    if (options['--compact'] === true && view === 'body' && result?.view === 'body') { try { shown = compactReadResult(result); } catch { shown = result; } }
+    if (humanOutput) await write(renderReadHuman(shown) + '\n'); else await emit(shown);
+  };
   const sessionHandles = options['--session'] && modelView && typeof modelView.collectExpansionHandles === 'function' ? new Map() : null;
   const host = createTrustedHostReadProvider({
     observe({ request, preparation }) {
@@ -686,25 +871,45 @@ async function runWithOutput(argv, write, stdin, assertActive, now = () => Date.
         scope: retainedView.ir.nodes.map(node => node.id), issued_at: observedAt, expires_at: observedAt + 60000,
         decision: allow ? 'allow' : 'deny', policy_id: 'kdna-cli:explicit-local-read-consent', current_ms: observedAt };
     },
-    async deliver(result) { await emit(projected(result)); delivered = true; return true; },
+    async deliver(result) { await present(projected(result)); delivered = true; return true; },
   });
+  // Loads and retains the admitted snapshot once; null means it is available,
+  // anything else is the exit code of an already-emitted refusal.
+  async function ensureRetained() {
+    if (retainedSnapshot || retainedProtected) return null;
+    const admission = await whole();
+    if (admission.status !== 'accepted') { await emit(admission); return 1; }
+    if (admission.protectedAdmission) {
+      retainedProtected = admission.protectedAdmission;
+      retainedView = retainedProtected.view;
+      return null;
+    }
+    retainedSnapshot = admission.snapshot;
+    retainedView = inspectWholeSectionSnapshot(retainedSnapshot);
+    if (!retainedView) { await emit({ status: 'rejected', reason: 'READ_SNAPSHOT_UNATTESTED' }); return 1; }
+    return null;
+  }
   async function read(request) {
     // Explicit CLI consent and native request admission precede asset reads.
     const admitted = admitRetainedSectionRequest(request);
     if (admitted.status !== 'admitted_request') { await emit(admitted); return 1; }
-    if (!retainedSnapshot) {
-      const admission = await whole();
-      if (admission.status !== 'accepted') { await emit(admission); return 1; }
-      retainedSnapshot = admission.snapshot;
-      retainedView = inspectWholeSectionSnapshot(retainedSnapshot);
-      if (!retainedView) { await emit({ status: 'rejected', reason: 'READ_SNAPSHOT_UNATTESTED' }); return 1; }
-    }
-    const preparation = await prepareRetainedSectionRead(retainedSnapshot, admitted.request, authority);
-    if (preparation.status !== 'prepared') { await emit(preparation); return 1; }
+    const loadFailure = await ensureRetained();
+    if (loadFailure !== null) return loadFailure;
+    let result;
     delivered = false;
     projectionFailure = null;
-    const result = await readRetainedSection(preparation.prepared, host);
-    if (!delivered) await emit(result);
+    if (retainedProtected) {
+      // The password-protected route: Core decrypted and admitted the payload at
+      // load time; this request is bound to that one operation.
+      result = await readProtected(retainedProtected, { mode: request.mode, budget_bytes: request.budget_bytes, selection: request.selection, handle: request.handle });
+      await present(projected(result));
+      delivered = true;
+    } else {
+      const preparation = await prepareRetainedSectionRead(retainedSnapshot, admitted.request, authority);
+      if (preparation.status !== 'prepared') { await emit(preparation); return 1; }
+      result = await readRetainedSection(preparation.prepared, host);
+    }
+    if (!delivered) await present(result);
     if (!options['--session']) {
       const note = budgetNote(result);
       if (note) process.stderr.write(note + '\n');
@@ -755,6 +960,24 @@ async function runWithOutput(argv, write, stdin, assertActive, now = () => Date.
   if (mode === 'expand') return unavailable('KDNA_READ_SESSION_REQUIRED');
   const selectionValues = ['--asset-id', '--asset-version', '--judgment-id'].map(k => options[k]);
   if (['whole_asset', 'catalog'].includes(mode) && selectionValues.some(v => v !== undefined)) return unavailable('KDNA_ARGUMENT_INVALID');
+  // Several judgment ids without --session: the catalog order is read from the
+  // admitted asset itself, so the one exact_selection request this builds is
+  // the same request a two-line session would have sent.
+  const judgmentIds = options['--judgment-id'] === undefined ? undefined : options['--judgment-id'].split(',');
+  if (judgmentIds && (judgmentIds.some(id => id === '') || new Set(judgmentIds).size !== judgmentIds.length)) return unavailable('KDNA_ARGUMENT_INVALID');
+  if (judgmentIds && judgmentIds.length > 1) {
+    if (mode !== 'exact_selection') return unavailable('KDNA_ARGUMENT_INVALID');
+    const failure = await ensureRetained();
+    if (failure !== null) return failure;
+    const known = retainedView.ir.catalog.map(entry => entry.judgment_id);
+    const missing = judgmentIds.filter(id => !known.includes(id));
+    if (missing.length) {
+      await emit({ status: 'rejected', code: 'KDNA_JUDGMENT_ID_UNKNOWN', unknown_judgment_ids: missing, catalog_judgment_ids: known, action_authorized: false });
+      return 1;
+    }
+    const ordered = known.filter(id => judgmentIds.includes(id));
+    return read({ request_id: 'cli:' + randomUUID(), tuple: binding.tuple, budget_bytes: Number(budgetText), mode, selection: { asset_id: options['--asset-id'] ?? retainedView.asset.asset_id, asset_version: options['--asset-version'] ?? retainedView.asset.asset_version, judgment_ids: ordered }, handle: null });
+  }
   return read({ request_id: 'cli:' + randomUUID(), tuple: binding.tuple, budget_bytes: Number(budgetText), mode, selection: ['whole_asset', 'catalog'].includes(mode) ? null : { asset_id: options['--asset-id'], asset_version: options['--asset-version'], judgment_ids: options['--judgment-id'] === undefined ? undefined : [options['--judgment-id']] }, handle: null });
 }
 module.exports = { run };

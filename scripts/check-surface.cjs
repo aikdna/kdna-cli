@@ -20,7 +20,7 @@ for (const entry of fs.readdirSync(path.join(root, 'src'), { withFileTypes: true
     sourceFiles.push(entry.name);
   }
 }
-assert.deepEqual(sourceFiles.sort(), ['authored-input.js', 'cli.js', 'public-cli.js', 'source-input.js']);
+assert.deepEqual(sourceFiles.sort(), ['authored-input.js', 'cli.js', 'diff.js', 'draft.js', 'human.js', 'protect.js', 'public-cli.js', 'source-input.js']);
 if (process.argv[2]) {
   const packed = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
   assert.equal(packed.length, 1);
