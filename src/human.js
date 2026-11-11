@@ -192,7 +192,16 @@ function authoredStatement(value) {
 
 function stateBlockLines(label, entry) {
   if (!isObject(entry) || entry.state === 'none' || entry.value === null || entry.value === undefined) return [];
-  return [`  ${label}:`, wrap(typeof entry.value === 'string' ? entry.value : JSON.stringify(entry.value), '      ')];
+  // Authored items carry their words in `statement`; show those, with the effect when present,
+  // and fall back to JSON only for a shape without one.
+  const items = Array.isArray(entry.value) ? entry.value : [entry.value];
+  const lines = [`  ${label}:`];
+  for (const item of items) {
+    if (typeof item === 'string') lines.push(wrap('- ' + item, '      '));
+    else if (isObject(item) && typeof item.statement === 'string') lines.push(wrap(`- ${typeof item.effect === 'string' ? '[' + item.effect + '] ' : ''}${item.statement}`, '      '));
+    else lines.push(wrap('- ' + JSON.stringify(item), '      '));
+  }
+  return lines;
 }
 
 function renderRead(result) {
