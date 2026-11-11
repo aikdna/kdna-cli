@@ -116,7 +116,8 @@ const help = [
   '  [--view-accept <model-view-contract>] [--compact] [--format json|human]',
   '  [--password-fd <fd> | --password-file <path>]',
   '  --judgment-id may repeat or carry a comma-separated list: with exact_selection and no --session the',
-  '  asset id/version default to the admitted asset and the ids are sent as one catalog-ordered selection.',
+  '  asset id/version default to the admitted asset (also for a single id) and several ids are sent as one',
+  '  catalog-ordered selection.',
   '  --compact (body view only) drops the repeated asset-level declarations and catalog from each answer.',
   '  --budget counts the complete final JCS read envelope (metadata, receipt, content and',
   '  the budget fields themselves), not the printed body, the full model view, model',
@@ -977,6 +978,14 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
     }
     const ordered = known.filter(id => judgmentIds.includes(id));
     return read({ request_id: 'cli:' + randomUUID(), tuple: binding.tuple, budget_bytes: Number(budgetText), mode, selection: { asset_id: options['--asset-id'] ?? retainedView.asset.asset_id, asset_version: options['--asset-version'] ?? retainedView.asset.asset_version, judgment_ids: ordered }, handle: null });
+  }
+  // One id with the asset id/version left out: they default to the admitted asset, as for several ids.
+  const singleDefault = mode === 'exact_selection' && judgmentIds && judgmentIds.length === 1 && (options['--asset-id'] === undefined || options['--asset-version'] === undefined);
+  if (singleDefault) {
+    const failure = await ensureRetained();
+    if (failure !== null) return failure;
+    if (options['--asset-id'] === undefined) options['--asset-id'] = retainedView.asset.asset_id;
+    if (options['--asset-version'] === undefined) options['--asset-version'] = retainedView.asset.asset_version;
   }
   return read({ request_id: 'cli:' + randomUUID(), tuple: binding.tuple, budget_bytes: Number(budgetText), mode, selection: ['whole_asset', 'catalog'].includes(mode) ? null : { asset_id: options['--asset-id'], asset_version: options['--asset-version'], judgment_ids: options['--judgment-id'] === undefined ? undefined : [options['--judgment-id']] }, handle: null });
 }

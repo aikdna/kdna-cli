@@ -4,6 +4,32 @@ This package is `@aikdna/kdna-cli@0.43.3`, paired with exact Core `0.37.9` and R
 
 This version delegates native container production, admission and disclosure to the exact companion Core and Read archives. It does not interpret assets independently.
 
+## Quick start
+
+Four things you can do with a `.kdna` judgment asset, each one copy-paste:
+
+```sh
+# 1. Create: scaffold a draft, fill it in, check it, build the asset
+kdna init --output draft.json
+$EDITOR draft.json                      # replace every TODO
+kdna validate-input draft.json          # names each missing or invalid field
+kdna create --draft draft.json --output my-judgments.kdna --allow-create
+
+# 2. Read only what the task needs: several judgments, lean output
+kdna read my-judgments.kdna --mode catalog --allow-read
+kdna read my-judgments.kdna --mode exact_selection --judgment-id main:first,main:second --allow-read --compact
+
+# 3. Protect with a local password (no account, no network)
+printf '%s' 'a long passphrase' > password.txt
+kdna protect my-judgments.kdna --output locked.kdna --password-file password.txt
+kdna read locked.kdna --mode catalog --allow-read --password-file password.txt --format human
+
+# 4. Compare two versions in plain text
+kdna diff my-judgments.kdna revised.kdna --format human
+```
+
+The password is read from a file or an inherited descriptor and is never accepted as a command-line value. Reading is bounded by `--allow-read` and by the ids you name; nothing here authorizes an action. Details for each command follow.
+
 | Operation | Command | Explicit permission |
 | --- | --- | --- |
 | Scaffold, compile and check authoring input | `init`, `compile`, `validate-input` | None; they only read or print input, or save a new JSON file |
@@ -80,7 +106,7 @@ Exit codes: 0 for source-opened/saved/accepted/ready/catalog operations, 1 for r
 
 ### Several judgments in one read
 
-`--judgment-id` may repeat or carry a comma-separated list. With `exact_selection` and no `--session`, the CLI admits the asset, orders the ids by the asset's own catalog, defaults the asset id and version to the admitted asset, and sends one selection. An id the asset does not contain is refused by name with the catalog (`KDNA_JUDGMENT_ID_UNKNOWN`). A single `--judgment-id` behaves exactly as before. `--compact` (body view) drops the repeated asset-level declarations and catalog from each answer; `--view full` and `--view raw` are unchanged. A budget rejection still reports the envelope `required_bytes` against `--budget`.
+`--judgment-id` may repeat or carry a comma-separated list. With `exact_selection` and no `--session`, the CLI admits the asset, orders the ids by the asset's own catalog, defaults the asset id and version to the admitted asset, and sends one selection. An id the asset does not contain is refused by name with the catalog (`KDNA_JUDGMENT_ID_UNKNOWN`). A single `--judgment-id` takes the same defaults when `--asset-id` or `--asset-version` is left out; an explicit value that does not match the admitted asset is still refused. `--compact` (body view) drops the repeated asset-level declarations and catalog from each answer; `--view full` and `--view raw` are unchanged. A budget rejection still reports the envelope `required_bytes` against `--budget`.
 
 ### Local password protection
 

@@ -75,8 +75,11 @@ test("duplicate ids and multi-id outside exact_selection stay refused", () => {
   assert.equal(catalog.status, 2);
 });
 
-test("a single --judgment-id keeps requiring the explicit asset id and version", () => {
+test("a single --judgment-id defaults the asset id and version and still honors explicit ones", () => {
   const { output } = createAsset();
-  const result = run(["read", output, "--mode", "exact_selection", "--judgment-id", "update:order", "--allow-read"]);
-  assert.notEqual(result.status, 0);
+  const defaulted = run(["read", output, "--mode", "exact_selection", "--judgment-id", "update:order", "--allow-read", "--view", "raw"]);
+  assert.equal(defaulted.status, 0, defaulted.stdout + defaulted.stderr);
+  assert.deepEqual(selectedIds(defaulted.stdout), ["update:order"]);
+  const wrong = run(["read", output, "--mode", "exact_selection", "--judgment-id", "update:order", "--asset-id", "asset:other", "--asset-version", "1.0.0", "--allow-read"]);
+  assert.notEqual(wrong.status, 0);
 });

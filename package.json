@@ -38,7 +38,8 @@
     "check:publish-coordinates": "node scripts/check-publish-coordinates.js",
     "check": "npm run check:surface && npm run check:inventory && npm run check:packaged-readme",
     "release:check:prerelease": "node scripts/check-release-prerelease-readiness.mjs",
-    "test": "npm run check:surface && npm run check:inventory && npm run check:packaged-readme && node --test tests/*.test.js",
+    "test:release-authority": "node --test scripts/stable-release-authority.test.cjs scripts/preview-release-authority.test.cjs",
+    "test": "npm run check:surface && npm run check:inventory && npm run check:packaged-readme && node --test tests/*.test.js && npm run test:release-authority",
     "prepublishOnly": "node -e \"throw new Error('LOCAL_WORKTREE_NOT_AUTHORIZED_FOR_PUBLICATION')\"",
     "test:transport": "node --test tests/authored-input.test.js"
   },
