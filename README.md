@@ -4,7 +4,7 @@ Official command-line interface (`@aikdna/kdna-cli@0.43.4`) for authoring, passw
 
 Public, local, and password-protected `.kdna` workflows in `@aikdna/kdna-cli@0.43.4` run offline on **Node.js `>=22`** and **permanently require no online account**.
 
-- **Website & KDNA Reader:** [aikdna.com](https://aikdna.com) · [Read KDNA Whitepaper v1.0.0 in Browser](https://aikdna.com/reader/?sample=kdna-whitepaper)
+- **Website & KDNA Reader:** [aikdna.com](https://aikdna.com) · [Read KDNA Whitepaper v1.0.1 in Browser](https://aikdna.com/reader/?sample=kdna-whitepaper)
 - **Specifications & Release Matrix:** [`aikdna/kdna`](https://github.com/aikdna/kdna) ([`release-coordinates.json`](https://github.com/aikdna/kdna/blob/main/docs/release-coordinates.json))
 - **Agent Skills & MCP:** [`aikdna/kdna-skills`](https://github.com/aikdna/kdna-skills) (`kdna-creator` & `kdna-loader`)
 - **Public Reference Works:** [`aikdna/kdna-assets`](https://github.com/aikdna/kdna-assets)
@@ -36,7 +36,7 @@ kdna create --draft revised-draft.json --output revised.kdna --allow-create
 kdna diff my-judgments.kdna revised.kdna --format human
 ```
 
-Prefer conversational co-creation with an AI agent instead of editing JSON directly? Install [`aikdna/kdna-skills`](https://github.com/aikdna/kdna-skills) (`kdna-creator` for guided interviews, distillation from existing works, or research; `kdna-loader` for task-scoped selective reading). To explore a complete 45-judgment reference work, open *KDNA Whitepaper* (`v1.0.0`, by Zhang Ling / 张零, `CC BY 4.0`) in [KDNA Reader](https://aikdna.com/reader/?sample=kdna-whitepaper) or [`aikdna/kdna-assets`](https://github.com/aikdna/kdna-assets).
+Prefer conversational co-creation with an AI agent instead of editing JSON directly? Install [`aikdna/kdna-skills`](https://github.com/aikdna/kdna-skills) (`kdna-creator` for guided interviews, distillation from existing works, or research; `kdna-loader` for task-scoped selective reading). To explore a complete 45-judgment reference work, open *KDNA Whitepaper* (`v1.0.1`, native `zh-CN` & `en`, by Zhang Ling / 张零, `CC BY 4.0`) in [KDNA Reader](https://aikdna.com/reader/?sample=kdna-whitepaper) or [`aikdna/kdna-assets`](https://github.com/aikdna/kdna-assets).
 
 ---
 
