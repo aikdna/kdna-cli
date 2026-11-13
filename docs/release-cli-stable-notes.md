@@ -1,5 +1,28 @@
 # Stable CLI change notes
 
+## CLI 0.43.5
+
+This source keeps the exact published Core `0.37.9` and Read `0.13.3` pair and
+delivers English human-format role rendering, subcommand help ergonomics,
+placeholder checks on `compile`, and `source-pack` revision diagnostics:
+`kdna read --format human` renders English method-component role labels
+(`[subject_interpreted]`, `[options]`, `[priority_rule]`, etc.) when the asset
+or judgment language is English while retaining Chinese labels on Chinese works
+and leaving wire JSON tokens unchanged; `kdna <subcommand> --help` / `-h` and
+`kdna -v` exit `0` with accurate flag synopses (`--allow-read` mandatory and
+`--mode` / `--budget` defaults explicit); `kdna compile` rejects unreplaced
+`TODO:` scaffold placeholders consistently with `kdna create --draft`;
+`kdna validate-input` validates `source-open` `.edits` documents cleanly; and
+`kdna source-pack` emits an explicit `.edits` hint when passed a raw
+`source_opened` envelope, reports 4-version alignment diagnostics when
+`manifest` and `payload.asset` version pairs diverge, and syncs
+`result.value.value` when `core_expression.statement` is revised on a
+`conclusion` judgment whose two fields matched in the base asset. `README.md`,
+`SECURITY.md`, and `docs/authoring-field-reference.md` are updated accordingly.
+Public, local, and password-protected `0.6.0` workflows remain permanently
+offline and account-free. Earlier published coordinates remain in place,
+including CLI `0.43.4`.
+
 ## CLI 0.43.4
 
 This source keeps the exact published Core `0.37.9` and Read `0.13.3` pair and

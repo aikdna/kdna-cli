@@ -235,3 +235,99 @@ test("init --lang en|zh and --example run end-to-end through validate-input, cre
   assert.equal(JSON.parse(zhInit.stdout).asset.language, "zh-CN");
   assert.equal(run(["init", "--lang", "fr"]).status, 2);
 });
+
+test("-v, subcommand --help/-h, compile placeholder guard, validate-input on source-open edits and source-pack ergonomics", () => {
+  const { createHash } = require("node:crypto");
+  const dir = tmp();
+
+  const shortVer = run(["-v"]);
+  assert.equal(shortVer.status, 0);
+  assert.equal(shortVer.stdout.trim(), pkg.version);
+
+  const topHelp = run(["--help"]);
+  assert.equal(topHelp.status, 0);
+  assert.match(topHelp.stdout, /kdna read <asset\.kdna> --allow-read \[--mode catalog\|whole_asset\|exact_selection\] \[--budget <bytes>\]/);
+  for (const [sub, flag, pattern] of [
+    ["read", "--help", /--mode defaults to catalog; --budget defaults to 1000000/],
+    ["init", "-h", /Scaffolds a 0\.6\.0 draft/],
+    ["source-pack", "--help", /manifest\.version == payload\.asset\.asset_version/],
+    ["protect", "-h", /Retain the unencrypted public \.kdna/],
+  ]) {
+    const h = run([sub, flag]);
+    assert.equal(h.status, 0, `${sub} ${flag}: ${h.stdout}`);
+    assert.match(h.stdout, pattern);
+  }
+
+  // compile rejects untouched TODO: scaffold placeholders just like create --draft
+  const rawDraft = path.join(dir, "raw-draft.json");
+  assert.equal(run(["init", "--output", rawDraft]).status, 0);
+  const badCompile = run(["compile", rawDraft]);
+  assert.equal(badCompile.status, 1);
+  const badCompileRow = last(badCompile.stdout);
+  assert.equal(badCompileRow.code, "KDNA_DRAFT_INVALID");
+  assert.ok(badCompileRow.diagnostics.some((d) => d.code === "placeholder_not_replaced" && d.field === "asset.title"));
+
+  // Build a real 0.6.0 asset, open its source, and exercise source-pack + validate-input
+  const exDraft = path.join(dir, "ex.json");
+  const baseAsset = path.join(dir, "base.kdna");
+  assert.equal(run(["init", "--example", "--mode", "interview", "--output", exDraft]).status, 0);
+  assert.equal(run(["create", "--draft", exDraft, "--output", baseAsset, "--allow-create"]).status, 0);
+  const expectedA = "sha256:" + createHash("sha256").update(fs.readFileSync(baseAsset)).digest("hex");
+
+  const openedRun = run(["source-open", baseAsset, "--expected-a", expectedA, "--allow-source"]);
+  assert.equal(openedRun.status, 0, openedRun.stdout);
+  const envelopePath = path.join(dir, "opened-envelope.json");
+  fs.writeFileSync(envelopePath, openedRun.stdout);
+
+  // Passing raw source-open envelope to source-pack emits explicit .edits extraction hint
+  const envPack = run(["source-pack", baseAsset, "--edits", envelopePath, "--expected-a", expectedA, "--output", path.join(dir, "nope.kdna"), "--allow-source"]);
+  assert.equal(envPack.status, 2);
+  const envRow = last(envPack.stdout);
+  assert.equal(envRow.code, "KDNA_SOURCE_EDITS_INVALID");
+  assert.equal(envRow.diagnostic?.reason, "source_open_envelope");
+  assert.match(envRow.diagnostic?.hint ?? "", /\.edits/);
+
+  // validate-input rejects raw source-open envelope with hint, and accepts inner .edits cleanly
+  const envVal = run(["validate-input", envelopePath]);
+  assert.equal(envVal.status, 1);
+  assert.ok(last(envVal.stdout).diagnostics.some((d) => d.code === "source_open_envelope"));
+
+  const opened = last(openedRun.stdout);
+  const cleanEditsPath = path.join(dir, "clean-edits.json");
+  fs.writeFileSync(cleanEditsPath, JSON.stringify(opened.edits, null, 2));
+  const editsVal = run(["validate-input", cleanEditsPath]);
+  assert.equal(editsVal.status, 0, editsVal.stdout);
+  assert.equal(last(editsVal.stdout).input_kind, "source_edits");
+
+  // 4-version mismatch emits version_fields_misaligned guidance & input_diagnostics
+  const mismatchEdits = JSON.parse(JSON.stringify(opened.edits));
+  mismatchEdits.manifest.version = "1.0.1";
+  const mismatchPath = path.join(dir, "mismatch-edits.json");
+  fs.writeFileSync(mismatchPath, JSON.stringify(mismatchEdits));
+  const mismatchPack = run(["source-pack", baseAsset, "--edits", mismatchPath, "--expected-a", expectedA, "--output", path.join(dir, "mismatch.kdna"), "--allow-source"]);
+  assert.equal(mismatchPack.status, 1);
+  const mismatchRow = last(mismatchPack.stdout);
+  assert.ok(mismatchRow.guidance?.some((g) => g.reason === "version_fields_misaligned"));
+  assert.ok(mismatchRow.input_diagnostics?.some((d) => d.code === "version_mismatch" && d.field === "/payload/asset/asset_version"));
+
+  // Updating core_expression.statement alone auto-syncs matching conclusion result.value.value
+  const syncEdits = JSON.parse(JSON.stringify(opened.edits));
+  syncEdits.manifest.version = syncEdits.payload.asset.asset_version = "0.2.0";
+  syncEdits.manifest.judgment_version = syncEdits.payload.asset.judgment_version = "0.2.0";
+  syncEdits.payload.judgments[0].core_expression.statement = "Updated conclusion statement synced to result.";
+  const syncPath = path.join(dir, "sync-edits.json");
+  const syncedAsset = path.join(dir, "synced.kdna");
+  fs.writeFileSync(syncPath, JSON.stringify(syncEdits));
+  const syncPack = run(["source-pack", baseAsset, "--edits", syncPath, "--expected-a", expectedA, "--output", syncedAsset, "--allow-source"]);
+  assert.equal(syncPack.status, 0, syncPack.stdout);
+  const syncRow = last(syncPack.stdout);
+  assert.equal(syncRow.synced_fields?.length, 1);
+  assert.equal(syncRow.synced_fields[0].judgment_id, "decision:first-dilemma");
+
+  const readSynced = run(["read", syncedAsset, "--mode", "exact_selection", "--judgment-id", "decision:first-dilemma", "--allow-read", "--compact"]);
+  assert.equal(readSynced.status, 0, readSynced.stdout);
+  const syncedJ = JSON.parse(readSynced.stdout).judgments[0];
+  assert.equal(syncedJ.body.core_expression.statement, "Updated conclusion statement synced to result.");
+  assert.equal(syncedJ.body.result.value.value, "Updated conclusion statement synced to result.");
+  fs.rmSync(dir, { recursive: true, force: true });
+});

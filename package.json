@@ -1,6 +1,6 @@
 {
   "name": "@aikdna/kdna-cli",
-  "version": "0.43.4",
+  "version": "0.43.5",
   "description": "Official KDNA CLI: author (init, validate-input, create), selectively read (--mode catalog|exact_selection, --compact, --format human), password-protect (protect), and diff .kdna judgment assets offline with no account required.",
   "type": "commonjs",
   "bin": {

@@ -380,7 +380,8 @@ test('diff deduplicates judgment-owned IR mirror nodes and identical result/core
   assert.doesNotMatch(changedSection, /result\.value\.value/);
 });
 
-const WHITEPAPER = path.resolve(__dirname, '..', '..', 'kdna-assets', 'references', 'public', 'kdna-whitepaper', 'kdna-whitepaper-1.0.0.kdna');
+const WHITEPAPER = path.resolve(__dirname, '..', '..', 'kdna-assets', 'references', 'public', 'kdna-whitepaper', 'kdna-whitepaper-1.0.1.zh-CN.kdna');
+const WHITEPAPER_EN = path.resolve(__dirname, '..', '..', 'kdna-assets', 'references', 'public', 'kdna-whitepaper', 'kdna-whitepaper-1.0.1.en.kdna');
 test('flagship whitepaper whole_asset succeeds with default 4 MB budget and --compact retains closure', { skip: !fs.existsSync(WHITEPAPER) }, () => {
   const whole = spawnSync(process.execPath, [CLI, 'read', WHITEPAPER, '--mode', 'whole_asset', '--allow-read'], { encoding: 'utf8', maxBuffer: 1 << 26 });
   assert.equal(whole.status, 0, whole.stderr);
@@ -393,4 +394,46 @@ test('flagship whitepaper whole_asset succeeds with default 4 MB budget and --co
   assert.ok(compact.declarations?.misuse?.value?.length > 0, 'asset-wide misuse preserved');
   assert.ok(compact.relationships?.length > 0, 'qualify relationship preserved');
   assert.ok(compact.related_judgments?.some(j => j.id === 'judgment:stronger-ai'), 'mandatory closure qualifier judgment preserved');
+});
+
+test('renderReadHuman displays English method-role aliases on English assets and Chinese roles on Chinese assets', () => {
+  const enProjected = {
+    view_contract: 'kdna.read.model-view/0.2.0',
+    view: 'body',
+    status: 'ready',
+    mode: 'exact_selection',
+    asset: { asset_id: 'asset:en-fixture', asset_version: '1.0.1', title: 'English Fixture', languages: ['en'] },
+    selection: { asset_id: 'asset:en-fixture', asset_version: '1.0.1', judgment_ids: ['j:en'] },
+    content: {
+      closure: [{
+        id: 'j:en',
+        role: 'judgment',
+        value: {
+          id: 'j:en',
+          focus: 'English role rendering',
+          scope: { statement: 'When reading an English judgment work in human mode.' },
+          core_expression: { kind: 'authored', statement: 'Render human method roles in English while leaving wire JSON untouched.' },
+          method: {
+            method: { term: 'interpretation' },
+            components: [
+              { id: 'c1', method: { term: 'interpretation' }, role: '解读对象', statement: 'Canonical role token in Core IR.' },
+              { id: 'c2', method: { term: 'interpretation' }, role: '解释关系', statement: 'Display-layer alias mapping for human text.' },
+            ],
+          },
+        },
+      }],
+    },
+  };
+  for (const input of [enProjected, compactReadResult(enProjected)]) {
+    const out = renderReadHuman(input);
+    assert.match(out, /- \[subject_interpreted\] Canonical role token in Core IR\./);
+    assert.match(out, /- \[interpretive_link\] Display-layer alias mapping for human text\./);
+    assert.ok(!/[\u4e00-\u9fff]/u.test(out), 'English human output must not leak raw Chinese role keys: ' + out);
+  }
+  if (fs.existsSync(WHITEPAPER_EN)) {
+    const enCli = spawnSync(process.execPath, [CLI, 'read', WHITEPAPER_EN, '--mode', 'exact_selection', '--judgment-id', 'judgment:work-itself,judgment:creation-restraint,judgment:safe-consumption', '--format', 'human', '--allow-read'], { encoding: 'utf8', maxBuffer: 1 << 26 });
+    assert.equal(enCli.status, 0, enCli.stderr);
+    assert.match(enCli.stdout, /\[subject_interpreted\]/);
+    assert.ok(!/[\u4e00-\u9fff]/u.test(enCli.stdout), 'English whitepaper --format human must contain zero Chinese characters');
+  }
 });

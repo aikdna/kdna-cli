@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.43.5 (2026-11-13)
+
+- Render English method-component role labels (`[subject_interpreted]`,
+  `[options]`, `[priority_rule]`, etc.) in `kdna read --format human` when the
+  admitted `.kdna` work or judgment declares an English locale (`en`), while
+  preserving Chinese role labels on Chinese works and keeping raw wire JSON
+  tokens unchanged.
+- Add `kdna <subcommand> --help` / `-h` and `kdna -v` (`exit 0`), and align
+  `kdna --help` with actual required flags (`--allow-read` mandatory on `read`,
+  `--mode` defaulting to `catalog`, `--budget` defaulting to `1000000` bytes or
+  `4000000` bytes on `whole_asset`, and accurate `read --session` flags).
+- Enforce `placeholder_not_replaced` on unedited `TODO:` scaffold strings in
+  `kdna compile` just like `kdna create --draft`, and accept `source-open`
+  `.edits` JSON in `kdna validate-input` without false `/members` or
+  `/manifest/format_version` errors.
+- Improve `kdna source-pack` revision ergonomics: emit an explicit `.edits`
+  extraction hint when the outer `source-open` envelope (`status:
+  "source_opened"`) is passed to `--edits`, attach 4-version alignment
+  diagnostics and guidance (`manifest.version` vs `payload.asset.asset_version`
+  and `manifest.judgment_version` vs `payload.asset.judgment_version`) when Core
+  rejects a pack, and automatically sync `result.value.value` with
+  `core_expression.statement` on `conclusion` judgments whose two fields matched
+  in the base asset.
+- Update `README.md`, `SECURITY.md`, and `docs/authoring-field-reference.md`
+  (`ConditionDefinition` and `Exception` shapes, desktop `KDNA Reader`
+  references, and `0.43.5` security policy). Keep exact Core `0.37.9` and Read
+  `0.13.3` companion archives unchanged.
+
 ## 0.43.4 (2026-11-11)
 
 - Preserve full mandatory safety and reasoning closure in `kdna read --compact`

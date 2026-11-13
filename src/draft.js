@@ -762,7 +762,7 @@ const nowZ = () => new Date().toISOString().replace(/\.\d+Z$/, 'Z');
 
 function compileDraft(draft) {
   if (!isObj(draft)) throw Object.assign(new Error('KDNA_DRAFT_INVALID'), { diagnostics: [diag('', 'not_an_object', 'Draft must be a JSON object.', 'Start from scaffoldDraft().')] });
-  const problems = validateDraft(draft).filter(d => d.code !== 'placeholder_not_replaced');
+  const problems = validateDraft(draft);
   if (problems.length) throw Object.assign(new Error('KDNA_DRAFT_INVALID'), { diagnostics: problems });
   const when = draft.timestamp || nowZ();
   const slug = draft.asset.id;
@@ -914,18 +914,49 @@ const JUDGMENT_REQUIRED_KEYS = ['id', 'focus', 'subject', 'scope', 'form', 'answ
 const JUDGMENT_OPTIONAL_KEYS = ['answer_other', 'answer_parts', 'boundaries', 'exceptions', 'extensions', 'lifecycle', 'misuse', 'result', 'formation_rule'];
 const JUDGMENT_ALLOWED_KEYS = [...JUDGMENT_REQUIRED_KEYS, ...JUDGMENT_OPTIONAL_KEYS];
 
-function validateFull(input) {
+const SOURCE_EDITS_MANIFEST_EXTRA_KEYS = ['format_version', 'payload', 'representation_metadata', 'representation_origin'];
+
+function checkVersionPairAlignment(manifest, payload) {
   const out = [];
-  if (!isObj(input)) return [diag('', 'not_an_object', 'Input must be a JSON object.', 'Provide {manifest,payload,members}.')];
-  for (const k of ['manifest', 'payload', 'members']) if (input[k] === undefined) out.push(diag(`/${k}`, 'missing_field', `/${k} is required.`, k === 'members' ? 'Add "members": [].' : `Add /${k}; run \`kdna init\` and compile a draft for a complete one.`));
-  for (const k of Object.keys(input)) if (!['manifest', 'payload', 'members'].includes(k)) out.push(diag(`/${k}`, 'unknown_field', `Unknown top-level field "${k}".`, 'Only manifest, payload, members are accepted.'));
+  if (!isObj(manifest) || !isObj(payload) || !isObj(payload.asset)) return out;
+  const mv = manifest.version, mjv = manifest.judgment_version;
+  const av = payload.asset.asset_version, ajv = payload.asset.judgment_version;
+  if (isText(mv) && isText(av) && mv !== av) {
+    out.push(diag('/payload/asset/asset_version', 'version_mismatch',
+      `Version mismatch between manifest.version ("${mv}") and payload.asset.asset_version ("${av}").`,
+      'Update both manifest.version and payload.asset.asset_version to the same version string (and align manifest.judgment_version + payload.asset.judgment_version when judgments changed).'));
+  }
+  if (isText(mjv) && isText(ajv) && mjv !== ajv) {
+    out.push(diag('/payload/asset/judgment_version', 'version_mismatch',
+      `Version mismatch between manifest.judgment_version ("${mjv}") and payload.asset.judgment_version ("${ajv}").`,
+      'Update both manifest.judgment_version and payload.asset.judgment_version to the same version string (typically matching manifest.version and payload.asset.asset_version).'));
+  }
+  if (isText(mv) && isText(av) && isText(mjv) && isText(ajv) && mv === av && mjv === ajv && mv !== mjv) {
+    // Valid in Core when only container metadata changed, surfaced only by computeAdvisories when judgments changed.
+  }
+  if (isObj(manifest.asset_id !== undefined ? { id: manifest.asset_id } : null) && isText(manifest.asset_id) && isText(payload.asset.asset_id) && manifest.asset_id !== payload.asset.asset_id) {
+    out.push(diag('/payload/asset/asset_id', 'asset_id_mismatch',
+      `Asset ID mismatch between manifest.asset_id ("${manifest.asset_id}") and payload.asset.asset_id ("${payload.asset.asset_id}").`,
+      'Keep manifest.asset_id and payload.asset.asset_id identical.'));
+  }
+  return out;
+}
+
+function validateFull(input, { sourceEdits = false } = {}) {
+  const out = [];
+  if (!isObj(input)) return [diag('', 'not_an_object', 'Input must be a JSON object.', sourceEdits ? 'Provide {manifest,payload}.' : 'Provide {manifest,payload,members}.')];
+  const topKeys = sourceEdits ? ['manifest', 'payload'] : ['manifest', 'payload', 'members'];
+  for (const k of topKeys) if (input[k] === undefined) out.push(diag(`/${k}`, 'missing_field', `/${k} is required.`, k === 'members' ? 'Add "members": [].' : `Add /${k}; run \`kdna init\` and compile a draft for a complete one.`));
+  for (const k of Object.keys(input)) if (!topKeys.includes(k)) out.push(diag(`/${k}`, 'unknown_field', `Unknown top-level field "${k}".`, sourceEdits ? 'Only manifest and payload are accepted in source-pack edits.' : 'Only manifest, payload, members are accepted.'));
   const keyset = (value, requiredKeys, allowedKeys, base, hintFor) => {
     if (!isObj(value)) { if (value !== undefined) out.push(diag(base, 'invalid_value', `${base} must be an object.`, '')); return false; }
     for (const k of requiredKeys) if (!Object.hasOwn(value, k)) out.push(diag(`${base}/${k}`, 'missing_field', `${base}/${k} is required.`, hintFor(k)));
     for (const k of Object.keys(value)) if (!allowedKeys.includes(k)) out.push(diag(`${base}/${k}`, 'unknown_field', `${base}/${k} is not an allowed field.`, `Allowed: ${allowedKeys.join(', ')}.`));
     return true;
   };
-  keyset(input.manifest, MANIFEST_REQUIRED_KEYS, MANIFEST_ALLOWED_KEYS, '/manifest', k => `Add ${k} to the manifest.`);
+  const manifestAllowed = sourceEdits ? [...MANIFEST_ALLOWED_KEYS, ...SOURCE_EDITS_MANIFEST_EXTRA_KEYS] : MANIFEST_ALLOWED_KEYS;
+  keyset(input.manifest, MANIFEST_REQUIRED_KEYS, manifestAllowed, '/manifest', k => `Add ${k} to the manifest.`);
+  out.push(...checkVersionPairAlignment(input.manifest, input.payload));
   if (keyset(input.payload, PAYLOAD_REQUIRED_KEYS, PAYLOAD_ALLOWED_KEYS, '/payload', k => (COLLECTIONS.has(k) ? `Add "${k}": [] when it has no entries.` : `Add ${k} to the payload.`))) {
     const table = roleTable();
     if (Array.isArray(input.payload.judgments)) {
@@ -1078,6 +1109,9 @@ function computeAdvisories(input, isDraft) {
       if (!focusMap.has(norm)) focusMap.set(norm, []);
       focusMap.get(norm).push({ index: i, path: `${p}/focus` });
     }
+    if (j.form === 'conclusion' && j.result?.value?.kind === 'text' && isText(j.result.value.value) && stmt && j.result.value.value.trim() !== stmt) {
+      advisories.push({ code: 'conclusion_result_diverges', path: `${p}/result/value/value`, message: 'result.value.value differs from core_expression.statement on this conclusion judgment; update both fields together unless the scalar result intentionally differs from the prose conclusion.' });
+    }
   });
   for (const entries of focusMap.values()) {
     if (entries.length > 1) {
@@ -1087,15 +1121,30 @@ function computeAdvisories(input, isDraft) {
   return advisories;
 }
 
-function validateInput(input) {
-  const draft = isObj(input) && (input.format !== undefined || (input.manifest === undefined && input.payload === undefined));
-  const diagnostics = draft ? validateDraft(isObj(input) ? input : {}) : validateFull(input);
+function isSourceEditsShape(input) {
+  return isObj(input)
+    && input.members === undefined
+    && isObj(input.manifest)
+    && isObj(input.payload)
+    && SOURCE_EDITS_MANIFEST_EXTRA_KEYS.some(k => Object.hasOwn(input.manifest, k));
+}
+
+function validateInput(input, options = {}) {
+  if (isObj(input) && input.status === 'source_opened' && isObj(input.edits)) {
+    return {
+      status: 'invalid',
+      diagnostics: [diag('/', 'source_open_envelope', 'Input is a `kdna source-open` outer envelope rather than an edits or authored input document.', 'Extract `.edits` first (for example: `jq .edits opened.json > edits.json`).')],
+    };
+  }
+  const sourceEdits = options.sourceEdits === true || isSourceEditsShape(input);
+  const draft = !sourceEdits && isObj(input) && (input.format !== undefined || (input.manifest === undefined && input.payload === undefined));
+  const diagnostics = draft ? validateDraft(isObj(input) ? input : {}) : validateFull(input, { sourceEdits });
   if (draft && !isObj(input)) diagnostics.unshift(diag('', 'not_an_object', 'Draft must be a JSON object.', 'Start from scaffoldDraft().'));
   if (diagnostics.length) return { status: 'invalid', diagnostics };
   const judgment_count = draft ? input.judgments.length : input.payload.judgments.length;
   return {
     status: 'valid',
-    input_kind: draft ? 'draft' : 'authored',
+    input_kind: draft ? 'draft' : (sourceEdits ? 'source_edits' : 'authored'),
     judgment_count,
     diagnostics: [],
     advisories: computeAdvisories(input, draft),
@@ -1107,6 +1156,12 @@ function validateInput(input) {
 async function validateWithCore(input) {
   const local = validateInput(input);
   if (local.status === 'invalid') return local;
+  if (local.input_kind === 'source_edits') {
+    if (Array.isArray(input.payload?.resources) && input.payload.resources.length > 0) return local;
+    const cleanManifest = { ...input.manifest };
+    for (const k of SOURCE_EDITS_MANIFEST_EXTRA_KEYS) delete cleanManifest[k];
+    input = { manifest: cleanManifest, payload: input.payload, members: [] };
+  }
   const full = isObj(input) && input.format === FORMAT ? compileDraft(input) : input;
   const { admitNativeCreationRequest, createNativeCreationAuthority, createSectionAssetNode } = require('@aikdna/kdna-core/creation-sections-node');
   const binding = require('../public-contract-binding.json');
@@ -1146,6 +1201,8 @@ module.exports = {
   INIT_LANGS,
   ROLE_ALIASES_EN,
   DUPLICATE_ROLE_FIX_HINT,
+  englishAliasFor,
+  checkVersionPairAlignment,
   inspectMethodComponents,
   scaffoldDraft,
   compileDraft,
