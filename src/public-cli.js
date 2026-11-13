@@ -1,7 +1,7 @@
 'use strict';
 const { randomUUID, createHash } = require('node:crypto');
 const { parseJsonBytes, readAuthoredInput, readAssetBytes, readBoundedFile, saveNewAsset } = require('./authored-input.js');
-const { INIT_MODES, INIT_LANGS, DUPLICATE_ROLE_FIX_HINT, inspectMethodComponents, scaffoldDraft, compileDraft, validateInput, validateWithCore } = require('./draft.js');
+const { INIT_MODES, INIT_LANGS, DUPLICATE_ROLE_FIX_HINT, inspectMethodComponents, checkVersionPairAlignment, scaffoldDraft, compileDraft, validateInput, validateWithCore } = require('./draft.js');
 const { protectAsset, admitProtectedWithPassword, readProtected, isProtectedBytes, readPasswordSource } = require('./protect.js');
 const { diffViews, renderDiffHuman } = require('./diff.js');
 const { renderInspectHuman, renderValidateHuman, renderValidateInputHuman, renderReadHuman, renderRejectionHuman, compactReadResult } = require('./human.js');
@@ -78,82 +78,134 @@ function authoringGuidance(input,rejected){
 }
 const commands = new Set(['init', 'compile', 'validate-input', 'create', 'protect', 'diff', 'source-open', 'source-pack', 'convert', 'inspect', 'validate', 'read', 'plan', 'load']);
 const independentStates = () => ({ writer: 'not_evaluated', confirmation: 'not_evaluated', read_permission: 'not_evaluated', action_authorization: 'not_evaluated' });
+const COMMAND_HELP = {
+  init: [
+    'kdna init [--mode minimal|interview|works|research] [--lang en|zh] [--example] [--output <draft.json>]',
+    '  Scaffolds a 0.6.0 draft (kdna.draft/1) with English role keys (--lang en, default) or Core',
+    '  canonical Chinese role keys (--lang zh); --example emits a filled, ready-to-compile starter draft.',
+  ],
+  compile: [
+    'kdna compile <draft.json> [--output <authored.json>]',
+    '  Expands a completed draft (all TODO: placeholders replaced) into the full authored input that',
+    '  create accepts, filling every optional empty collection; prints it, or saves a new file with --output.',
+  ],
+  'validate-input': [
+    'kdna validate-input <draft-or-authored-or-edits.json> [--format json|human]',
+    '  Checks a draft, full authored input or source-open edits JSON, names each missing or invalid',
+    '  field with a hint, and reports non-blocking structural craft advisories when valid.',
+  ],
+  create: [
+    'kdna create --draft <draft.json> --output <new-asset.kdna> --allow-create',
+    '  Same as compile then create in one step.',
+    'kdna create <authored.json> --output <new-asset.kdna> --allow-create',
+    '  Input: {manifest,payload,members:[{name,type:"file",mode,bytes_base64}]}; never replaces a file.',
+  ],
+  'source-open': [
+    'kdna source-open <asset.kdna> --expected-a <sha256:...> --allow-source',
+    '  Emits an observation and edits:{manifest,payload}; original resource bytes stay in the asset.',
+  ],
+  'source-pack': [
+    'kdna source-pack <asset.kdna> --edits <edits.json> --expected-a <sha256:...> --output <new-asset.kdna> --allow-source',
+    '  Edit transport: the inner {manifest,payload} object from source-open (.edits); public source only,',
+    '  old files are never replaced. Keep manifest.version == payload.asset.asset_version and',
+    '  manifest.judgment_version == payload.asset.judgment_version. On conclusion judgments whose',
+    '  core_expression.statement and result.value.value matched before editing, updating',
+    '  core_expression.statement syncs result.value.value automatically.',
+    '  A saved pack reports affected_by_change: the direct downstream (support, qualify, conflict)',
+    '  of the judgments this revision changed; complement carries no dependence and is excluded.',
+  ],
+  convert: [
+    'kdna convert <asset.kdna> --expected-a <sha256:...> --output <new-asset.kdna> --allow-source',
+    '  Explicit 0.5 -> 0.6 migration of a current-generation public source: reads exactly the',
+    '  container 0.5.0 / kdna.payload.judgment generation, writes an admitted 0.6 container with',
+    '  a confirmed representation_origin, and saves a new file; old files are never replaced.',
+    '  Historical tuples, protected sources and extension members are refused by name without',
+    '  conversion; the read and source routes are unchanged.',
+  ],
+  protect: [
+    'kdna protect <asset.kdna> --output <protected.kdna> (--password-fd <fd> | --password-file <path>)',
+    '  Local password protection, no account and no network: writes a new 0.6.0 container whose',
+    '  payload.kdnab is an AEAD envelope (password entitlement, offline). The password is read once',
+    '  from an inherited descriptor (3 or higher) or a file, one trailing newline stripped; it is never',
+    '  accepted on the command line. A protected asset is refused by name until a password is given.',
+    '  Retain the unencrypted public .kdna or authoring draft for future revisions; source-open accepts',
+    '  public containers only.',
+  ],
+  diff: [
+    'kdna diff <left.kdna> <right.kdna> [--format json|human] [--password-fd <fd> | --password-file <path>]',
+    '  Compares two assets: identity, digests, judgments added/removed/changed, conditions and',
+    '  relations. One password source serves every protected side.',
+  ],
+  inspect: [
+    'kdna inspect <asset.kdna> [--json] [--format json|human] [--password-fd <fd> | --password-file <path>]',
+  ],
+  validate: [
+    'kdna validate <asset.kdna> [--json] [--system] [--format json|human] [--password-fd <fd> | --password-file <path>]',
+    '  --system adds warnings-only system-integrity checks: support cycles, a pair that is',
+    '  both supported and in conflict, a withdrawn judgment with an active downstream, and',
+    '  ordered declarations that repeat an entry or rank fewer items than their scope. A',
+    '  warning never refuses a structurally valid asset; the exit status stays 0.',
+  ],
+  read: [
+    'kdna read <asset.kdna> --allow-read [--mode catalog|whole_asset|exact_selection] [--budget <bytes>]',
+    '  [--asset-id <id> --asset-version <version>] [--judgment-id <id[,id...]>] [--view body|full|raw]',
+    '  [--view-accept <model-view-contract>] [--compact] [--format json|human]',
+    '  [--password-fd <fd> | --password-file <path>]',
+    '  --mode defaults to catalog; --budget defaults to 1000000 bytes for catalog and exact_selection,',
+    '  or 4000000 bytes for whole_asset.',
+    '  --judgment-id may repeat or carry a comma-separated list: with exact_selection and no --session the',
+    '  asset id/version default to the admitted asset (also for a single id) and several ids are sent as one',
+    '  catalog-ordered selection.',
+    '  --compact (body view only) strips repeated IR wrapper bloat and the full catalog while preserving',
+    '  mandatory safety and reasoning closure (boundaries, misuse, shared declarations, relationships, reasons).',
+    '  --budget counts the complete final JCS read envelope (metadata, receipt, content and',
+    '  the budget fields themselves), not the printed body, the full model view, model',
+    '  input bytes or model tokens; --view raw or a rejection reports the envelope',
+    '  budget.required_bytes/actual_bytes. Keep this disclosure budget separate from the',
+    '  model context budget; measure projected input bytes and tokens separately.',
+    '  --view body answers with the author body and one fingerprint when the installed',
+    '  Read package provides that projection; --view full is what this CLI printed before it.',
+    '  The body view also omits the asset index and expansion handles; --view raw carries the',
+    '  library handles unchanged, and the session route can resolve them.',
+    '  --view raw prints the library envelope unchanged, reduction machinery and issued',
+    '  handles included, for adapters that apply their own projection; it is not a model',
+    '  view and never pairs with --view-accept.',
+    '  --view-accept pins the model-view contract this run accepts; the default is the',
+    '  contract this CLI is built against, and no value ever selects an older service.',
+    '  catalog lists judgment ids without bodies; exact_selection returns the selected',
+    '  judgment with its mandatory closure; whole_asset returns the Core asset closure and',
+    '  may defer judgment bodies behind handles. whole_asset is not "every judgment body',
+    '  inline": the default body view can list the catalog with zero judgment bodies and',
+    '  omits the asset index/handles. Use catalog then exact_selection for each judgment,',
+    '  or one session request with multiple judgment_ids, when the task needs the bodies.',
+    '  --view full shows what is inline and deferred.',
+    'kdna read <asset.kdna> --session --allow-read [--view body|full|raw] [--view-accept <model-view-contract>]',
+    '  [--format json|human] [--password-fd <fd> | --password-file <path>]',
+    '  One public ReadRequest JSON object per input line; one public result per output line.',
+    '  Reuse a returned handle, or name a compact handle_id from the reduced body, for',
+    '  expand within this session.',
+  ],
+  plan: ['plan/load are unavailable until public Plan admission and execution exist.'],
+  load: ['plan/load are unavailable until public Plan admission and execution exist.'],
+};
 const help = [
-  'kdna init [--mode minimal|interview|works|research] [--lang en|zh] [--example] [--output <draft.json>]',
-  '  Scaffolds a 0.6.0 draft (kdna.draft/1) with English role keys (--lang en, default) or Core',
-  '  canonical Chinese role keys (--lang zh); --example emits a filled, ready-to-compile starter draft.',
-  'kdna compile <draft.json> [--output <authored.json>]',
-  '  Expands a draft into the full authored input that create accepts, filling every optional',
-  '  empty collection; prints it, or saves a new file with --output.',
-  'kdna create --draft <draft.json> --output <new-asset.kdna> --allow-create',
-  '  Same as compile then create in one step.',
-  'kdna validate-input <draft-or-authored.json> [--format json|human]',
-  '  Checks a draft or full authored input, names each missing or invalid field with a hint, and',
-  '  reports non-blocking structural craft advisories when valid.',
-  'kdna create <authored.json> --output <new-asset.kdna> --allow-create',
-  '  Input: {manifest,payload,members:[{name,type:"file",mode,bytes_base64}]}; never replaces a file.',
-  'kdna source-open <asset.kdna> --expected-a <sha256:...> --allow-source',
-  '  Emits an observation and edits:{manifest,payload}; original resource bytes stay in the asset.',
-  'kdna source-pack <asset.kdna> --edits <edits.json> --expected-a <sha256:...> --output <new-asset.kdna> --allow-source',
-  '  Edit transport: exactly {manifest,payload}; public source only, old files are never replaced.',
-  '  A saved pack reports affected_by_change: the direct downstream (support, qualify, conflict)',
-  '  of the judgments this revision changed; complement carries no dependence and is excluded.',
-  'kdna convert <asset.kdna> --expected-a <sha256:...> --output <new-asset.kdna> --allow-source',
-  '  Explicit 0.5 -> 0.6 migration of a current-generation public source: reads exactly the',
-  '  container 0.5.0 / kdna.payload.judgment generation, writes an admitted 0.6 container with',
-  '  a confirmed representation_origin, and saves a new file; old files are never replaced.',
-  '  Historical tuples, protected sources and extension members are refused by name without',
-  '  conversion; the read and source routes are unchanged.',
-  'kdna protect <asset.kdna> --output <protected.kdna> (--password-fd <fd> | --password-file <path>)',
-  '  Local password protection, no account and no network: writes a new 0.6.0 container whose',
-  '  payload.kdnab is an AEAD envelope (password entitlement, offline). The password is read once',
-  '  from an inherited descriptor (3 or higher) or a file, one trailing newline stripped; it is never',
-  '  accepted on the command line. A protected asset is refused by name until a password is given.',
-  'kdna diff <left.kdna> <right.kdna> [--format json|human] [--password-fd <fd> | --password-file <path>]',
-  '  Compares two assets: identity, digests, judgments added/removed/changed, conditions and',
-  '  relations. One password source serves every protected side.',
-  'kdna inspect <asset.kdna> [--json] [--format json|human] [--password-fd <fd> | --password-file <path>]',
-  'kdna validate <asset.kdna> [--json] [--system] [--format json|human] [--password-fd <fd> | --password-file <path>]',
-  '  --system adds warnings-only system-integrity checks: support cycles, a pair that is',
-  '  both supported and in conflict, a withdrawn judgment with an active downstream, and',
-  '  ordered declarations that repeat an entry or rank fewer items than their scope. A',
-  '  warning never refuses a structurally valid asset; the exit status stays 0.',
-  'kdna read <asset.kdna> --mode catalog|whole_asset|exact_selection --budget <bytes>',
-  '  [--asset-id <id> --asset-version <version> --judgment-id <id>] [--allow-read] [--view body|full|raw]',
-  '  [--view-accept <model-view-contract>] [--compact] [--format json|human]',
-  '  [--password-fd <fd> | --password-file <path>]',
-  '  --judgment-id may repeat or carry a comma-separated list: with exact_selection and no --session the',
-  '  asset id/version default to the admitted asset (also for a single id) and several ids are sent as one',
-  '  catalog-ordered selection.',
-  '  --compact (body view only) strips repeated IR wrapper bloat and the full catalog while preserving',
-  '  mandatory safety and reasoning closure (boundaries, misuse, shared declarations, relationships, reasons).',
-  '  --budget counts the complete final JCS read envelope (metadata, receipt, content and',
-  '  the budget fields themselves), not the printed body, the full model view, model',
-  '  input bytes or model tokens; --view raw or a rejection reports the envelope',
-  '  budget.required_bytes/actual_bytes. Keep this disclosure budget separate from the',
-  '  model context budget; measure projected input bytes and tokens separately.',
-  '  --view body answers with the author body and one fingerprint when the installed',
-  '  Read package provides that projection; --view full is what this CLI printed before it.',
-  '  The body view also omits the asset index and expansion handles; --view raw carries the',
-  '  library handles unchanged, and the session route can resolve them.',
-  '  --view raw prints the library envelope unchanged, reduction machinery and issued',
-  '  handles included, for adapters that apply their own projection; it is not a model',
-  '  view and never pairs with --view-accept.',
-  '  --view-accept pins the model-view contract this run accepts; the default is the',
-  '  contract this CLI is built against, and no value ever selects an older service.',
-  '  catalog lists judgment ids without bodies; exact_selection returns the selected',
-  '  judgment with its mandatory closure; whole_asset returns the Core asset closure and',
-  '  may defer judgment bodies behind handles. whole_asset is not "every judgment body',
-  '  inline": the default body view can list the catalog with zero judgment bodies and',
-  '  omits the asset index/handles. Use catalog then exact_selection for each judgment,',
-  '  or one session request with multiple judgment_ids, when the task needs the bodies.',
-  '  --view full shows what is inline and deferred.',
-  'kdna read <asset.kdna> --session [--allow-read]',
-  '  One public ReadRequest JSON object per input line; one public result per output line.',
-  '  Reuse a returned handle, or name a compact handle_id from the reduced body, for',
-  '  expand within this session.',
+  ...COMMAND_HELP.init,
+  ...COMMAND_HELP.compile,
+  ...COMMAND_HELP['validate-input'],
+  ...COMMAND_HELP.create,
+  ...COMMAND_HELP['source-open'],
+  ...COMMAND_HELP['source-pack'],
+  ...COMMAND_HELP.convert,
+  ...COMMAND_HELP.protect,
+  ...COMMAND_HELP.diff,
+  ...COMMAND_HELP.inspect,
+  ...COMMAND_HELP.validate,
+  ...COMMAND_HELP.read,
+  'kdna [<command>] --help | -h',
+  'kdna --version | -v',
   'plan/load are unavailable until public Plan admission and execution exist.',
 ].join('\n') + '\n';
+const helpForCommand = cmd => (COMMAND_HELP[cmd] ? COMMAND_HELP[cmd].join('\n') + '\n' : help);
 
 function budgetNote(result) {
   if (!result || typeof result !== 'object') return null;
@@ -550,6 +602,52 @@ async function runWithOutput(argv, write, stdin, assertActive, now = () => Date.
   finally { for (const cleanup of cleanups) { try { cleanup(); } catch { /* already released */ } } }
 }
 
+function reconcileConclusionResults(sourcePayload, editedPayload) {
+  const beforeById = new Map((sourcePayload?.judgments ?? []).filter(j => typeof j?.id === 'string').map(j => [j.id, j]));
+  const judgments = Array.isArray(editedPayload?.judgments) ? editedPayload.judgments : [];
+  const synced = [];
+  for (let i = 0; i < judgments.length; i++) {
+    const j = judgments[i];
+    const form = typeof j?.form === 'string' ? j.form : j?.form?.term;
+    if (form !== 'conclusion') continue;
+    if (typeof j?.core_expression?.statement !== 'string') continue;
+    if (j?.result?.value?.kind !== 'text' || typeof j.result.value.value !== 'string') continue;
+    const orig = beforeById.get(j.id);
+    const origForm = typeof orig?.form === 'string' ? orig.form : orig?.form?.term;
+    if (!orig || origForm !== 'conclusion' || orig?.result?.value?.kind !== 'text') continue;
+    if (orig?.core_expression?.statement === orig?.result?.value?.value
+      && j.core_expression.statement !== orig.core_expression.statement
+      && j.result.value.value === orig.result.value.value) {
+      j.result.value.value = j.core_expression.statement;
+      synced.push({
+        judgment_id: j.id,
+        field: `/payload/judgments/${i}/result/value/value`,
+        synced_from: `/payload/judgments/${i}/core_expression/statement`,
+      });
+    }
+  }
+  return synced;
+}
+
+function sourcePackGuidance(edits, rejected) {
+  const guidance = [...(authoringGuidance(edits, rejected) ?? [])];
+  const versionProblems = checkVersionPairAlignment(edits?.manifest, edits?.payload);
+  if (versionProblems.length) {
+    guidance.push({
+      field: '/manifest/version',
+      reason: 'version_fields_misaligned',
+      version_fields: {
+        '/manifest/version': edits?.manifest?.version ?? null,
+        '/payload/asset/asset_version': edits?.payload?.asset?.asset_version ?? null,
+        '/manifest/judgment_version': edits?.manifest?.judgment_version ?? null,
+        '/payload/asset/judgment_version': edits?.payload?.asset?.judgment_version ?? null,
+      },
+      hint: 'Keep /manifest/version equal to /payload/asset/asset_version, and keep /manifest/judgment_version equal to /payload/asset/judgment_version.',
+    });
+  }
+  return guidance.length ? guidance : null;
+}
+
 async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
   const emit = value => write(JSON.stringify(value) + '\n');
   const unavailable = async (code, diagnostic) => {
@@ -559,7 +657,8 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
     return 2;
   };
   if (!argv.length || argv.length === 1 && ['--help', '-h'].includes(argv[0])) { await write(help); return 0; }
-  if (argv.length === 1 && argv[0] === '--version') { await write(require('../package.json').version + '\n'); return 0; }
+  if (argv.length === 1 && ['--version', '-v'].includes(argv[0])) { await write(require('../package.json').version + '\n'); return 0; }
+  if (commands.has(argv[0]) && argv.slice(1).some(arg => arg === '--help' || arg === '-h')) { await write(helpForCommand(argv[0])); return 0; }
   const parsed = parse(argv);
   if (parsed.error) return unavailable(parsed.error);
   const { command, file, second, options } = parsed;
@@ -576,7 +675,7 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
     let edits, bytes;
     if (command === 'source-pack') {
       try { edits = await readSourceEdits(options['--edits'], assertActive); }
-      catch { assertActive(); return unavailable('KDNA_SOURCE_EDITS_INVALID'); }
+      catch (err) { assertActive(); return unavailable('KDNA_SOURCE_EDITS_INVALID', err?.diagnostic ?? null); }
       assertActive();
     }
     try { bytes = await readAssetBytes(file, assertActive); }
@@ -592,13 +691,17 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
     // same original bytes reopened through the same authority, then diffed
     // against the edit payload the pack itself consumes.
     let sourcePayload = null;
+    let syncedFields = [];
     if (command === 'source-pack') {
       const disclosure = admitSourceOperationRequest({ request_id: 'cli:' + randomUUID(), tuple: binding.tuple,
         operation: 'open_source', expected_A: options['--expected-a'], timeout_ms: 60000,
         signature_policy: { requireSignature: false, expectedPublicKeyHex: null } });
       if (disclosure.status === 'admitted_request') {
         const opened = await openSectionSourceNode(bytes, disclosure.request, authority);
-        if (opened.status === 'source_opened') sourcePayload = opened.source.payload;
+        if (opened.status === 'source_opened') {
+          sourcePayload = opened.source.payload;
+          syncedFields = reconcileConclusionResults(sourcePayload, edits.payload);
+        }
       }
       assertActive();
     }
@@ -614,7 +717,14 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
         states: independentStates(), action_authorized: false, adoption: 'not_observed' });
       return 0;
     }
-    if (command === 'source-open' || result.status !== 'produced') { await emit(result); return 1; }
+    if (command === 'source-open') { await emit(result); return 1; }
+    if (result.status !== 'produced') {
+      const guidance = sourcePackGuidance(edits, result);
+      let inputDiagnostics = null;
+      try { const checked = validateInput(edits, { sourceEdits: true }); if (checked.status === 'invalid') inputDiagnostics = checked.diagnostics; } catch { inputDiagnostics = null; }
+      await emit({ ...result, ...(guidance ? { guidance } : {}), ...(inputDiagnostics ? { input_diagnostics: inputDiagnostics } : {}) });
+      return 1;
+    }
     let saved;
     try { saved = await saveNewAsset(options['--output'], result.bytes, assertActive); }
     catch (error) { assertActive(); await emit({ status: 'save_failed', code: error.message === 'KDNA_OUTPUT_EXISTS' ? error.message : 'KDNA_SAVE_FAILED', action_authorized: false, creation_accepted: false }); return 1; }
@@ -622,6 +732,7 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
     await emit({ status: 'saved', output: { file: options['--output'], bytes: result.bytes.length,
       sha256: createHash('sha256').update(result.bytes).digest('hex'), cleanup: saved.cleanup },
       ...(command === 'source-pack' && sourcePayload ? { affected_by_change: affectedByChange(sourcePayload, edits.payload) } : {}),
+      ...(syncedFields.length ? { synced_fields: syncedFields } : {}),
       evidence: result.evidence, states: independentStates(), action_authorized: false, creation_accepted: false, adoption: 'not_observed' });
     return 0;
   }

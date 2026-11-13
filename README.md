@@ -1,10 +1,10 @@
-# KDNA CLI `0.43.4`
+# KDNA CLI `0.43.5`
 
-Official command-line interface (`@aikdna/kdna-cli@0.43.4`) for authoring, password-protecting, validating, reading, and comparing `.kdna` judgment works.
+Official command-line interface (`@aikdna/kdna-cli@0.43.5`) for authoring, password-protecting, validating, reading, and comparing `.kdna` judgment works.
 
-Public, local, and password-protected `.kdna` workflows in `@aikdna/kdna-cli@0.43.4` run offline on **Node.js `>=22`** and **permanently require no online account**.
+Public, local, and password-protected `.kdna` workflows in `@aikdna/kdna-cli@0.43.5` run offline on **Node.js `>=22`** and **permanently require no online account**.
 
-- **Website & KDNA Reader:** [aikdna.com](https://aikdna.com) · [Read KDNA Whitepaper v1.0.1 in Browser](https://aikdna.com/reader/?sample=kdna-whitepaper)
+- **Website & KDNA Reader (macOS):** [aikdna.com](https://aikdna.com) · [Download KDNA Reader & KDNA Whitepaper v1.0.1](https://aikdna.com/en/downloads)
 - **Specifications & Release Matrix:** [`aikdna/kdna`](https://github.com/aikdna/kdna) ([`release-coordinates.json`](https://github.com/aikdna/kdna/blob/main/docs/release-coordinates.json))
 - **Agent Skills & MCP:** [`aikdna/kdna-skills`](https://github.com/aikdna/kdna-skills) (`kdna-creator` & `kdna-loader`)
 - **Public Reference Works:** [`aikdna/kdna-assets`](https://github.com/aikdna/kdna-assets)
@@ -36,7 +36,7 @@ kdna create --draft revised-draft.json --output revised.kdna --allow-create
 kdna diff my-judgments.kdna revised.kdna --format human
 ```
 
-Prefer conversational co-creation with an AI agent instead of editing JSON directly? Install [`aikdna/kdna-skills`](https://github.com/aikdna/kdna-skills) (`kdna-creator` for guided interviews, distillation from existing works, or research; `kdna-loader` for task-scoped selective reading). To explore a complete 45-judgment reference work, open *KDNA Whitepaper* (`v1.0.1`, native `zh-CN` & `en`, by Zhang Ling / 张零, `CC BY 4.0`) in [KDNA Reader](https://aikdna.com/reader/?sample=kdna-whitepaper) or [`aikdna/kdna-assets`](https://github.com/aikdna/kdna-assets).
+Prefer conversational co-creation with an AI agent instead of editing JSON directly? Install [`aikdna/kdna-skills`](https://github.com/aikdna/kdna-skills) (`kdna-creator` for guided interviews, distillation from existing works, or research; `kdna-loader` for task-scoped selective reading). To explore a complete 45-judgment reference work, open *KDNA Whitepaper* (`v1.0.1`, native `zh-CN` & `en`, by Zhang Ling / 张零, `CC BY 4.0`) in [KDNA Reader for macOS](https://aikdna.com/en/downloads) or inspect it directly from [`aikdna/kdna-assets`](https://github.com/aikdna/kdna-assets).
 
 ---
 
@@ -89,9 +89,9 @@ kdna convert asset.kdna --expected-a 'sha256:<64-lowercase-hex-digits>' --output
 
 ### Key Behavioral Notes
 
-- **Authoring drafts (`init`, `validate-input`, `compile`):** `init` generates a `kdna.draft/1` document across four modes (`minimal`, `interview`, `works`, `research`) in English (`--lang en`, default) or Chinese (`--lang zh`). Pass `--example` for an immediately compilable starter, or omit it for `TODO:` prompts checked before `create --draft`. See [`docs/authoring-field-reference.md`](./docs/authoring-field-reference.md).
-- **Selective reading (`read`):** `catalog` lists judgment IDs without bodies; `exact_selection` returns the chosen judgments together with their mandatory supporting and qualifying context (`--judgment-id` may repeat or take a comma-separated list; `--compact` trims wrapper envelopes while keeping every safety boundary, reason, example, and relation intact; `--budget` defaults to `1000000` bytes on `catalog` / `exact_selection` and `4000000` bytes on `whole_asset`). `--format human` renders `inspect`, `validate`, `read`, and `diff` in clean plain text. See [`docs/consumption-runtime.md`](./docs/consumption-runtime.md).
-- **Local password protection (`protect`):** Encrypts `payload.kdnab` with an offline authenticated-encryption envelope (`PBKDF2` + `AES-256-GCM`), stripping one trailing newline from the supplied password file/descriptor and zeroing secret buffers on exit. Wrong passwords fail with `PROTECTION_AUTHENTICATION_FAILED`; missing passwords fail with `KDNA_PASSWORD_REQUIRED`.
+- **Authoring drafts (`init`, `validate-input`, `compile`):** `init` generates a `kdna.draft/1` document across four modes (`minimal`, `interview`, `works`, `research`) in English (`--lang en`, default) or Chinese (`--lang zh`). Pass `--example` for an immediately compilable starter, or omit it for `TODO:` prompts checked before `compile` and `create --draft`. `validate-input` checks drafts, full authored JSON, and `source-open` `.edits` documents. See [`docs/authoring-field-reference.md`](./docs/authoring-field-reference.md).
+- **Selective reading (`read`):** `catalog` lists judgment IDs without bodies; `exact_selection` returns the chosen judgments together with their mandatory supporting and qualifying context (`--judgment-id` may repeat or take a comma-separated list; `--compact` trims wrapper envelopes while keeping every safety boundary, reason, example, and relation intact; `--budget` defaults to `1000000` bytes on `catalog` / `exact_selection` and `4000000` bytes on `whole_asset`). `--format human` renders `inspect`, `validate`, `read`, and `diff` in clean plain text (using English method-role labels on English works and Chinese labels on Chinese works). See [`docs/consumption-runtime.md`](./docs/consumption-runtime.md).
+- **Local password protection (`protect`):** Encrypts `payload.kdnab` with an offline authenticated-encryption envelope (`PBKDF2` + `AES-256-GCM`), stripping one trailing newline from the supplied password file/descriptor and zeroing secret buffers on exit. Wrong passwords fail with `PROTECTION_AUTHENTICATION_FAILED`; missing passwords fail with `KDNA_PASSWORD_REQUIRED`. Keep your unencrypted public `.kdna` or authoring draft for future revisions (`source-open` accepts public containers only).
 - **Safe saving & exit codes:** File saves never overwrite existing paths or symlinks—always choose a new filename for a revision. Exit codes: `0` on success/ready, `1` on validation/auth/save rejection, and `2` on invalid CLI arguments or retired commands.
 
 ---
@@ -112,7 +112,7 @@ const exitCode = await run(['validate', '/absolute/path/asset.kdna'], process.st
 
 ## Offline Verification & Contract Boundaries
 
-`@aikdna/kdna-cli@0.43.4` binds to exact companion packages (`@aikdna/kdna-core@0.37.9` and `@aikdna/kdna-read@0.13.3`, container `0.6.0`, recorded in [`public-contract-binding.json`](./public-contract-binding.json)). See [`docs/native-delivery.md`](./docs/native-delivery.md) and [`examples/team-update/README.md`](./examples/team-update/README.md) for offline host setup:
+`@aikdna/kdna-cli@0.43.5` binds to exact companion packages (`@aikdna/kdna-core@0.37.9` and `@aikdna/kdna-read@0.13.3`, container `0.6.0`, recorded in [`public-contract-binding.json`](./public-contract-binding.json)). See [`docs/native-delivery.md`](./docs/native-delivery.md) and [`examples/team-update/README.md`](./examples/team-update/README.md) for offline host setup:
 
 ```sh
 npm ci --prefix release-surface/native-offline-host --offline --ignore-scripts --omit=optional --no-audit --no-fund

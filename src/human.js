@@ -3,6 +3,7 @@
 // `validate-input`, `diff` rejections and `read`, plus `compactReadResult` behind `read --compact`.
 // Every renderer is total: an unknown shape degrades to status/code plus pretty JSON, never a throw.
 
+const { englishAliasFor } = require('./draft.js');
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const WIDTH = 100;
 
@@ -392,7 +393,18 @@ function renderSharedDeclarations(sharedList) {
   return lines.length > 1 ? lines : [];
 }
 
-function renderJudgmentEntry(headingPrefix, id, value, reasonsByJudgment, reasonsById, examplesByJudgment) {
+function preferEnglishRoles(languages, value) {
+  if (Array.isArray(languages) && languages.length > 0) {
+    const hasEn = languages.some(l => typeof l === 'string' && /^en\b/i.test(l));
+    const hasZh = languages.some(l => typeof l === 'string' && /^zh\b/i.test(l));
+    if (hasEn && !hasZh) return true;
+    if (hasZh) return false;
+  }
+  const sample = [authoredStatement(value), value?.focus, value?.scope?.statement].filter(s => typeof s === 'string').join(' ');
+  return /[A-Za-z]/.test(sample) && !/[\u4e00-\u9fff]/.test(sample);
+}
+
+function renderJudgmentEntry(headingPrefix, id, value, reasonsByJudgment, reasonsById, examplesByJudgment, languages) {
   const out = ['', `${headingPrefix} ${id}${value.focus ? ' - ' + value.focus : ''}`];
   const statement = authoredStatement(value);
   if (statement) out.push(wrap(statement));
@@ -401,11 +413,14 @@ function renderJudgmentEntry(headingPrefix, id, value, reasonsByJudgment, reason
   // Method + components
   const methodTerm = value.method?.method?.term;
   const components = Array.isArray(value.method?.components) ? value.method.components : [];
+  const useEnglishRoles = preferEnglishRoles(languages, value);
   if (methodTerm || components.length) {
     out.push(`  Method (${methodTerm ?? 'unspecified'}):`);
     for (const comp of components) {
       if (!isObject(comp) || typeof comp.statement !== 'string') continue;
-      out.push(wrap(`- [${comp.role ?? 'component'}] ${comp.statement}`, '      '));
+      const rawRole = comp.role ?? 'component';
+      const roleLabel = useEnglishRoles ? (englishAliasFor(comp.method?.term ?? methodTerm, rawRole) ?? rawRole) : rawRole;
+      out.push(wrap(`- [${roleLabel}] ${comp.statement}`, '      '));
     }
   }
 
@@ -530,11 +545,12 @@ function renderRead(result) {
       out.push(...stateBlockLines('Asset anti-misuse', c.declarations?.misuse, ''));
       out.push('Selected: ' + judgments.map(j => j.id).join(', '));
       const { reasonsById, reasonsByJudgment, examplesByJudgment } = indexReasonsAndExamples(c.reasons, c.examples);
+      const compactLangs = c.asset?.languages;
       for (const j of judgments) {
-        if (isObject(j?.body)) out.push(...renderJudgmentEntry('Judgment', j.id, j.body, reasonsByJudgment, reasonsById, examplesByJudgment));
+        if (isObject(j?.body)) out.push(...renderJudgmentEntry('Judgment', j.id, j.body, reasonsByJudgment, reasonsById, examplesByJudgment, compactLangs));
       }
       for (const j of related) {
-        if (isObject(j?.body)) out.push(...renderJudgmentEntry('Related judgment (closure)', j.id, j.body, reasonsByJudgment, reasonsById, examplesByJudgment));
+        if (isObject(j?.body)) out.push(...renderJudgmentEntry('Related judgment (closure)', j.id, j.body, reasonsByJudgment, reasonsById, examplesByJudgment, compactLangs));
       }
       out.push(...renderRelationshipsBlock(c.relationships));
     }
@@ -558,11 +574,12 @@ function renderRead(result) {
       if (closure.assetMisuse.length) out.push(...listBlockLines('Asset anti-misuse', closure.assetMisuse, ''));
       if (ids.length) out.push('Selected: ' + ids.join(', '));
       const { reasonsById, reasonsByJudgment, examplesByJudgment } = indexReasonsAndExamples(closure.reasons, closure.examples);
+      const declLangs = closure.declaration?.languages ?? n.asset?.languages;
       for (const { id, node } of closure.selectedJudgments) {
-        out.push(...renderJudgmentEntry('Judgment', id, node.value, reasonsByJudgment, reasonsById, examplesByJudgment));
+        out.push(...renderJudgmentEntry('Judgment', id, node.value, reasonsByJudgment, reasonsById, examplesByJudgment, declLangs));
       }
       for (const { id, node } of closure.relatedJudgments) {
-        out.push(...renderJudgmentEntry('Related judgment (closure)', id, node.value, reasonsByJudgment, reasonsById, examplesByJudgment));
+        out.push(...renderJudgmentEntry('Related judgment (closure)', id, node.value, reasonsByJudgment, reasonsById, examplesByJudgment, declLangs));
       }
       out.push(...renderRelationshipsBlock(closure.relationships));
     }
@@ -625,7 +642,12 @@ function compactReadResult(projected) {
   const { content } = projected, fp = projected.fingerprint ?? {};
   const closure = collectClosure(content);
   const { declaration } = closure;
-  const asset = prune({ ...(fp.asset ?? {}), title: declaration?.title, scope: declaration?.scope?.statement });
+  const asset = prune({
+    ...(fp.asset ?? {}),
+    title: declaration?.title,
+    scope: declaration?.scope?.statement,
+    ...(Array.isArray(declaration?.languages) && declaration.languages.length ? { languages: declaration.languages } : {}),
+  });
   const mapJudgment = ({ id, node }) => {
     const { result_contract, method_interpretation, ...body } = node.value; // eslint-disable-line no-unused-vars
     return { id, focus: node.value.focus ?? null, body: prune(body) ?? {} };
