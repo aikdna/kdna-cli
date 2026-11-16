@@ -66,7 +66,7 @@
   },
   "dependencies": {
     "@aikdna/kdna-core": "0.37.9",
-    "@aikdna/kdna-read": "0.13.3"
+    "@aikdna/kdna-read": "0.13.4"
   },
   "directories": {
     "doc": "docs",
