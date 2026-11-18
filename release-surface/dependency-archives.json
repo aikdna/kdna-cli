@@ -46,12 +46,12 @@
   },
   {
     "name": "cbor-x",
-    "version": "1.6.5",
-    "file": "cbor-x-1.6.5.tgz",
-    "sha256": "219be6b1732913143a86ccd79a44a9ea78dd2f34450845ce2109c979b918beeb",
-    "bytes": 419049,
-    "integrity": "sha512-wbTmofexrQJf8xrss5pez0r5rSeuM8bEenYnudE6FPspJugREVxqhy+huaP7RGxBn+ise/OjpnJ2E5JOaApGXQ==",
-    "members": 31
+    "version": "1.6.9",
+    "file": "cbor-x-1.6.9.tgz",
+    "sha256": "d647d73cc6e97744554f84d1ce0a0111f58633f6883f1e7c175ea10b27284924",
+    "bytes": 508051,
+    "integrity": "sha512-TCT9XHLb4iPGQ99fpQjcTRncbus6cXHvSD/RY+bPrDACBCJKiQLmAM6r7/BgQcI5i+8h4gwp4vjfb6S6T8bPGw==",
+    "members": 32
   },
   {
     "name": "fast-deep-equal",

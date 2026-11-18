@@ -7,7 +7,7 @@
     "@aikdna/kdna-read": "file:../../vendor/aikdna-kdna-read-0.13.5.tgz",
     "ajv": "file:../../vendor/ajv-8.20.0.tgz",
     "ajv-formats": "file:../../vendor/ajv-formats-3.0.1.tgz",
-    "cbor-x": "file:../../vendor/cbor-x-1.6.5.tgz",
+    "cbor-x": "file:../../vendor/cbor-x-1.6.9.tgz",
     "fast-deep-equal": "file:../../vendor/fast-deep-equal-3.1.3.tgz",
     "fast-uri": "file:../../vendor/fast-uri-3.1.9.tgz",
     "json-schema-traverse": "file:../../vendor/json-schema-traverse-1.0.0.tgz",
