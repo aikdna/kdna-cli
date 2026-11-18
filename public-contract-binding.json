@@ -50,11 +50,11 @@
   ],
   "accepted_core": {
     "version": "0.37.11",
-    "tar_sha256": "48626d4e26cb0bc47ce89a6694647b696c6dd241a0f3e3e84d4b7bdada8d83f4"
+    "tar_sha256": "affd3db862a02daaacd9ada91ec365ff93d9f6c2592e62df9e01888d36bb2e4a"
   },
   "accepted_read": {
     "version": "0.13.5",
-    "tar_sha256": "8444d65417188a225903c2357bcd144a557d646f438db1d356d4073506c3fc58"
+    "tar_sha256": "a7eb0064ad028a73394a4cc9d189dd22f52f046e30a31c6e50bea1490915fc89"
   },
   "release_state": "STABLE_RELEASE_CANDIDATE",
   "authority_limit": "Producer observation, filesystem save, Core admission and explicit local read permission do not establish authorship, human confirmation, Creation completion, task adoption or action authorization.",

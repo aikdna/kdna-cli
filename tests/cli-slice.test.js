@@ -81,8 +81,8 @@ test('exact package/source record retains the public tuple and same Core module 
     "sha256": "2a5bd16a151a7501c3a6b863232d32e6fcb3ed24a9a53dff88ae1247abca6ca0"
   }
 ]);
- assert.equal(binding.accepted_core.tar_sha256,'48626d4e26cb0bc47ce89a6694647b696c6dd241a0f3e3e84d4b7bdada8d83f4');
- assert.equal(binding.accepted_read.tar_sha256,'8444d65417188a225903c2357bcd144a557d646f438db1d356d4073506c3fc58');
+ assert.equal(binding.accepted_core.tar_sha256,'affd3db862a02daaacd9ada91ec365ff93d9f6c2592e62df9e01888d36bb2e4a');
+ assert.equal(binding.accepted_read.tar_sha256,'a7eb0064ad028a73394a4cc9d189dd22f52f046e30a31c6e50bea1490915fc89');
  const readLocal=createRequire(local.resolve('@aikdna/kdna-read/retained-sections-node'));
  assert.equal(local.resolve('@aikdna/kdna-core/retained-sections-node'),readLocal.resolve('@aikdna/kdna-core/retained-sections-node'));
  assert.deepEqual(Object.keys(local('@aikdna/kdna-cli')),['run']);assert.equal(pkg.types,undefined);
