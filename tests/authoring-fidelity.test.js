@@ -189,9 +189,9 @@ test('a method-role rejection carries an actionable guidance sibling from the in
     field: '/payload/judgments/0/method/components',
     reason: 'method_component_roles',
     term: 'feeling',
-    missing: ['个人感受'],
-    expected: ['个人感受'],
-    optional: ['体验说明', '偏好变化'],
+    missing: ['personal_preference'],
+    expected: ['personal_preference'],
+    optional: ['experience_notes', 'preference_shift'],
   }]);
 
   const wrongRole = variant('fidelity-guidance-wrong-role', (document) => {
@@ -200,7 +200,7 @@ test('a method-role rejection carries an actionable guidance sibling from the in
   const wrong = await create(wrongRole);
   assert.equal(wrong.last.status, 'core_rejected');
   assert.equal(wrong.last.guidance[0].reason, 'method_component_roles');
-  assert.deepEqual(wrong.last.guidance[0].missing, ['个人感受']);
+  assert.deepEqual(wrong.last.guidance[0].missing, ['personal_preference']);
 
   const omitted = variant('fidelity-guidance-method-missing', (document) => {
     delete judgmentOf(document, 'update:order').method;

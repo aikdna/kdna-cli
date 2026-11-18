@@ -190,7 +190,7 @@ test('validateFull pinpoints duplicate, invalid, and missing roles in method.com
   assert.deepEqual(inv.invalid_roles, ['非标准角色']);
   const miss = r.diagnostics.find(d => d.code === 'missing_method_roles');
   assert.ok(miss);
-  assert.deepEqual(miss.missing_required_roles, ['取舍原则']);
+  assert.deepEqual(miss.missing_required_roles, ['priority_rule']);
 });
 
 test('MP4 structural advisories stay non-blocking while flagging tautology, unbounded scope, duplicate focus, and uniform default methods', () => {
@@ -234,14 +234,22 @@ test('MP4 structural advisories stay non-blocking while flagging tautology, unbo
   assert.ok(codes.has('uniform_default_method'));
 });
 
-test('English role aliases cover 100% of Core method_roles and compile identically to canonical Chinese roles', async () => {
+test('English role aliases cover 100% of Core method_roles, compile to canonical ASCII roles, and omitted method defaults to other', async () => {
   const coreRoles = getMethodRoleTable().roles;
   assert.deepEqual(Object.keys(ROLE_ALIASES_EN).sort(), Object.keys(coreRoles).sort());
   for (const [term, spec] of Object.entries(coreRoles)) {
-    const mapped = Object.values(ROLE_ALIASES_EN[term]).sort();
+    const mapped = Object.keys(ROLE_ALIASES_EN[term]).sort();
     const expected = [...spec.required, ...spec.optional].sort();
     assert.deepEqual(mapped, expected, `alias coverage for ${term}`);
   }
+
+  // Omitted method in draft defaults to 'other' (KT-028) rather than assuming 'feeling'
+  const omittedCompiled = compileDraft(filled());
+  assert.equal(omittedCompiled.payload.judgments[0].method.method.term, 'other');
+  assert.ok(omittedCompiled.payload.judgments[0].method.other.name);
+  assert.deepEqual(omittedCompiled.payload.judgments[0].method.components.map(c => c.role), ['method_description', 'basis', 'relation']);
+  // Legacy Chinese role key in draft compiles to canonical ASCII role
+  assert.deepEqual(omittedCompiled.payload.judgments[1].method.components.map(c => c.role), ['observed_basis']);
 
   for (const mode of ['minimal', 'interview', 'works', 'research']) {
     const enScaffold = scaffoldDraft(mode, { lang: 'en' });
@@ -253,15 +261,25 @@ test('English role aliases cover 100% of Core method_roles and compile identical
     }
     const zhScaffold = scaffoldDraft(mode, { lang: 'zh' });
     assert.equal(zhScaffold.asset.language, 'zh-CN');
+    if (typeof zhScaffold.judgments[0].method === 'object') {
+      for (const rk of Object.keys(zhScaffold.judgments[0].method.roles)) {
+        assert.match(rk, /^[a-z_]+$/, `Chinese scaffold role key should also be ASCII snake_case: ${rk}`);
+      }
+    }
 
     for (const lang of ['en', 'zh']) {
       const ex = scaffoldDraft(mode, { lang, example: true });
       const checked = await validateWithCore(ex);
       assert.equal(checked.status, 'valid', `${mode}/${lang}: ` + JSON.stringify(checked));
       assert.deepEqual(checked.advisories, [], `${mode}/${lang} example should have zero advisories`);
+      const compiledEx = compileDraft(ex);
+      for (const comp of compiledEx.payload.judgments[0].method.components) {
+        assert.match(comp.role, /^[a-z_]+$/, `compiled wire role must be ASCII: ${comp.role}`);
+      }
     }
   }
 
   const zhMinimal = compileDraft(scaffoldDraft('minimal', { lang: 'zh', example: true }));
+  assert.equal(zhMinimal.payload.judgments[0].method.components[0].role, 'personal_preference');
   assert.match(zhMinimal.payload.judgments[0].method.components[0].statement, /主观偏好/);
 });

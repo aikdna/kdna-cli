@@ -3,7 +3,7 @@
 This page is for the `kdna create <authored.json>` input. It is bound to the
 coordinate this package ships against: container `0.6.0`, `kdna.core/0.8.2`,
 `kdna.canonical-ir/0.6.1`, `kdna.read/0.7.0-candidate`, CLI
-`0.43.5`. Declaring a version here does not make an asset
+`0.44.0`. Declaring a version here does not make an asset
 valid, and admission is not read permission.
 
 Working example: `examples/team-update/author.json` (the only input this
@@ -107,28 +107,32 @@ contract this CLI binds (`composite` instead carries `plan` and `units`):
 <!-- method-role-table:start -->
 | method term | required roles | optional roles |
 | --- | --- | --- |
-| `analogy` | 参照对象、对应关系、借用办法 | 关键差异、不可迁移之处 |
-| `calculation` | 输入与含义、计算关系 | 计算假设、取值边界、误差说明 |
-| `causal_analysis` | 待解释现象、原因关系 | 候选原因、区分依据、反向情况 |
-| `criteria_comparison` | 判断标准、对照办法、归结办法 | 底线要求、例外情况 |
-| `elimination` | 候选范围、排除条件、保留办法 | 特殊情况处理 |
-| `evidence_analysis` | 所用材料、材料与判断的联系 | 反向材料、材料取舍 |
-| `experience` | 经验要点 | 参考经历、适用情形、例外情况 |
-| `feedback` | 调整目标、反馈信号、调整办法 | 停止条件、冲突处理 |
-| `feeling` | 个人感受 | 体验说明、偏好变化 |
-| `inference` | 判断前提、推导关系 | 关键假设、例外情况 |
-| `interpretation` | 解读对象、解释关系 | 相关语境、理解线索、替代解读 |
-| `observation` | 观察依据 | 判定口径、观察限制 |
-| `other` | 方法说明、判断依据、作用关系 | 补充说明、适用限制 |
-| `recognition` | 识别特征、类别定义、匹配办法 | 易混淆情况 |
-| `simulation` | 起点条件、变化假设、演变关系 | 情景分叉、转折信号 |
-| `tradeoff` | 候选方案、比较因素、取舍原则 | 不可兼得之处、优先变化 |
+| `analogy` | reference_case, correspondence, transfer_rule | key_differences, non_transferable_limits |
+| `calculation` | inputs_and_meaning, formula_or_relation | assumptions, bounds, error_notes |
+| `causal_analysis` | phenomenon, causal_link | candidate_causes, distinguishing_basis, counterfactual_cases |
+| `criteria_comparison` | criterion, comparison_method, decision_rule | baseline_floor, exceptions |
+| `elimination` | candidate_set, elimination_criteria, retention_rule | special_cases |
+| `evidence_analysis` | materials_used, evidence_link | contrary_evidence, weighing_rationale |
+| `experience` | lesson | reference_experience, applicable_cases, exceptions |
+| `feedback` | target, signal, adjustment_rule | stop_condition, conflict_handling |
+| `feeling` | personal_preference | experience_notes, preference_shift |
+| `inference` | premise, derivation | key_assumptions, exceptions |
+| `interpretation` | subject_interpreted, interpretive_link | context, cues, alternative_readings |
+| `observation` | observed_basis | criteria, observation_limits |
+| `other` | method_description, basis, relation | notes, limits |
+| `recognition` | features, category_definition, matching_rule | confusable_cases |
+| `simulation` | initial_conditions, change_assumptions, progression | branching_scenarios, inflection_signals |
+| `tradeoff` | options, factors, priority_rule | accepted_cost, priority_shift |
 <!-- method-role-table:end -->
+
+Legacy Chinese role tokens from earlier `0.6.0` releases remain accepted on
+admission and read for backward compatibility, while new drafts and compiled
+inputs emit the language-neutral ASCII role names above.
 
 When the author has not stated a method at all, do not pick a term for them:
 use `method.term: "other"` with the required `other` definition
 (`name` / `definition` / `exclusion_reason`) stating the absence, and keep the
-three `other` roles (方法说明、判断依据、作用关系) as explicit not-stated
+three `other` roles (`method_description`, `basis`, `relation`) as explicit not-stated
 components. A term chosen by the encoder passes admission silently and reads
 back exactly like a stated method, so this substitution is the one error no
 downstream check can detect.

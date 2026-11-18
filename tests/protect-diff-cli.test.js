@@ -141,3 +141,24 @@ test("diff compares assets, including a protected one, as JSON and as text", () 
   assert.equal(run(["inspect", plain, revised]).status, 2);
   assert.equal(last(run(["diff", protectedAsset, revised]).stdout).code, "KDNA_PASSWORD_REQUIRED");
 });
+
+test("unprotect decrypts a protected asset to a plain 0.6.0 container that source-open and diff accept", () => {
+  const { createHash } = require("node:crypto");
+  const restored = path.join(dir, "restored.kdna");
+  assert.equal(run(["unprotect", protectedAsset, "--output", restored]).status, 2);
+  assert.equal(run(["unprotect", plain, "--output", restored, "--password-file", passwordFile]).status, 1);
+  assert.equal(last(run(["unprotect", plain, "--output", restored, "--password-file", passwordFile]).stdout).code, "KDNA_NOT_PROTECTED");
+  assert.equal(last(run(["unprotect", protectedAsset, "--output", restored, "--password-file", wrongFile]).stdout).code, "PROTECTION_AUTHENTICATION_FAILED");
+  assert.equal(fs.existsSync(restored), false);
+
+  const ok = run(["unprotect", protectedAsset, "--output", restored, "--password-file", passwordFile]);
+  assert.equal(ok.status, 0, ok.stdout + ok.stderr);
+  assert.equal(last(ok.stdout).status, "saved");
+  // Never overwrites an existing output
+  assert.equal(last(run(["unprotect", protectedAsset, "--output", restored, "--password-file", passwordFile]).stdout).code, "KDNA_OUTPUT_EXISTS");
+  // Restored container requires no password and matches plain asset judgments
+  assert.equal(run(["inspect", restored]).status, 0);
+  assert.equal(last(run(["diff", plain, restored]).stdout).identical, true);
+  const restoredA = "sha256:" + createHash("sha256").update(fs.readFileSync(restored)).digest("hex");
+  assert.equal(run(["source-open", restored, "--expected-a", restoredA, "--allow-source"]).status, 0);
+});

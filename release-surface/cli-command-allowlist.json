@@ -7,6 +7,7 @@
     "validate-input",
     "create",
     "protect",
+    "unprotect",
     "diff",
     "source-open",
     "source-pack",

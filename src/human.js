@@ -3,7 +3,7 @@
 // `validate-input`, `diff` rejections and `read`, plus `compactReadResult` behind `read --compact`.
 // Every renderer is total: an unknown shape degrades to status/code plus pretty JSON, never a throw.
 
-const { englishAliasFor } = require('./draft.js');
+const { englishAliasFor, chineseLabelFor } = require('./draft.js');
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const WIDTH = 100;
 
@@ -386,9 +386,10 @@ function renderSharedDeclarations(sharedList) {
   for (const sd of sharedList) {
     if (!isObject(sd)) continue;
     const kind = sd.kind ?? 'declaration';
+    const tag = typeof sd.name === 'string' && sd.name.trim() ? `${kind}: ${sd.name.trim()}` : kind;
     const values = Array.isArray(sd.value) ? sd.value : (typeof sd.value === 'string' ? [sd.value] : []);
     if (values.length === 0 && typeof sd.statement === 'string') values.push(sd.statement);
-    for (const v of values) lines.push(wrap(`- [${kind}] ${v}`, '  '));
+    for (const v of values) lines.push(wrap(`- [${tag}] ${v}`, '  '));
   }
   return lines.length > 1 ? lines : [];
 }
@@ -419,7 +420,10 @@ function renderJudgmentEntry(headingPrefix, id, value, reasonsByJudgment, reason
     for (const comp of components) {
       if (!isObject(comp) || typeof comp.statement !== 'string') continue;
       const rawRole = comp.role ?? 'component';
-      const roleLabel = useEnglishRoles ? (englishAliasFor(comp.method?.term ?? methodTerm, rawRole) ?? rawRole) : rawRole;
+      const mTerm = comp.method?.term ?? methodTerm;
+      const roleLabel = useEnglishRoles
+        ? (englishAliasFor(mTerm, rawRole) ?? rawRole)
+        : (chineseLabelFor(mTerm, rawRole) ?? rawRole);
       out.push(wrap(`- [${roleLabel}] ${comp.statement}`, '      '));
     }
   }

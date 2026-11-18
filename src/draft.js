@@ -36,9 +36,9 @@ const ASSET_TYPES = new Set(['domain', 'cluster', 'tool', 'sample', 'fixture', '
 const DUPLICATE_ROLE_FIX_HINT = 'Each role in method.components must appear at most once per judgment. Merge statements that share the same role in order into a single component so no authored reasoning is lost.';
 const CATCH_ALL_SCOPES = new Set(['all', 'always', 'any', 'everything', 'general', 'universal', '通用', '所有', '所有场景', '任何', '任何场景', '全部', '不限']);
 
-// 1-to-1 English draft aliases for Core's closed `method_roles` vocabulary.
-// Authors in `kdna.draft/1` may write either these English keys or Core's
-// canonical Chinese role keys; `compileDraft` emits Core's canonical role keys.
+// 1-to-1 ASCII canonical role names and legacy Chinese labels for Core's closed
+// `method_roles` vocabulary. Authors in `kdna.draft/1` may write either ASCII
+// keys or Chinese role keys; `compileDraft` emits Core's canonical ASCII role keys.
 const ROLE_ALIASES_EN = Object.freeze({
   analogy: Object.freeze({
     reference_case: '参照对象',
@@ -145,25 +145,43 @@ const ROLE_ALIASES_EN = Object.freeze({
   }),
 });
 
-function englishAliasFor(term, canonicalRole) {
-  const aliases = ROLE_ALIASES_EN[term];
-  if (!aliases) return null;
-  for (const [en, zh] of Object.entries(aliases)) if (zh === canonicalRole) return en;
-  return null;
+const ROLE_ALIASES_ZH = Object.freeze(
+  Object.fromEntries(
+    Object.entries(ROLE_ALIASES_EN).map(([term, map]) => [
+      term,
+      Object.freeze(Object.fromEntries(Object.entries(map).map(([en, zh]) => [zh, en]))),
+    ]),
+  ),
+);
+
+function englishAliasFor(term, role) {
+  const enMap = ROLE_ALIASES_EN[term];
+  if (!enMap) return null;
+  if (Object.hasOwn(enMap, role)) return role;
+  const zhMap = ROLE_ALIASES_ZH[term];
+  return zhMap && Object.hasOwn(zhMap, role) ? zhMap[role] : null;
+}
+
+function chineseLabelFor(term, role) {
+  const enMap = ROLE_ALIASES_EN[term];
+  if (!enMap) return null;
+  if (Object.hasOwn(enMap, role)) return enMap[role];
+  const zhMap = ROLE_ALIASES_ZH[term];
+  return zhMap && Object.hasOwn(zhMap, role) ? role : null;
 }
 
 function formatRoleLabel(term, canonicalRole) {
-  const en = englishAliasFor(term, canonicalRole);
-  return en ? `${en} (${canonicalRole})` : canonicalRole;
+  const zh = chineseLabelFor(term, canonicalRole);
+  return zh && zh !== canonicalRole ? `${canonicalRole} (${zh})` : canonicalRole;
 }
 
 function resolveDraftRoles(term, givenRoles) {
-  const aliases = ROLE_ALIASES_EN[term] ?? {};
+  const zhToEn = ROLE_ALIASES_ZH[term] ?? {};
   const normalized = {};
   const sourceKeysByCanonical = new Map();
   const unknown = [];
   for (const [rawKey, value] of Object.entries(givenRoles)) {
-    const canonical = aliases[rawKey] ?? rawKey;
+    const canonical = Object.hasOwn(zhToEn, rawKey) ? zhToEn[rawKey] : rawKey;
     if (!sourceKeysByCanonical.has(canonical)) sourceKeysByCanonical.set(canonical, []);
     sourceKeysByCanonical.get(canonical).push(rawKey);
     normalized[canonical] = value;
@@ -175,34 +193,44 @@ function resolveDraftRoles(term, givenRoles) {
   return { normalized, duplicates, unknown };
 }
 
+let _cachedRoleTable = undefined;
 function roleTable() {
+  if (_cachedRoleTable !== undefined) return _cachedRoleTable;
   try {
     const m = require('@aikdna/kdna-core/components');
-    return typeof m.getMethodRoleTable === 'function' ? m.getMethodRoleTable() : null;
-  } catch { return null; }
+    _cachedRoleTable = typeof m.getMethodRoleTable === 'function' ? m.getMethodRoleTable() : null;
+  } catch { _cachedRoleTable = null; }
+  return _cachedRoleTable;
 }
 
 function inspectMethodComponents(judgment, table = roleTable()) {
   const term = judgment?.method?.method?.term;
   const roles = table && typeof term === 'string' ? table.roles?.[term] : null;
   if (!roles || !Array.isArray(judgment?.method?.components)) return null;
+  const zhToEn = ROLE_ALIASES_ZH[term] ?? {};
   const allowed = new Set([...roles.required, ...roles.optional]);
-  const byRole = new Map();
+  const byCanonical = new Map();
   const invalidSet = new Set();
   judgment.method.components.forEach((component, idx) => {
     const r = component?.role;
     if (typeof r !== 'string') return;
     const cid = typeof component?.id === 'string' && component.id.trim() !== '' ? component.id : `#${idx}`;
-    if (!byRole.has(r)) byRole.set(r, []);
-    byRole.get(r).push(cid);
-    if (!allowed.has(r)) invalidSet.add(r);
+    const canonical = Object.hasOwn(zhToEn, r) ? zhToEn[r] : r;
+    if (!byCanonical.has(canonical)) byCanonical.set(canonical, { rawRoles: [], component_ids: [] });
+    const entry = byCanonical.get(canonical);
+    entry.rawRoles.push(r);
+    entry.component_ids.push(cid);
+    if (!allowed.has(canonical)) invalidSet.add(r);
   });
   const duplicate_roles = [];
-  for (const [role, component_ids] of byRole.entries()) {
-    if (component_ids.length > 1) duplicate_roles.push({ role, component_ids });
+  for (const [canonical, entry] of byCanonical.entries()) {
+    if (entry.component_ids.length > 1) {
+      const uniqueRaw = new Set(entry.rawRoles);
+      duplicate_roles.push({ role: uniqueRaw.size === 1 ? entry.rawRoles[0] : canonical, component_ids: entry.component_ids });
+    }
   }
   const invalid_roles = [...invalidSet];
-  const missing_required_roles = roles.required.filter(r => !byRole.has(r));
+  const missing_required_roles = roles.required.filter(r => !byCanonical.has(r));
   return {
     term,
     expected: roles.required,
@@ -233,10 +261,10 @@ function exampleDraft(mode, lang) {
         method: {
           term: 'tradeoff',
           roles: {
-            '候选方案': '按原时间带未验证变更上线，或推迟发布先完成核心回归检查。',
-            '比较因素': '短期准时交付承诺与核心数据及契约可回滚性。',
-            '取舍原则': '不可逆的数据与契约风险高于短期排期守时。',
-            '不可兼得之处': '接受短期延期通告与外部排期重排的沟通成本。',
+            options: '按原时间带未验证变更上线，或推迟发布先完成核心回归检查。',
+            factors: '短期准时交付承诺与核心数据及契约可回滚性。',
+            priority_rule: '不可逆的数据与契约风险高于短期排期守时。',
+            accepted_cost: '接受短期延期通告与外部排期重排的沟通成本。',
           },
         },
       }],
@@ -282,9 +310,9 @@ function exampleDraft(mode, lang) {
         method: {
           term: 'criteria_comparison',
           roles: {
-            '判断标准': '方案是否同时给出可执行的失败回退步骤与明确的适用边界。',
-            '对照办法': '逐项核对变更涉及的持久化表与外部接口是否配有回滚或降级路径。',
-            '归结办法': '两项齐全即准予进入实现；任一项缺失则退回补充。',
+            criterion: '方案是否同时给出可执行的失败回退步骤与明确的适用边界。',
+            comparison_method: '逐项核对变更涉及的持久化表与外部接口是否配有回滚或降级路径。',
+            decision_rule: '两项齐全即准予进入实现；任一项缺失则退回补充。',
           },
         },
         reasons: ['历史故障复盘表明，缺少回退预案的变更平均恢复时间显著拉长。'],
@@ -345,10 +373,10 @@ function exampleDraft(mode, lang) {
         method: {
           term: 'evidence_analysis',
           roles: {
-            '所用材料': '过去两季度的网关超时压测报告与三次雪崩事故复盘记录。',
-            '材料与判断的联系': '压测显示超过3次无上限重试会把队列积压放大4倍并拖垮共享连接池。',
-            '反向材料': '短暂网络闪断在10秒内恢复时，多重试几次可减少人工重放操作。',
-            '材料取舍': '优先用3次上限与死信隔离阻断级联雪崩，再用批量重放工具弥补长闪断恢复。',
+            materials_used: '过去两季度的网关超时压测报告与三次雪崩事故复盘记录。',
+            evidence_link: '压测显示超过3次无上限重试会把队列积压放大4倍并拖垮共享连接池。',
+            contrary_evidence: '短暂网络闪断在10秒内恢复时，多重试几次可减少人工重放操作。',
+            weighing_rationale: '优先用3次上限与死信隔离阻断级联雪崩，再用批量重放工具弥补长闪断恢复。',
           },
         },
       }],
@@ -439,10 +467,10 @@ function scaffoldDraft(mode = 'minimal', options = {}) {
         method: {
           term: 'tradeoff',
           roles: {
-            '候选方案': 'TODO: 彼此竞争的具体候选方案',
-            '比较因素': 'TODO: 在压力下重点权衡的比较因素',
-            '取舍原则': 'TODO: 哪个因素优先胜出及其理由',
-            '不可兼得之处': 'TODO: 你明确愿意承担的代价或舍弃项',
+            options: 'TODO: 彼此竞争的具体候选方案',
+            factors: 'TODO: 在压力下重点权衡的比较因素',
+            priority_rule: 'TODO: 哪个因素优先胜出及其理由',
+            accepted_cost: 'TODO: 你明确愿意承担的代价或舍弃项',
           },
         },
       }],
@@ -488,9 +516,9 @@ function scaffoldDraft(mode = 'minimal', options = {}) {
         method: {
           term: 'criteria_comparison',
           roles: {
-            '判断标准': 'TODO: 作者用来衡量对象的明确标准',
-            '对照办法': 'TODO: 如何把具体稿件或方案与该标准逐项对照',
-            '归结办法': 'TODO: 满足与不满足标准时分别如何做出决定',
+            criterion: 'TODO: 作者用来衡量对象的明确标准',
+            comparison_method: 'TODO: 如何把具体稿件或方案与该标准逐项对照',
+            decision_rule: 'TODO: 满足与不满足标准时分别如何做出决定',
           },
         },
         reasons: ['TODO: 来自原作的论证依据或真实观察记录'],
@@ -551,10 +579,10 @@ function scaffoldDraft(mode = 'minimal', options = {}) {
         method: {
           term: 'evidence_analysis',
           roles: {
-            '所用材料': 'TODO: 审阅过的授权资料、基准测试或标准规范',
-            '材料与判断的联系': 'TODO: 这些材料如何支撑所采纳的立场',
-            '反向材料': 'TODO: 已审视过的相反证据或竞争方案表现',
-            '材料取舍': 'TODO: 为何在声明范围内采纳当前立场而非替代方案',
+            materials_used: 'TODO: 审阅过的授权资料、基准测试或标准规范',
+            evidence_link: 'TODO: 这些材料如何支撑所采纳的立场',
+            contrary_evidence: 'TODO: 已审视过的相反证据或竞争方案表现',
+            weighing_rationale: 'TODO: 为何在声明范围内采纳当前立场而非替代方案',
           },
         },
       }],
@@ -692,11 +720,11 @@ function validateDraft(draft) {
       need(`${p}.applies_when`, j.applies_when, 'when this judgment applies');
       if (j.boundaries !== undefined && j.boundaries !== null && !isText(j.boundaries)) out.push(diag(`${p}.boundaries`, 'invalid_value', 'boundaries must be text or null.', 'Write one sentence, or remove the field.'));
       else if (todo(j.boundaries)) out.push(diag(`${p}.boundaries`, 'placeholder_not_replaced', 'boundaries still holds the scaffold TODO placeholder.', 'Replace it, or remove the field.'));
-      const m = j.method === undefined ? 'feeling' : j.method;
+      const m = j.method === undefined ? 'other' : j.method;
       const term = typeof m === 'string' ? m : m?.term;
       const roles = table && typeof term === 'string' ? table.roles?.[term] : null;
       if (typeof term !== 'string' || (table && !roles)) out.push(diag(`${p}.method`, 'invalid_method', `Unknown method${typeof term === 'string' ? ` "${term}"` : ''}.`, table ? `Use one of: ${Object.keys(table.roles).join(', ')}.` : 'Use a Core method term.'));
-      else if (typeof m === 'string' && term !== 'feeling') {
+      else if (typeof m === 'string' && term !== 'feeling' && term !== 'other') {
         const reqSnippet = roles.required.map(r => `"${englishAliasFor(term, r) ?? r}":"..."`).join(', ');
         out.push(diag(`${p}.method`, 'method_roles_required', `Method "${term}" needs its roles written out.`, `Use method: {term:"${term}", roles:{${reqSnippet}}}.`));
       } else if (isObj(m)) {
@@ -715,11 +743,20 @@ function validateDraft(draft) {
           out.push(diag(`${p}.method.roles`, 'method_roles_missing', `Method "${term}" is missing required roles: ${missingLabels.join(', ')}.`, `Add roles ${addSnippet}. Optional: ${optLabels}.`));
         }
         const allowedCanonical = new Set([...roles.required, ...roles.optional]);
-        const aliases = ROLE_ALIASES_EN[term] ?? {};
-        const unknown = Object.keys(given).filter(rk => !allowedCanonical.has(aliases[rk] ?? rk));
+        const zhToEn = ROLE_ALIASES_ZH[term] ?? {};
+        const unknown = Object.keys(given).filter(rk => !allowedCanonical.has(Object.hasOwn(zhToEn, rk) ? zhToEn[rk] : rk));
         if (unknown.length) {
           const allowedLabels = [...roles.required, ...roles.optional].map(r => formatRoleLabel(term, r)).join(', ');
           out.push(diag(`${p}.method.roles`, 'method_roles_unknown', `Method "${term}" has unknown roles: ${unknown.join(', ')}.`, `Allowed: ${allowedLabels}.`));
+        }
+        if (m.other !== undefined) {
+          if (term !== 'other') out.push(diag(`${p}.method.other`, 'invalid_value', `${p}.method.other is only allowed when method.term is "other".`, 'Remove method.other or set method.term to "other".'));
+          else if (!isObj(m.other)) out.push(diag(`${p}.method.other`, 'invalid_value', `${p}.method.other must be {name, definition, exclusion_reason}.`, 'Provide name, definition, and exclusion_reason, or omit method.other to use the default unstated-method definition.'));
+          else {
+            need(`${p}.method.other.name`, m.other.name, 'a short method name');
+            need(`${p}.method.other.definition`, m.other.definition, 'a definition of this method');
+            need(`${p}.method.other.exclusion_reason`, m.other.exclusion_reason, 'why standard method terms do not fit');
+          }
         }
         for (const [rk, rv] of Object.entries(given)) {
           if (todo(rv)) out.push(diag(`${p}.method.roles.${rk}`, 'placeholder_not_replaced', `${p}.method.roles.${rk} still holds the scaffold TODO placeholder.`, `Replace it with the authored "${rk}" statement.`));
@@ -770,21 +807,46 @@ function compileDraft(draft) {
   const defaultFeelingNote = isChineseAsset
     ? '这是作者声明的主观偏好与取向，不构成普适效果证明。'
     : 'This is the author’s stated preference, not evidence of a universal effect.';
+  const defaultOtherDef = isChineseAsset
+    ? {
+        name: '未声明形成方法',
+        definition: '作者在草稿中未单独指定标准形成方法词项。',
+        exclusion_reason: '草稿省略了 method 字段，按协议以 other 显式记录方法缺席，不代作者推定为个人感受或其他具体方法。',
+      }
+    : {
+        name: 'Unstated formation method',
+        definition: 'The author did not specify one of the named formation method terms in this draft.',
+        exclusion_reason: 'Method was omitted in the draft and is recorded explicitly under other rather than assuming feeling or another specific method.',
+      };
+  const defaultOtherRoles = isChineseAsset
+    ? {
+        method_description: '作者未在草稿中单独声明具体形成方法。',
+        basis: '作者直接给出了判断主张与适用条件，未另行拆分形成依据。',
+        relation: '以所声明的适用范围与边界条件直接界定该结论的生效范围。',
+      }
+    : {
+        method_description: 'No specific formation method was stated by the author in this draft.',
+        basis: 'The author stated the conclusion and applicability scope directly without a separate formation basis.',
+        relation: 'The stated applicability scope and boundaries directly govern where this conclusion applies.',
+      };
   const table = roleTable();
   const actors = draft.actors.map(x => ({ id: `actor:${x.id}`, kind: x.kind || 'person', name: x.name }));
   const actorIds = actors.map(x => x.id);
   const reasons = [];
   const examples = [];
   const judgments = draft.judgments.map(j => {
-    const m = j.method === undefined ? 'feeling' : j.method;
+    const m = j.method === undefined ? 'other' : j.method;
     const term = typeof m === 'string' ? m : m.term;
     const roleText = typeof m === 'string'
-      ? { '个人感受': defaultFeelingNote }
+      ? (term === 'other' ? defaultOtherRoles : { personal_preference: defaultFeelingNote })
       : resolveDraftRoles(term, m.roles ?? {}).normalized;
     const order = table ? [...table.roles[term].required, ...table.roles[term].optional] : Object.keys(roleText);
     const components = order.filter(r => isText(roleText[r])).map(r => ({
       id: `component:${j.id}:${r}`, method: { term }, role: r, material_refs: [], statement: roleText[r],
     }));
+    const otherDef = term === 'other'
+      ? (isObj(m) && isObj(m.other) ? { name: m.other.name, definition: m.other.definition, exclusion_reason: m.other.exclusion_reason } : defaultOtherDef)
+      : null;
     const reasonRefs = [];
     if (Array.isArray(j.reasons)) {
       j.reasons.forEach((rText, idx) => {
@@ -823,7 +885,7 @@ function compileDraft(draft) {
       parent_ref: null,
       form: 'conclusion',
       core_expression: { kind: 'authored', statement: j.statement, qualification_refs: [] },
-      method: { method: { term }, components, bindings: [] },
+      method: { method: { term }, ...(otherDef ? { other: otherDef } : {}), components, bindings: [] },
       material_refs: [],
       reason_refs: reasonRefs,
       content_uses: [],
@@ -1070,7 +1132,7 @@ function computeAdvisories(input, isDraft) {
       }
     }
     if (omittedMethodCount >= 3) {
-      advisories.push({ code: 'uniform_default_method', path: 'judgments', message: `${omittedMethodCount} judgments omit method (defaulting to "feeling"); consider declaring tradeoff, criteria_comparison, observation, experience, or evidence_analysis where explicit reasoning exists.` });
+      advisories.push({ code: 'uniform_default_method', path: 'judgments', message: `${omittedMethodCount} judgments omit method (defaulting to "other"); consider declaring tradeoff, criteria_comparison, observation, experience, or evidence_analysis where explicit reasoning exists.` });
     }
     return advisories;
   }
@@ -1131,10 +1193,8 @@ function isSourceEditsShape(input) {
 
 function validateInput(input, options = {}) {
   if (isObj(input) && input.status === 'source_opened' && isObj(input.edits)) {
-    return {
-      status: 'invalid',
-      diagnostics: [diag('/', 'source_open_envelope', 'Input is a `kdna source-open` outer envelope rather than an edits or authored input document.', 'Extract `.edits` first (for example: `jq .edits opened.json > edits.json`).')],
-    };
+    input = input.edits;
+    options = { ...options, sourceEdits: true };
   }
   const sourceEdits = options.sourceEdits === true || isSourceEditsShape(input);
   const draft = !sourceEdits && isObj(input) && (input.format !== undefined || (input.manifest === undefined && input.payload === undefined));
@@ -1154,6 +1214,9 @@ function validateInput(input, options = {}) {
 // Ask Core itself (the authority) and translate a rejection into the same
 // diagnostic shape. A draft is compiled first; compile problems come back as-is.
 async function validateWithCore(input) {
+  if (isObj(input) && input.status === 'source_opened' && isObj(input.edits)) {
+    input = input.edits;
+  }
   const local = validateInput(input);
   if (local.status === 'invalid') return local;
   if (local.input_kind === 'source_edits') {
@@ -1200,8 +1263,10 @@ module.exports = {
   INIT_MODES,
   INIT_LANGS,
   ROLE_ALIASES_EN,
+  ROLE_ALIASES_ZH,
   DUPLICATE_ROLE_FIX_HINT,
   englishAliasFor,
+  chineseLabelFor,
   checkVersionPairAlignment,
   inspectMethodComponents,
   scaffoldDraft,

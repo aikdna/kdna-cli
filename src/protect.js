@@ -6,9 +6,11 @@ const fs = require('node:fs');
 const zlib = require('node:zlib');
 const { randomUUID, createHash } = require('node:crypto');
 const binding = require('../public-contract-binding.json');
-const source = require('@aikdna/kdna-core/source-sections-node');
-const sections = require('@aikdna/kdna-core/protected-sections-node');
-const read = require('@aikdna/kdna-read/protected-sections-node');
+let _source = null, _sections = null, _read = null, _creation = null;
+const getSource = () => _source ?? (_source = require('@aikdna/kdna-core/source-sections-node'));
+const getSections = () => _sections ?? (_sections = require('@aikdna/kdna-core/protected-sections-node'));
+const getRead = () => _read ?? (_read = require('@aikdna/kdna-read/protected-sections-node'));
+const getCreation = () => _creation ?? (_creation = require('@aikdna/kdna-core/creation-sections-node'));
 
 const POLICY_ID = 'kdna-cli:explicit-local-read-consent';
 const NO_SIGNATURE = Object.freeze({ requireSignature: false, expectedPublicKeyHex: null });
@@ -78,11 +80,12 @@ function readPasswordSource({ fd, file } = {}) {
   return out;
 }
 
-// ---- protect -----------------------------------------------------------------------
+// ---- protect / unprotect -----------------------------------------------------------
 async function protectAsset(plainBytes, passwordBytes, { expectedA, now } = {}) {
   try {
     if (!(plainBytes instanceof Uint8Array) || !(passwordBytes instanceof Uint8Array) || passwordBytes.length === 0) return failure('KDNA_PROTECT_INPUT_INVALID');
     if (isProtectedBytes(plainBytes)) return failure('KDNA_ALREADY_PROTECTED');
+    const source = getSource();
     const A = expectedA || digestOf(plainBytes);
     const authority = source.createNativeSourceOperationAuthority(() => true);
     const open = source.admitSourceOperationRequest({ request_id: 'cli:' + randomUUID(), tuple: binding.tuple, operation: 'open_source', expected_A: A, timeout_ms: 60000, signature_policy: NO_SIGNATURE });
@@ -101,12 +104,93 @@ async function protectAsset(plainBytes, passwordBytes, { expectedA, now } = {}) 
   } catch { return failure('KDNA_PROTECT_UNAVAILABLE'); }
 }
 
+async function unprotectAsset(protectedBytes, passwordBytes, { expectedA, now } = {}) {
+  const clock = now || Date.now;
+  try {
+    if (!(protectedBytes instanceof Uint8Array) || !(passwordBytes instanceof Uint8Array) || passwordBytes.length === 0) return failure('KDNA_UNPROTECT_INPUT_INVALID');
+    if (!isProtectedBytes(protectedBytes)) return failure('KDNA_NOT_PROTECTED');
+    const source = getSource(), creation = getCreation();
+    const A = expectedA || digestOf(protectedBytes);
+    const authority = source.createNativeSourceOperationAuthority(() => true);
+    const openReq = source.admitSourceOperationRequest({
+      request_id: 'cli:' + randomUUID(),
+      tuple: binding.tuple,
+      operation: 'open_protected_source',
+      expected_A: A,
+      timeout_ms: 60000,
+      signature_policy: NO_SIGNATURE,
+    });
+    if (openReq.status !== 'admitted_request') return coreFailure(openReq, 'KDNA_UNPROTECT_REQUEST_REJECTED');
+    const contextId = 'ctx:' + randomUUID(), epoch = 'process:' + process.pid;
+    let unlocked = null, expiresAt = null, lastMs = 0;
+    const host = source.createTrustedProtectedSectionSourceHost({
+      observe() {
+        const at = Math.max(clock(), lastMs);
+        lastMs = at;
+        if (expiresAt === null) expiresAt = at + 60000;
+        return {
+          context_id: contextId,
+          epoch,
+          asset_digest: A,
+          permission: 'allowed',
+          scope: 'complete_source',
+          current_ms: at,
+          expires_at_ms: expiresAt,
+          revoked: false,
+        };
+      },
+      async deliver(bundle) {
+        unlocked = bundle;
+        return true;
+      },
+    });
+    const opened = await source.withProtectedSectionSourceNode(
+      protectedBytes,
+      openReq.request,
+      authority,
+      { credential: { kind: 'password', password: new Uint8Array(passwordBytes) }, signaturePolicy: NO_SIGNATURE },
+      { kind: 'local', clock },
+      host,
+    );
+    if (opened.status !== 'source_delivered' || !unlocked) return coreFailure(opened, 'KDNA_UNPROTECT_FAILED');
+    const cleanManifest = structuredClone(unlocked.manifest);
+    for (const k of ['format_version', 'payload', 'representation_profile', 'representation_metadata', 'representation_origin', 'encryption', 'entitlement']) {
+      delete cleanManifest[k];
+    }
+    if (cleanManifest.access === 'licensed') delete cleanManifest.access;
+    if (cleanManifest.runtime && Array.isArray(cleanManifest.runtime.mandatory_entries)) {
+      cleanManifest.runtime = {
+        ...cleanManifest.runtime,
+        mandatory_entries: cleanManifest.runtime.mandatory_entries.filter(n => n !== 'payload.kdnab' && !n.startsWith('sections/')),
+      };
+    }
+    const members = (unlocked.original_members ?? [])
+      .filter(m => typeof m?.name === 'string' && m.name.startsWith('attachments/'))
+      .map(m => ({ name: m.name, type: m.type, mode: m.mode, bytes: new Uint8Array(m.bytes) }));
+    const createReq = creation.admitNativeCreationRequest({
+      request_id: 'cli:' + randomUUID(),
+      tuple: binding.tuple,
+      operation: 'create_public_asset',
+      timeout_ms: 60000,
+    });
+    if (createReq.status !== 'admitted_request') return coreFailure(createReq, 'KDNA_UNPROTECT_CREATE_REJECTED');
+    const produced = await creation.createSectionAssetNode(
+      { manifest: cleanManifest, payload: structuredClone(unlocked.payload), members },
+      createReq.request,
+      creation.createNativeCreationAuthority(() => true),
+    );
+    if (produced.status !== 'produced') return coreFailure(produced, 'KDNA_UNPROTECT_PACK_FAILED');
+    return { status: 'produced', bytes: produced.bytes, evidence: produced.evidence, source_A: A };
+  } catch { return failure('KDNA_UNPROTECT_UNAVAILABLE'); }
+}
+
 // ---- admit + read ------------------------------------------------------------------
 function wholeRequest() {
-  return sections.admitProtectedPayloadRequest({ request_id: 'cli:' + randomUUID(), tuple: binding.tuple, budget_bytes: 1048576, mode: 'whole_asset', selection: null, handle: null });
+  return getSections().admitProtectedPayloadRequest({ request_id: 'cli:' + randomUUID(), tuple: binding.tuple, budget_bytes: 1048576, mode: 'whole_asset', selection: null, handle: null });
 }
 async function admitProtectedWithPassword(bytes, passwordBytes, { now } = {}) {
   const clock = now || Date.now;
+  const sections = getSections();
   let operation = null;
   try {
     if (!(bytes instanceof Uint8Array) || !(passwordBytes instanceof Uint8Array) || passwordBytes.length === 0) return failure('KDNA_PROTECTED_INPUT_INVALID');
@@ -132,6 +216,7 @@ async function admitProtectedWithPassword(bytes, passwordBytes, { now } = {}) {
 async function readProtected(admitted, request = {}) {
   if (!admitted || admitted.status !== 'accepted') return failure('KDNA_PROTECTED_NOT_ADMITTED');
   const clock = admitted.clock || Date.now;
+  const sections = getSections(), read = getRead();
   const authority = sections.createProtectedPayloadReadAuthority(() => true);
   let delivered = null;
   try {
@@ -162,4 +247,4 @@ async function readProtected(admitted, request = {}) {
   } catch { return failure('KDNA_PROTECTED_UNAVAILABLE'); }
 }
 
-module.exports = { protectAsset, admitProtectedWithPassword, readProtected, isProtectedBytes, readPasswordSource, POLICY_ID };
+module.exports = { protectAsset, unprotectAsset, admitProtectedWithPassword, readProtected, isProtectedBytes, readPasswordSource, POLICY_ID };

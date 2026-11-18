@@ -2,18 +2,18 @@
 
 ## Supported versions
 
-The current `@aikdna/kdna-cli` `0.43.x` line (`0.43.5`) is supported; earlier
+The current `@aikdna/kdna-cli` `0.44.x` line (`0.44.0`) and `0.43.x` line (`0.43.5`) are supported; earlier
 pre-`0.6.0` (`<= 0.36.1`) and `0.40.x`–`0.42.x` releases are unsupported.
 Reports should identify the exact package version or source commit affected.
 
 ## Current source boundary
 
-`@aikdna/kdna-cli@0.43.5` supports local offline `init`, `compile`,
-`validate-input`, `create`, `protect`, `diff`, `convert`, `source-open`,
+`@aikdna/kdna-cli@0.44.0` supports local offline `init`, `compile`,
+`validate-input`, `create`, `protect`, `unprotect`, `diff`, `convert`, `source-open`,
 `source-pack`, `inspect`, `validate`, and `read`, including a process-local
 retained Read session (`read --session`). It delegates native container
 production, admission, disclosure, migration, and Source operations to the exact
-`@aikdna/kdna-core@0.37.9` and `@aikdna/kdna-read@0.13.3` archives bound in
+`@aikdna/kdna-core@0.37.11` and `@aikdna/kdna-read@0.13.5` archives bound in
 [`public-contract-binding.json`](./public-contract-binding.json). Matching
 version strings alone do not substitute for those archive digests.
 
@@ -25,12 +25,17 @@ local file. Output can contain asset content and goes to the caller's chosen
 no network requests during asset operations.
 
 Local password protection (`kdna protect`) encrypts `payload.kdnab` locally with
-an authenticated-encryption envelope (`PBKDF2-HMAC-SHA256` + `AES-256-GCM`).
+a Container `0.6.0` authenticated-encryption envelope (`kdna.envelope.aead`:
+`scrypt-sha256` / `argon2id` key derivation + `AES-256-KW` key wrapping +
+`AES-256-GCM` payload encryption per `RFC-0018`), and `kdna unprotect` decrypts a
+password-protected `0.6.0` container back into an unprotected `0.6.0` container
+atomically.
 Passwords are read once per invocation from `--password-file <path>` or an
 inherited file descriptor `--password-fd <fd>` (`>= 3`), never from command-line
 arguments, and secret buffers are zeroed when the invocation completes. Keep an
-unencrypted authoring draft or public `.kdna` copy for future `source-open` /
-`source-pack` revisions, as Source operations accept public containers only.
+unencrypted authoring draft or public `.kdna` copy (or use `kdna unprotect`) for
+future `source-open` / `source-pack` revisions, as Source operations accept
+public containers only.
 
 Session input must be valid UTF-8, with at most 1 MiB per line. Expansion
 handles are valid only for their original process-local snapshot and issuing
@@ -43,7 +48,7 @@ local write completion; they do not prove remote consumption.
 into a new file. `--allow-source` permits opening, migrating (`0.5.0` -> `0.6.0`
 via `convert`), or repacking the explicitly named public asset when paired with
 its exact SHA-256 (`--expected-a`). All file-writing routes (`init --output`,
-`compile --output`, `create`, `protect`, `source-pack`, `convert`) refuse
+`compile --output`, `source-open --output`, `create`, `protect`, `unprotect`, `source-pack`, `convert`) refuse
 existing files and symlinks (`wx`). Source edits are complete Manifest and
 Payload replacements; original resource members are retained and reverified.
 These flags do not confer human confirmation or action authority.

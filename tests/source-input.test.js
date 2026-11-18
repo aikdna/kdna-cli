@@ -26,10 +26,13 @@ test('Source edits preserve nested authored values and prototype-looking keys ex
   assert.equal(Object.hasOwn(value.payload, 'omitted'), false);
 }));
 
-test('Source edit root has exactly two object fields without erasing unknown input', async () => fixture(async (dir, file) => {
+test('Source edit root unwraps source_opened envelopes while rejecting arbitrary extra fields', async () => fixture(async (dir, file) => {
+  await fs.writeFile(file, JSON.stringify({ status: 'source_opened', observation: { x: 1 }, edits: { manifest: { a: 1 }, payload: { b: 2 } } }));
+  assert.deepEqual(await readSourceEdits(file), { manifest: { a: 1 }, payload: { b: 2 } });
   for (const value of [null, [], {}, {manifest:{}}, {payload:{}}, {manifest:{},payload:null},
     {manifest:[],payload:{}}, {manifest:1,payload:{}}, {manifest:{},payload:"x"},
-    {manifest:{},payload:{},members:[]}, {manifest:{},payload:{},observation:{}}]) {
+    {manifest:{},payload:{},members:[]}, {manifest:{},payload:{},observation:{}},
+    {status:'source_opened',edits:{manifest:{}}}]) {
     await fs.writeFile(file, JSON.stringify(value));
     await assert.rejects(readSourceEdits(file), error);
   }

@@ -58,6 +58,21 @@ test('protect, admit, wrong password, selection read, ir digest parity', { skip:
     assert.deepEqual(body(admitted.view), body(plainView));
     assert.match(admitted.view.ir_digest, /^sha256:[0-9a-f]{64}$/);
   } finally { admitted.dispose(); }
+
+  // unprotectAsset round-trips back to an unprotected 0.6.0 container with identical IR body
+  assert.equal((await protect.unprotectAsset(bytes, PASS)).code, 'KDNA_NOT_PROTECTED');
+  assert.equal((await protect.unprotectAsset(produced.bytes, enc('wrong'))).code, 'PROTECTION_AUTHENTICATION_FAILED');
+  const unprotected = await protect.unprotectAsset(produced.bytes, PASS);
+  assert.equal(unprotected.status, 'produced', JSON.stringify(unprotected));
+  assert.equal(protect.isProtectedBytes(unprotected.bytes), false);
+  const unprotReq = sectionsNode.admitSectionRequest({ request_id: 'test:unprot', tuple: binding.tuple, budget_bytes: 1000000, mode: 'whole_asset', selection: null, handle: null });
+  const unprotAdmission = await sectionsBytes.admitSectionBytesNode(unprotected.bytes, unprotReq, sectionsBytes.createNativeSectionByteReadAuthority(() => true));
+  assert.equal(unprotAdmission.status, 'accepted');
+  const unprotView = sectionsNode.inspectWholeSectionSnapshot(unprotAdmission.snapshot);
+  const plainAdmission2 = await sectionsBytes.admitSectionBytesNode(plain(), unprotReq, sectionsBytes.createNativeSectionByteReadAuthority(() => true));
+  const plainView2 = sectionsNode.inspectWholeSectionSnapshot(plainAdmission2.snapshot);
+  const bodyNodes = view => view.ir.nodes.filter(n => !n.id.startsWith('asset_declaration:'));
+  assert.deepEqual(bodyNodes(unprotView), bodyNodes(plainView2));
 });
 
 test('readPasswordSource strips one newline and rejects empty', () => {
