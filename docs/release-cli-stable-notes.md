@@ -1,5 +1,27 @@
 # Stable CLI change notes
 
+## CLI 0.44.0
+
+This source binds the exact Core `0.37.11` and Read `0.13.5` companion pair and
+delivers canonical ASCII `method_roles` with full legacy Chinese role backward
+compatibility, sub-second CLI startup and read/inspect latency via lazy route
+validator loading, explicit `method: "other"` draft omission semantics
+(`KT-028`), offline `kdna unprotect` decryption, and direct `source-open`
+`.edits` consumption/export ergonomics: `kdna init` and `kdna compile` emit
+language-neutral ASCII `method.components[].role` identifiers while accepting
+both ASCII and legacy Chinese roles in drafts and existing `0.6.0` `.kdna`
+containers; `kdna read --format human` renders localized Chinese role labels on
+Chinese works and English role labels on English works regardless of wire role
+encoding; omitting `method` in `kdna.draft/1` compiles to `method.term: "other"`
+with an explicit unstated-method definition rather than assuming `feeling`;
+`kdna unprotect` atomically decrypts a password-protected `0.6.0` container back
+to an unprotected `0.6.0` section container; `kdna source-open --output
+<edits.json>` exports `{manifest, payload}` directly and `kdna source-pack` /
+`validate-input` also accept full `source-open` JSON envelopes cleanly; and
+`README.md` / `SECURITY.md` document the true Container `0.6.0` AEAD protection
+stack (`scrypt-sha256` / `argon2id` + `AES-256-KW` + `AES-256-GCM`). Earlier
+published coordinates remain in place, including CLI `0.43.5`.
+
 ## CLI 0.43.5
 
 This source keeps the exact published Core `0.37.9` and Read `0.13.3` pair and

@@ -44,7 +44,10 @@ function parseTable(text) {
     assert.equal(cells.length, 3, `unexpected row shape: ${row}`);
     const term = /^`([a-z_]+)`$/.exec(cells[0]);
     assert.ok(term, `unknown method term format: ${cells[0]}`);
-    table[term[1]] = { required: cells[1].split('、'), optional: cells[2].split('、') };
+    table[term[1]] = {
+      required: cells[1].split(',').map((s) => s.trim()).filter(Boolean),
+      optional: cells[2].split(',').map((s) => s.trim()).filter(Boolean),
+    };
   }
   return table;
 }
@@ -62,8 +65,8 @@ test('the role table equals the installed contract method_roles exactly', () => 
 test('the guard fails when a row loses a role or a term disappears (negative control)', () => {
   const expected = installedMethodRoles();
   const mutated = doc.replace(
-    '| `feeling` | 个人感受 | 体验说明、偏好变化 |',
-    '| `feeling` | 体验说明 | 偏好变化 |',
+    '| `feeling` | personal_preference | experience_notes, preference_shift |',
+    '| `feeling` | experience_notes | preference_shift |',
   );
   assert.notEqual(mutated, doc, 'the current table row must be present for this control to bite');
   assert.notDeepEqual(parseTable(mutated).feeling.required, expected.feeling.required);

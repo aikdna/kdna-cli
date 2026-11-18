@@ -1,17 +1,17 @@
 {
   "channel": "stable",
-  "version": "0.43.5",
-  "base_commit": "84b1920e0daed92b9d4af94a6469a014ed16aa23",
+  "version": "0.44.0",
+  "base_commit": "d97445f512b3c8dd28b5a89d5fc44cf13ab1af04",
   "companions": [
     {
       "name": "@aikdna/kdna-core",
-      "version": "0.37.9",
-      "sha256": "084afc94fb808a4327995d6d47be8262d53e339e415db2879ff334d5d742362b"
+      "version": "0.37.11",
+      "sha256": "48626d4e26cb0bc47ce89a6694647b696c6dd241a0f3e3e84d4b7bdada8d83f4"
     },
     {
       "name": "@aikdna/kdna-read",
-      "version": "0.13.3",
-      "sha256": "52f5b05f4565e623af6e7a381d90ae2c75ef04edc82e2db2b88f7aa8d6ac0f50"
+      "version": "0.13.5",
+      "sha256": "8444d65417188a225903c2357bcd144a557d646f438db1d356d4073506c3fc58"
     }
   ]
 }

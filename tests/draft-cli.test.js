@@ -279,18 +279,18 @@ test("-v, subcommand --help/-h, compile placeholder guard, validate-input on sou
   const envelopePath = path.join(dir, "opened-envelope.json");
   fs.writeFileSync(envelopePath, openedRun.stdout);
 
-  // Passing raw source-open envelope to source-pack emits explicit .edits extraction hint
-  const envPack = run(["source-pack", baseAsset, "--edits", envelopePath, "--expected-a", expectedA, "--output", path.join(dir, "nope.kdna"), "--allow-source"]);
-  assert.equal(envPack.status, 2);
-  const envRow = last(envPack.stdout);
-  assert.equal(envRow.code, "KDNA_SOURCE_EDITS_INVALID");
-  assert.equal(envRow.diagnostic?.reason, "source_open_envelope");
-  assert.match(envRow.diagnostic?.hint ?? "", /\.edits/);
+  // source-open --output writes inner {manifest, payload} directly
+  const directEditsPath = path.join(dir, "direct-edits.json");
+  const directOpen = run(["source-open", baseAsset, "--expected-a", expectedA, "--output", directEditsPath, "--allow-source"]);
+  assert.equal(directOpen.status, 0, directOpen.stdout);
+  assert.equal(last(directOpen.stdout).output.file, directEditsPath);
+  const directEdits = JSON.parse(fs.readFileSync(directEditsPath, "utf8"));
+  assert.deepEqual(Object.keys(directEdits).sort(), ["manifest", "payload"]);
 
-  // validate-input rejects raw source-open envelope with hint, and accepts inner .edits cleanly
+  // Both validate-input and source-pack accept raw source-open envelopes AND inner .edits cleanly
   const envVal = run(["validate-input", envelopePath]);
-  assert.equal(envVal.status, 1);
-  assert.ok(last(envVal.stdout).diagnostics.some((d) => d.code === "source_open_envelope"));
+  assert.equal(envVal.status, 0, envVal.stdout);
+  assert.equal(last(envVal.stdout).input_kind, "source_edits");
 
   const opened = last(openedRun.stdout);
   const cleanEditsPath = path.join(dir, "clean-edits.json");
@@ -298,6 +298,14 @@ test("-v, subcommand --help/-h, compile placeholder guard, validate-input on sou
   const editsVal = run(["validate-input", cleanEditsPath]);
   assert.equal(editsVal.status, 0, editsVal.stdout);
   assert.equal(last(editsVal.stdout).input_kind, "source_edits");
+
+  const envEnvelopeEdited = JSON.parse(openedRun.stdout);
+  envEnvelopeEdited.edits.manifest.version = envEnvelopeEdited.edits.payload.asset.asset_version = "0.1.1";
+  envEnvelopeEdited.edits.manifest.judgment_version = envEnvelopeEdited.edits.payload.asset.judgment_version = "0.1.1";
+  const envEditedPath = path.join(dir, "opened-envelope-edited.json");
+  fs.writeFileSync(envEditedPath, JSON.stringify(envEnvelopeEdited));
+  const envPack = run(["source-pack", baseAsset, "--edits", envEditedPath, "--expected-a", expectedA, "--output", path.join(dir, "from-envelope.kdna"), "--allow-source"]);
+  assert.equal(envPack.status, 0, envPack.stdout);
 
   // 4-version mismatch emits version_fields_misaligned guidance & input_diagnostics
   const mismatchEdits = JSON.parse(JSON.stringify(opened.edits));

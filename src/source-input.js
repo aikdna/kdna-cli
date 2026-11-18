@@ -22,12 +22,7 @@ async function readSourceEdits(file, assertActive = () => {}) {
   }
   if (!record(edits)) invalid();
   if (edits.status === 'source_opened' && record(edits.edits)) {
-    invalid({
-      field: '/',
-      reason: 'source_open_envelope',
-      expected: '{manifest, payload}',
-      hint: 'Pass the inner .edits object ({manifest, payload}) from `kdna source-open` output rather than the outer source_opened envelope (for example: jq .edits opened.json > edits.json).',
-    });
+    edits = edits.edits;
   }
   if (Object.keys(edits).length !== 2
     || !Object.hasOwn(edits, 'manifest') || !Object.hasOwn(edits, 'payload')

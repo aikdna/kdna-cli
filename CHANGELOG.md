@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.44.0 (2026-11-18)
+
+- Bind exact companion archives `@aikdna/kdna-core@0.37.11` and
+  `@aikdna/kdna-read@0.13.5` across `public-contract-binding.json`,
+  `release-surface/*`, offline host locks, and release-authority profiles.
+- Lazy-load unused route modules and heavy schema validators so cold
+  `kdna inspect` and `kdna read --mode catalog --format human --allow-read`
+  complete in under one second even on multi-megabyte works.
+- Migrate canonical emitted `method_roles` to language-neutral ASCII identifiers
+  across `init`, `compile`, `validate-input`, and `docs/authoring-field-reference.md`
+  while preserving 100% admission and read compatibility for legacy Chinese
+  `method_roles` and rendering localized Chinese/English labels in `--format human`.
+- Change omitted `method` default in `kdna.draft/1` from `'feeling'` to
+  `'other'` (`KT-028`) with explicit `OtherDefinition` and required `other`
+  components so unstated methods are never silently assumed to be personal feeling.
+- Add `kdna unprotect <protected.kdna> --output <plain.kdna> (--password-fd | --password-file)`
+  to decrypt password-protected `0.6.0` containers back to unprotected `0.6.0`
+  section containers atomically offline, and document the accurate `RFC-0018`
+  AEAD protection stack (`scrypt-sha256` / `argon2id` + `AES-256-KW` + `AES-256-GCM`).
+- Add `kdna source-open --output <edits.json>` and accept outer `source_opened`
+  envelopes directly in `kdna source-pack --edits` and `kdna validate-input`.
+
 ## 0.43.5 (2026-11-13)
 
 - Render English method-component role labels (`[subject_interpreted]`,
