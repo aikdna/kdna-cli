@@ -1,5 +1,7 @@
 # An author's weekly team-update preferences
 
+> **Note:** This is a **minimal CLI syntax fixture** for testing `create`, `inspect`, and `read` commands—not a full domain judgment work showcase.
+
 [author.json](./author.json) contains three self-declared preferences of an
 example author: update order, links to evidence, and optional supporting
 rationale. It is teaching content, not a record of a real team, a universal
