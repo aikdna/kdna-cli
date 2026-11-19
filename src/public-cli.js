@@ -2,7 +2,7 @@
 const { randomUUID, createHash } = require('node:crypto');
 const { parseJsonBytes, readAuthoredInput, readAssetBytes, readBoundedFile, saveNewAsset } = require('./authored-input.js');
 const { INIT_MODES, INIT_LANGS, DUPLICATE_ROLE_FIX_HINT, inspectMethodComponents, checkVersionPairAlignment, scaffoldDraft, compileDraft, validateInput, validateWithCore } = require('./draft.js');
-const { renderInspectHuman, renderValidateHuman, renderValidateInputHuman, renderReadHuman, renderRejectionHuman, compactReadResult } = require('./human.js');
+const { renderInspectHuman, renderValidateHuman, renderValidateInputHuman, renderReadHuman, renderRejectionHuman, compactReadResult, buildReviewDocument, renderReviewHuman } = require('./human.js');
 const { readSourceEdits } = require('./source-input.js');
 const { Readable, Writable } = require('node:stream');
 const binding = require('../public-contract-binding.json');
@@ -77,7 +77,7 @@ function authoringGuidance(input,rejected){
   }
   return guidance.length?guidance:null;
 }
-const commands = new Set(['init', 'compile', 'validate-input', 'create', 'protect', 'unprotect', 'diff', 'source-open', 'source-pack', 'convert', 'inspect', 'validate', 'read', 'plan', 'load']);
+const commands = new Set(['init', 'compile', 'validate-input', 'create', 'protect', 'unprotect', 'diff', 'review', 'source-open', 'source-pack', 'convert', 'inspect', 'validate', 'read', 'plan', 'load']);
 const independentStates = () => ({ writer: 'not_evaluated', confirmation: 'not_evaluated', read_permission: 'not_evaluated', action_authorization: 'not_evaluated' });
 const COMMAND_HELP = {
   init: [
@@ -139,9 +139,19 @@ const COMMAND_HELP = {
     '  container, preserving manifest, payload and attachment members; never replaces an existing file.',
   ],
   diff: [
-    'kdna diff <left.kdna> <right.kdna> [--format json|human] [--password-fd <fd> | --password-file <path>]',
-    '  Compares two assets: identity, digests, judgments added/removed/changed, conditions and',
-    '  relations. One password source serves every protected side.',
+    'kdna diff <left.kdna> <right.kdna> [--format json|human] [--verbose] [--password-fd <fd> | --password-file <path>]',
+    '  Compares two assets: identity, digests, judgments added/removed/changed, conditions,',
+    '  relations and downstream affected judgments. --format human suppresses internal IR edge',
+    '  and ID wiring noise by default; pass --verbose (or --format json) for complete details.',
+    '  One password source serves every protected side.',
+  ],
+  review: [
+    'kdna review <asset.kdna> --allow-read [--format markdown|human|json] [--output <review.md>]',
+    '  [--password-fd <fd> | --password-file <path>]',
+    '  Renders a complete one-page author review sheet (asset scope, shared declarations, every',
+    '  judgment with method, reasons, boundaries, conditional exceptions, misuse warnings, examples',
+    '  and relationships) without truncation. Requires explicit --allow-read; --output never',
+    '  overwrites an existing file.',
   ],
   inspect: [
     'kdna inspect <asset.kdna> [--json] [--format json|human] [--password-fd <fd> | --password-file <path>]',
@@ -206,6 +216,7 @@ const help = [
   ...COMMAND_HELP.protect,
   ...COMMAND_HELP.unprotect,
   ...COMMAND_HELP.diff,
+  ...COMMAND_HELP.review,
   ...COMMAND_HELP.inspect,
   ...COMMAND_HELP.validate,
   ...COMMAND_HELP.read,
@@ -424,7 +435,7 @@ function parse(argv) {
   let file, second;
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
-    if (['--allow-create', '--allow-read', '--allow-source', '--json', '--session', '--system', '--compact', '--example'].includes(arg)) {
+    if (['--allow-create', '--allow-read', '--allow-source', '--json', '--session', '--system', '--compact', '--example', '--verbose'].includes(arg)) {
       if (options[arg] !== undefined) return { error: 'KDNA_ARGUMENT_INVALID' };
       options[arg] = true;
     } else if (valued.has(arg)) {
@@ -446,7 +457,8 @@ function parse(argv) {
     : command === 'validate-input' ? ['--format', '--json']
     : command === 'create' ? ['--output', '--allow-create', '--json', '--draft']
     : command === 'protect' || command === 'unprotect' ? ['--output', '--password-fd', '--password-file', '--json']
-    : command === 'diff' ? ['--format', '--password-fd', '--password-file', '--json']
+    : command === 'diff' ? ['--format', '--verbose', '--password-fd', '--password-file', '--json']
+    : command === 'review' ? ['--allow-read', '--format', '--output', '--password-fd', '--password-file', '--json']
     : command === 'source-open' ? ['--expected-a', '--output', '--allow-source', '--json']
     : command === 'source-pack' ? ['--expected-a', '--edits', '--output', '--allow-source', '--json']
     : command === 'convert' ? ['--expected-a', '--output', '--allow-source', '--json']
@@ -457,7 +469,9 @@ function parse(argv) {
   if (options['--password-fd'] !== undefined && options['--password-file'] !== undefined) return { error: 'KDNA_ARGUMENT_INVALID' };
   if (options['--password-fd'] !== undefined && !/^(?:[3-9]|[1-9][0-9]+)$/.test(options['--password-fd'])) return { error: 'KDNA_ARGUMENT_INVALID' };
   if ((command === 'protect' || command === 'unprotect') && options['--password-fd'] === undefined && options['--password-file'] === undefined) return { error: 'KDNA_PASSWORD_SOURCE_REQUIRED' };
-  if (options['--format'] !== undefined && !['json', 'human'].includes(options['--format'])) return { error: 'KDNA_ARGUMENT_INVALID' };
+  const allowedFormats = command === 'review' ? ['markdown', 'human', 'json'] : ['json', 'human'];
+  if (options['--format'] !== undefined && !allowedFormats.includes(options['--format'])) return { error: 'KDNA_ARGUMENT_INVALID' };
+  if (command === 'review' && options['--output'] !== undefined && !options['--output'].endsWith('.md') && !options['--output'].endsWith('.txt') && !options['--output'].endsWith('.json')) return { error: 'KDNA_ARGUMENT_INVALID' };
   if (options['--compact'] && options['--view'] !== undefined && options['--view'] !== 'body') return { error: 'KDNA_ARGUMENT_INVALID' };
   if ((command === 'init' || command === 'compile' || command === 'source-open') && options['--output'] !== undefined && !options['--output'].endsWith('.json')) return { error: 'KDNA_ARGUMENT_INVALID' };
   if ((command.startsWith('source-') || command === 'convert') && !/^sha256:[0-9a-f]{64}$/.test(options['--expected-a'] || '')) return { error: 'KDNA_ARGUMENT_INVALID' };
@@ -971,7 +985,41 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
     const leftView = viewOf(left), rightView = viewOf(right);
     if (!leftView || !rightView) { await emitResult({ status: 'rejected', reason: 'READ_SNAPSHOT_UNATTESTED' }, result => renderRejectionHuman('diff', result)); return 1; }
     const result = diffViews(leftView, rightView);
-    await emitResult(result, renderDiffHuman);
+    const verbose = options['--verbose'] === true;
+    await emitResult(result, r => renderDiffHuman(r, { verbose }));
+    return 0;
+  }
+  if (command === 'review') {
+    const reviewFormat = options['--json'] === true ? 'json' : (options['--format'] ?? 'markdown');
+    const reviewHuman = reviewFormat !== 'json';
+    const emitReview = async (result, render) => reviewHuman ? write(render(result)) : emit(result);
+    if (options['--allow-read'] !== true) {
+      await emitReview({ status: 'rejected', code: 'KDNA_READ_PERMISSION_REQUIRED', action_authorized: false }, r => renderRejectionHuman('review', r));
+      return 1;
+    }
+    const admission = await whole();
+    if (admission.status !== 'accepted') { await emitReview(admission, r => renderRejectionHuman('review', r)); return 1; }
+    const view = viewOf(admission);
+    if (!view) { await emitReview({ status: 'rejected', reason: 'READ_SNAPSHOT_UNATTESTED' }, r => renderRejectionHuman('review', r)); return 1; }
+    const doc = buildReviewDocument(view);
+    const rendered = reviewFormat === 'json' ? JSON.stringify(doc, null, 2) + '\n' : renderReviewHuman(doc);
+    if (options['--output']) {
+      try {
+        await saveNewAsset(options['--output'], Buffer.from(rendered, 'utf8'), assertActive);
+      } catch (error) {
+        const fail = { status: 'save_failed', code: error.message === 'KDNA_OUTPUT_EXISTS' ? error.message : 'KDNA_SAVE_FAILED', action_authorized: false };
+        await emitReview(fail, r => renderRejectionHuman('review', r));
+        return 1;
+      }
+      if (reviewFormat === 'json') {
+        await emit({ status: 'saved', format: doc.format, output: { file: options['--output'], bytes: Buffer.byteLength(rendered, 'utf8') }, judgment_count: doc.judgment_count, action_authorized: false });
+      } else {
+        await write(`Saved author review sheet (${doc.judgment_count} judgments) to ${options['--output']}\n`);
+      }
+      return 0;
+    }
+    if (reviewFormat === 'json') await emit(doc);
+    else await write(rendered);
     return 0;
   }
   if (command === 'inspect' || command === 'validate') {

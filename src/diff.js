@@ -125,6 +125,60 @@ function scalarChanges(prefix, left, right) {
   return fieldDiffs(left ?? {}, right ?? {}).map(entry => ({ field: prefix + (entry.path === '(value)' ? '' : '.' + entry.path), left: entry.left, right: entry.right }));
 }
 
+function computeAffectedByChange(leftView, rightView, judgmentsDiff, leftJudgments, rightJudgments) {
+  const touched = new Set([
+    ...(judgmentsDiff.changed ?? []).map(e => e.id),
+    ...(judgmentsDiff.removed ?? []).map(e => e.id),
+  ]);
+  if (touched.size === 0) return [];
+  const collectEdges = (view) => {
+    const out = [];
+    const rels = Array.isArray(view?.ir?.relationships) ? view.ir.relationships : [];
+    for (const row of rels) {
+      const value = isObject(row) && isObject(row.value) ? row.value : row;
+      const kind = value?.kind?.term ?? value?.kind;
+      if (!['support', 'qualify', 'conflict'].includes(kind)) continue;
+      const parts = (value?.participants ?? [])
+        .map(p => ({ role: p?.role?.term ?? null, ref: typeof p?.judgment_ref === 'string' ? p.judgment_ref : null }))
+        .filter(p => p.ref !== null);
+      if (kind === 'support' || kind === 'qualify') {
+        const src = parts.find(p => p.role === 'supporter' || p.role === 'qualifier');
+        const dst = parts.find(p => p.role === 'claim' || p.role === 'qualified');
+        if (src && dst) out.push({ from: src.ref, to: dst.ref, kind, relation_id: value?.id ?? null });
+      } else if (kind === 'conflict' && parts.length === 2) {
+        out.push({ from: parts[0].ref, to: parts[1].ref, kind: 'conflict', relation_id: value?.id ?? null });
+        out.push({ from: parts[1].ref, to: parts[0].ref, kind: 'conflict', relation_id: value?.id ?? null });
+      }
+    }
+    return out;
+  };
+  const affectedMap = new Map();
+  const seenEdges = new Set();
+  for (const edge of [...collectEdges(rightView), ...collectEdges(leftView)]) {
+    if (!touched.has(edge.from) || touched.has(edge.to)) continue;
+    // Only report downstream judgments that still exist on the right side (if right has any judgments)
+    if (rightJudgments.size > 0 && !rightJudgments.has(edge.to)) continue;
+    const edgeKey = `${edge.to}|${edge.from}|${edge.kind}|${edge.relation_id ?? ''}`;
+    if (seenEdges.has(edgeKey)) continue;
+    seenEdges.add(edgeKey);
+    if (!affectedMap.has(edge.to)) {
+      const targetVal = rightJudgments.get(edge.to) ?? leftJudgments.get(edge.to);
+      affectedMap.set(edge.to, { judgment_id: edge.to, focus: targetVal?.focus ?? null, affected_by: [] });
+    }
+    affectedMap.get(edge.to).affected_by.push({
+      judgment_id: edge.from,
+      kind: edge.kind,
+      ...(edge.relation_id ? { relation_id: edge.relation_id } : {}),
+    });
+  }
+  return [...affectedMap.values()]
+    .sort((a, b) => cmp(a.judgment_id, b.judgment_id))
+    .map(entry => ({
+      ...entry,
+      affected_by: entry.affected_by.sort((a, b) => cmp(a.judgment_id + ':' + a.kind, b.judgment_id + ':' + b.kind)),
+    }));
+}
+
 /**
  * Compare two admitted whole-asset views.
  * @param {object} leftView  result of inspectWholeSectionSnapshot (the "before" asset)
@@ -145,13 +199,26 @@ function diffViews(leftView, rightView) {
   const conditions = compareMaps(L.conditions, R.conditions, (id, value) => ({ id, summary: value?.statement ?? value?.id ?? null }));
   const relations = compareMaps(indexRelations(leftView), indexRelations(rightView), (id, value) => ({ id, value }));
   const declarations = compareMaps(L.declarations, R.declarations, (id, value) => ({ id, summary: value?.name ?? value?.statement ?? value?.id ?? null }));
+  const affectedByChange = computeAffectedByChange(leftView, rightView, judgments, L.judgments, R.judgments);
   const left = summarize(leftView), right = summarize(rightView);
   const digestChanges = ['A', 'C', 'E'].filter(letter => left.digests[letter] !== right.digests[letter])
     .map(letter => ({ field: 'digests.' + letter, left: left.digests[letter], right: right.digests[letter] }));
   if (left.ir_digest !== right.ir_digest) digestChanges.push({ field: 'ir_digest', left: left.ir_digest, right: right.ir_digest });
   const sections = [judgments, conditions, relations, declarations];
   const identical = manifestChanged.length === 0 && sections.every(s => !s.added.length && !s.removed.length && !s.changed.length);
-  return { format: FORMAT, left, right, identical, manifest: { changed: manifestChanged }, digests: { changed: digestChanges }, judgments, conditions, relations, declarations };
+  return {
+    format: FORMAT,
+    left,
+    right,
+    identical,
+    manifest: { changed: manifestChanged },
+    digests: { changed: digestChanges },
+    judgments,
+    conditions,
+    relations,
+    declarations,
+    affected_by_change: affectedByChange,
+  };
 }
 
 function wrap(text, width, indent) {
@@ -161,6 +228,59 @@ function wrap(text, width, indent) {
 function show(value) {
   const text = typeof value === 'string' ? JSON.stringify(value) : canonicalJson(value);
   return text.length > 300 ? text.slice(0, 297) + '...' : text;
+}
+
+// Render added/removed structured objects cleanly for author review instead of raw JSON blobs.
+function showHumanValue(value) {
+  if (value === null || value === undefined) return 'none';
+  if (typeof value === 'string') return show(value);
+  if (isObject(value)) {
+    if (typeof value.statement === 'string') {
+      const prefix = typeof value.role === 'string' && value.role
+        ? `[${value.role}] `
+        : typeof value.effect === 'string' && value.effect
+          ? `[${value.effect}] `
+          : '';
+      return show(prefix + value.statement);
+    }
+    if (isObject(value.effect) && value.effect.kind === 'replace_limit' && typeof value.effect.replacement?.statement === 'string') {
+      return show(`[replace_limit] ${value.effect.replacement.statement}`);
+    }
+    if (typeof value.name === 'string' && typeof value.kind === 'string') {
+      return show(`[${value.kind}] ${value.name}`);
+    }
+  }
+  return show(value);
+}
+
+const INTERNAL_JUDGMENT_FIELD_PATTERNS = [
+  /(?:^|\.)id$/,
+  /\.material_refs(?:\[\d+\])?$/,
+  /\.declared_by$/,
+  /\.applies_to(?:\.|$)/,
+  /\.exception_refs(?:\[\d+\])?$/,
+  /^subject\.actor_ids(?:\[\d+\])?$/,
+  /^subject\.statement$/,
+  /^result_contract\./,
+  /^ports(?:\[\d+\])?\./,
+  /^result\.contract_ref$/,
+];
+
+function isInternalJudgmentField(fieldPath) {
+  return INTERNAL_JUDGMENT_FIELD_PATTERNS.some(re => re.test(String(fieldPath ?? '')));
+}
+
+function formatRelationHuman(entry) {
+  const value = entry?.value;
+  if (entry?.id?.startsWith('relationship|') && isObject(value)) {
+    const kind = value.kind?.term ?? value.kind ?? 'relation';
+    const parts = Array.isArray(value.participants)
+      ? value.participants.map(p => `${p?.role?.term ? p.role.term + ':' : ''}${p?.judgment_ref ?? '?'}`).join(' -> ')
+      : entry.id;
+    const stmt = typeof value.statement === 'string' && value.statement.trim() ? ` — ${value.statement.trim()}` : '';
+    return `[${kind}] ${parts}${stmt}`;
+  }
+  return entry?.id ?? '(relation)';
 }
 
 function assetLabel(side) {
@@ -178,8 +298,14 @@ function deduplicateHumanJudgmentFields(fields) {
   });
 }
 
-/** Plain-text rendering of a kdna.diff/1 object; never throws on unknown shapes. */
-function renderDiffHuman(diff) {
+/**
+ * Plain-text rendering of a kdna.diff/1 object; never throws on unknown shapes.
+ * By default (`verbose: false`), collapses internal IR reference edge noise and mechanical ID/wiring
+ * field churn so authors immediately see substantive judgment changes and downstream impact.
+ * Pass `{ verbose: true }` to expand every internal field and IR reference edge losslessly.
+ */
+function renderDiffHuman(diff, options = {}) {
+  const verbose = Boolean(options && options.verbose === true);
   try {
     if (!isObject(diff) || diff.format !== FORMAT) return 'Not a kdna.diff/1 result.\n' + JSON.stringify(diff, null, 2) + '\n';
     const out = [];
@@ -207,18 +333,64 @@ function renderDiffHuman(diff) {
       totals.push(`${title.toLowerCase()}: +${added.length} -${removed.length} ~${changed.length} =${s.unchanged_count ?? 0}`);
       if (!added.length && !removed.length && !changed.length) continue;
       out.push(`${title} (+${added.length} -${removed.length} ~${changed.length}, ${s.unchanged_count ?? 0} unchanged)`);
-      for (const entry of removed) out.push('  - ' + entry.id + (entry.focus ? '  ' + entry.focus : ''));
-      for (const entry of added) out.push('  + ' + entry.id + (entry.focus ? '  ' + entry.focus : ''));
+      if (key === 'relations' && !verbose) {
+        const isRef = entry => typeof entry?.id === 'string' && entry.id.startsWith('reference|');
+        const authoredRemoved = removed.filter(e => !isRef(e));
+        const authoredAdded = added.filter(e => !isRef(e));
+        const authoredChanged = changed.filter(e => !isRef(e));
+        const hiddenRefCount = (removed.length - authoredRemoved.length) + (added.length - authoredAdded.length) + (changed.length - authoredChanged.length);
+        for (const entry of authoredRemoved) out.push(wrap('- ' + formatRelationHuman(entry), 100, '  '));
+        for (const entry of authoredAdded) out.push(wrap('+ ' + formatRelationHuman(entry), 100, '  '));
+        for (const entry of authoredChanged) {
+          out.push('  ~ ' + entry.id);
+          for (const field of (entry.fields ?? [])) {
+            out.push('      ' + field.path);
+            out.push(wrap('- ' + showHumanValue(field.left), 100, '        '));
+            out.push(wrap('+ ' + showHumanValue(field.right), 100, '        '));
+          }
+        }
+        if (hiddenRefCount > 0) {
+          out.push(`  (${hiddenRefCount} internal IR reference edge change${hiddenRefCount === 1 ? '' : 's'} hidden; pass --verbose to show)`);
+        }
+        out.push('');
+        continue;
+      }
+      for (const entry of removed) out.push('  - ' + entry.id + (entry.focus ? '  ' + entry.focus : entry.summary ? '  ' + show(entry.summary) : ''));
+      for (const entry of added) out.push('  + ' + entry.id + (entry.focus ? '  ' + entry.focus : entry.summary ? '  ' + show(entry.summary) : ''));
       for (const entry of changed) {
         out.push('  ~ ' + entry.id);
-        const visibleFields = key === 'judgments' ? deduplicateHumanJudgmentFields(entry.fields) : (entry.fields ?? []);
+        const deduped = key === 'judgments' ? deduplicateHumanJudgmentFields(entry.fields) : (entry.fields ?? []);
+        let visibleFields = deduped;
+        let hiddenInternal = 0;
+        if (key === 'judgments' && !verbose) {
+          visibleFields = deduped.filter(f => !isInternalJudgmentField(f.path));
+          hiddenInternal = deduped.length - visibleFields.length;
+          // Never hide everything if only internal fields changed.
+          if (visibleFields.length === 0 && deduped.length > 0) {
+            visibleFields = deduped;
+            hiddenInternal = 0;
+          }
+        }
         for (const field of visibleFields) {
           out.push('      ' + field.path);
-          out.push(wrap('- ' + show(field.left), 100, '        '));
-          out.push(wrap('+ ' + show(field.right), 100, '        '));
+          const fmt = verbose ? show : showHumanValue;
+          out.push(wrap('- ' + fmt(field.left), 100, '        '));
+          out.push(wrap('+ ' + fmt(field.right), 100, '        '));
+        }
+        if (hiddenInternal > 0) {
+          out.push(`      (+${hiddenInternal} internal ID/wiring field change${hiddenInternal === 1 ? '' : 's'} hidden; pass --verbose to inspect)`);
         }
       }
       out.push('');
+      if (key === 'judgments' && Array.isArray(diff.affected_by_change) && diff.affected_by_change.length > 0) {
+        out.push(`Affected related judgments (${diff.affected_by_change.length} downstream to review)`);
+        for (const item of diff.affected_by_change) {
+          const causes = (item.affected_by ?? []).map(c => `${c.kind} from ${c.judgment_id}`).join(', ');
+          const label = `${item.judgment_id}${item.focus ? ' — ' + item.focus : ''} (${causes})`;
+          out.push(wrap('! ' + label, 100, '  '));
+        }
+        out.push('');
+      }
     }
     const digestChanges = diff.digests?.changed ?? [];
     if (digestChanges.length) {

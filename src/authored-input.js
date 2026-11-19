@@ -96,7 +96,7 @@ async function readBoundedFile(file, limit, code, assertActive = () => {}) {
   assertActive();
   let handle;
   try {
-    handle = await fs.open(file, constants.O_RDONLY | constants.O_NONBLOCK | (constants.O_NOFOLLOW || 0));
+    handle = await fs.open(file, constants.O_RDONLY | (constants.O_NONBLOCK || 0) | (constants.O_NOFOLLOW || 0));
     assertActive();
     const stat = await handle.stat();
     assertActive();
@@ -193,7 +193,27 @@ async function saveNewAsset(file, bytes, assertActive = () => {}) {
     await handle.writeFile(bytes); await handle.sync(); await handle.close(); handle = null;
     assertActive();
     // link() commits the complete file atomically and never replaces a target.
-    await fs.link(temporary, file); published = true;
+    try {
+      await fs.link(temporary, file); published = true;
+    } catch (linkError) {
+      // On Windows volumes where hard links are unsupported/denied (FAT32/exFAT/network shares),
+      // fall back to exclusive O_CREAT|O_EXCL write ('wx') so existing targets are still never replaced.
+      if (process.platform === 'win32' && ['EPERM', 'ENOTSUP', 'ENOSYS', 'EXDEV'].includes(linkError?.code)) {
+        const direct = await fs.open(file, 'wx', 0o600);
+        try {
+          await direct.writeFile(bytes);
+          await direct.sync();
+          published = true;
+        } catch (writeError) {
+          await direct.close().catch(() => undefined);
+          await fs.unlink(file).catch(() => undefined);
+          throw writeError;
+        }
+        await direct.close().catch(() => undefined);
+      } else {
+        throw linkError;
+      }
+    }
   } catch (error) {
     if (error.code === 'EEXIST') throw new Error('KDNA_OUTPUT_EXISTS');
     throw new Error('KDNA_SAVE_FAILED');

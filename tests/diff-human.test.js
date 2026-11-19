@@ -437,3 +437,98 @@ test('renderReadHuman displays English method-role aliases on English assets and
     assert.ok(!/[\u4e00-\u9fff]/u.test(enCli.stdout), 'English whitepaper --format human must contain zero Chinese characters');
   }
 });
+
+test('clean human diff hides IR reference & ID wiring noise by default, shows --verbose and downstream impact', { skip: !have }, async () => {
+  const left = await viewOf(V1), right = await viewOf(V11);
+  const diff = diffViews(left, right);
+  const clean = renderDiffHuman(diff);
+  const verbose = renderDiffHuman(diff, { verbose: true });
+
+  // Clean default hides internal IR reference edges and internal ID wiring noise
+  assert.doesNotMatch(clean, /reference\|judgment:/);
+  assert.match(clean, /internal IR reference edge changes? hidden; pass --verbose to show/);
+  assert.doesNotMatch(clean, /method\.components\[0\]\.id/);
+  assert.match(clean, /internal ID\/wiring field changes? hidden; pass --verbose to inspect/);
+
+  // Verbose mode restores 100% lossless internal details
+  assert.match(verbose, /reference\|judgment:update:order->method_component:/);
+  assert.match(verbose, /method\.components\[0\]\.id/);
+
+  // CLI flag --verbose works cleanly
+  const cliClean = spawnSync(process.execPath, [CLI, 'diff', V1, V11, '--format', 'human'], { encoding: 'utf8', maxBuffer: 1 << 26 });
+  assert.equal(cliClean.status, 0, cliClean.stderr);
+  assert.doesNotMatch(cliClean.stdout, /reference\|judgment:/);
+  const cliVerbose = spawnSync(process.execPath, [CLI, 'diff', V1, V11, '--format', 'human', '--verbose'], { encoding: 'utf8', maxBuffer: 1 << 26 });
+  assert.equal(cliVerbose.status, 0, cliVerbose.stderr);
+  assert.match(cliVerbose.stdout, /reference\|judgment:update:order->method_component:/);
+
+  // Downstream impact (`affected_by_change`) surfaces related judgments when a supporter/qualifier/conflict peer changes
+  const modLeft = clone(left), modRight = clone(left);
+  modLeft.ir.relationships = [
+    { id: 'rel:sup', kind: { term: 'support' }, participants: [{ role: { term: 'supporter' }, judgment_ref: 'update:order' }, { role: { term: 'claim' }, judgment_ref: 'update:evidence' }] },
+    { id: 'rel:comp', kind: { term: 'complement' }, participants: [{ role: { term: 'supplement' }, judgment_ref: 'update:order' }, { role: { term: 'base' }, judgment_ref: 'update:rationale' }] },
+  ];
+  modRight.ir.relationships = clone(modLeft.ir.relationships);
+  const orderNode = modRight.ir.nodes.find(n => n.role === 'judgment' && n.target.id === 'update:order');
+  orderNode.value.core_expression.statement = 'Blockers always lead before shipped changes.';
+  const impactDiff = diffViews(modLeft, modRight);
+  assert.equal(impactDiff.affected_by_change.length, 1);
+  assert.equal(impactDiff.affected_by_change[0].judgment_id, 'update:evidence');
+  assert.equal(impactDiff.affected_by_change[0].affected_by[0].kind, 'support');
+  const impactText = renderDiffHuman(impactDiff);
+  assert.match(impactText, /Affected related judgments \(1 downstream to review\)/);
+  assert.match(impactText, /update:evidence.*support from update:order/);
+  assert.doesNotMatch(impactText, /update:rationale.*complement/);
+});
+
+test('kdna review renders complete one-page author review sheet and enforces --allow-read & non-overwrite', { skip: !have }, () => {
+  const os = require('node:os');
+  // Without --allow-read, refuses with KDNA_READ_PERMISSION_REQUIRED
+  const denied = spawnSync(process.execPath, [CLI, 'review', V1], { encoding: 'utf8' });
+  assert.equal(denied.status, 1);
+  assert.match(denied.stdout, /KDNA_READ_PERMISSION_REQUIRED/);
+
+  // Markdown default includes title, scope, judgments, method, boundaries with zero JSON dumps
+  const mdRun = spawnSync(process.execPath, [CLI, 'review', V1, '--allow-read'], { encoding: 'utf8', maxBuffer: 1 << 26 });
+  assert.equal(mdRun.status, 0, mdRun.stderr);
+  assert.match(mdRun.stdout, /^# A sample author/);
+  assert.match(mdRun.stdout, /`update:order`/);
+  assert.match(mdRun.stdout, /`update:evidence`/);
+  assert.match(mdRun.stdout, /`update:rationale`/);
+  assert.ok(!/[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]/u.test(mdRun.stdout), 'English review sheet must contain zero CJK/fullwidth characters');
+
+  // JSON format returns kdna.review/1
+  const jsonRun = spawnSync(process.execPath, [CLI, 'review', V1, '--allow-read', '--format', 'json'], { encoding: 'utf8', maxBuffer: 1 << 26 });
+  assert.equal(jsonRun.status, 0, jsonRun.stderr);
+  const parsed = JSON.parse(jsonRun.stdout);
+  assert.equal(parsed.format, 'kdna.review/1');
+  assert.equal(parsed.judgment_count, 3);
+
+  // --output saves once and refuses overwriting an existing file
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-review-test-'));
+  try {
+    const outFile = path.join(tmpDir, 'sheet.md');
+    const saved = spawnSync(process.execPath, [CLI, 'review', V1, '--allow-read', '--output', outFile], { encoding: 'utf8' });
+    assert.equal(saved.status, 0, saved.stderr);
+    assert.ok(fs.existsSync(outFile));
+    assert.equal(fs.readFileSync(outFile, 'utf8'), mdRun.stdout);
+    const overwrite = spawnSync(process.execPath, [CLI, 'review', V1, '--allow-read', '--output', outFile], { encoding: 'utf8' });
+    assert.equal(overwrite.status, 1);
+    assert.match(overwrite.stdout, /KDNA_OUTPUT_EXISTS/);
+
+    // Password-protected asset: refuses without password (no body leak) and renders with --password-file
+    const pwFile = path.join(tmpDir, 'pw.txt');
+    const protAsset = path.join(tmpDir, 'protected.kdna');
+    fs.writeFileSync(pwFile, 'review-secret-pass-42\n');
+    const protRun = spawnSync(process.execPath, [CLI, 'protect', V1, '--output', protAsset, '--password-file', pwFile], { encoding: 'utf8' });
+    assert.equal(protRun.status, 0, protRun.stderr);
+    const lockedRev = spawnSync(process.execPath, [CLI, 'review', protAsset, '--allow-read'], { encoding: 'utf8' });
+    assert.equal(lockedRev.status, 1);
+    assert.doesNotMatch(lockedRev.stdout, /update:order/);
+    const unlockedRev = spawnSync(process.execPath, [CLI, 'review', protAsset, '--allow-read', '--password-file', pwFile], { encoding: 'utf8', maxBuffer: 1 << 26 });
+    assert.equal(unlockedRev.status, 0, unlockedRev.stderr);
+    assert.match(unlockedRev.stdout, /`update:order`/);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});

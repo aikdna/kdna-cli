@@ -736,6 +736,376 @@ function renderValidateInput(result) {
 
 function renderValidateInputHuman(result) { return safe(renderValidateInput, result, 'validate-input'); }
 
+// ---- one-page author review sheet (`kdna review`) ---------------------------------------------------
+
+function formatExceptionText(exc, conditionsById, isZh) {
+  if (!isObject(exc)) return String(exc ?? '');
+  const condRefs = Array.isArray(exc.condition_refs) ? exc.condition_refs : [];
+  const condTexts = condRefs
+    .map(ref => {
+      const id = typeof ref === 'string' ? ref : ref?.id;
+      const cond = id ? conditionsById.get(id) : null;
+      return cond?.statement ?? id ?? null;
+    })
+    .filter(Boolean);
+  const when = condTexts.length
+    ? (isZh ? `触发条件：${condTexts.join('；')}` : `When: ${condTexts.join('; ')}`)
+    : null;
+  let effectText = null;
+  if (isObject(exc.effect)) {
+    if (exc.effect.kind === 'replace_limit' && typeof exc.effect.replacement?.statement === 'string') {
+      effectText = isZh
+        ? `替代限制：${exc.effect.replacement.statement}`
+        : `Replacement limit: ${exc.effect.replacement.statement}`;
+    } else if (exc.effect.kind === 'suspend' || exc.effect.kind === 'exempt') {
+      effectText = isZh ? '效果：暂缓/豁免原限制' : `Effect: ${exc.effect.kind}`;
+    } else if (typeof exc.effect.statement === 'string') {
+      effectText = exc.effect.statement;
+    } else if (typeof exc.effect.kind === 'string') {
+      effectText = isZh ? `效果：${exc.effect.kind}` : `Effect: ${exc.effect.kind}`;
+    }
+  }
+  const stmt = typeof exc.statement === 'string' && exc.statement.trim() ? exc.statement.trim() : null;
+  return [stmt, when, effectText].filter(Boolean).join(isZh ? '｜' : ' | ') || (exc.id ?? 'exception');
+}
+
+function buildReviewDocument(view) {
+  const nodes = Array.isArray(view?.ir?.nodes) ? view.ir.nodes : [];
+  const catalog = Array.isArray(view?.ir?.catalog) ? view.ir.catalog : [];
+  const relationships = Array.isArray(view?.ir?.relationships) ? view.ir.relationships : [];
+
+  let assetDecl = null;
+  const judgmentsById = new Map();
+  const actors = [];
+  const materialsById = new Map();
+  const reasonsById = new Map();
+  const reasonsByJudgment = new Map();
+  const sourcesById = new Map();
+  const conditionsById = new Map();
+  const sharedDeclarations = [];
+  const examples = [];
+  const assetBoundaries = [];
+  const assetExceptions = [];
+  const assetMisuse = [];
+  const revisions = [];
+
+  for (const node of nodes) {
+    if (!isObject(node) || !isObject(node.value)) continue;
+    const v = node.value;
+    const targetId = node.target?.id ?? v.id ?? node.id;
+    const isAssetOwned = node.owner?.kind === 'asset' || (!node.owner_judgment_id && node.owner?.kind !== 'judgment');
+    switch (node.role) {
+      case 'asset_declaration': assetDecl = v; break;
+      case 'judgment': judgmentsById.set(String(targetId), v); break;
+      case 'actor': actors.push(v); break;
+      case 'material': materialsById.set(String(targetId), v); break;
+      case 'reason':
+        if (v.id) reasonsById.set(v.id, v);
+        if (v.judgment_ref) {
+          if (!reasonsByJudgment.has(v.judgment_ref)) reasonsByJudgment.set(v.judgment_ref, []);
+          reasonsByJudgment.get(v.judgment_ref).push(v);
+        }
+        break;
+      case 'source': sourcesById.set(String(targetId), v); break;
+      case 'condition': conditionsById.set(String(targetId), v); break;
+      case 'shared_declaration': sharedDeclarations.push(v); break;
+      case 'example': examples.push(v); break;
+      case 'revision': revisions.push(v); break;
+      case 'boundary':
+        if (isAssetOwned) assetBoundaries.push(v);
+        break;
+      case 'exception':
+        if (isAssetOwned) assetExceptions.push(v);
+        break;
+      case 'misuse':
+        if (isAssetOwned) assetMisuse.push(v);
+        break;
+      default: break;
+    }
+  }
+
+  const examplesByJudgment = new Map();
+  for (const ex of examples) {
+    for (const a of (Array.isArray(ex.adopted_judgments) ? ex.adopted_judgments : [])) {
+      const jid = a?.judgment_id;
+      if (!jid) continue;
+      if (!examplesByJudgment.has(jid)) examplesByJudgment.set(jid, []);
+      examplesByJudgment.get(jid).push(ex);
+    }
+  }
+
+  const relsByJudgment = new Map();
+  const normalizedRels = [];
+  for (const rel of relationships) {
+    if (!isObject(rel)) continue;
+    const kind = rel.kind?.term ?? rel.kind ?? 'relation';
+    const parts = Array.isArray(rel.participants)
+      ? rel.participants.map(p => ({ role: p?.role?.term ?? null, judgment_ref: p?.judgment_ref ?? null })).filter(p => p.judgment_ref)
+      : [];
+    const item = { id: rel.id ?? null, kind, participants: parts, statement: typeof rel.statement === 'string' ? rel.statement : null };
+    normalizedRels.push(item);
+    for (const p of parts) {
+      if (!relsByJudgment.has(p.judgment_ref)) relsByJudgment.set(p.judgment_ref, []);
+      relsByJudgment.get(p.judgment_ref).push(item);
+    }
+  }
+
+  const orderedIds = catalog.length
+    ? catalog.map(c => c.judgment_id).filter(id => judgmentsById.has(id))
+    : [...judgmentsById.keys()];
+  for (const id of judgmentsById.keys()) if (!orderedIds.includes(id)) orderedIds.push(id);
+
+  const languages = assetDecl?.languages ?? [];
+  const useEnglish = preferEnglishRoles(languages, judgmentsById.get(orderedIds[0]));
+
+  const judgments = orderedIds.map((id, index) => {
+    const j = judgmentsById.get(id);
+    const methodTerm = j.method?.method?.term ?? null;
+    const methodComponents = (Array.isArray(j.method?.components) ? j.method.components : [])
+      .filter(c => isObject(c) && typeof c.statement === 'string')
+      .map(c => {
+        const rawRole = c.role ?? 'component';
+        const mTerm = c.method?.term ?? methodTerm;
+        const roleLabel = useEnglish
+          ? (englishAliasFor(mTerm, rawRole) ?? rawRole)
+          : (chineseLabelFor(mTerm, rawRole) ?? rawRole);
+        return { role: rawRole, role_label: roleLabel, statement: c.statement };
+      });
+
+    const reasons = [];
+    const seenReasons = new Set();
+    for (const ref of (Array.isArray(j.reason_refs) ? j.reason_refs : [])) {
+      const r = reasonsById.get(ref);
+      if (r && !seenReasons.has(r.id)) { seenReasons.add(r.id); reasons.push({ id: r.id, role: r.role ?? null, statement: r.statement }); }
+    }
+    for (const r of (reasonsByJudgment.get(id) ?? [])) {
+      const key = r.id ?? r.statement;
+      if (!seenReasons.has(key)) { seenReasons.add(key); reasons.push({ id: r.id ?? null, role: r.role ?? null, statement: r.statement }); }
+    }
+
+    const materialRefs = [];
+    const seenMats = new Set();
+    for (const u of (Array.isArray(j.content_uses) ? j.content_uses : [])) {
+      const tid = u?.target?.id;
+      if (u?.target?.kind === 'material' && tid && !seenMats.has(tid)) {
+        seenMats.add(tid);
+        const mat = materialsById.get(tid);
+        if (mat) materialRefs.push({ id: tid, kind: mat.kind ?? null, name: mat.name ?? mat.term ?? null, statement: mat.statement ?? mat.definition ?? mat.content ?? null, use_role: u.role ?? null });
+      }
+    }
+
+    const extractProvided = entry => (isObject(entry) && entry.state === 'provided' && Array.isArray(entry.value) ? entry.value : []);
+    const boundaries = extractProvided(j.boundaries).map(b => ({ id: b.id ?? null, effect: b.effect ?? null, statement: b.statement ?? null }));
+    const exceptions = extractProvided(j.exceptions).map(e => ({
+      id: e.id ?? null,
+      text: formatExceptionText(e, conditionsById, !useEnglish),
+      effect_kind: e.effect?.kind ?? null,
+    }));
+    const misuse = extractProvided(j.misuse).map(m => ({ id: m.id ?? null, statement: m.statement ?? null }));
+    const jExamples = (examplesByJudgment.get(id) ?? []).map(ex => ({
+      id: ex.id ?? null,
+      title: ex.title ?? null,
+      context: ex.context ?? null,
+      input: ex.input ?? null,
+      application: ex.application ?? null,
+      result: Array.isArray(ex.results) && ex.results[0]?.statement ? ex.results[0].statement : null,
+    }));
+    const related = (relsByJudgment.get(id) ?? []).map(rel => {
+      const other = rel.participants.find(p => p.judgment_ref !== id);
+      const self = rel.participants.find(p => p.judgment_ref === id);
+      const otherJ = other ? judgmentsById.get(other.judgment_ref) : null;
+      return {
+        kind: rel.kind,
+        self_role: self?.role ?? null,
+        other_id: other?.judgment_ref ?? null,
+        other_role: other?.role ?? null,
+        other_focus: otherJ?.focus ?? null,
+        statement: rel.statement,
+      };
+    });
+
+    return {
+      index: index + 1,
+      id,
+      focus: j.focus ?? null,
+      lifecycle: j.lifecycle ?? null,
+      statement: authoredStatement(j) ?? null,
+      scope: j.scope?.statement ?? null,
+      method: methodTerm || methodComponents.length ? { term: methodTerm, components: methodComponents } : null,
+      reasons,
+      materials: materialRefs,
+      boundaries,
+      exceptions,
+      misuse,
+      examples: jExamples,
+      relationships: related,
+    };
+  });
+
+  const digest = letter => view?.digests?.[letter]?.observed ?? null;
+  const globalMaterials = [...materialsById.values()]
+    .filter(m => ['foundation', 'definition', 'premise'].includes(m.kind))
+    .map(m => ({ id: m.id ?? null, kind: m.kind ?? null, name: m.name ?? m.term ?? null, statement: m.statement ?? m.definition ?? m.content ?? null }));
+
+  return {
+    format: 'kdna.review/1',
+    language: useEnglish ? 'en' : 'zh',
+    asset: {
+      asset_id: view?.asset?.asset_id ?? assetDecl?.asset_id ?? null,
+      asset_version: view?.asset?.asset_version ?? assetDecl?.version ?? null,
+      judgment_version: view?.asset?.judgment_version ?? assetDecl?.judgment_version ?? null,
+      title: assetDecl?.title ?? null,
+      summary: assetDecl?.summary ?? null,
+      description: assetDecl?.description ?? null,
+      languages,
+      creator: assetDecl?.creator ?? null,
+      license: assetDecl?.license ?? null,
+      scope: assetDecl?.scope?.statement ?? null,
+      highest_question: assetDecl?.declarations?.highest_question?.value ?? null,
+      purpose: assetDecl?.kernel?.purpose ?? null,
+    },
+    digests: { A: digest('A'), C: digest('C'), E: digest('E'), ir_digest: view?.verification?.ir_digest?.digest ?? view?.ir_digest ?? null },
+    actors: actors.map(a => ({ id: a.id ?? null, name: a.name ?? null, kind: a.kind ?? null })),
+    shared_declarations: sharedDeclarations.map(sd => ({
+      id: sd.id ?? null,
+      kind: sd.kind ?? null,
+      name: sd.name ?? null,
+      statement: sd.statement ?? null,
+      values: Array.isArray(sd.value) ? sd.value : (typeof sd.value === 'string' ? [sd.value] : []),
+    })),
+    foundations: globalMaterials,
+    asset_boundaries: assetBoundaries.map(b => ({ id: b.id ?? null, effect: b.effect ?? null, statement: b.statement ?? null })),
+    asset_exceptions: assetExceptions.map(e => ({ id: e.id ?? null, text: formatExceptionText(e, conditionsById, !useEnglish) })),
+    asset_misuse: assetMisuse.map(m => ({ id: m.id ?? null, statement: m.statement ?? null })),
+    judgment_count: judgments.length,
+    judgments,
+    relationships: normalizedRels,
+    sources: [...sourcesById.values()].map(s => ({ id: s.id ?? null, title: s.title ?? s.name ?? null, uri: s.uri ?? null, kind: s.kind ?? null, citation: s.citation ?? s.statement ?? null })),
+    revisions: revisions.map(r => ({ id: r.id ?? null, version: r.version ?? null, date: r.date ?? r.recorded_at ?? null, summary: r.summary ?? r.statement ?? null })),
+  };
+}
+
+function renderReviewMarkdown(review) {
+  if (!isObject(review) || review.format !== 'kdna.review/1') return fallback('review: unexpected result', review);
+  const zh = review.language === 'zh';
+  const a = review.asset ?? {};
+  const out = [];
+  out.push(`# ${a.title ?? a.asset_id ?? 'KDNA Review Sheet'}`);
+  out.push('');
+  const metaRows = [
+    [zh ? '作品标识' : 'Asset ID', `\`${a.asset_id ?? '?'}\``],
+    [zh ? '版本' : 'Version', `\`${a.asset_version ?? '?'}\`${a.judgment_version && a.judgment_version !== a.asset_version ? ` (judgments \`${a.judgment_version}\`)` : ''}`],
+    [zh ? '判断条数' : 'Judgments', String(review.judgment_count ?? 0)],
+  ];
+  if (Array.isArray(a.languages) && a.languages.length) metaRows.push([zh ? '语言' : 'Languages', a.languages.join(', ')]);
+  const creatorName = typeof a.creator === 'string' ? a.creator : (a.creator?.name ?? review.actors?.[0]?.name ?? null);
+  if (creatorName) metaRows.push([zh ? '作者 / 主体' : 'Author', creatorName]);
+  const licenseId = typeof a.license === 'string' ? a.license : (a.license?.identifier ?? a.license?.spdx ?? null);
+  if (licenseId) metaRows.push([zh ? '许可协议' : 'License', licenseId]);
+  if (review.digests?.A) metaRows.push([zh ? '文件校验 (A)' : 'Digest A', `\`${shortDigest(review.digests.A)}\``]);
+  for (const [k, v] of metaRows) out.push(`- **${k}**: ${v}`);
+  if (a.summary) out.push('', `> ${a.summary}`);
+
+  out.push('', zh ? '## 一、整份作品声明与共同前提' : '## 1. Asset Scope, Kernel & Shared Guardrails');
+  if (a.highest_question) out.push(`- **${zh ? '最高问题' : 'Highest Question'}**: ${a.highest_question}`);
+  if (a.purpose) out.push(`- **${zh ? '核心目的' : 'Purpose'}**: ${a.purpose}`);
+  if (a.scope) out.push(`- **${zh ? '适用范围' : 'Scope'}**: ${a.scope}`);
+  if (review.shared_declarations?.length) {
+    out.push('', zh ? '### 共同声明' : '### Shared Declarations');
+    for (const sd of review.shared_declarations) {
+      const label = [sd.kind, sd.name].filter(Boolean).join(': ');
+      const items = sd.values?.length ? sd.values : (sd.statement ? [sd.statement] : []);
+      for (const item of items) out.push(`- [${label || 'declaration'}] ${item}`);
+    }
+  }
+  if (review.foundations?.length) {
+    out.push('', zh ? '### 基础前提与定义' : '### Foundations, Premises & Definitions');
+    for (const m of review.foundations) {
+      const head = [m.kind, m.name].filter(Boolean).join(' · ');
+      out.push(`- **${head || m.id}**: ${m.statement ?? ''}`.trimEnd());
+    }
+  }
+  if (review.asset_boundaries?.length) {
+    out.push('', zh ? '### 作品级停手边界' : '### Asset-Level Boundaries');
+    for (const b of review.asset_boundaries) out.push(`- ${b.effect ? `[${b.effect}] ` : ''}${b.statement ?? b.id}`);
+  }
+  if (review.asset_exceptions?.length) {
+    out.push('', zh ? '### 作品级条件例外' : '### Asset-Level Conditional Exceptions');
+    for (const e of review.asset_exceptions) out.push(`- ${e.text}`);
+  }
+  if (review.asset_misuse?.length) {
+    out.push('', zh ? '### 作品级防误用提醒' : '### Asset-Level Anti-Misuse');
+    for (const m of review.asset_misuse) out.push(`- ${m.statement ?? m.id}`);
+  }
+
+  out.push('', zh ? `## 二、逐条判断审稿清样（共 ${review.judgment_count} 条）` : `## 2. Judgment-by-Judgment Review Sheet (${review.judgment_count})`);
+  for (const j of (review.judgments ?? [])) {
+    out.push('', `### ${j.index}. \`${j.id}\`${j.focus ? ` — ${j.focus}` : ''}`);
+    if (j.lifecycle?.status) out.push(`- **${zh ? '状态' : 'Lifecycle'}**: ${j.lifecycle.status}`);
+    if (j.statement) out.push(`- **${zh ? '核心判断' : 'Core Claim'}**: ${j.statement}`);
+    if (j.scope) out.push(`- **${zh ? '适用条件' : 'Applies When'}**: ${j.scope}`);
+    if (j.method) {
+      out.push(`- **${zh ? '判断方法' : 'Method'}** (\`${j.method.term ?? 'unspecified'}\`):`);
+      for (const c of (j.method.components ?? [])) out.push(`  - [${c.role_label}] ${c.statement}`);
+    }
+    if (j.reasons?.length) {
+      out.push(`- **${zh ? '推理依据' : 'Reasons'}**:`);
+      for (const r of j.reasons) out.push(`  - ${r.role ? `[${r.role}] ` : ''}${r.statement}`);
+    }
+    if (j.materials?.length) {
+      out.push(`- **${zh ? '引用前提 / 材料' : 'Premises & Materials'}**:`);
+      for (const m of j.materials) out.push(`  - [${m.kind ?? m.use_role ?? 'material'}] ${m.name ? `${m.name}: ` : ''}${m.statement ?? m.id}`);
+    }
+    if (j.boundaries?.length) {
+      out.push(`- **${zh ? '停手边界' : 'Boundaries'}**:`);
+      for (const b of j.boundaries) out.push(`  - ${b.effect ? `[${b.effect}] ` : ''}${b.statement ?? b.id}`);
+    }
+    if (j.exceptions?.length) {
+      out.push(`- **${zh ? '条件例外' : 'Conditional Exceptions'}**:`);
+      for (const e of j.exceptions) out.push(`  - ${e.text}`);
+    }
+    if (j.misuse?.length) {
+      out.push(`- **${zh ? '常见误用' : 'Misuse Warnings'}**:`);
+      for (const m of j.misuse) out.push(`  - ${m.statement ?? m.id}`);
+    }
+    if (j.examples?.length) {
+      out.push(`- **${zh ? '正反实例' : 'Examples'}**:`);
+      for (const ex of j.examples) {
+        const parts = [ex.title && `**${ex.title}**`, ex.context, ex.input && `${zh ? '输入：' : 'Input: '}${ex.input}`, ex.application && `→ ${ex.application}`, ex.result && `=> ${ex.result}`].filter(Boolean);
+        out.push(`  - ${parts.join(' ')}`);
+      }
+    }
+    if (j.relationships?.length) {
+      out.push(`- **${zh ? '关联判断' : 'Related Judgments'}**:`);
+      for (const rel of j.relationships) {
+        const roleTag = rel.self_role && rel.other_role ? `${rel.self_role} → ${rel.other_role}` : rel.kind;
+        const focusPart = rel.other_focus ? (zh ? `（${rel.other_focus}）` : ` (${rel.other_focus})`) : '';
+        const stmtPart = rel.statement ? ` — ${rel.statement}` : '';
+        out.push(`  - [${rel.kind} | ${roleTag}] \`${rel.other_id ?? '?'}\`${focusPart}${stmtPart}`);
+      }
+    }
+  }
+
+  if (review.sources?.length) {
+    out.push('', zh ? '## 三、来源清单' : '## 3. Sources');
+    for (const s of review.sources) {
+      const desc = [s.title, s.citation, s.uri].filter(Boolean).join(' — ');
+      out.push(`- \`${s.id ?? '?'}\`: ${desc || s.kind || 'source'}`);
+    }
+  }
+  if (review.revisions?.length) {
+    out.push('', zh ? '## 四、修订记录' : '## 4. Revision History');
+    for (const r of review.revisions) {
+      const head = [r.version, r.date].filter(Boolean).join(' · ');
+      out.push(`- ${head ? `**${head}**: ` : ''}${r.summary ?? r.id ?? ''}`.trimEnd());
+    }
+  }
+
+  return out.join('\n') + '\n';
+}
+
+function renderReviewHuman(review) { return safe(renderReviewMarkdown, review, 'review'); }
+
 module.exports = {
   wrap,
   renderInspectHuman,
@@ -744,4 +1114,7 @@ module.exports = {
   renderReadHuman,
   renderRejectionHuman,
   compactReadResult,
+  buildReviewDocument,
+  renderReviewMarkdown,
+  renderReviewHuman,
 };
