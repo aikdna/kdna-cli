@@ -225,15 +225,23 @@ function wrap(text, width, indent) {
   return wrapHuman(text, indent, width);
 }
 
-function show(value) {
-  const text = typeof value === 'string' ? JSON.stringify(value) : canonicalJson(value);
-  return text.length > 300 ? text.slice(0, 297) + '...' : text;
+const HUMAN_FULL_LIMIT = 1200;
+const DIFF_CONTEXT_WINDOW = 160;
+
+function showFull(value) {
+  return typeof value === 'string' ? JSON.stringify(value) : canonicalJson(value);
 }
 
-// Render added/removed structured objects cleanly for author review instead of raw JSON blobs.
-function showHumanValue(value) {
-  if (value === null || value === undefined) return 'none';
-  if (typeof value === 'string') return show(value);
+function showSummary(value, verbose = false) {
+  const full = showFull(value);
+  if (verbose || full.length <= HUMAN_FULL_LIMIT) return full;
+  return full.slice(0, HUMAN_FULL_LIMIT - 1) + '…';
+}
+
+// Normalize a field value into a clean human-readable representation instead of raw JSON blobs.
+function humanizeValue(value) {
+  if (value === null || value === undefined) return { kind: 'literal', text: 'none' };
+  if (typeof value === 'string') return { kind: 'string', text: value };
   if (isObject(value)) {
     if (typeof value.statement === 'string') {
       const prefix = typeof value.role === 'string' && value.role
@@ -241,16 +249,60 @@ function showHumanValue(value) {
         : typeof value.effect === 'string' && value.effect
           ? `[${value.effect}] `
           : '';
-      return show(prefix + value.statement);
+      return { kind: 'string', text: prefix + value.statement };
     }
     if (isObject(value.effect) && value.effect.kind === 'replace_limit' && typeof value.effect.replacement?.statement === 'string') {
-      return show(`[replace_limit] ${value.effect.replacement.statement}`);
+      return { kind: 'string', text: `[replace_limit] ${value.effect.replacement.statement}` };
     }
     if (typeof value.name === 'string' && typeof value.kind === 'string') {
-      return show(`[${value.kind}] ${value.name}`);
+      return { kind: 'string', text: `[${value.kind}] ${value.name}` };
     }
   }
-  return show(value);
+  return { kind: 'json', text: canonicalJson(value) };
+}
+
+// Focus on the actual changed span with generous surrounding context so tail/middle edits
+// in very long texts (> 1200 chars) are never clipped out.
+function sliceAroundDiff(leftText, rightText, context = DIFF_CONTEXT_WINDOW) {
+  const L = [...leftText], R = [...rightText];
+  const minLen = Math.min(L.length, R.length);
+  let prefix = 0;
+  while (prefix < minLen && L[prefix] === R[prefix]) prefix++;
+  let suffix = 0;
+  while (suffix < minLen - prefix && L[L.length - 1 - suffix] === R[R.length - 1 - suffix]) suffix++;
+  const windowOf = arr => {
+    const start = Math.max(0, prefix - context);
+    const end = Math.min(arr.length, arr.length - suffix + context);
+    return (start > 0 ? '…' : '') + arr.slice(start, end).join('') + (end < arr.length ? '…' : '');
+  };
+  return [windowOf(L), windowOf(R)];
+}
+
+function formatChangePair(leftVal, rightVal, { verbose = false } = {}) {
+  if (verbose) return [showFull(leftVal), showFull(rightVal)];
+  const L = humanizeValue(leftVal);
+  const R = humanizeValue(rightVal);
+  if (L.text.length <= HUMAN_FULL_LIMIT && R.text.length <= HUMAN_FULL_LIMIT) {
+    return [
+      L.kind === 'string' ? JSON.stringify(L.text) : L.text,
+      R.kind === 'string' ? JSON.stringify(R.text) : R.text,
+    ];
+  }
+  if (L.kind === R.kind && (L.kind === 'string' || L.kind === 'json')) {
+    const [lWin, rWin] = sliceAroundDiff(L.text, R.text);
+    return [
+      L.kind === 'string' ? JSON.stringify(lWin) : lWin,
+      R.kind === 'string' ? JSON.stringify(rWin) : rWin,
+    ];
+  }
+  const renderOne = item => {
+    if (item.kind === 'string') return JSON.stringify(item.text);
+    if (item.kind === 'json' && item.text.length > HUMAN_FULL_LIMIT) {
+      return item.text.slice(0, HUMAN_FULL_LIMIT - 42) + '… (truncated; pass --verbose for full JSON)';
+    }
+    return item.text;
+  };
+  return [renderOne(L), renderOne(R)];
 }
 
 const INTERNAL_JUDGMENT_FIELD_PATTERNS = [
@@ -319,8 +371,9 @@ function renderDiffHuman(diff, options = {}) {
       out.push('Manifest / identity (' + changes.length + ' changed)');
       for (const change of changes) {
         out.push('  ~ ' + change.field);
-        out.push(wrap('- ' + show(change.left), 100, '      '));
-        out.push(wrap('+ ' + show(change.right), 100, '      '));
+        const [leftText, rightText] = formatChangePair(change.left, change.right, { verbose });
+        out.push(wrap('- ' + leftText, 100, '      '));
+        out.push(wrap('+ ' + rightText, 100, '      '));
       }
       out.push('');
     }
@@ -345,8 +398,9 @@ function renderDiffHuman(diff, options = {}) {
           out.push('  ~ ' + entry.id);
           for (const field of (entry.fields ?? [])) {
             out.push('      ' + field.path);
-            out.push(wrap('- ' + showHumanValue(field.left), 100, '        '));
-            out.push(wrap('+ ' + showHumanValue(field.right), 100, '        '));
+            const [leftText, rightText] = formatChangePair(field.left, field.right, { verbose });
+            out.push(wrap('- ' + leftText, 100, '        '));
+            out.push(wrap('+ ' + rightText, 100, '        '));
           }
         }
         if (hiddenRefCount > 0) {
@@ -355,8 +409,8 @@ function renderDiffHuman(diff, options = {}) {
         out.push('');
         continue;
       }
-      for (const entry of removed) out.push('  - ' + entry.id + (entry.focus ? '  ' + entry.focus : entry.summary ? '  ' + show(entry.summary) : ''));
-      for (const entry of added) out.push('  + ' + entry.id + (entry.focus ? '  ' + entry.focus : entry.summary ? '  ' + show(entry.summary) : ''));
+      for (const entry of removed) out.push('  - ' + entry.id + (entry.focus ? '  ' + entry.focus : entry.summary ? '  ' + showSummary(entry.summary, verbose) : ''));
+      for (const entry of added) out.push('  + ' + entry.id + (entry.focus ? '  ' + entry.focus : entry.summary ? '  ' + showSummary(entry.summary, verbose) : ''));
       for (const entry of changed) {
         out.push('  ~ ' + entry.id);
         const deduped = key === 'judgments' ? deduplicateHumanJudgmentFields(entry.fields) : (entry.fields ?? []);
@@ -373,9 +427,9 @@ function renderDiffHuman(diff, options = {}) {
         }
         for (const field of visibleFields) {
           out.push('      ' + field.path);
-          const fmt = verbose ? show : showHumanValue;
-          out.push(wrap('- ' + fmt(field.left), 100, '        '));
-          out.push(wrap('+ ' + fmt(field.right), 100, '        '));
+          const [leftText, rightText] = formatChangePair(field.left, field.right, { verbose });
+          out.push(wrap('- ' + leftText, 100, '        '));
+          out.push(wrap('+ ' + rightText, 100, '        '));
         }
         if (hiddenInternal > 0) {
           out.push(`      (+${hiddenInternal} internal ID/wiring field change${hiddenInternal === 1 ? '' : 's'} hidden; pass --verbose to inspect)`);

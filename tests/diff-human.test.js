@@ -488,10 +488,17 @@ test('kdna review renders complete one-page author review sheet and enforces --a
   assert.equal(denied.status, 1);
   assert.match(denied.stdout, /KDNA_READ_PERMISSION_REQUIRED/);
 
-  // Markdown default includes title, scope, judgments, method, boundaries with zero JSON dumps or broken object interpolations
+  // Markdown default includes Quick Sign-off Summary table at top before full details, with zero JSON dumps or broken object interpolations
   const mdRun = spawnSync(process.execPath, [CLI, 'review', V1, '--allow-read'], { encoding: 'utf8', maxBuffer: 1 << 26 });
   assert.equal(mdRun.status, 0, mdRun.stderr);
   assert.match(mdRun.stdout, /^# A sample author/);
+  assert.match(mdRun.stdout, /## 1\. Quick Sign-off Summary \(3 Judgments\)/);
+  assert.match(mdRun.stdout, /\| # \| Judgment ID \| Core Question \| Core Claim \| Guardrails \| Sign-off \|/);
+  assert.match(mdRun.stdout, /\| 1 \| `update:order` \|.*\| \[ \] \|/);
+  assert.ok(
+    mdRun.stdout.indexOf('## 1. Quick Sign-off Summary') < mdRun.stdout.indexOf('Full Judgment-by-Judgment Review Sheet'),
+    'Quick Sign-off Summary table must appear before detailed judgment review sections'
+  );
   assert.match(mdRun.stdout, /`update:order`/);
   assert.match(mdRun.stdout, /`update:evidence`/);
   assert.match(mdRun.stdout, /`update:rationale`/);
@@ -569,4 +576,48 @@ test('kdna review renders complete one-page author review sheet and enforces --a
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
+});
+
+test('diff: long 500+ and 2000+ char judgment tail edits are never clipped in human or --verbose output', { skip: !have }, async () => {
+  const base = await viewOf(V1);
+
+  // Case 1: 540+ char judgment with ONLY the last 20 characters edited — must print complete before/after in BOTH modes.
+  const prefix500 = 'When writing an async team update across engineering, design, and operations, lead with verifiable completed outcomes, name concrete blockers and explicit owners, and record measurable risks rather than chronological calendars. '.repeat(3) + 'HEAD_SENTINEL_500: ';
+  const oldTail500 = 'OLD_TAIL_RULE_ALPHA!';
+  const newTail500 = 'NEW_TAIL_RULE_OMEGA!';
+  assert.ok((prefix500 + oldTail500).length > 500);
+
+  const left500 = clone(base), right500 = clone(base);
+  left500.ir.nodes.find(n => n.role === 'judgment' && n.target.id === 'update:order').value.core_expression.statement = prefix500 + oldTail500;
+  right500.ir.nodes.find(n => n.role === 'judgment' && n.target.id === 'update:order').value.core_expression.statement = prefix500 + newTail500;
+
+  const diff500 = diffViews(left500, right500);
+  const human500 = renderDiffHuman(diff500);
+  const verbose500 = renderDiffHuman(diff500, { verbose: true });
+  for (const [label, rendered] of [['human', human500], ['verbose', verbose500]]) {
+    assert.ok(rendered.includes('HEAD_SENTINEL_500:'), `${label} 500+ char diff must include beginning context`);
+    assert.ok(rendered.includes(oldTail500), `${label} 500+ char diff must show exact removed tail`);
+    assert.ok(rendered.includes(newTail500), `${label} 500+ char diff must show exact added tail`);
+  }
+
+  // Case 2: 2000+ char extra-long judgment with ONLY the last 20 characters edited:
+  // default human must show focused diff context containing the exact changed tail;
+  // --verbose must never truncate anywhere (both head and tail present).
+  const head2000 = 'ULTRA_LONG_HEAD_MARKER: ' + 'This extended guidance paragraph documents detailed operational review trade-offs across multiple release cycles. '.repeat(18);
+  const oldTail2000 = 'TAIL_BEFORE_VER_ONE!';
+  const newTail2000 = 'TAIL_AFTER_VER_TWO!!';
+  assert.ok((head2000 + oldTail2000).length > 2000);
+
+  const left2000 = clone(base), right2000 = clone(base);
+  left2000.ir.nodes.find(n => n.role === 'judgment' && n.target.id === 'update:order').value.core_expression.statement = head2000 + oldTail2000;
+  right2000.ir.nodes.find(n => n.role === 'judgment' && n.target.id === 'update:order').value.core_expression.statement = head2000 + newTail2000;
+
+  const diff2000 = diffViews(left2000, right2000);
+  const human2000 = renderDiffHuman(diff2000);
+  const verbose2000 = renderDiffHuman(diff2000, { verbose: true });
+  assert.ok(human2000.includes(oldTail2000), 'default human 2000+ char diff must focus on and show removed tail');
+  assert.ok(human2000.includes(newTail2000), 'default human 2000+ char diff must focus on and show added tail');
+  assert.ok(verbose2000.includes('ULTRA_LONG_HEAD_MARKER:'), '--verbose must never truncate beginning of 2000+ char string');
+  assert.ok(verbose2000.includes(oldTail2000), '--verbose must never truncate removed tail of 2000+ char string');
+  assert.ok(verbose2000.includes(newTail2000), '--verbose must never truncate added tail of 2000+ char string');
 });

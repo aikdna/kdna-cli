@@ -1016,6 +1016,48 @@ function buildReviewDocument(view) {
   };
 }
 
+function escapeTableCell(value) {
+  return String(value ?? '').replace(/\r?\n+/g, ' ').replace(/\|/g, '\\|').trim();
+}
+
+function conciseClaimForTable(statement, zh) {
+  const clean = escapeTableCell(statement);
+  if (!clean) return '-';
+  const softLimit = zh ? 105 : 150;
+  if (clean.length <= softLimit) return clean;
+  const firstSentence = zh
+    ? clean.match(/^[^。！？!?]+[。！？!?]/)
+    : clean.match(/^[^.!?]+[.!?](?=\s|$)/);
+  if (firstSentence && firstSentence[0].length <= (zh ? 120 : 180)) return firstSentence[0];
+  // Prefer stopping cleanly at a clause separator (; / ： / ，) before falling back to word/char boundary.
+  const firstClause = zh
+    ? clean.match(/^[^。！？!?；;]{20,105}[；;]/)
+    : clean.match(/^[^.!?;]{40,150};/);
+  if (firstClause) return firstClause[0].replace(/[；;]$/, zh ? '…' : '...');
+  if (zh) {
+    const cut = clean.slice(0, 96);
+    const p = Math.max(cut.lastIndexOf('，'), cut.lastIndexOf('；'), cut.lastIndexOf('：'));
+    return (p >= 45 ? cut.slice(0, p) : cut) + '…';
+  }
+  const cut = clean.slice(0, 145);
+  const sp = cut.lastIndexOf(' ');
+  return (sp > 90 ? cut.slice(0, sp) : cut) + '...';
+}
+
+function formatGuardrailsCell(j, zh) {
+  const b = j.boundaries?.length ?? 0;
+  const e = j.exceptions?.length ?? 0;
+  const r = j.relationships?.length ?? 0;
+  if (zh) {
+    const parts = [`边界 ${b}`, `例外 ${e}`];
+    if (r > 0) parts.push(`关联 ${r}`);
+    return parts.join(' / ');
+  }
+  const parts = [`${b} ${b === 1 ? 'boundary' : 'boundaries'}`, `${e} ${e === 1 ? 'exc.' : 'exc.'}`];
+  if (r > 0) parts.push(`${r} rel.`);
+  return parts.join(', ');
+}
+
 function renderReviewMarkdown(review) {
   if (!isObject(review) || review.format !== 'kdna.review/1') return fallback('review: unexpected result', review);
   const zh = review.language === 'zh';
@@ -1036,40 +1078,76 @@ function renderReviewMarkdown(review) {
   if (review.digests?.A) metaRows.push([zh ? '文件校验 (A)' : 'Digest A', `\`${shortDigest(review.digests.A)}\``]);
   for (const [k, v] of metaRows) out.push(`- **${k}**: ${v}`);
   if (a.summary) out.push('', `> ${a.summary}`);
-
-  out.push('', zh ? '## 一、整份作品声明与共同前提' : '## 1. Asset Scope, Kernel & Shared Guardrails');
-  if (a.highest_question) out.push(`- **${zh ? '最高问题' : 'Highest Question'}**: ${a.highest_question}`);
-  if (a.purpose) out.push(`- **${zh ? '核心目的' : 'Purpose'}**: ${a.purpose}`);
-  if (a.scope) out.push(`- **${zh ? '适用范围' : 'Scope'}**: ${a.scope}`);
-  if (review.shared_declarations?.length) {
-    out.push('', zh ? '### 共同声明' : '### Shared Declarations');
-    for (const sd of review.shared_declarations) {
-      const label = [sd.kind, sd.name].filter(Boolean).join(': ');
-      const items = sd.values?.length ? sd.values : (sd.statement ? [sd.statement] : []);
-      for (const item of items) out.push(`- [${label || 'declaration'}] ${item}`);
-    }
-  }
-  if (review.foundations?.length) {
-    out.push('', zh ? '### 基础前提与定义' : '### Foundations, Premises & Definitions');
-    for (const m of review.foundations) {
-      const head = [m.kind, m.name].filter(Boolean).join(' · ');
-      out.push(`- **${head || m.id}**: ${m.statement ?? ''}`.trimEnd());
-    }
-  }
-  if (review.asset_boundaries?.length) {
-    out.push('', zh ? '### 作品级停手边界' : '### Asset-Level Boundaries');
-    for (const b of review.asset_boundaries) out.push(`- ${b.effect ? `[${b.effect}] ` : ''}${b.statement ?? b.id}`);
-  }
-  if (review.asset_exceptions?.length) {
-    out.push('', zh ? '### 作品级条件例外' : '### Asset-Level Conditional Exceptions');
-    for (const e of review.asset_exceptions) out.push(`- ${e.text}`);
-  }
-  if (review.asset_misuse?.length) {
-    out.push('', zh ? '### 作品级防误用提醒' : '### Asset-Level Anti-Misuse');
-    for (const m of review.asset_misuse) out.push(`- ${m.statement ?? m.id}`);
+  if (a.highest_question || a.purpose || a.scope) {
+    out.push('');
+    if (a.highest_question) out.push(`- **${zh ? '最高问题' : 'Highest Question'}**: ${a.highest_question}`);
+    if (a.purpose) out.push(`- **${zh ? '核心目的' : 'Purpose'}**: ${a.purpose}`);
+    if (a.scope) out.push(`- **${zh ? '适用范围' : 'Scope'}**: ${a.scope}`);
   }
 
-  out.push('', zh ? `## 二、逐条判断审稿清样（共 ${review.judgment_count} 条）` : `## 2. Judgment-by-Judgment Review Sheet (${review.judgment_count})`);
+  let secNo = 0;
+  const zhNums = ['一', '二', '三', '四', '五', '六'];
+  const secHeading = (zhTitle, enTitle) => {
+    secNo += 1;
+    return zh ? `## ${zhNums[secNo - 1] ?? secNo}、${zhTitle}` : `## ${secNo}. ${enTitle}`;
+  };
+
+  if (Array.isArray(review.judgments) && review.judgments.length > 0) {
+    out.push('', secHeading(`核心判断一屏拍板速览表（共 ${review.judgment_count} 条）`, `Quick Sign-off Summary (${review.judgment_count} Judgments)`));
+    out.push('');
+    if (zh) {
+      out.push('| # | 判断 ID | 解决的核心问题 | 核心主张 | 边界 / 例外 / 关联 | 审定 |');
+    } else {
+      out.push('| # | Judgment ID | Core Question | Core Claim | Guardrails | Sign-off |');
+    }
+    out.push('| --- | --- | --- | --- | --- | --- |');
+    for (const j of review.judgments) {
+      const q = escapeTableCell(j.focus) || '-';
+      const claim = conciseClaimForTable(j.statement, zh);
+      const guard = formatGuardrailsCell(j, zh);
+      out.push(`| ${j.index} | \`${escapeTableCell(j.id)}\` | ${q} | ${claim} | ${guard} | [ ] |`);
+    }
+  }
+
+  const hasSharedSection = Boolean(
+    review.shared_declarations?.length
+    || review.foundations?.length
+    || review.asset_boundaries?.length
+    || review.asset_exceptions?.length
+    || review.asset_misuse?.length
+  );
+  if (hasSharedSection) {
+    out.push('', secHeading('整份作品共享声明与共同前提', 'Shared Declarations, Foundations & Asset Guardrails'));
+    if (review.shared_declarations?.length) {
+      out.push('', zh ? '### 共同声明' : '### Shared Declarations');
+      for (const sd of review.shared_declarations) {
+        const label = [sd.kind, sd.name].filter(Boolean).join(': ');
+        const items = sd.values?.length ? sd.values : (sd.statement ? [sd.statement] : []);
+        for (const item of items) out.push(`- [${label || 'declaration'}] ${item}`);
+      }
+    }
+    if (review.foundations?.length) {
+      out.push('', zh ? '### 基础前提与定义' : '### Foundations, Premises & Definitions');
+      for (const m of review.foundations) {
+        const head = [m.kind, m.name].filter(Boolean).join(' · ');
+        out.push(`- **${head || m.id}**: ${m.statement ?? ''}`.trimEnd());
+      }
+    }
+    if (review.asset_boundaries?.length) {
+      out.push('', zh ? '### 作品级停手边界' : '### Asset-Level Boundaries');
+      for (const b of review.asset_boundaries) out.push(`- ${b.effect ? `[${b.effect}] ` : ''}${b.statement ?? b.id}`);
+    }
+    if (review.asset_exceptions?.length) {
+      out.push('', zh ? '### 作品级条件例外' : '### Asset-Level Conditional Exceptions');
+      for (const e of review.asset_exceptions) out.push(`- ${e.text}`);
+    }
+    if (review.asset_misuse?.length) {
+      out.push('', zh ? '### 作品级防误用提醒' : '### Asset-Level Anti-Misuse');
+      for (const m of review.asset_misuse) out.push(`- ${m.statement ?? m.id}`);
+    }
+  }
+
+  out.push('', secHeading(`逐条判断完整审稿清样（共 ${review.judgment_count} 条）`, `Full Judgment-by-Judgment Review Sheet (${review.judgment_count})`));
   for (const j of (review.judgments ?? [])) {
     out.push('', `### ${j.index}. \`${j.id}\`${j.focus ? ` — ${j.focus}` : ''}`);
     if (j.lifecycle?.status) out.push(`- **${zh ? '状态' : 'Lifecycle'}**: ${j.lifecycle.status}`);
@@ -1118,7 +1196,7 @@ function renderReviewMarkdown(review) {
   }
 
   if (review.sources?.length) {
-    out.push('', zh ? '## 三、来源清单' : '## 3. Sources');
+    out.push('', secHeading('来源清单', 'Sources'));
     for (const s of review.sources) {
       const head = [s.title, s.version ? `(${s.version})` : null].filter(Boolean).join(' ');
       const desc = [head || null, s.identity, s.citation, s.uri].filter(Boolean).join(' — ');
@@ -1126,7 +1204,7 @@ function renderReviewMarkdown(review) {
     }
   }
   if (review.revisions?.length) {
-    out.push('', zh ? '## 四、修订记录' : '## 4. Revision History');
+    out.push('', secHeading('修订记录', 'Revision History'));
     for (const r of review.revisions) {
       const head = [r.version, r.date].filter(Boolean).join(' · ');
       out.push(`- ${head ? `**${head}**: ` : ''}${r.summary ?? r.id ?? ''}`.trimEnd());
