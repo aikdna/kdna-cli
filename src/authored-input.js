@@ -196,9 +196,9 @@ async function saveNewAsset(file, bytes, assertActive = () => {}) {
     try {
       await fs.link(temporary, file); published = true;
     } catch (linkError) {
-      // On Windows volumes where hard links are unsupported/denied (FAT32/exFAT/network shares),
+      // On Windows volumes where hard links are unsupported/denied (FAT32/exFAT -> EINVAL, restricted shares -> EACCES/EPERM),
       // fall back to exclusive O_CREAT|O_EXCL write ('wx') so existing targets are still never replaced.
-      if (process.platform === 'win32' && ['EPERM', 'ENOTSUP', 'ENOSYS', 'EXDEV'].includes(linkError?.code)) {
+      if (process.platform === 'win32' && ['EPERM', 'ENOTSUP', 'ENOSYS', 'EXDEV', 'EINVAL', 'EACCES'].includes(linkError?.code)) {
         const direct = await fs.open(file, 'wx', 0o600);
         try {
           await direct.writeFile(bytes);

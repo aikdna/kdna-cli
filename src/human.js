@@ -943,9 +943,27 @@ function buildReviewDocument(view) {
   });
 
   const digest = letter => view?.digests?.[letter]?.observed ?? null;
+  const extractText = v => {
+    if (typeof v === 'string') return v.trim() ? v : null;
+    if (isObject(v)) {
+      if (typeof v.statement === 'string' && v.statement.trim()) return v.statement;
+      if (typeof v.value === 'string' && v.value.trim()) return v.value;
+    }
+    return null;
+  };
+  const normalizeTextList = v => {
+    if (typeof v === 'string') return v.trim() ? [v] : [];
+    if (!Array.isArray(v)) {
+      const single = extractText(v);
+      return single ? [single] : [];
+    }
+    return v.map(extractText).filter(Boolean);
+  };
   const globalMaterials = [...materialsById.values()]
     .filter(m => ['foundation', 'definition', 'premise'].includes(m.kind))
-    .map(m => ({ id: m.id ?? null, kind: m.kind ?? null, name: m.name ?? m.term ?? null, statement: m.statement ?? m.definition ?? m.content ?? null }));
+    .map(m => ({ id: m.id ?? null, kind: m.kind ?? null, name: m.name ?? m.term ?? null, statement: extractText(m.statement ?? m.definition ?? m.content) }));
+  const hqRaw = assetDecl?.declarations?.highest_question;
+  const highestQuestion = isObject(hqRaw) && hqRaw.state === 'provided' ? extractText(hqRaw.value) : extractText(hqRaw);
 
   return {
     format: 'kdna.review/1',
@@ -954,34 +972,47 @@ function buildReviewDocument(view) {
       asset_id: view?.asset?.asset_id ?? assetDecl?.asset_id ?? null,
       asset_version: view?.asset?.asset_version ?? assetDecl?.version ?? null,
       judgment_version: view?.asset?.judgment_version ?? assetDecl?.judgment_version ?? null,
-      title: assetDecl?.title ?? null,
-      summary: assetDecl?.summary ?? null,
-      description: assetDecl?.description ?? null,
-      languages,
+      title: extractText(assetDecl?.title),
+      summary: extractText(assetDecl?.summary),
+      description: extractText(assetDecl?.description),
+      languages: Array.isArray(languages) ? languages.filter(l => typeof l === 'string') : [],
       creator: assetDecl?.creator ?? null,
       license: assetDecl?.license ?? null,
-      scope: assetDecl?.scope?.statement ?? null,
-      highest_question: assetDecl?.declarations?.highest_question?.value ?? null,
-      purpose: assetDecl?.kernel?.purpose ?? null,
+      scope: extractText(assetDecl?.scope),
+      highest_question: highestQuestion,
+      purpose: extractText(assetDecl?.kernel?.purpose),
     },
     digests: { A: digest('A'), C: digest('C'), E: digest('E'), ir_digest: view?.verification?.ir_digest?.digest ?? view?.ir_digest ?? null },
-    actors: actors.map(a => ({ id: a.id ?? null, name: a.name ?? null, kind: a.kind ?? null })),
+    actors: actors.map(a => ({ id: a.id ?? null, name: extractText(a.name), kind: a.kind ?? null })),
     shared_declarations: sharedDeclarations.map(sd => ({
       id: sd.id ?? null,
       kind: sd.kind ?? null,
-      name: sd.name ?? null,
-      statement: sd.statement ?? null,
-      values: Array.isArray(sd.value) ? sd.value : (typeof sd.value === 'string' ? [sd.value] : []),
+      name: extractText(sd.name),
+      statement: extractText(sd.statement),
+      values: normalizeTextList(sd.value),
     })),
     foundations: globalMaterials,
-    asset_boundaries: assetBoundaries.map(b => ({ id: b.id ?? null, effect: b.effect ?? null, statement: b.statement ?? null })),
+    asset_boundaries: assetBoundaries.map(b => ({ id: b.id ?? null, effect: b.effect ?? null, statement: extractText(b.statement) })),
     asset_exceptions: assetExceptions.map(e => ({ id: e.id ?? null, text: formatExceptionText(e, conditionsById, !useEnglish) })),
-    asset_misuse: assetMisuse.map(m => ({ id: m.id ?? null, statement: m.statement ?? null })),
+    asset_misuse: assetMisuse.map(m => ({ id: m.id ?? null, statement: extractText(m.statement) })),
     judgment_count: judgments.length,
     judgments,
     relationships: normalizedRels,
-    sources: [...sourcesById.values()].map(s => ({ id: s.id ?? null, title: s.title ?? s.name ?? null, uri: s.uri ?? null, kind: s.kind ?? null, citation: s.citation ?? s.statement ?? null })),
-    revisions: revisions.map(r => ({ id: r.id ?? null, version: r.version ?? null, date: r.date ?? r.recorded_at ?? null, summary: r.summary ?? r.statement ?? null })),
+    sources: [...sourcesById.values()].map(s => ({
+      id: s.id ?? null,
+      title: extractText(s.title ?? s.name),
+      identity: extractText(s.identity),
+      version: extractText(s.version),
+      uri: extractText(s.uri ?? s.locator),
+      kind: extractText(s.kind),
+      citation: extractText(s.citation ?? s.statement),
+    })),
+    revisions: revisions.map(r => ({
+      id: r.id ?? null,
+      version: extractText(r.version),
+      date: extractText(r.at ?? r.date ?? r.recorded_at),
+      summary: extractText(r.summary ?? r.statement),
+    })),
   };
 }
 
@@ -1089,7 +1120,8 @@ function renderReviewMarkdown(review) {
   if (review.sources?.length) {
     out.push('', zh ? '## 三、来源清单' : '## 3. Sources');
     for (const s of review.sources) {
-      const desc = [s.title, s.citation, s.uri].filter(Boolean).join(' — ');
+      const head = [s.title, s.version ? `(${s.version})` : null].filter(Boolean).join(' ');
+      const desc = [head || null, s.identity, s.citation, s.uri].filter(Boolean).join(' — ');
       out.push(`- \`${s.id ?? '?'}\`: ${desc || s.kind || 'source'}`);
     }
   }

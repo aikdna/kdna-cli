@@ -488,25 +488,54 @@ test('kdna review renders complete one-page author review sheet and enforces --a
   assert.equal(denied.status, 1);
   assert.match(denied.stdout, /KDNA_READ_PERMISSION_REQUIRED/);
 
-  // Markdown default includes title, scope, judgments, method, boundaries with zero JSON dumps
+  // Markdown default includes title, scope, judgments, method, boundaries with zero JSON dumps or broken object interpolations
   const mdRun = spawnSync(process.execPath, [CLI, 'review', V1, '--allow-read'], { encoding: 'utf8', maxBuffer: 1 << 26 });
   assert.equal(mdRun.status, 0, mdRun.stderr);
   assert.match(mdRun.stdout, /^# A sample author/);
   assert.match(mdRun.stdout, /`update:order`/);
   assert.match(mdRun.stdout, /`update:evidence`/);
   assert.match(mdRun.stdout, /`update:rationale`/);
+  assert.ok(!mdRun.stdout.includes('[object Object]'), 'review output must never contain [object Object]');
+  assert.ok(!/\bundefined\b/.test(mdRun.stdout), 'review output must never contain literal undefined');
   assert.ok(!/[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]/u.test(mdRun.stdout), 'English review sheet must contain zero CJK/fullwidth characters');
 
-  // JSON format returns kdna.review/1
+  // JSON format returns kdna.review/1 and unwraps kernel.purpose safely (never an object)
   const jsonRun = spawnSync(process.execPath, [CLI, 'review', V1, '--allow-read', '--format', 'json'], { encoding: 'utf8', maxBuffer: 1 << 26 });
   assert.equal(jsonRun.status, 0, jsonRun.stderr);
   const parsed = JSON.parse(jsonRun.stdout);
   assert.equal(parsed.format, 'kdna.review/1');
   assert.equal(parsed.judgment_count, 3);
+  assert.ok(parsed.asset.purpose === null || typeof parsed.asset.purpose === 'string');
 
-  // --output saves once and refuses overwriting an existing file
+  // Also verify Whitepaper & writing-craft (when available on disk) render authored purpose with 0 [object Object] / 0 undefined
+  const extraAssets = [
+    WHITEPAPER_EN,
+    path.resolve(__dirname, '..', '..', '..', 'private', 'kdna-library', 'dist', 'assets', 'kdna-whitepaper-1.0.2.zh-CN.kdna'),
+    path.resolve(__dirname, '..', '..', '..', 'private', 'kdna-library', 'staged', 'modern', 'out', 'kdna-writing-craft-1.0.0.zh-CN.kdna'),
+    path.resolve(__dirname, '..', '..', '..', 'private', 'kdna-library', 'staged', 'modern', 'out', 'kdna-writing-craft-1.0.0.en.kdna'),
+  ];
+  for (const extra of extraAssets) {
+    if (!fs.existsSync(extra)) continue;
+    const rev = spawnSync(process.execPath, [CLI, 'review', extra, '--allow-read'], { encoding: 'utf8', maxBuffer: 1 << 26 });
+    assert.equal(rev.status, 0, rev.stderr);
+    assert.ok(!rev.stdout.includes('[object Object]'), `review of ${path.basename(extra)} must not contain [object Object]`);
+    assert.ok(!/\bundefined\b/.test(rev.stdout), `review of ${path.basename(extra)} must not contain literal undefined`);
+    assert.match(rev.stdout, /\*\*(Purpose|核心目的)\*\*:/, `review of ${path.basename(extra)} should render authored kernel.purpose statement`);
+  }
+
+  // --output saves once, refuses overwriting, infers JSON for .json suffix, and rejects mismatched format/extension
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-review-test-'));
   try {
+    // Minimal scaffolded asset (`init --example` -> `create --draft`) also has 0 [object Object] / 0 undefined
+    const minDraft = path.join(tmpDir, 'min-draft.json');
+    const minAsset = path.join(tmpDir, 'min.kdna');
+    assert.equal(spawnSync(process.execPath, [CLI, 'init', '--example', '--output', minDraft], { encoding: 'utf8' }).status, 0);
+    assert.equal(spawnSync(process.execPath, [CLI, 'create', '--draft', minDraft, '--output', minAsset, '--allow-create'], { encoding: 'utf8' }).status, 0);
+    const minRev = spawnSync(process.execPath, [CLI, 'review', minAsset, '--allow-read'], { encoding: 'utf8', maxBuffer: 1 << 26 });
+    assert.equal(minRev.status, 0, minRev.stderr);
+    assert.ok(!minRev.stdout.includes('[object Object]'));
+    assert.ok(!/\bundefined\b/.test(minRev.stdout));
+
     const outFile = path.join(tmpDir, 'sheet.md');
     const saved = spawnSync(process.execPath, [CLI, 'review', V1, '--allow-read', '--output', outFile], { encoding: 'utf8' });
     assert.equal(saved.status, 0, saved.stderr);
@@ -515,6 +544,15 @@ test('kdna review renders complete one-page author review sheet and enforces --a
     const overwrite = spawnSync(process.execPath, [CLI, 'review', V1, '--allow-read', '--output', outFile], { encoding: 'utf8' });
     assert.equal(overwrite.status, 1);
     assert.match(overwrite.stdout, /KDNA_OUTPUT_EXISTS/);
+
+    // --output *.json infers JSON format automatically; mismatched --format markdown --output *.json rejects
+    const outJson = path.join(tmpDir, 'sheet.json');
+    const savedJson = spawnSync(process.execPath, [CLI, 'review', V1, '--allow-read', '--output', outJson], { encoding: 'utf8' });
+    assert.equal(savedJson.status, 0, savedJson.stderr);
+    assert.equal(JSON.parse(fs.readFileSync(outJson, 'utf8')).format, 'kdna.review/1');
+    const badCombo = spawnSync(process.execPath, [CLI, 'review', V1, '--allow-read', '--format', 'markdown', '--output', path.join(tmpDir, 'bad.json')], { encoding: 'utf8' });
+    assert.equal(badCombo.status, 2);
+    assert.match(badCombo.stdout, /KDNA_ARGUMENT_INVALID/);
 
     // Password-protected asset: refuses without password (no body leak) and renders with --password-file
     const pwFile = path.join(tmpDir, 'pw.txt');

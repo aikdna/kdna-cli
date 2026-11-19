@@ -471,7 +471,14 @@ function parse(argv) {
   if ((command === 'protect' || command === 'unprotect') && options['--password-fd'] === undefined && options['--password-file'] === undefined) return { error: 'KDNA_PASSWORD_SOURCE_REQUIRED' };
   const allowedFormats = command === 'review' ? ['markdown', 'human', 'json'] : ['json', 'human'];
   if (options['--format'] !== undefined && !allowedFormats.includes(options['--format'])) return { error: 'KDNA_ARGUMENT_INVALID' };
-  if (command === 'review' && options['--output'] !== undefined && !options['--output'].endsWith('.md') && !options['--output'].endsWith('.txt') && !options['--output'].endsWith('.json')) return { error: 'KDNA_ARGUMENT_INVALID' };
+  if (command === 'review' && options['--output'] !== undefined) {
+    const outPath = options['--output'];
+    const isJsonExt = outPath.endsWith('.json');
+    const isTextExt = outPath.endsWith('.md') || outPath.endsWith('.txt');
+    if (!isJsonExt && !isTextExt) return { error: 'KDNA_ARGUMENT_INVALID' };
+    if (isJsonExt && options['--format'] !== undefined && options['--format'] !== 'json') return { error: 'KDNA_ARGUMENT_INVALID' };
+    if (isTextExt && (options['--json'] === true || options['--format'] === 'json')) return { error: 'KDNA_ARGUMENT_INVALID' };
+  }
   if (options['--compact'] && options['--view'] !== undefined && options['--view'] !== 'body') return { error: 'KDNA_ARGUMENT_INVALID' };
   if ((command === 'init' || command === 'compile' || command === 'source-open') && options['--output'] !== undefined && !options['--output'].endsWith('.json')) return { error: 'KDNA_ARGUMENT_INVALID' };
   if ((command.startsWith('source-') || command === 'convert') && !/^sha256:[0-9a-f]{64}$/.test(options['--expected-a'] || '')) return { error: 'KDNA_ARGUMENT_INVALID' };
@@ -990,7 +997,8 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
     return 0;
   }
   if (command === 'review') {
-    const reviewFormat = options['--json'] === true ? 'json' : (options['--format'] ?? 'markdown');
+    const inferredJson = typeof options['--output'] === 'string' && options['--output'].endsWith('.json');
+    const reviewFormat = options['--json'] === true ? 'json' : (options['--format'] ?? (inferredJson ? 'json' : 'markdown'));
     const reviewHuman = reviewFormat !== 'json';
     const emitReview = async (result, render) => reviewHuman ? write(render(result)) : emit(result);
     if (options['--allow-read'] !== true) {
