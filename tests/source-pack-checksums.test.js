@@ -95,7 +95,28 @@ test("source-pack regenerates an unsigned checksums.json and fails closed on sig
   assert.equal(packedRow.checksums.original_A, releasedA);
   assert.equal(packedRow.checksums.self_check, "accepted");
   assert.equal(packedRow.output.sha256, digestA(revised).slice("sha256:".length));
+  assert.equal(packedRow.evidence.source_A, releasedA);
+  assert.equal(packedRow.evidence.output.A, digestA(revised));
+  assert.equal(packedRow.checksums.refreshed_A, digestA(revised));
+  assert.ok(packedRow.evidence.member_actions.some((m) => m.name === "checksums.json" && m.action === "replaced"));
   assert.equal(containerHasEntry(fs.readFileSync(revised), "checksums.json"), true);
+
+  // 1b. Chained revision: feed evidence.output.A from hop 1 directly into hop 2 source-open & source-pack.
+  const hop2EditsPath = path.join(dir, "edits-hop2.json");
+  const hop2Opened = run(["source-open", revised, "--expected-a", packedRow.evidence.output.A, "--output", hop2EditsPath, "--allow-source"]);
+  assert.equal(hop2Opened.status, 0, hop2Opened.stdout + hop2Opened.stderr);
+  const hop2Edits = JSON.parse(fs.readFileSync(hop2EditsPath, "utf8"));
+  hop2Edits.manifest.version = hop2Edits.payload.asset.asset_version = "0.1.2";
+  hop2Edits.manifest.judgment_version = hop2Edits.payload.asset.judgment_version = "0.1.2";
+  hop2Edits.manifest.summary = `${hop2Edits.manifest.summary} Hop2.`;
+  fs.writeFileSync(hop2EditsPath, JSON.stringify(hop2Edits, null, 2));
+  const revised2 = path.join(dir, "revised2.kdna");
+  const packed2 = run(["source-pack", revised, "--edits", hop2EditsPath, "--expected-a", packedRow.evidence.output.A, "--output", revised2, "--allow-source"]);
+  assert.equal(packed2.status, 0, packed2.stdout + packed2.stderr);
+  const packed2Row = last(packed2.stdout);
+  assert.equal(packed2Row.evidence.source_A, packedRow.evidence.output.A);
+  assert.equal(packed2Row.evidence.output.A, digestA(revised2));
+  assert.equal(run(["validate", revised2, "--system", "--json"]).status, 0);
 
   const validated = run(["validate", revised, "--system", "--json"]);
   assert.equal(validated.status, 0, validated.stdout);

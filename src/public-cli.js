@@ -685,7 +685,18 @@ async function refreshContainerChecksums(packedBytes, assertActive) {
     assertActive();
     if (checked.status !== 'accepted') return { status: 'failed', stage: 'checksums_self_check', core: { status: checked.status, reason: checked.reason ?? null, diagnostic: checked.diagnostic ?? null }, packed_A };
     if (!containerHasEntry(bytes, CHECKSUMS_ENTRY)) return { status: 'failed', stage: 'checksums_missing', packed_A };
-    return { status: 'produced', bytes, packed_A };
+    const refreshed_A = 'sha256:' + createHash('sha256').update(bytes).digest('hex');
+    const outDigests = produced.evidence?.output ?? {};
+    return {
+      status: 'produced',
+      bytes,
+      packed_A,
+      output_digests: {
+        A: outDigests.A ?? refreshed_A,
+        ...(outDigests.C ? { C: outDigests.C } : {}),
+        ...(outDigests.E ? { E: outDigests.E } : {}),
+      },
+    };
   } finally {
     if (dir) { try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ } }
   }
@@ -812,9 +823,23 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
         await emit({ status: 'rejected', code: 'KDNA_SOURCE_CHECKSUMS_REFRESH_FAILED', stage: refreshed.stage, core: refreshed.core ?? null, action_authorized: false, creation_accepted: false });
         return 1;
       }
-      result = { ...result, bytes: refreshed.bytes };
+      const updatedEvidence = result.evidence ? {
+        ...result.evidence,
+        source_A: checksumsRefresh.original_A,
+        output: {
+          ...(result.evidence.output ?? {}),
+          ...refreshed.output_digests,
+        },
+        ...(Array.isArray(result.evidence.member_actions) ? {
+          member_actions: [
+            ...result.evidence.member_actions.filter(m => m?.name !== CHECKSUMS_ENTRY),
+            { name: CHECKSUMS_ENTRY, action: 'replaced' },
+          ],
+        } : {}),
+      } : result.evidence;
+      result = { ...result, bytes: refreshed.bytes, evidence: updatedEvidence };
       checksumsRefresh = { status: 'regenerated', entry: CHECKSUMS_ENTRY, signed: false, ...checksumsRefresh,
-        packed_without_checksums_A: refreshed.packed_A, self_check: 'accepted' };
+        packed_without_checksums_A: refreshed.packed_A, refreshed_A: refreshed.output_digests.A, self_check: 'accepted' };
     }
     if (command === 'source-open' && result.status === 'source_opened') {
       const innerEdits = { manifest: result.source.manifest, payload: result.source.payload };

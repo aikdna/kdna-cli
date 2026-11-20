@@ -1,6 +1,6 @@
-# KDNA CLI Operation Permissions & Offline Password Protection (`0.45.1`)
+# KDNA CLI Operation Permissions & Offline Password Protection (`0.45.2`)
 
-`@aikdna/kdna-cli@0.45.1` uses explicit per-invocation local operation flags and offline AEAD password protection (`scrypt-sha256` + `AES-256-KW` + `AES-256-GCM`, container `0.6.0`). All operations run locally and permanently require no online account.
+`@aikdna/kdna-cli@0.45.2` uses explicit per-invocation local operation flags and offline AEAD password protection (`scrypt-sha256` + `AES-256-KW` + `AES-256-GCM`, container `0.6.0`). All operations run locally and permanently require no online account.
 
 ## 1. Per-Invocation Operation Flags
 

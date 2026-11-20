@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.45.2 (2026-11-20)
+
+- Reconcile `source-pack` `evidence.output` (`A`, `C`, `E`), `evidence.source_A`, and `evidence.member_actions` after regenerating unsigned `checksums.json`, so `evidence.output.A` matches the written container bytes and chains directly into subsequent `source-open` / `source-pack` revisions.
+
 ## 0.45.1 (2026-11-20)
 
 - Refresh unsigned `checksums.json` manifests automatically during `kdna source-pack` after verifying `--expected-a` against the original container, while continuing to fail closed (`KDNA_SOURCE_SIGNED_CHECKSUMS_REFUSED`) on cryptographically signed containers.
