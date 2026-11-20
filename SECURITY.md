@@ -2,13 +2,13 @@
 
 ## Supported versions
 
-The current `@aikdna/kdna-cli` `0.45.x` line (`0.45.0`), `0.44.x` line (`0.44.0`), and `0.43.x` line (`0.43.5`) are supported; earlier
+The current `@aikdna/kdna-cli` `0.45.x` line (`0.45.1`, `0.45.0`), `0.44.x` line (`0.44.0`), and `0.43.x` line (`0.43.5`) are supported; earlier
 pre-`0.6.0` (`<= 0.36.1`) and `0.40.x`–`0.42.x` releases are unsupported.
 Reports should identify the exact package version or source commit affected.
 
 ## Current source boundary
 
-`@aikdna/kdna-cli@0.45.0` supports local offline `init`, `compile`,
+`@aikdna/kdna-cli@0.45.1` supports local offline `init`, `compile`,
 `validate-input`, `create`, `protect`, `unprotect`, `diff`, `review`, `convert`, `source-open`,
 `source-pack`, `inspect`, `validate`, and `read`, including a process-local
 retained Read session (`read --session`). It delegates native container
