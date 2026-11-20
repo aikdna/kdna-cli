@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.45.0 (2026-11-20)
+
+- Add `kdna review <asset.kdna> --allow-read [--format markdown|human|json] [--output <file>]`
+  to export a single-page author review and sign-off sheet with a top Quick
+  Sign-off Summary table followed by full judgment claims, premises, method
+  components, reasons, boundaries, conditional exceptions, foreseeable misuse,
+  examples, relationships, sources, and revision history.
+- Upgrade `kdna diff --format human` to a clean author-focused diff view that
+  folds mechanical internal ID/reference noise by default (expandable via
+  `--verbose`), eliminates the 300-character truncation ceiling so tail edits
+  on long judgment statements are always shown in full context, and automatically
+  reports downstream related judgments affected via `support`, `qualify`, and
+  `conflict` relationships.
+- Harden Windows atomic file creation in `saveNewAsset` with automatic fallback
+  from `fs.link` to exclusive `fs.open(file, "wx", 0o600)` on filesystems that
+  return `EPERM`, `ENOTSUP`, `ENOSYS`, `EXDEV`, `EINVAL`, or `EACCES` (such as
+  FAT32/exFAT or restricted network shares).
+
 ## 0.44.0 (2026-11-18)
 
 - Bind exact companion archives `@aikdna/kdna-core@0.37.11` and

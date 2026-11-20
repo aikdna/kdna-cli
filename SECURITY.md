@@ -2,14 +2,14 @@
 
 ## Supported versions
 
-The current `@aikdna/kdna-cli` `0.44.x` line (`0.44.0`) and `0.43.x` line (`0.43.5`) are supported; earlier
+The current `@aikdna/kdna-cli` `0.45.x` line (`0.45.0`), `0.44.x` line (`0.44.0`), and `0.43.x` line (`0.43.5`) are supported; earlier
 pre-`0.6.0` (`<= 0.36.1`) and `0.40.x`–`0.42.x` releases are unsupported.
 Reports should identify the exact package version or source commit affected.
 
 ## Current source boundary
 
-`@aikdna/kdna-cli@0.44.0` supports local offline `init`, `compile`,
-`validate-input`, `create`, `protect`, `unprotect`, `diff`, `convert`, `source-open`,
+`@aikdna/kdna-cli@0.45.0` supports local offline `init`, `compile`,
+`validate-input`, `create`, `protect`, `unprotect`, `diff`, `review`, `convert`, `source-open`,
 `source-pack`, `inspect`, `validate`, and `read`, including a process-local
 retained Read session (`read --session`). It delegates native container
 production, admission, disclosure, migration, and Source operations to the exact
@@ -48,7 +48,7 @@ local write completion; they do not prove remote consumption.
 into a new file. `--allow-source` permits opening, migrating (`0.5.0` -> `0.6.0`
 via `convert`), or repacking the explicitly named public asset when paired with
 its exact SHA-256 (`--expected-a`). All file-writing routes (`init --output`,
-`compile --output`, `source-open --output`, `create`, `protect`, `unprotect`, `source-pack`, `convert`) refuse
+`compile --output`, `source-open --output`, `review --output`, `create`, `protect`, `unprotect`, `source-pack`, `convert`) refuse
 existing files and symlinks (`wx`). Source edits are complete Manifest and
 Payload replacements; original resource members are retained and reverified.
 These flags do not confer human confirmation or action authority.

@@ -9,6 +9,7 @@
     "protect",
     "unprotect",
     "diff",
+    "review",
     "source-open",
     "source-pack",
     "inspect",

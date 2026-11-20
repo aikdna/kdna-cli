@@ -47,7 +47,7 @@ function session(makeRequest, args=[]) {
  });
 }
 test('exact package/source record retains the public tuple and same Core module identity',()=>{
- assert.equal(pkg.version,'0.44.0');assert.equal(pkg.dependencies['@aikdna/kdna-core'],'0.37.11');assert.equal(pkg.dependencies['@aikdna/kdna-read'],'0.13.5');
+ assert.equal(pkg.version,'0.45.0');assert.equal(pkg.dependencies['@aikdna/kdna-core'],'0.37.11');assert.equal(pkg.dependencies['@aikdna/kdna-read'],'0.13.5');
  assert.equal(binding.tuple.read,'kdna.read/0.7.0-candidate');assert.equal(binding.tuple.container,'0.6.0');
  assert.deepEqual(binding.route_contracts, [
   {

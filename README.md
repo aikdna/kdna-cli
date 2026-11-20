@@ -1,8 +1,8 @@
-# KDNA CLI `0.44.0`
+# KDNA CLI `0.45.0`
 
-Official command-line interface (`@aikdna/kdna-cli@0.44.0`) for authoring, password-protecting/unprotecting, validating, reading, and comparing `.kdna` judgment works.
+Official command-line interface (`@aikdna/kdna-cli@0.45.0`) for authoring, password-protecting/unprotecting, validating, reading, and comparing `.kdna` judgment works.
 
-Public, local, and password-protected `.kdna` workflows in `@aikdna/kdna-cli@0.44.0` run offline on **Node.js `>=22`** and **permanently require no online account**.
+Public, local, and password-protected `.kdna` workflows in `@aikdna/kdna-cli@0.45.0` run offline on **Node.js `>=22`** and **permanently require no online account**.
 
 - **Website & KDNA Reader (macOS):** [aikdna.com](https://aikdna.com) · [Download KDNA Reader & KDNA Whitepaper v1.0.2](https://aikdna.com/en/downloads)
 - **Specifications & Release Matrix:** [`aikdna/kdna`](https://github.com/aikdna/kdna) ([`release-coordinates.json`](https://github.com/aikdna/kdna/blob/main/docs/release-coordinates.json))
@@ -113,7 +113,7 @@ const exitCode = await run(['validate', '/absolute/path/asset.kdna'], process.st
 
 ## Offline Verification & Contract Boundaries
 
-`@aikdna/kdna-cli@0.44.0` binds to exact companion packages (`@aikdna/kdna-core@0.37.11` and `@aikdna/kdna-read@0.13.5`, container `0.6.0`, recorded in [`public-contract-binding.json`](./public-contract-binding.json)). See [`docs/native-delivery.md`](./docs/native-delivery.md) and [`examples/team-update/README.md`](./examples/team-update/README.md) for offline host setup:
+`@aikdna/kdna-cli@0.45.0` binds to exact companion packages (`@aikdna/kdna-core@0.37.11` and `@aikdna/kdna-read@0.13.5`, container `0.6.0`, recorded in [`public-contract-binding.json`](./public-contract-binding.json)). See [`docs/native-delivery.md`](./docs/native-delivery.md) and [`examples/team-update/README.md`](./examples/team-update/README.md) for offline host setup:
 
 ```sh
 npm ci --prefix release-surface/native-offline-host --offline --ignore-scripts --omit=optional --no-audit --no-fund

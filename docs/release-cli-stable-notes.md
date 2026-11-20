@@ -1,5 +1,26 @@
 # Stable CLI change notes
 
+## CLI 0.45.0
+
+This source keeps the exact published Core `0.37.11` and Read `0.13.5` companion
+pair and delivers one-page author review sheets (`kdna review`), clean
+author-facing stance diffs (`kdna diff --format human` and `--verbose`) with
+downstream relationship impact analysis and zero tail-edit truncation, and
+Windows atomic file-save compatibility on non-hardlink filesystems: `kdna review
+<asset.kdna> --allow-read` renders a top Quick Sign-off Summary table followed
+by complete judgment claims, premises, method components, reasons, boundaries,
+conditional exceptions, foreseeable misuse, examples, relationships, sources,
+and revision history in localized Chinese or English (with automatic `.json`
+output format inference when `--output <file.json>` is passed); `kdna diff
+--format human` folds mechanical internal component/reference IDs by default
+(restored in full by `--verbose`), removes the 300-character string truncation
+ceiling so tail modifications on long judgment paragraphs are always displayed
+in full context, and surfaces downstream judgments affected via `support`,
+`qualify`, and `conflict` edges; and `saveNewAsset` falls back cleanly to
+exclusive atomic `wx` creation on Windows filesystems that do not support hard
+links (`EPERM`, `ENOTSUP`, `ENOSYS`, `EXDEV`, `EINVAL`, `EACCES`). Earlier
+published coordinates remain in place, including CLI `0.44.0`.
+
 ## CLI 0.44.0
 
 This source binds the exact Core `0.37.11` and Read `0.13.5` companion pair and
