@@ -1,143 +1,46 @@
-# Native CLI authorization guide
+# KDNA CLI Operation Permissions & Offline Password Protection (`0.45.1`)
 
-CLI `0.40.0` uses explicit local operation permissions and has no password
-or credential-store command. Its stable distribution requires its own approved
-exact artifact and registry acquisition; version labels do not establish release.
+`@aikdna/kdna-cli@0.45.1` uses explicit per-invocation local operation flags and offline AEAD password protection (`scrypt-sha256` + `AES-256-KW` + `AES-256-GCM`, container `0.6.0`). All operations run locally and permanently require no online account.
 
-| Operation | Permission and scope |
-| --- | --- |
-| `create` | `--allow-create`: encode the supplied authored JSON and save a new file |
-| `inspect`, `validate` | Explicit file argument: technical admission and metadata, without judgment bodies |
-| `read` | `--allow-read`: admit the named asset and disclose the requested projections |
-| `source-open`, `source-pack` | `--allow-source` plus the original SHA256 as `--expected-a`: open full authored values or save a revision |
+## 1. Per-Invocation Operation Flags
 
-Permissions apply to the invocation; they do not grant human confirmation,
-adoption or authority to execute actions. Source edits contain the complete
-Manifest and Payload. Use a new output filename; existing files and symlinks
-are never replaced. Read handles belong to their issuing snapshot and Host in
-the original session, and are not durable permission tokens.
+| Command | Required Flag / Input | Scope & Guarantee |
+| --- | --- | --- |
+| `inspect`, `validate` | Explicit file path | Technical admission, digest verification, and metadata without disclosing judgment bodies. |
+| `read`, `review` | `--allow-read` | Admits the named `.kdna` file and discloses the requested catalog, exact selection, or single-page author review sheet. |
+| `create` | `--allow-create` | Encodes a validated draft (`--draft`) or full authored JSON into a new `.kdna` file; never overwrites an existing file or symlink. |
+| `source-open`, `source-pack` | `--allow-source` + `--expected-a <sha256:...>` | Verifies the exact original container SHA-256 (`--expected-a`), extracts `{manifest, payload}` edits, or packs a revised `.kdna` to a new path. |
+| `protect`, `unprotect` | `--password-file <path>` (mode `0600`) or `--password-fd <fd>` | Encrypts a plaintext `0.6.0` `.kdna` into an offline password-protected envelope or restores plaintext bytes to a new file. |
 
-Creation produces public unsigned assets. Public Source preserves and
-reverifies existing signature/checksum members and refuses edits that invalidate
-them; it does not strip or re-sign them. Protected logical profiles require a
-separate Host route and are not opened or edited through these CLI commands.
-See [SECURITY](../SECURITY.md), the [binding](../public-contract-binding.json)
-and the [authored example](../examples/team-update/README.md).
+Operation flags apply only to the current CLI invocation; they never grant human confirmation, editorial adoption, or external action authority.
 
-The `plan-load`, `load`, `--has-password` and `--password-stdin` material below
-belongs to the historical loading contract. It must not be used as a password
-flow for the native candidate, where Plan/load and unsupported commands are
-unavailable (exit 2).
+## 2. Revising Checksum-Sealed vs. Cryptographically Signed Containers
 
-<details>
-<summary>Preserved historical asset-authorization contract</summary>
+- **Unsigned containers with `checksums.json`:** Official distribution `.kdna` files embed an unsigned `checksums.json` entry manifest. After verifying `--expected-a` against the original bytes, `kdna source-pack` (`>=0.45.1`) automatically refreshes `checksums.json` over the revised container entries and re-admits the output before saving.
+- **Cryptographically signed containers:** If an asset carries a cryptographic signature entry (e.g., `*.kdsig` / `signature.json` or a manifest signature declaration), `source-pack` fails closed (`KDNA_SOURCE_SIGNED_CHECKSUMS_REFUSED`) rather than stripping or forging a signature. Revise from the unencrypted `.authored.json` source and re-sign through your signing authority.
 
-The following original guide retains its older source and RFC pointers. Resolve
-them against that contract's source revision, not this candidate's replacement
-entrypoints. The separately published line has its own versioned documentation.
-
-# KDNA Asset Authorization — CLI User Guide
-
-This document explains how `kdna` CLI handles password-entitled `.kdna`
-assets. The current Schema, encryption profiles, conformance fixtures, and
-LoadPlan API are authoritative; historical RFC-0009's `access: "protected"`
-value is superseded.
-
-## Two flags, two different intents
-
-There are two flags that look similar but mean very different things:
-
-| Flag               | Command          | Meaning                          | Use case                                                                          |
-| ------------------ | ---------------- | -------------------------------- | --------------------------------------------------------------------------------- |
-| `--has-password`   | `kdna plan-load` | Diagnostic **presence signal**   | "I have a password available; report that fact without claiming it was verified." |
-| `--password-stdin` | `kdna load`      | **Real** password for decryption | Read the password from standard input, then decrypt the protected entry.          |
-
-The plan-load stage decides _whether_ the asset can be loaded. The load
-stage actually _does_ the loading (and decryption).
-
-### Why this split?
-
-`plan-load` is intended to be a **dry-run**: tell me what would happen
-if I tried to load this asset, without actually loading it. Real-world callers
-want to render UI ("This asset is password-protected — please enter your
-password") while truthfully distinguishing a presence signal from verified
-credentials. Passing `--has-password` therefore remains
-`state: needs_password, can_load_now: false` until `load` verifies the real
-password.
-
-`load`, on the other hand, **does** the decryption. There is no
-scenario where it makes sense to call `load` without actually
-decrypting. If you don't have a password, you don't have a key, and
-the load should fail.
-
-The corrective Preview candidate makes this distinction fail closed:
-`kdna load` rejects `--has-password`, while `plan-load --has-password` never
-claims the unverified value is ready. Pipe the real password with
-`--password-stdin` to decrypt it.
-
-Passwords in process arguments are rejected. Use stdin or the secure
-interactive prompt where supported.
-
-## End-to-end example
-
-```bash
-# 1. Inspect what the asset is and what it needs
-$ kdna plan-load ./my-protected.kdna
-{
-  "state": "needs_password",
-  "required_action": "enter_password",
-  "can_load_now": false,
-  ...
-}
-
-# 2a. Dry-run: report that a password is available, without claiming verification
-$ kdna plan-load ./my-protected.kdna --has-password
-{
-  "state": "needs_password",
-  "required_action": "enter_password",
-  "can_load_now": false,
-  ...
-  "issues": [
-    {
-      "code": "KDNA_AUTH_PASSWORD_UNVERIFIED",
-      "severity": "blocking",
-      "message": "A password input is present but has not been verified."
-    }
-  ]
-}
-
-# 2b. ⚠️ Do NOT do this. The CLI rejects --has-password in load:
-$ kdna load ./my-protected.kdna --has-password --profile=compact --as=prompt
-Error: --has-password is a plan-load diagnostic only; it does not decrypt. Use `kdna plan-load --has-password` for dry-runs. For `kdna load`, pipe the real password with --password-stdin.
-
-# 3. Correct: keep the actual password out of argv
-$ printf '%s' "$KDNA_PASSWORD" | kdna load ./my-protected.kdna --password-stdin --profile=compact --as=prompt
-KDNA Judgment Asset: my-protected
-...
-
-# 4. Wrong password: clear error
-$ printf '%s' "$WRONG_PASSWORD" | kdna load ./my-protected.kdna --password-stdin --profile=compact --as=prompt
-Error: password verification or decryption failed
+```sh
+# Revise an official unsigned .kdna asset directly
+ORIG_A="sha256:$(shasum -a 256 work-1.0.0.kdna | awk '{print $1}')"
+kdna source-open work-1.0.0.kdna --expected-a "$ORIG_A" --allow-source --output edits.json
+# Update manifest.version / payload.asset.asset_version (e.g. 1.0.0 -> 1.0.1) and judgment fields in edits.json
+kdna validate-input edits.json --format human
+kdna source-pack work-1.0.0.kdna --edits edits.json --expected-a "$ORIG_A" --output work-1.0.1.kdna --allow-source
+kdna validate work-1.0.1.kdna --system --format human
+kdna diff work-1.0.0.kdna work-1.0.1.kdna --format human
 ```
 
-## Why the CLI rejects `--has-password` in `load`
+## 3. Offline Password Protection (`protect` / `unprotect`)
 
-Earlier implementations accepted `--has-password` in `load` and silently
-bypassed real password verification. A caller who possessed a stolen
-`.kdna` file could read its plaintext by simply passing
-`--has-password` to `load` — they did not need the actual password.
+Passwords in command-line arguments (`argv`) are strictly rejected so secrets never leak via process tables or shell history. Always supply passwords via a `0600` file (`--password-file`) or file descriptor (`--password-fd`), and retain your plaintext `.authored.json` / `.kdna` master alongside protected copies for future `source-open` / `diff` revisions:
 
-The fix is intentional: `--has-password` is a _plan-load_ concept
-("I would have a password if I had to provide one"). The actual
-_load_ must always have a real key. If you are calling `load`, you
-intend to read the content, and reading requires the key.
+```sh
+install -m 600 /dev/null ./kdna.pass
+printf '%s' 'correct-horse-battery-staple' > ./kdna.pass
 
-## RFC and source pointers
+kdna protect my-work.kdna --output my-work.protected.kdna --password-file ./kdna.pass
+kdna read my-work.protected.kdna --mode catalog --allow-read --password-file ./kdna.pass --format human
+kdna unprotect my-work.protected.kdna --output my-work.restored.kdna --password-file ./kdna.pass
+```
 
-- RFC-0009: `docs/strategy/KDNA_ASSET_AUTHORIZATION_STRATEGY.md` —
-  the policy behind the `password` entitlement profile
-- LoadPlan: `packages/kdna-core/src/container/index.js` (the password
-  authorization branch)
-- CLI guard: `src/cli.js` (the `load` command's `--has-password` rejection)
-
-</details>
+See [SECURITY.md](../SECURITY.md), [public-contract-binding.json](../public-contract-binding.json), and [docs/authoring-field-reference.md](./authoring-field-reference.md).

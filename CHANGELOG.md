@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.45.1 (2026-11-20)
+
+- Refresh unsigned `checksums.json` manifests automatically during `kdna source-pack` after verifying `--expected-a` against the original container, while continuing to fail closed (`KDNA_SOURCE_SIGNED_CHECKSUMS_REFUSED`) on cryptographically signed containers.
+- Update packaged `docs/asset-authorization.md` to document current `0.45.1` local permission flags, unsigned `checksums.json` revision handling, and offline `protect`/`unprotect` password-file workflows without legacy `0.40.0` `plan-load` material.
+
 ## 0.45.0 (2026-11-20)
 
 - Add `kdna review <asset.kdna> --allow-read [--format markdown|human|json] [--output <file>]`

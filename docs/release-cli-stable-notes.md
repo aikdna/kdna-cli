@@ -1,5 +1,9 @@
 # Stable CLI change notes
 
+## CLI 0.45.1
+
+This source keeps the exact published Core `0.37.11` and Read `0.13.5` companion pair and updates `kdna source-pack` and packaged authorization documentation: after verifying `--expected-a` against the original container bytes, `source-pack` automatically regenerates unsigned `checksums.json` entry manifests via Core's native checksum producer and re-admits the resulting container before saving (while continuing to fail closed with `KDNA_SOURCE_SIGNED_CHECKSUMS_REFUSED` if any cryptographic signature entry or manifest signature declaration is present); and `docs/asset-authorization.md` now documents the current `0.45.1` operation flags and offline `protect`/`unprotect` routes cleanly. Earlier published coordinates remain in place, including CLI `0.45.0`.
+
 ## CLI 0.45.0
 
 This source keeps the exact published Core `0.37.11` and Read `0.13.5` companion

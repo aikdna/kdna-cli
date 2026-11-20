@@ -3,7 +3,7 @@ const { randomUUID, createHash } = require('node:crypto');
 const { parseJsonBytes, readAuthoredInput, readAssetBytes, readBoundedFile, saveNewAsset } = require('./authored-input.js');
 const { INIT_MODES, INIT_LANGS, DUPLICATE_ROLE_FIX_HINT, inspectMethodComponents, checkVersionPairAlignment, scaffoldDraft, compileDraft, validateInput, validateWithCore } = require('./draft.js');
 const { renderInspectHuman, renderValidateHuman, renderValidateInputHuman, renderReadHuman, renderRejectionHuman, compactReadResult, buildReviewDocument, renderReviewHuman } = require('./human.js');
-const { readSourceEdits } = require('./source-input.js');
+const { readSourceEdits, CHECKSUMS_ENTRY, classifySourceContainer, containerHasEntry } = require('./source-input.js');
 const { Readable, Writable } = require('node:stream');
 const binding = require('../public-contract-binding.json');
 let _protect = null, _diff = null, _sectionsNode = null, _sectionsBytesNode = null, _retainedCore = null, _retainedRead = null, _creationNode = null, _sourceNode = null, _migrationNode = null;
@@ -658,6 +658,39 @@ function reconcileConclusionResults(sourcePayload, editedPayload) {
   return synced;
 }
 
+// Derives a fresh checksums.json for freshly packed public bytes with Core's own
+// producer, then re-admits the result as a whole public asset before anything is
+// saved. Core's producer reads from a path, so the packed bytes pass through a
+// private temporary directory that is always removed.
+async function refreshContainerChecksums(packedBytes, assertActive) {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { admitSectionRequest, createSectionReadAuthority, createSectionChecksumsNode } = getSectionsNode();
+  const { createNativeSectionByteReadAuthority, admitSectionBytesNode } = getSectionsBytesNode();
+  const packed_A = 'sha256:' + createHash('sha256').update(packedBytes).digest('hex');
+  let dir;
+  try {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-source-pack-'));
+    const target = path.join(dir, 'packed.kdna');
+    fs.writeFileSync(target, packedBytes, { mode: 0o600 });
+    assertActive();
+    const produceRequest = admitSectionRequest({ request_id: 'cli:' + randomUUID(), tuple: binding.tuple, budget_bytes: 100000000, mode: 'whole_asset', selection: null, handle: null });
+    const produced = await createSectionChecksumsNode(target, produceRequest, createSectionReadAuthority(() => { assertActive(); return true; }));
+    assertActive();
+    if (produced.status !== 'produced' || !produced.bytes) return { status: 'failed', stage: 'checksums_produce', core: { status: produced.status, reason: produced.reason ?? null, diagnostic: produced.diagnostic ?? null }, packed_A };
+    const bytes = new Uint8Array(produced.bytes);
+    const checkRequest = admitSectionRequest({ request_id: 'cli:' + randomUUID(), tuple: binding.tuple, budget_bytes: 100000000, mode: 'whole_asset', selection: null, handle: null });
+    const checked = await admitSectionBytesNode(bytes, checkRequest, createNativeSectionByteReadAuthority(() => { assertActive(); return true; }));
+    assertActive();
+    if (checked.status !== 'accepted') return { status: 'failed', stage: 'checksums_self_check', core: { status: checked.status, reason: checked.reason ?? null, diagnostic: checked.diagnostic ?? null }, packed_A };
+    if (!containerHasEntry(bytes, CHECKSUMS_ENTRY)) return { status: 'failed', stage: 'checksums_missing', packed_A };
+    return { status: 'produced', bytes, packed_A };
+  } finally {
+    if (dir) { try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ } }
+  }
+}
+
 function sourcePackGuidance(edits, rejected) {
   const guidance = [...(authoringGuidance(edits, rejected) ?? [])];
   const versionProblems = checkVersionPairAlignment(edits?.manifest, edits?.payload);
@@ -722,23 +755,67 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
     // against the edit payload the pack itself consumes.
     let sourcePayload = null;
     let syncedFields = [];
+    let originalOpened = null;
     if (command === 'source-pack') {
       const disclosure = admitSourceOperationRequest({ request_id: 'cli:' + randomUUID(), tuple: binding.tuple,
         operation: 'open_source', expected_A: options['--expected-a'], timeout_ms: 60000,
         signature_policy: { requireSignature: false, expectedPublicKeyHex: null } });
       if (disclosure.status === 'admitted_request') {
-        const opened = await openSectionSourceNode(bytes, disclosure.request, authority);
-        if (opened.status === 'source_opened') {
-          sourcePayload = opened.source.payload;
+        originalOpened = await openSectionSourceNode(bytes, disclosure.request, authority);
+        if (originalOpened.status === 'source_opened') {
+          sourcePayload = originalOpened.source.payload;
           syncedFields = reconcileConclusionResults(sourcePayload, edits.payload);
         }
       }
       assertActive();
     }
-    const result = command === 'source-open'
+    // A released asset may carry a checksums.json integrity index. It pins the
+    // old entry bytes, so it can never describe a revision. When the original
+    // was verified against --expected-a and no signature covers the container,
+    // drop the stale index, pack, then derive a fresh index from the new
+    // entries. A signed container is refused: its checksums are attested.
+    let checksumsRefresh = null;
+    let packInput = bytes, packRequest = request;
+    if (command === 'source-pack') {
+      const classified = classifySourceContainer(bytes);
+      if (classified.kind === 'signed' && containerHasEntry(bytes, CHECKSUMS_ENTRY)) {
+        await emit({ status: 'rejected', code: 'KDNA_SOURCE_SIGNED_CHECKSUMS_REFUSED',
+          reason: 'the original container is signed; its checksums.json is covered by the signature and cannot be regenerated',
+          next: 'revise from the public authored input with `kdna create`, then sign the new asset again',
+          action_authorized: false, creation_accepted: false });
+        return 1;
+      }
+      if (classified.kind === 'refreshable') {
+        if (!originalOpened || originalOpened.status !== 'source_opened') {
+          await emit(originalOpened ?? { status: 'rejected', code: 'KDNA_SOURCE_ORIGINAL_UNVERIFIED', action_authorized: false });
+          return 1;
+        }
+        const strippedA = 'sha256:' + createHash('sha256').update(classified.stripped).digest('hex');
+        const strippedRequest = admitSourceOperationRequest({ request_id: 'cli:' + randomUUID(), tuple: binding.tuple,
+          operation: 'pack_source', expected_A: strippedA, timeout_ms: 60000,
+          signature_policy: { requireSignature: false, expectedPublicKeyHex: null } });
+        if (strippedRequest.status !== 'admitted_request') { await emit(strippedRequest); return 1; }
+        packInput = classified.stripped;
+        packRequest = strippedRequest;
+        checksumsRefresh = { original_A: options['--expected-a'], stripped_A: strippedA };
+      }
+      assertActive();
+    }
+    let result = command === 'source-open'
       ? await openSectionSourceNode(bytes, request.request, authority)
-      : await packSectionSourceNode(bytes, request.request, authority, edits);
+      : await packSectionSourceNode(packInput, packRequest.request, authority, edits);
     assertActive();
+    if (command === 'source-pack' && checksumsRefresh && result.status === 'produced') {
+      const refreshed = await refreshContainerChecksums(result.bytes, assertActive);
+      assertActive();
+      if (refreshed.status !== 'produced') {
+        await emit({ status: 'rejected', code: 'KDNA_SOURCE_CHECKSUMS_REFRESH_FAILED', stage: refreshed.stage, core: refreshed.core ?? null, action_authorized: false, creation_accepted: false });
+        return 1;
+      }
+      result = { ...result, bytes: refreshed.bytes };
+      checksumsRefresh = { status: 'regenerated', entry: CHECKSUMS_ENTRY, signed: false, ...checksumsRefresh,
+        packed_without_checksums_A: refreshed.packed_A, self_check: 'accepted' };
+    }
     if (command === 'source-open' && result.status === 'source_opened') {
       const innerEdits = { manifest: result.source.manifest, payload: result.source.payload };
       if (options['--output'] !== undefined) {
@@ -777,6 +854,7 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
       sha256: createHash('sha256').update(result.bytes).digest('hex'), cleanup: saved.cleanup },
       ...(command === 'source-pack' && sourcePayload ? { affected_by_change: affectedByChange(sourcePayload, edits.payload) } : {}),
       ...(syncedFields.length ? { synced_fields: syncedFields } : {}),
+      ...(checksumsRefresh ? { checksums: checksumsRefresh } : {}),
       evidence: result.evidence, states: independentStates(), action_authorized: false, creation_accepted: false, adoption: 'not_observed' });
     return 0;
   }
