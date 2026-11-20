@@ -25,10 +25,9 @@ kdna create --draft draft.json --output my-judgments.kdna --allow-create
 kdna read my-judgments.kdna --mode catalog --allow-read --format human
 kdna read my-judgments.kdna --mode exact_selection --judgment-id decision:first-dilemma --allow-read --compact
 
-# 3. Protect with a local password (offline AEAD encryption; no account, no network)
-printf '%s' 'a long passphrase' > password.txt
-kdna protect my-judgments.kdna --output locked.kdna --password-file password.txt
-kdna read locked.kdna --mode exact_selection --judgment-id decision:first-dilemma --allow-read --password-file password.txt --format human
+# 3. Protect with a local password via stdin (offline AEAD encryption; no account, no plaintext file on disk)
+printf '%s' 'a long passphrase' | kdna protect my-judgments.kdna --output locked.kdna --password-file /dev/stdin
+printf '%s' 'a long passphrase' | kdna read locked.kdna --mode exact_selection --judgment-id decision:first-dilemma --allow-read --password-file /dev/stdin --format human
 
 # 4. Compare two versions in plain text
 kdna init --example --mode works --output revised-draft.json
@@ -68,11 +67,11 @@ kdna create --draft draft.json --output asset.kdna --allow-create
 kdna compile draft.json --output authored.json
 kdna create authored.json --output asset.kdna --allow-create
 
-# Local password protection, decryption & inspection
-kdna protect asset.kdna --output protected.kdna --password-file ./password.txt
-kdna unprotect protected.kdna --output restored.kdna --password-file ./password.txt
+# Local password protection, decryption & inspection (pipe from password manager or silent prompt)
+printf '%s' "$KDNA_PASS" | kdna protect asset.kdna --output protected.kdna --password-file /dev/stdin
+printf '%s' "$KDNA_PASS" | kdna unprotect protected.kdna --output restored.kdna --password-file /dev/stdin
 kdna inspect asset.kdna
-kdna inspect protected.kdna --password-fd 3 3< ./password.txt
+printf '%s' "$KDNA_PASS" | kdna inspect protected.kdna --password-fd 3 3<&0
 kdna validate asset.kdna
 
 # Scoped reading & multi-judgment selection
