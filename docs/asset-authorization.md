@@ -32,15 +32,16 @@ kdna diff work-1.0.0.kdna work-1.0.1.kdna --format human
 
 ## 3. Offline Password Protection (`protect` / `unprotect`)
 
-Passwords in command-line arguments (`argv`) are strictly rejected so secrets never leak via process tables or shell history. Always supply passwords via a `0600` file (`--password-file`) or file descriptor (`--password-fd`), and retain your plaintext `.authored.json` / `.kdna` master alongside protected copies for future `source-open` / `diff` revisions:
+Passwords in command-line arguments (`argv`) are strictly rejected so secrets never leak via process tables or shell history. Prefer piping the passphrase via `--password-file /dev/stdin` (or an inherited file descriptor `--password-fd <n>`, `n >= 3`) so no plaintext password file is written to disk, and retain your plaintext `.authored.json` / `.kdna` master alongside protected copies for future `source-open` / `diff` revisions:
 
 ```sh
-install -m 600 /dev/null ./kdna.pass
-printf '%s' 'correct-horse-battery-staple' > ./kdna.pass
+# Prompt silently once (or pipe directly from a password manager) without writing plaintext to disk
+IFS= read -rs KDNA_PASS
 
-kdna protect my-work.kdna --output my-work.protected.kdna --password-file ./kdna.pass
-kdna read my-work.protected.kdna --mode catalog --allow-read --password-file ./kdna.pass --format human
-kdna unprotect my-work.protected.kdna --output my-work.restored.kdna --password-file ./kdna.pass
+printf '%s' "$KDNA_PASS" | kdna protect my-work.kdna --output my-work.protected.kdna --password-file /dev/stdin
+printf '%s' "$KDNA_PASS" | kdna read my-work.protected.kdna --mode catalog --allow-read --password-file /dev/stdin --format human
+printf '%s' "$KDNA_PASS" | kdna unprotect my-work.protected.kdna --output my-work.restored.kdna --password-file /dev/stdin
+unset KDNA_PASS
 ```
 
 See [SECURITY.md](../SECURITY.md), [public-contract-binding.json](../public-contract-binding.json), and [docs/authoring-field-reference.md](./authoring-field-reference.md).
