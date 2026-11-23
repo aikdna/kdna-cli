@@ -13,7 +13,17 @@ Public, local, and password-protected `.kdna` workflows in `@aikdna/kdna-cli@0.4
 
 ## Quick Start
 
-Four everyday workflows with a `.kdna` judgment work—every command below runs directly:
+Install globally or run on demand with `npx` (**Node.js `>=22`** required; no account needed):
+
+```sh
+# Option A — Install globally so the `kdna` command is on PATH
+npm install -g @aikdna/kdna-cli@0.45.2
+
+# Option B — Run any command below without installing globally by prefixing `npx -y @aikdna/kdna-cli@0.45.2`
+npx -y @aikdna/kdna-cli@0.45.2 --help
+```
+
+Five everyday workflows with a `.kdna` judgment work—every command below runs directly:
 
 ```sh
 # 1. Create: generate a ready-to-compile starter draft (omit --example for a TODO template)
@@ -25,11 +35,14 @@ kdna create --draft draft.json --output my-judgments.kdna --allow-create
 kdna read my-judgments.kdna --mode catalog --allow-read --format human
 kdna read my-judgments.kdna --mode exact_selection --judgment-id decision:first-dilemma --allow-read --compact
 
-# 3. Protect with a local password via stdin (offline AEAD encryption; no account, no plaintext file on disk)
+# 3. Export a one-page author review sheet for human sign-off
+kdna review my-judgments.kdna --allow-read --output my-judgments-review.md
+
+# 4. Protect with a local password via stdin (offline AEAD encryption; no account, no plaintext file on disk)
 printf '%s' 'a long passphrase' | kdna protect my-judgments.kdna --output locked.kdna --password-file /dev/stdin
 printf '%s' 'a long passphrase' | kdna read locked.kdna --mode exact_selection --judgment-id decision:first-dilemma --allow-read --password-file /dev/stdin --format human
 
-# 4. Compare two versions in plain text
+# 5. Compare two versions in plain text
 kdna init --example --mode works --output revised-draft.json
 kdna create --draft revised-draft.json --output revised.kdna --allow-create
 kdna diff my-judgments.kdna revised.kdna --format human
@@ -50,6 +63,7 @@ Passwords are read only from `--password-file` or an inherited descriptor (`--pa
 | Encrypt or decrypt payload locally with a password | `protect`, `unprotect` | `--password-file` or `--password-fd` |
 | Inspect metadata and validate integrity | `inspect`, `validate` | Explicit file path (plus password source if protected) |
 | Read catalog, selected judgments, or expansions | `read` | `--allow-read` (plus password source if protected) |
+| Render a one-page author review sheet | `review` | `--allow-read` (plus password source if protected) |
 | Compare two `.kdna` versions | `diff` | Explicit file paths (plus password source if protected) |
 | Export or repack full authored source | `source-open`, `source-pack` | `--allow-source` and exact `--expected-a` SHA-256 |
 | Migrate an explicit `0.5.0` public source to `0.6.0` | `convert` | `--allow-source` and exact `--expected-a` SHA-256 |
@@ -74,11 +88,12 @@ kdna inspect asset.kdna
 printf '%s' "$KDNA_PASS" | kdna inspect protected.kdna --password-fd 3 3<&0
 kdna validate asset.kdna
 
-# Scoped reading & multi-judgment selection
+# Scoped reading, one-page review & multi-judgment selection
 kdna read asset.kdna --mode catalog --budget 1000000 --allow-read
 kdna read asset.kdna --mode exact_selection --judgment-id j:one --judgment-id j:two --allow-read --compact
 kdna read asset.kdna --mode exact_selection --judgment-id j:one,j:two --allow-read --format human
 kdna read asset.kdna --session --allow-read
+kdna review asset.kdna --allow-read --format markdown --output review.md
 
 # Version comparison, source revision & 0.5 -> 0.6 migration
 kdna diff old.kdna new.kdna --format human
@@ -90,7 +105,7 @@ kdna convert asset.kdna --expected-a 'sha256:<64-lowercase-hex-digits>' --output
 ### Key Behavioral Notes
 
 - **Authoring drafts (`init`, `validate-input`, `compile`):** `init` generates a `kdna.draft/1` document across four modes (`minimal`, `interview`, `works`, `research`) in English (`--lang en`, default) or Chinese (`--lang zh`) using canonical ASCII method-role keys (legacy Chinese role keys remain accepted in drafts and on admission). Omitting `method` on a draft judgment records that absence explicitly via `method.term: "other"`. Pass `--example` for an immediately compilable starter, or omit it for `TODO:` prompts checked before `compile` and `create --draft`. `validate-input` checks drafts, full authored JSON, and `source-open` `.edits` documents. See [`docs/authoring-field-reference.md`](./docs/authoring-field-reference.md).
-- **Selective reading (`read`):** `catalog` lists judgment IDs without bodies; `exact_selection` returns the chosen judgments together with their mandatory supporting and qualifying context (`--judgment-id` may repeat or take a comma-separated list; `--compact` trims wrapper envelopes while keeping every safety boundary, reason, example, and relation intact; `--budget` defaults to `1000000` bytes on `catalog` / `exact_selection` and `4000000` bytes on `whole_asset`). `--format human` renders `inspect`, `validate`, `read`, and `diff` in clean plain text (using English method-role labels on English works and localized Chinese labels on Chinese works). See [`docs/consumption-runtime.md`](./docs/consumption-runtime.md).
+- **Selective reading (`read` & `review`):** `catalog` lists judgment IDs without bodies; `exact_selection` returns the chosen judgments together with their mandatory supporting and qualifying context (`--judgment-id` may repeat or take a comma-separated list; `--compact` trims wrapper envelopes while keeping every safety boundary, reason, example, and relation intact; `--budget` defaults to `1000000` bytes on `catalog` / `exact_selection` and `4000000` bytes on `whole_asset`). `kdna review <asset.kdna> --allow-read [--format markdown|human|json] [--output <review.md>]` renders a complete one-page author review sheet (asset scope, shared declarations, every judgment, boundaries, exceptions, misuse warnings, and related judgments) for human sign-off. `--format human` renders `inspect`, `validate`, `read`, `review`, and `diff` in clean plain text (using English method-role labels on English works and localized Chinese labels on Chinese works). See [`docs/consumption-runtime.md`](./docs/consumption-runtime.md).
 - **Local password protection (`protect`, `unprotect`):** `protect` encrypts `payload.kdnab` with a Container `0.6.0` offline AEAD envelope (`scrypt-sha256` / `argon2id` + `AES-256-KW` + `AES-256-GCM` per `kdna.envelope.aead`), stripping one trailing newline from the supplied password file/descriptor and zeroing secret buffers on exit; `unprotect` decrypts a password-protected `0.6.0` container back into an unprotected `0.6.0` section container atomically. Wrong passwords fail with `PROTECTION_AUTHENTICATION_FAILED`; missing passwords fail with `KDNA_PASSWORD_REQUIRED`. Keep your unencrypted public `.kdna` or authoring draft (or run `kdna unprotect`) for future `source-open` / `source-pack` revisions.
 - **Safe saving & exit codes:** File saves never overwrite existing paths or symlinks—always choose a new filename for a revision. Exit codes: `0` on success/ready, `1` on validation/auth/save rejection, and `2` on invalid CLI arguments or retired commands.
 
