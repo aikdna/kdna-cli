@@ -65,19 +65,177 @@ function isProtectedBytes(bytes) {
   } catch { return false; }
 }
 
+// Non-authoritative pre-unlock manifest reader: reads ONLY unencrypted outer
+// kdna.json metadata and container entry names without touching payload.kdnab.
+function readUnencryptedManifestSummary(bytes) {
+  try {
+    const zip = zipEntries(bytes);
+    if (!zip || !zip.entries.has('kdna.json')) return null;
+    const raw = entryBytes(zip, 'kdna.json');
+    if (!raw) return null;
+    const manifest = JSON.parse(raw.toString('utf8'));
+    if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) return null;
+    const locked = Boolean(manifest.protection || manifest.encryption || (manifest.payload && manifest.payload.encrypted === true));
+    const asset = {
+      asset_id: manifest.asset_id ?? null,
+      asset_uid: manifest.asset_uid ?? null,
+      asset_type: manifest.asset_type ?? null,
+      asset_version: manifest.version ?? null,
+      judgment_version: manifest.judgment_version ?? null,
+      title: manifest.title ?? null,
+      summary: manifest.summary ?? null,
+      languages: Array.isArray(manifest.languages) ? manifest.languages : [],
+      ...(manifest.creator ? { creator: manifest.creator } : {}),
+      ...(manifest.license ? { license: manifest.license } : {}),
+      ...(Array.isArray(manifest.keywords) && manifest.keywords.length ? { keywords: manifest.keywords } : {}),
+      ...(manifest.created_at ? { created_at: manifest.created_at } : {}),
+      ...(manifest.updated_at ? { updated_at: manifest.updated_at } : {}),
+      ...(manifest.format_version ? { format_version: manifest.format_version } : {}),
+    };
+    const protection = locked ? {
+      status: 'locked',
+      profile: manifest.entitlement?.profile ?? manifest.protection?.profile ?? 'password',
+      offline: manifest.entitlement?.offline ?? true,
+      encrypted_entries: Array.isArray(manifest.encryption?.encrypted_entries)
+        ? manifest.encryption.encrypted_entries
+        : ['payload.kdnab'],
+      ...(manifest.encryption?.profile ? {
+        encryption: {
+          profile: manifest.encryption.profile,
+          ...(manifest.encryption.profile_version ? { profile_version: manifest.encryption.profile_version } : {}),
+        },
+      } : {}),
+    } : null;
+    return {
+      locked,
+      asset,
+      protection,
+      entries: [...zip.entries.keys()],
+    };
+  } catch { return null; }
+}
+
 // ---- password sources --------------------------------------------------------------
-function readPasswordSource({ fd, file } = {}) {
-  if ((fd === undefined || fd === null) === (file === undefined || file === null)) throw Object.assign(new Error('KDNA_PASSWORD_SOURCE_REQUIRED'), { code: 'KDNA_PASSWORD_SOURCE_REQUIRED' });
-  let raw;
-  try { raw = fd !== undefined && fd !== null ? fs.readFileSync(Number(fd)) : fs.readFileSync(file); }
-  catch { throw Object.assign(new Error('KDNA_PASSWORD_SOURCE_UNREADABLE'), { code: 'KDNA_PASSWORD_SOURCE_UNREADABLE' }); }
+function normalizePasswordBytes(raw) {
   let end = raw.length;
   if (end > 0 && raw[end - 1] === 0x0a) end--;
   if (end > 0 && raw[end - 1] === 0x0d) end--;
   const out = new Uint8Array(raw.subarray(0, end));
   zero(raw);
-  if (out.length === 0 || out.length > MAX_PASSWORD_BYTES) throw Object.assign(new Error('KDNA_PASSWORD_INVALID'), { code: 'KDNA_PASSWORD_INVALID' });
+  if (out.length === 0 || out.length > MAX_PASSWORD_BYTES) {
+    zero(out);
+    throw Object.assign(new Error('KDNA_PASSWORD_INVALID'), { code: 'KDNA_PASSWORD_INVALID' });
+  }
   return out;
+}
+
+function readPasswordSource({ fd, file, env } = {}) {
+  const present = [fd !== undefined && fd !== null, file !== undefined && file !== null, env !== undefined && env !== null].filter(Boolean).length;
+  if (present !== 1) throw Object.assign(new Error('KDNA_PASSWORD_SOURCE_REQUIRED'), { code: 'KDNA_PASSWORD_SOURCE_REQUIRED' });
+  if (env !== undefined && env !== null) {
+    if (typeof env !== 'string' || env.length === 0) throw Object.assign(new Error('KDNA_PASSWORD_SOURCE_REQUIRED'), { code: 'KDNA_PASSWORD_SOURCE_REQUIRED' });
+    if (!Object.hasOwn(process.env, env) || process.env[env] === undefined) {
+      throw Object.assign(new Error('KDNA_PASSWORD_ENV_UNSET'), { code: 'KDNA_PASSWORD_ENV_UNSET' });
+    }
+    const raw = Buffer.from(String(process.env[env]), 'utf8');
+    return normalizePasswordBytes(raw);
+  }
+  let raw;
+  try { raw = fd !== undefined && fd !== null ? fs.readFileSync(Number(fd)) : fs.readFileSync(file); }
+  catch { throw Object.assign(new Error('KDNA_PASSWORD_SOURCE_UNREADABLE'), { code: 'KDNA_PASSWORD_SOURCE_UNREADABLE' }); }
+  return normalizePasswordBytes(raw);
+}
+
+function readHiddenLine(stdin, stderr, label) {
+  return new Promise((resolve, reject) => {
+    if (!stdin || stdin.isTTY !== true || typeof stdin.setRawMode !== 'function') {
+      reject(Object.assign(new Error('KDNA_PASSWORD_TTY_REQUIRED'), { code: 'KDNA_PASSWORD_TTY_REQUIRED' }));
+      return;
+    }
+    const wasRaw = Boolean(stdin.isRaw);
+    const chars = [];
+    let settled = false;
+    const cleanup = () => {
+      stdin.removeListener('data', onData);
+      stdin.removeListener('end', onEnd);
+      stdin.removeListener('error', onError);
+      try { stdin.setRawMode(wasRaw); } catch { /* ignore */ }
+      try { stdin.pause(); } catch { /* ignore */ }
+    };
+    const finishError = (code) => {
+      if (settled) return;
+      settled = true;
+      chars.length = 0;
+      cleanup();
+      try { stderr?.write?.('\n'); } catch { /* ignore */ }
+      reject(Object.assign(new Error(code), { code }));
+    };
+    const finishOk = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      try { stderr?.write?.('\n'); } catch { /* ignore */ }
+      const raw = Buffer.from(chars.join(''), 'utf8');
+      chars.length = 0;
+      try {
+        resolve(normalizePasswordBytes(raw));
+      } catch (error) {
+        reject(error);
+      }
+    };
+    const onData = (chunk) => {
+      const text = Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk);
+      for (const ch of text) {
+        if (ch === '\r' || ch === '\n') { finishOk(); return; }
+        if (ch === '\u0003' || ch === '\u0004') { finishError('KDNA_PASSWORD_PROMPT_CANCELED'); return; }
+        if (ch === '\u007f' || ch === '\b') { if (chars.length > 0) chars.pop(); continue; }
+        const code = ch.codePointAt(0);
+        if (code >= 0x20 || ch === '\t') chars.push(ch);
+      }
+    };
+    const onEnd = () => finishError('KDNA_PASSWORD_PROMPT_CANCELED');
+    const onError = () => finishError('KDNA_PASSWORD_SOURCE_UNREADABLE');
+    try {
+      stderr?.write?.(label);
+      stdin.setRawMode(true);
+      stdin.resume();
+      stdin.on('data', onData);
+      stdin.on('end', onEnd);
+      stdin.on('error', onError);
+    } catch {
+      finishError('KDNA_PASSWORD_TTY_REQUIRED');
+    }
+  });
+}
+
+async function readPasswordPrompt({
+  stdin = process.stdin,
+  stderr = process.stderr,
+  confirm = false,
+  promptText = 'Enter KDNA passphrase: ',
+  confirmPromptText = 'Confirm KDNA passphrase: ',
+} = {}) {
+  if (!stdin || stdin.isTTY !== true || typeof stdin.setRawMode !== 'function') {
+    throw Object.assign(new Error('KDNA_PASSWORD_TTY_REQUIRED'), { code: 'KDNA_PASSWORD_TTY_REQUIRED' });
+  }
+  const first = await readHiddenLine(stdin, stderr, promptText);
+  if (!confirm) return first;
+  let second;
+  try {
+    second = await readHiddenLine(stdin, stderr, confirmPromptText);
+  } catch (error) {
+    zero(first);
+    throw error;
+  }
+  let diff = first.length ^ second.length;
+  const len = Math.min(first.length, second.length);
+  for (let i = 0; i < len; i++) diff |= first[i] ^ second[i];
+  zero(second);
+  if (diff !== 0) {
+    zero(first);
+    throw Object.assign(new Error('KDNA_PASSWORD_MISMATCH'), { code: 'KDNA_PASSWORD_MISMATCH' });
+  }
+  return first;
 }
 
 // ---- protect / unprotect -----------------------------------------------------------
@@ -247,4 +405,14 @@ async function readProtected(admitted, request = {}) {
   } catch { return failure('KDNA_PROTECTED_UNAVAILABLE'); }
 }
 
-module.exports = { protectAsset, unprotectAsset, admitProtectedWithPassword, readProtected, isProtectedBytes, readPasswordSource, POLICY_ID };
+module.exports = {
+  protectAsset,
+  unprotectAsset,
+  admitProtectedWithPassword,
+  readProtected,
+  isProtectedBytes,
+  readUnencryptedManifestSummary,
+  readPasswordSource,
+  readPasswordPrompt,
+  POLICY_ID,
+};

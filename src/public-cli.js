@@ -2,7 +2,7 @@
 const { randomUUID, createHash } = require('node:crypto');
 const { parseJsonBytes, readAuthoredInput, readAssetBytes, readBoundedFile, saveNewAsset } = require('./authored-input.js');
 const { INIT_MODES, INIT_LANGS, DUPLICATE_ROLE_FIX_HINT, inspectMethodComponents, checkVersionPairAlignment, scaffoldDraft, compileDraft, validateInput, validateWithCore } = require('./draft.js');
-const { renderInspectHuman, renderValidateHuman, renderValidateInputHuman, renderReadHuman, renderRejectionHuman, compactReadResult, buildReviewDocument, renderReviewHuman } = require('./human.js');
+const { renderInspectHuman, renderValidateHuman, renderValidateInputHuman, renderReadHuman, renderRejectionHuman, renderProtectHuman, renderUnprotectHuman, compactReadResult, buildReviewDocument, renderReviewHuman } = require('./human.js');
 const { readSourceEdits, CHECKSUMS_ENTRY, classifySourceContainer, containerHasEntry } = require('./source-input.js');
 const { Readable, Writable } = require('node:stream');
 const binding = require('../public-contract-binding.json');
@@ -125,39 +125,46 @@ const COMMAND_HELP = {
     '  conversion; the read and source routes are unchanged.',
   ],
   protect: [
-    'kdna protect <asset.kdna> --output <protected.kdna> (--password-fd <fd> | --password-file <path>)',
+    'kdna protect <asset.kdna> --output <protected.kdna> (--password-env <var> | --password-prompt | --password-fd <fd> | --password-file <path>) [--format json|human]',
     '  Local password protection, no account and no network: writes a new 0.6.0 container whose',
     '  payload.kdnab is an AEAD envelope (scrypt-sha256 + AES-256-KW + AES-256-GCM, offline). The password is read once',
-    '  from an inherited descriptor (3 or higher) or a file, one trailing newline stripped; it is never',
-    '  accepted on the command line. A protected asset is refused by name until a password is given.',
-    '  Retain the unencrypted public .kdna or authoring draft (or use kdna unprotect) for future revisions;',
-    '  source-open accepts public containers only.',
+    '  from an environment variable, hidden TTY prompt (confirmed twice), inherited descriptor (3 or higher), or file,',
+    '  one trailing newline stripped; it is never accepted on the command line. Outer manifest fields (title, summary,',
+    '  creator, keywords, version) remain unencrypted in kdna.json so readers can identify the file; only payload.kdnab',
+    '  is AEAD-encrypted. Retain the unencrypted public .kdna or authoring draft (or use kdna unprotect) for future',
+    '  revisions; source-open accepts public containers only.',
   ],
   unprotect: [
-    'kdna unprotect <protected.kdna> --output <plain.kdna> (--password-fd <fd> | --password-file <path>)',
+    'kdna unprotect <protected.kdna> --output <plain.kdna> (--password-env <var> | --password-prompt | --password-fd <fd> | --password-file <path>) [--format json|human]',
     '  Offline decryption of a password-protected 0.6.0 container back to an unprotected 0.6.0 section',
     '  container, preserving manifest, payload and attachment members; never replaces an existing file.',
   ],
   diff: [
-    'kdna diff <left.kdna> <right.kdna> [--format json|human] [--verbose] [--password-fd <fd> | --password-file <path>]',
+    'kdna diff <left.kdna> <right.kdna> [--format json|human] [--verbose]',
+    '  [--password-env <var> | --password-prompt | --password-fd <fd> | --password-file <path>]',
+    '  [--left-password-env <var> | --left-password-prompt | --left-password-fd <fd> | --left-password-file <path>]',
+    '  [--right-password-env <var> | --right-password-prompt | --right-password-fd <fd> | --right-password-file <path>]',
     '  Compares two assets: identity, digests, judgments added/removed/changed, conditions,',
     '  relations and downstream affected judgments. --format human suppresses internal IR edge',
     '  and ID wiring noise by default; pass --verbose (or --format json) for complete details.',
-    '  One password source serves every protected side.',
+    '  Shared --password-* serves every protected side; use --left-password-* / --right-password-* for rotated passphrases.',
   ],
   review: [
     'kdna review <asset.kdna> --allow-read [--format markdown|human|json] [--output <review.md>]',
-    '  [--password-fd <fd> | --password-file <path>]',
+    '  [--password-env <var> | --password-prompt | --password-fd <fd> | --password-file <path>]',
     '  Renders a complete one-page author review sheet (asset scope, shared declarations, every',
     '  judgment with method, reasons, boundaries, conditional exceptions, misuse warnings, examples',
     '  and relationships) without truncation. Requires explicit --allow-read; --output never',
     '  overwrites an existing file.',
   ],
   inspect: [
-    'kdna inspect <asset.kdna> [--json] [--format json|human] [--password-fd <fd> | --password-file <path>]',
+    'kdna inspect <asset.kdna> [--metadata] [--json] [--format json|human]',
+    '  [--password-env <var> | --password-prompt | --password-fd <fd> | --password-file <path>]',
+    '  --metadata reads only the unencrypted outer kdna.json manifest (useful before unlocking a protected asset).',
   ],
   validate: [
-    'kdna validate <asset.kdna> [--json] [--system] [--format json|human] [--password-fd <fd> | --password-file <path>]',
+    'kdna validate <asset.kdna> [--json] [--system] [--format json|human]',
+    '  [--password-env <var> | --password-prompt | --password-fd <fd> | --password-file <path>]',
     '  --system adds warnings-only system-integrity checks: support cycles, a pair that is',
     '  both supported and in conflict, a withdrawn judgment with an active downstream, and',
     '  ordered declarations that repeat an entry or rank fewer items than their scope. A',
@@ -167,7 +174,7 @@ const COMMAND_HELP = {
     'kdna read <asset.kdna> --allow-read [--mode catalog|whole_asset|exact_selection] [--budget <bytes>]',
     '  [--asset-id <id> --asset-version <version>] [--judgment-id <id[,id...]>] [--view body|full|raw]',
     '  [--view-accept <model-view-contract>] [--compact] [--format json|human]',
-    '  [--password-fd <fd> | --password-file <path>]',
+    '  [--password-env <var> | --password-prompt | --password-fd <fd> | --password-file <path>]',
     '  --mode defaults to catalog; --budget defaults to 1000000 bytes for catalog and exact_selection,',
     '  or 4000000 bytes for whole_asset.',
     '  --judgment-id may repeat or carry a comma-separated list: with exact_selection and no --session the',
@@ -197,7 +204,7 @@ const COMMAND_HELP = {
     '  or one session request with multiple judgment_ids, when the task needs the bodies.',
     '  --view full shows what is inline and deferred.',
     'kdna read <asset.kdna> --session --allow-read [--view body|full|raw] [--view-accept <model-view-contract>]',
-    '  [--format json|human] [--password-fd <fd> | --password-file <path>]',
+    '  [--format json|human] [--password-env <var> | --password-fd <fd> | --password-file <path>]',
     '  One public ReadRequest JSON object per input line; one public result per output line.',
     '  Reuse a returned handle, or name a compact handle_id from the reduced body, for',
     '  expand within this session.',
@@ -431,11 +438,23 @@ function parse(argv) {
   const [command, ...rest] = argv;
   if (!commands.has(command)) return { error: 'KDNA_COMMAND_UNAVAILABLE' };
   const options = Object.create(null);
-  const valued = new Set(['--mode', '--lang', '--asset-id', '--asset-version', '--judgment-id', '--budget', '--output', '--expected-a', '--edits', '--view', '--view-accept', '--draft', '--password-fd', '--password-file', '--format']);
+  const valued = new Set([
+    '--mode', '--lang', '--asset-id', '--asset-version', '--judgment-id', '--budget',
+    '--output', '--expected-a', '--edits', '--view', '--view-accept', '--draft',
+    '--password-fd', '--password-file', '--password-env',
+    '--left-password-fd', '--left-password-file', '--left-password-env',
+    '--right-password-fd', '--right-password-file', '--right-password-env',
+    '--format',
+  ]);
+  const booleanFlags = new Set([
+    '--allow-create', '--allow-read', '--allow-source', '--json', '--session',
+    '--system', '--compact', '--example', '--verbose', '--metadata',
+    '--password-prompt', '--left-password-prompt', '--right-password-prompt',
+  ]);
   let file, second;
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
-    if (['--allow-create', '--allow-read', '--allow-source', '--json', '--session', '--system', '--compact', '--example', '--verbose'].includes(arg)) {
+    if (booleanFlags.has(arg)) {
       if (options[arg] !== undefined) return { error: 'KDNA_ARGUMENT_INVALID' };
       options[arg] = true;
     } else if (valued.has(arg)) {
@@ -452,23 +471,38 @@ function parse(argv) {
   if (!file && !['plan', 'load', 'init'].includes(command) && !draftCreate) return { error: 'KDNA_ARGUMENT_INVALID' };
   if (file && (command === 'init' || draftCreate)) return { error: 'KDNA_ARGUMENT_INVALID' };
   if ((command === 'diff') !== (second !== undefined)) return { error: 'KDNA_ARGUMENT_INVALID' };
+  const sharedPw = ['--password-fd', '--password-file', '--password-env', '--password-prompt'];
+  const leftPw = ['--left-password-fd', '--left-password-file', '--left-password-env', '--left-password-prompt'];
+  const rightPw = ['--right-password-fd', '--right-password-file', '--right-password-env', '--right-password-prompt'];
   const allowed = command === 'init' ? ['--output', '--mode', '--lang', '--example', '--json']
     : command === 'compile' ? ['--output', '--json']
     : command === 'validate-input' ? ['--format', '--json']
     : command === 'create' ? ['--output', '--allow-create', '--json', '--draft']
-    : command === 'protect' || command === 'unprotect' ? ['--output', '--password-fd', '--password-file', '--json']
-    : command === 'diff' ? ['--format', '--verbose', '--password-fd', '--password-file', '--json']
-    : command === 'review' ? ['--allow-read', '--format', '--output', '--password-fd', '--password-file', '--json']
+    : command === 'protect' || command === 'unprotect' ? ['--output', '--format', '--json', ...sharedPw]
+    : command === 'diff' ? ['--format', '--verbose', '--json', ...sharedPw, ...leftPw, ...rightPw]
+    : command === 'review' ? ['--allow-read', '--format', '--output', '--json', ...sharedPw]
     : command === 'source-open' ? ['--expected-a', '--output', '--allow-source', '--json']
     : command === 'source-pack' ? ['--expected-a', '--edits', '--output', '--allow-source', '--json']
     : command === 'convert' ? ['--expected-a', '--output', '--allow-source', '--json']
-    : command === 'read' ? ['--mode', '--asset-id', '--asset-version', '--judgment-id', '--budget', '--allow-read', '--json', '--session', '--view', '--view-accept', '--compact', '--format', '--password-fd', '--password-file']
-    : command === 'validate' ? ['--json', '--system', '--format', '--password-fd', '--password-file'] : ['--json', '--format', '--password-fd', '--password-file'];
+    : command === 'read' ? ['--mode', '--asset-id', '--asset-version', '--judgment-id', '--budget', '--allow-read', '--json', '--session', '--view', '--view-accept', '--compact', '--format', ...sharedPw]
+    : command === 'validate' ? ['--json', '--system', '--format', ...sharedPw]
+    : ['--json', '--format', '--metadata', ...sharedPw];
   if (Object.keys(options).some(k => !allowed.includes(k))) return { error: 'KDNA_ARGUMENT_INVALID' };
   if ((command === 'create' || command === 'protect' || command === 'unprotect') && (!options['--output'] || !options['--output'].endsWith('.kdna'))) return { error: 'KDNA_ARGUMENT_INVALID' };
-  if (options['--password-fd'] !== undefined && options['--password-file'] !== undefined) return { error: 'KDNA_ARGUMENT_INVALID' };
-  if (options['--password-fd'] !== undefined && !/^(?:[3-9]|[1-9][0-9]+)$/.test(options['--password-fd'])) return { error: 'KDNA_ARGUMENT_INVALID' };
-  if ((command === 'protect' || command === 'unprotect') && options['--password-fd'] === undefined && options['--password-file'] === undefined) return { error: 'KDNA_PASSWORD_SOURCE_REQUIRED' };
+  const countFlags = flags => flags.filter(k => options[k] !== undefined).length;
+  const sharedPwCount = countFlags(sharedPw);
+  const leftPwCount = countFlags(leftPw);
+  const rightPwCount = countFlags(rightPw);
+  if (sharedPwCount > 1 || leftPwCount > 1 || rightPwCount > 1) return { error: 'KDNA_ARGUMENT_INVALID' };
+  if (sharedPwCount > 0 && (leftPwCount > 0 || rightPwCount > 0)) return { error: 'KDNA_ARGUMENT_INVALID' };
+  for (const fdKey of ['--password-fd', '--left-password-fd', '--right-password-fd']) {
+    if (options[fdKey] !== undefined && !/^(?:[3-9]|[1-9][0-9]+)$/.test(options[fdKey])) return { error: 'KDNA_ARGUMENT_INVALID' };
+  }
+  for (const envKey of ['--password-env', '--left-password-env', '--right-password-env']) {
+    if (options[envKey] !== undefined && options[envKey].trim() === '') return { error: 'KDNA_ARGUMENT_INVALID' };
+  }
+  if ((command === 'protect' || command === 'unprotect') && sharedPwCount === 0) return { error: 'KDNA_PASSWORD_SOURCE_REQUIRED' };
+  if (command === 'inspect' && options['--metadata'] === true && sharedPwCount > 0) return { error: 'KDNA_ARGUMENT_INVALID' };
   const allowedFormats = command === 'review' ? ['markdown', 'human', 'json'] : ['json', 'human'];
   if (options['--format'] !== undefined && !allowedFormats.includes(options['--format'])) return { error: 'KDNA_ARGUMENT_INVALID' };
   if (command === 'review' && options['--output'] !== undefined) {
@@ -486,7 +520,8 @@ function parse(argv) {
   if ((command === 'source-pack' || command === 'convert') && (!options['--output'] || !options['--output'].endsWith('.kdna'))) return { error: 'KDNA_ARGUMENT_INVALID' };
   // A session carries one ReadRequest per line, so a CLI-level request option may
   // not accompany it. --view names the output surface, not the request, so it may.
-  if (options['--session'] && Object.keys(options).some(k => !['--view', '--view-accept', '--format', '--password-fd', '--password-file'].includes(k) && valued.has(k))) return { error: 'KDNA_ARGUMENT_INVALID' };
+  // --password-prompt is refused with --session because --session owns stdin.
+  if (options['--session'] && (options['--password-prompt'] === true || Object.keys(options).some(k => !['--view', '--view-accept', '--format', '--password-fd', '--password-file', '--password-env'].includes(k) && valued.has(k)))) return { error: 'KDNA_ARGUMENT_INVALID' };
   return { command, file, second, options };
 }
 
@@ -616,7 +651,7 @@ async function run(argv, stdout = process.stdout, stdin = process.stdin, { now =
   const input = sessionInput(stdin);
   output.onFailure(input.cancel);
   let code, failure, rejected = false;
-  try { code = await output.settle(runWithOutput(argv, text => output.write(text), input.iterable, () => output.check(), now)); }
+  try { code = await output.settle(runWithOutput(argv, text => output.write(text), input.iterable, () => output.check(), now, stdin)); }
   catch (error) { rejected = true; failure = error; input.cancel(); }
   finally { await output.release(); }
   output.check();
@@ -624,10 +659,10 @@ async function run(argv, stdout = process.stdout, stdin = process.stdin, { now =
   return code;
 }
 
-async function runWithOutput(argv, write, stdin, assertActive, now = () => Date.now()) {
+async function runWithOutput(argv, write, stdin, assertActive, now = () => Date.now(), rawStdin = process.stdin) {
   // Whatever a run unlocked or read for a password is released when it ends.
   const cleanups = [];
-  try { return await runCommand(argv, write, stdin, assertActive, now, cleanups); }
+  try { return await runCommand(argv, write, stdin, assertActive, now, cleanups, rawStdin); }
   finally { for (const cleanup of cleanups) { try { cleanup(); } catch { /* already released */ } } }
 }
 
@@ -721,7 +756,7 @@ function sourcePackGuidance(edits, rejected) {
   return guidance.length ? guidance : null;
 }
 
-async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
+async function runCommand(argv, write, stdin, assertActive, now, cleanups, rawStdin = process.stdin) {
   const emit = value => write(JSON.stringify(value) + '\n');
   const unavailable = async (code, diagnostic) => {
     const result = { status: 'unavailable', code, action_authorized: false };
@@ -775,6 +810,12 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
         originalOpened = await openSectionSourceNode(bytes, disclosure.request, authority);
         if (originalOpened.status === 'source_opened') {
           sourcePayload = originalOpened.source.payload;
+          if (edits.manifest
+            && !Object.hasOwn(edits.manifest, 'representation_metadata')
+            && originalOpened.source?.manifest
+            && Object.hasOwn(originalOpened.source.manifest, 'representation_metadata')) {
+            edits.manifest.representation_metadata = structuredClone(originalOpened.source.manifest.representation_metadata);
+          }
           syncedFields = reconcileConclusionResults(sourcePayload, edits.payload);
         }
       }
@@ -1006,33 +1047,73 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
     await emit({ status: 'saved', output: { file: options['--output'], bytes: produced.bytes.length, sha256: createHash('sha256').update(produced.bytes).digest('hex'), cleanup: saved.cleanup }, evidence: produced.evidence, states: independentStates(), action_authorized: false, creation_accepted: false, adoption: 'not_observed' });
     return 0;
   }
-  const { protectAsset, unprotectAsset, admitProtectedWithPassword, readProtected, isProtectedBytes, readPasswordSource } = getProtect();
+  const {
+    protectAsset, unprotectAsset, admitProtectedWithPassword, readProtected,
+    isProtectedBytes, readUnencryptedManifestSummary, readPasswordSource, readPasswordPrompt,
+  } = getProtect();
   const { admitSectionRequest, createSectionReadAuthority, admitSectionNode, inspectWholeSectionSnapshot, inspectSectionSnapshot } = getSectionsNode();
   const { createNativeSectionByteReadAuthority, admitSectionBytesNode } = getSectionsBytesNode();
-  // A password comes from an inherited descriptor or a file, never from argv, is
-  // read once per run and is zeroed when the run ends.
-  let passwordValue;
-  const passwordBytes = () => {
-    if (passwordValue !== undefined) return passwordValue;
-    const fd = options['--password-fd'], passwordFile = options['--password-file'];
-    if (fd === undefined && passwordFile === undefined) return (passwordValue = null);
-    passwordValue = readPasswordSource({ fd: fd === undefined ? undefined : Number(fd), file: passwordFile });
-    cleanups.push(() => passwordValue?.fill(0));
-    return passwordValue;
+  // A password comes from an env var, hidden TTY prompt, inherited descriptor,
+  // or file — never from argv — is read once per side per run and is zeroed
+  // when the run ends.
+  const passwordCache = new Map();
+  const passwordBytes = async (side = 'shared', { confirm = false, promptText } = {}) => {
+    const prefix = side === 'left' ? '--left-password-' : side === 'right' ? '--right-password-' : '--password-';
+    const hasSideSpecific = (side === 'left' || side === 'right')
+      && ['fd', 'file', 'env', 'prompt'].some(k => options[prefix + k] !== undefined);
+    const effectiveSide = hasSideSpecific ? side : 'shared';
+    if (passwordCache.has(effectiveSide)) return passwordCache.get(effectiveSide);
+    const p = effectiveSide === 'left' ? '--left-password-' : effectiveSide === 'right' ? '--right-password-' : '--password-';
+    const fd = options[p + 'fd'], passwordFile = options[p + 'file'], env = options[p + 'env'], prompt = options[p + 'prompt'] === true;
+    if (fd === undefined && passwordFile === undefined && env === undefined && !prompt) {
+      passwordCache.set(effectiveSide, null);
+      return null;
+    }
+    let value;
+    if (prompt) {
+      const defaultPrompt = effectiveSide === 'left'
+        ? 'Enter KDNA passphrase (left): '
+        : effectiveSide === 'right'
+          ? 'Enter KDNA passphrase (right): '
+          : 'Enter KDNA passphrase: ';
+      value = await readPasswordPrompt({ stdin: rawStdin, stderr: process.stderr, confirm, promptText: promptText ?? defaultPrompt });
+    } else {
+      value = readPasswordSource({ fd: fd === undefined ? undefined : Number(fd), file: passwordFile, env });
+    }
+    passwordCache.set(effectiveSide, value);
+    cleanups.push(() => value?.fill(0));
+    return value;
   };
   const passwordRefusal = error => ({ status: 'rejected', code: typeof error?.code === 'string' ? error.code : 'KDNA_PASSWORD_INVALID', action_authorized: false });
   // The asset is admitted either as a public asset or, for a password-protected
   // one, through the protected route with the password the caller supplied.
-  async function whole(target = file, sectionMode = 'whole_asset') {
+  async function whole(target = file, sectionMode = 'whole_asset', side = 'shared') {
     let bytes;
     try { bytes = await readAssetBytes(target, assertActive); }
     catch { assertActive(); return { status: 'rejected', code: 'KDNA_ASSET_INPUT_INVALID', action_authorized: false }; }
     assertActive();
     if (isProtectedBytes(bytes)) {
       let password;
-      try { password = passwordBytes(); } catch (error) { return passwordRefusal(error); }
+      try { password = await passwordBytes(side); } catch (error) { return passwordRefusal(error); }
       if (!password) {
-        return { status: 'rejected', code: 'KDNA_PASSWORD_REQUIRED', reason: 'the asset is password-protected', next: 'pass --password-fd <fd> or --password-file <path>; the password is never accepted on the command line', action_authorized: false };
+        const meta = readUnencryptedManifestSummary(bytes);
+        const manifestHint = meta ? {
+          unencrypted_manifest: {
+            asset_id: meta.asset.asset_id,
+            version: meta.asset.asset_version,
+            title: meta.asset.title,
+            ...(meta.asset.creator ? { creator: meta.asset.creator } : {}),
+            ...(meta.protection ? { protection: meta.protection } : {}),
+          },
+        } : {};
+        return {
+          status: 'rejected',
+          code: 'KDNA_PASSWORD_REQUIRED',
+          reason: 'the asset is password-protected',
+          ...manifestHint,
+          next: 'pass --password-env <var>, --password-prompt (TTY), --password-file <path>, or --password-fd <fd> (or run `kdna inspect --metadata` for unencrypted manifest summary); passwords are never accepted on the command line',
+          action_authorized: false,
+        };
       }
       const admitted = await admitProtectedWithPassword(bytes, password, { now });
       assertActive();
@@ -1052,45 +1133,78 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
   const emitResult = async (result, render) => humanOutput ? write(render(result) + '\n') : emit(result);
   if (command === 'protect') {
     let bytes, password;
-    try { password = passwordBytes(); } catch (error) { await emit(passwordRefusal(error)); return 1; }
+    try { password = await passwordBytes('shared', { confirm: true }); }
+    catch (error) { await emitResult(passwordRefusal(error), r => renderRejectionHuman('protect', r)); return 1; }
     try { bytes = await readAssetBytes(file, assertActive); }
     catch { assertActive(); return unavailable('KDNA_ASSET_INPUT_INVALID'); }
     assertActive();
     const result = await protectAsset(bytes, password, { now });
     assertActive();
-    if (result.status !== 'produced') { await emit({ status: 'rejected', code: result.code ?? 'KDNA_PROTECT_FAILED', stage: 'protect', action_authorized: false, creation_accepted: false }); return 1; }
+    if (result.status !== 'produced') {
+      await emitResult({ status: 'rejected', code: result.code ?? 'KDNA_PROTECT_FAILED', stage: 'protect', action_authorized: false, creation_accepted: false }, r => renderRejectionHuman('protect', r));
+      return 1;
+    }
     let saved;
     try { saved = await saveNewAsset(options['--output'], result.bytes, assertActive); }
-    catch (error) { assertActive(); await emit({ status: 'save_failed', code: error.message === 'KDNA_OUTPUT_EXISTS' ? error.message : 'KDNA_SAVE_FAILED', action_authorized: false, creation_accepted: false }); return 1; }
+    catch (error) {
+      assertActive();
+      await emitResult({ status: 'save_failed', code: error.message === 'KDNA_OUTPUT_EXISTS' ? error.message : 'KDNA_SAVE_FAILED', action_authorized: false, creation_accepted: false }, r => renderRejectionHuman('protect', r));
+      return 1;
+    }
     assertActive();
-    await emit({ status: 'saved', output: { file: options['--output'], bytes: result.bytes.length, sha256: createHash('sha256').update(result.bytes).digest('hex'), cleanup: saved.cleanup },
-      protection: { kind: 'password', profile: 'password', encrypted_entries: ['payload.kdnab'], offline: true },
-      evidence: result.evidence, states: independentStates(), action_authorized: false, creation_accepted: false, adoption: 'not_observed' });
+    const protectOut = {
+      status: 'saved',
+      output: { file: options['--output'], bytes: result.bytes.length, sha256: createHash('sha256').update(result.bytes).digest('hex'), cleanup: saved.cleanup },
+      protection: { kind: 'password', profile: 'password', encrypted_entries: ['payload.kdnab'], plaintext_metadata: ['kdna.json'], offline: true },
+      plaintext_metadata_notice: 'Outer manifest fields (title, summary, creator, keywords, version) remain unencrypted in kdna.json so readers can identify the file; only payload.kdnab is AEAD-encrypted.',
+      evidence: result.evidence,
+      states: independentStates(),
+      action_authorized: false,
+      creation_accepted: false,
+      adoption: 'not_observed',
+    };
+    await emitResult(protectOut, renderProtectHuman);
     return 0;
   }
   if (command === 'unprotect') {
     let bytes, password;
-    try { password = passwordBytes(); } catch (error) { await emit(passwordRefusal(error)); return 1; }
+    try { password = await passwordBytes('shared'); }
+    catch (error) { await emitResult(passwordRefusal(error), r => renderRejectionHuman('unprotect', r)); return 1; }
     try { bytes = await readAssetBytes(file, assertActive); }
     catch { assertActive(); return unavailable('KDNA_ASSET_INPUT_INVALID'); }
     assertActive();
     const result = await unprotectAsset(bytes, password, { now });
     assertActive();
-    if (result.status !== 'produced') { await emit({ status: 'rejected', code: result.code ?? 'KDNA_UNPROTECT_FAILED', stage: 'unprotect', action_authorized: false, creation_accepted: false }); return 1; }
+    if (result.status !== 'produced') {
+      await emitResult({ status: 'rejected', code: result.code ?? 'KDNA_UNPROTECT_FAILED', stage: 'unprotect', action_authorized: false, creation_accepted: false }, r => renderRejectionHuman('unprotect', r));
+      return 1;
+    }
     let saved;
     try { saved = await saveNewAsset(options['--output'], result.bytes, assertActive); }
-    catch (error) { assertActive(); await emit({ status: 'save_failed', code: error.message === 'KDNA_OUTPUT_EXISTS' ? error.message : 'KDNA_SAVE_FAILED', action_authorized: false, creation_accepted: false }); return 1; }
+    catch (error) {
+      assertActive();
+      await emitResult({ status: 'save_failed', code: error.message === 'KDNA_OUTPUT_EXISTS' ? error.message : 'KDNA_SAVE_FAILED', action_authorized: false, creation_accepted: false }, r => renderRejectionHuman('unprotect', r));
+      return 1;
+    }
     assertActive();
-    await emit({ status: 'saved', output: { file: options['--output'], bytes: result.bytes.length, sha256: createHash('sha256').update(result.bytes).digest('hex'), cleanup: saved.cleanup },
+    const unprotectOut = {
+      status: 'saved',
+      output: { file: options['--output'], bytes: result.bytes.length, sha256: createHash('sha256').update(result.bytes).digest('hex'), cleanup: saved.cleanup },
       unprotected_from: { source_A: result.source_A },
-      evidence: result.evidence, states: independentStates(), action_authorized: false, creation_accepted: false, adoption: 'not_observed' });
+      evidence: result.evidence,
+      states: independentStates(),
+      action_authorized: false,
+      creation_accepted: false,
+      adoption: 'not_observed',
+    };
+    await emitResult(unprotectOut, renderUnprotectHuman);
     return 0;
   }
   if (command === 'diff') {
     const { diffViews, renderDiffHuman } = getDiff();
-    const left = await whole(file);
+    const left = await whole(file, 'whole_asset', 'left');
     if (left.status !== 'accepted') { await emitResult(left, result => renderRejectionHuman('diff', result)); return 1; }
-    const right = await whole(second);
+    const right = await whole(second, 'whole_asset', 'right');
     if (right.status !== 'accepted') { await emitResult(right, result => renderRejectionHuman('diff', result)); return 1; }
     const leftView = viewOf(left), rightView = viewOf(right);
     if (!leftView || !rightView) { await emitResult({ status: 'rejected', reason: 'READ_SNAPSHOT_UNATTESTED' }, result => renderRejectionHuman('diff', result)); return 1; }
@@ -1131,6 +1245,33 @@ async function runCommand(argv, write, stdin, assertActive, now, cleanups) {
     }
     if (reviewFormat === 'json') await emit(doc);
     else await write(rendered);
+    return 0;
+  }
+  if (command === 'inspect' && options['--metadata'] === true) {
+    let bytes;
+    try { bytes = await readAssetBytes(file, assertActive); }
+    catch {
+      assertActive();
+      await emitResult({ status: 'rejected', code: 'KDNA_ASSET_INPUT_INVALID', action_authorized: false }, result => renderRejectionHuman('inspect', result));
+      return 1;
+    }
+    assertActive();
+    const summary = readUnencryptedManifestSummary(bytes);
+    if (!summary) {
+      await emitResult({ status: 'rejected', code: 'KDNA_ASSET_INPUT_INVALID', reason: 'not a readable KDNA container manifest', action_authorized: false }, result => renderRejectionHuman('inspect', result));
+      return 1;
+    }
+    const result = {
+      status: 'metadata_only',
+      locked: summary.locked,
+      asset: summary.asset,
+      ...(summary.protection ? { protection: summary.protection } : {}),
+      entries: summary.entries,
+      plaintext_metadata_notice: 'Outer manifest read without decrypting payload.kdnab; payload integrity and judgments were not admitted or verified.',
+      states: { ...independentStates(), core: 'not_evaluated', interpretation: 'not_evaluated' },
+      action_authorized: false,
+    };
+    await emitResult(result, renderInspectHuman);
     return 0;
   }
   if (command === 'inspect' || command === 'validate') {

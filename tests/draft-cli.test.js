@@ -337,5 +337,18 @@ test("-v, subcommand --help/-h, compile placeholder guard, validate-input on sou
   const syncedJ = JSON.parse(readSynced.stdout).judgments[0];
   assert.equal(syncedJ.body.core_expression.statement, "Updated conclusion statement synced to result.");
   assert.equal(syncedJ.body.result.value.value, "Updated conclusion statement synced to result.");
+
+  // source-pack preserves manifest.representation_metadata from the original container when omitted in edits
+  const slimEdits = JSON.parse(JSON.stringify(opened.edits));
+  delete slimEdits.manifest.representation_metadata;
+  slimEdits.manifest.version = slimEdits.payload.asset.asset_version = "0.2.1";
+  slimEdits.manifest.judgment_version = slimEdits.payload.asset.judgment_version = "0.2.1";
+  const slimPath = path.join(dir, "slim-edits.json");
+  const slimAsset = path.join(dir, "slim-packed.kdna");
+  fs.writeFileSync(slimPath, JSON.stringify(slimEdits));
+  const slimPack = run(["source-pack", baseAsset, "--edits", slimPath, "--expected-a", expectedA, "--output", slimAsset, "--allow-source"]);
+  assert.equal(slimPack.status, 0, slimPack.stdout + slimPack.stderr);
+  assert.equal(last(slimPack.stdout).status, "saved");
+  assert.equal(run(["validate", slimAsset]).status, 0);
   fs.rmSync(dir, { recursive: true, force: true });
 });

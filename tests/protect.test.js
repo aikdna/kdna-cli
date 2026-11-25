@@ -75,7 +75,7 @@ test('protect, admit, wrong password, selection read, ir digest parity', { skip:
   assert.deepEqual(bodyNodes(unprotView), bodyNodes(plainView2));
 });
 
-test('readPasswordSource strips one newline and rejects empty', () => {
+test('readPasswordSource supports env, file, strips one newline, and rejects unset/empty', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-pw-'));
   const f = path.join(dir, 'pw');
   fs.writeFileSync(f, 'secret\n');
@@ -83,7 +83,52 @@ test('readPasswordSource strips one newline and rejects empty', () => {
   fs.writeFileSync(f, '\n');
   assert.throws(() => protect.readPasswordSource({ file: f }), { code: 'KDNA_PASSWORD_INVALID' });
   assert.throws(() => protect.readPasswordSource({}), { code: 'KDNA_PASSWORD_SOURCE_REQUIRED' });
+  const envKey = 'KDNA_TEST_PW_UNIT_' + process.pid;
+  delete process.env[envKey];
+  assert.throws(() => protect.readPasswordSource({ env: envKey }), { code: 'KDNA_PASSWORD_ENV_UNSET' });
+  process.env[envKey] = 'env-pass-42\n';
+  assert.equal(Buffer.from(protect.readPasswordSource({ env: envKey })).toString(), 'env-pass-42');
+  process.env[envKey] = '';
+  assert.throws(() => protect.readPasswordSource({ env: envKey }), { code: 'KDNA_PASSWORD_INVALID' });
+  delete process.env[envKey];
+  assert.throws(() => protect.readPasswordSource({ file: f, env: 'HOME' }), { code: 'KDNA_PASSWORD_SOURCE_REQUIRED' });
   fs.rmSync(dir, { recursive: true });
+});
+
+test('readPasswordPrompt fails closed on non-TTY and supports hidden TTY entry, backspace, confirmation, mismatch, and cancel', async () => {
+  const { EventEmitter } = require('node:events');
+  const fakeNonTty = Object.assign(new EventEmitter(), { isTTY: false });
+  await assert.rejects(() => protect.readPasswordPrompt({ stdin: fakeNonTty }), { code: 'KDNA_PASSWORD_TTY_REQUIRED' });
+
+  function makeMockTty(chunks) {
+    const tty = new EventEmitter();
+    tty.isTTY = true;
+    tty.isRaw = false;
+    tty.setRawMode = (flag) => { tty.isRaw = flag; };
+    tty.pause = () => {};
+    let idx = 0;
+    tty.resume = () => {
+      const next = chunks[idx++];
+      if (next !== undefined) setImmediate(() => tty.emit('data', Buffer.from(next, 'utf8')));
+    };
+    return tty;
+  }
+  const stderrLog = { text: '', write(s) { this.text += s; } };
+  const ok = await protect.readPasswordPrompt({ stdin: makeMockTty(['ab\u007fc\r']), stderr: stderrLog });
+  assert.equal(Buffer.from(ok).toString(), 'ac');
+  assert.match(stderrLog.text, /Enter KDNA passphrase:/);
+
+  const confirmed = await protect.readPasswordPrompt({ stdin: makeMockTty(['pass123\r', 'pass123\r']), stderr: stderrLog, confirm: true });
+  assert.equal(Buffer.from(confirmed).toString(), 'pass123');
+
+  await assert.rejects(
+    () => protect.readPasswordPrompt({ stdin: makeMockTty(['pass123\r', 'different\r']), stderr: stderrLog, confirm: true }),
+    { code: 'KDNA_PASSWORD_MISMATCH' },
+  );
+  await assert.rejects(
+    () => protect.readPasswordPrompt({ stdin: makeMockTty(['abc\u0003']), stderr: stderrLog }),
+    { code: 'KDNA_PASSWORD_PROMPT_CANCELED' },
+  );
 });
 
 test('interop fixture generation (optional)', { skip: !process.env.KDNA_WRITE_PROTECT_FIXTURE }, async () => {

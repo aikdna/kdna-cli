@@ -1,16 +1,16 @@
-# KDNA CLI Operation Permissions & Offline Password Protection (`0.45.2`)
+# KDNA CLI Operation Permissions & Offline Password Protection (`0.46.0`)
 
-`@aikdna/kdna-cli@0.45.2` uses explicit per-invocation local operation flags and offline AEAD password protection (`scrypt-sha256` + `AES-256-KW` + `AES-256-GCM`, container `0.6.0`). All operations run locally and permanently require no online account.
+`@aikdna/kdna-cli@0.46.0` uses explicit per-invocation local operation flags and offline AEAD password protection (`scrypt-sha256` + `AES-256-KW` + `AES-256-GCM`, container `0.6.0`). All operations run locally and permanently require no online account.
 
 ## 1. Per-Invocation Operation Flags
 
 | Command | Required Flag / Input | Scope & Guarantee |
 | --- | --- | --- |
-| `inspect`, `validate` | Explicit file path | Technical admission, digest verification, and metadata without disclosing judgment bodies. |
+| `inspect`, `validate` | Explicit file path (`--metadata` for pre-unlock outer manifest) | Technical admission, digest verification, and metadata without disclosing judgment bodies. |
 | `read`, `review` | `--allow-read` | Admits the named `.kdna` file and discloses the requested catalog, exact selection, or single-page author review sheet. |
 | `create` | `--allow-create` | Encodes a validated draft (`--draft`) or full authored JSON into a new `.kdna` file; never overwrites an existing file or symlink. |
-| `source-open`, `source-pack` | `--allow-source` + `--expected-a <sha256:...>` | Verifies the exact original container SHA-256 (`--expected-a`), extracts `{manifest, payload}` edits, or packs a revised `.kdna` to a new path. |
-| `protect`, `unprotect` | `--password-file <path>` (mode `0600`) or `--password-fd <fd>` | Encrypts a plaintext `0.6.0` `.kdna` into an offline password-protected envelope or restores plaintext bytes to a new file. |
+| `source-open`, `source-pack` | `--allow-source` + `--expected-a <sha256:...>` | Verifies the exact original container SHA-256 (`--expected-a`), extracts `{manifest, payload}` edits, or packs a revised `.kdna` to a new path (auto-preserving `representation_metadata` if omitted). |
+| `protect`, `unprotect` | `--password-env <var>`, `--password-prompt` (TTY), `--password-file <path>`, or `--password-fd <fd>` | Encrypts a plaintext `0.6.0` `.kdna` into an offline password-protected envelope or restores plaintext bytes to a new file. |
 
 Operation flags apply only to the current CLI invocation; they never grant human confirmation, editorial adoption, or external action authority.
 
@@ -32,15 +32,17 @@ kdna diff work-1.0.0.kdna work-1.0.1.kdna --format human
 
 ## 3. Offline Password Protection (`protect` / `unprotect`)
 
-Passwords in command-line arguments (`argv`) are strictly rejected so secrets never leak via process tables or shell history. Prefer piping the passphrase via `--password-file /dev/stdin` (or an inherited file descriptor `--password-fd <n>`, `n >= 3`) so no plaintext password file is written to disk, and retain your plaintext `.authored.json` / `.kdna` master alongside protected copies for future `source-open` / `diff` revisions:
+Passwords in command-line arguments (`argv`) are strictly rejected so secrets never leak via process tables or shell history. Outer `kdna.json` manifest fields (`title`, `summary`, `creator`, `keywords`, `version`) remain unencrypted so readers can identify the file (`kdna inspect --metadata`), while `payload.kdnab` is AEAD-encrypted. For interactive terminal use, pass `--password-prompt` (confirmed twice on `protect`, fails closed on non-TTY); for cross-platform scripts and non-interactive Agent shells, pass `--password-env <VAR>` (or `--password-file` / `--password-fd >= 3`), and use `--left-password-*` / `--right-password-*` on `kdna diff` when comparing rotated passphrases:
 
 ```sh
-# Prompt silently once (or pipe directly from a password manager) without writing plaintext to disk
-IFS= read -rs KDNA_PASS
+# Interactive TTY prompt (hidden input, confirmed twice on protect)
+kdna protect my-work.kdna --output my-work.protected.kdna --password-prompt
+kdna inspect my-work.protected.kdna --metadata --format human
 
-printf '%s' "$KDNA_PASS" | kdna protect my-work.kdna --output my-work.protected.kdna --password-file /dev/stdin
-printf '%s' "$KDNA_PASS" | kdna read my-work.protected.kdna --mode catalog --allow-read --password-file /dev/stdin --format human
-printf '%s' "$KDNA_PASS" | kdna unprotect my-work.protected.kdna --output my-work.restored.kdna --password-file /dev/stdin
+# Cross-platform environment variable (works on macOS, Linux, Windows, and Agent subshells)
+export KDNA_PASS='...'
+kdna read my-work.protected.kdna --mode catalog --allow-read --password-env KDNA_PASS --format human
+kdna unprotect my-work.protected.kdna --output my-work.restored.kdna --password-env KDNA_PASS
 unset KDNA_PASS
 ```
 

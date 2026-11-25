@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.46.0 (2026-11-25)
+
+- Fix `kdna read --format human` and `kdna review` to resolve and render Core `0.6.0` conditional exceptions (`when` condition statements plus `waive` and `replace_limit` replacement boundaries at both asset and judgment levels) alongside explicit open/undecided (`answer_kind: "other"` / `answer_other`) and rule (`form: "rule"` / `formation_rule` + linked conditions) markers.
+- Extend `kdna.draft/1` (backward-compatibly keeping minimal drafts unchanged) with optional `creator` (always emitting both `manifest.creator` and `payload.attributions`), `worldview`, `value_order`, `sources` / `source_refs`, `sections` (`extension:reading-sections`), `relationships`, asset- and judgment-level `exceptions` / `misuse`, `form: "rule"` with dynamic `asset_capability`, `answer_kind: "other"` + `answer_other`, cross-domain `init --example` diversity, K22-respecting advisories (`vague_or_short_focus`, `unbounded_absolutism`, `isolated_multi_judgment`, `research_provenance_mismatch`), and typo hints.
+- Upgrade cross-platform encrypted `.kdna` workflows with `--password-env <var>`, hidden TTY `--password-prompt` (confirmed twice on `protect`, fail-closed on non-TTY), an explicit `plaintext_metadata_notice` on `protect`, pre-unlock `kdna inspect --metadata`, and rotated-passphrase `kdna diff --left-password-* / --right-password-*`.
+- Preserve `manifest.representation_metadata` in `kdna source-pack` from the verified original container when omitted in edits.
+
 ## 0.45.2 (2026-11-20)
 
 - Reconcile `source-pack` `evidence.output` (`A`, `C`, `E`), `evidence.source_A`, and `evidence.member_actions` after regenerating unsigned `checksums.json`, so `evidence.output.A` matches the written container bytes and chains directly into subsequent `source-open` / `source-pack` revisions.

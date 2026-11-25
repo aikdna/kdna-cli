@@ -48,8 +48,10 @@
     "--judgment-id (repeatable or comma-separated)",
     "--compact",
     "--format",
+    "--password-env",
+    "--password-prompt",
     "--password-fd",
     "--password-file"
   ],
-  "password_policy": "Passwords come only from --password-fd (3 or higher) or --password-file; a password is never accepted as an argv value."
+  "password_policy": "Passwords come only from --password-env <var>, --password-prompt (hidden TTY), --password-fd (3 or higher), or --password-file; a password is never accepted as an argv value."
 }

@@ -162,3 +162,84 @@ test("unprotect decrypts a protected asset to a plain 0.6.0 container that sourc
   const restoredA = "sha256:" + createHash("sha256").update(fs.readFileSync(restored)).digest("hex");
   assert.equal(run(["source-open", restored, "--expected-a", restoredA, "--allow-source"]).status, 0);
 });
+
+test("encrypted usability: --password-env, --password-prompt non-TTY fail-closed, plaintext_metadata_notice, inspect --metadata, and rotated-password diff", () => {
+  const envLocked = path.join(dir, "env-locked.kdna");
+  const envRestored = path.join(dir, "env-restored.kdna");
+  const rotatedLocked = path.join(dir, "rotated-locked.kdna");
+  const envA = { ...process.env, KDNA_TEST_PASS_A: "alpha-passphrase-2026" };
+  const envB = { ...process.env, KDNA_TEST_PASS_B: "beta-passphrase-2026" };
+  const envBoth = { ...process.env, KDNA_TEST_PASS_A: "alpha-passphrase-2026", KDNA_TEST_PASS_B: "beta-passphrase-2026" };
+
+  // protect with --password-env emits explicit plaintext_metadata_notice
+  const protEnv = run(["protect", plain, "--output", envLocked, "--password-env", "KDNA_TEST_PASS_A"], { env: envA });
+  assert.equal(protEnv.status, 0, protEnv.stdout + protEnv.stderr);
+  const protRes = last(protEnv.stdout);
+  assert.equal(protRes.status, "saved");
+  assert.match(protRes.plaintext_metadata_notice, /Outer manifest.*unencrypted.*payload\.kdnab/i);
+  assert.deepEqual(protRes.protection.plaintext_metadata, ["kdna.json"]);
+  assert.ok(!protEnv.stdout.includes("alpha-passphrase-2026"));
+
+  // protect --format human includes plaintext metadata notice
+  const protHuman = run(["protect", revised, "--output", rotatedLocked, "--password-env", "KDNA_TEST_PASS_B", "--format", "human"], { env: envB });
+  assert.equal(protHuman.status, 0, protHuman.stdout + protHuman.stderr);
+  assert.match(protHuman.stdout, /Notice: Outer manifest/);
+
+  // unset env var fails closed with KDNA_PASSWORD_ENV_UNSET
+  const unsetEnv = run(["inspect", envLocked, "--password-env", "KDNA_UNSET_VAR_XYZ"]);
+  assert.equal(unsetEnv.status, 1);
+  assert.equal(last(unsetEnv.stdout).code, "KDNA_PASSWORD_ENV_UNSET");
+
+  // --password-prompt fails closed immediately on non-TTY stdin (never hangs)
+  const nonTty = run(["inspect", envLocked, "--password-prompt"], { input: "" });
+  assert.equal(nonTty.status, 1);
+  assert.equal(last(nonTty.stdout).code, "KDNA_PASSWORD_TTY_REQUIRED");
+  const sessionPrompt = run(["read", envLocked, "--session", "--allow-read", "--password-prompt"], { input: "" });
+  assert.equal(sessionPrompt.status, 2);
+
+  // inspect --metadata reads unencrypted outer manifest safely without unlocking payload
+  const metaJson = run(["inspect", envLocked, "--metadata"]);
+  assert.equal(metaJson.status, 0, metaJson.stdout + metaJson.stderr);
+  const meta = last(metaJson.stdout);
+  assert.equal(meta.status, "metadata_only");
+  assert.equal(meta.locked, true);
+  assert.equal(meta.asset.asset_id, "asset:team-update-format");
+  assert.equal(meta.protection.status, "locked");
+  assert.equal(meta.states.core, "not_evaluated");
+  const metaHuman = run(["inspect", envLocked, "--metadata", "--format", "human"]);
+  assert.equal(metaHuman.status, 0, metaHuman.stderr);
+  assert.match(metaHuman.stdout, /KDNA asset \(unencrypted manifest only\):/);
+  assert.match(metaHuman.stdout, /Locked: yes/);
+  // inspect locked without --metadata still refuses with KDNA_PASSWORD_REQUIRED + unencrypted_manifest hint
+  const lockedNoFlag = run(["inspect", envLocked]);
+  assert.equal(lockedNoFlag.status, 1);
+  assert.equal(last(lockedNoFlag.stdout).code, "KDNA_PASSWORD_REQUIRED");
+  assert.equal(last(lockedNoFlag.stdout).unencrypted_manifest.asset_id, "asset:team-update-format");
+  // --metadata cannot combine with password options
+  assert.equal(run(["inspect", envLocked, "--metadata", "--password-env", "KDNA_TEST_PASS_A"], { env: envA }).status, 2);
+
+  // --password-env works across inspect, validate, read (including --session), review, unprotect
+  assert.equal(run(["inspect", envLocked, "--password-env", "KDNA_TEST_PASS_A"], { env: envA }).status, 0);
+  assert.equal(run(["validate", envLocked, "--system", "--password-env", "KDNA_TEST_PASS_A"], { env: envA }).status, 0);
+  const envRead = run(["read", envLocked, "--mode", "catalog", "--allow-read", "--password-env", "KDNA_TEST_PASS_A", "--format", "human"], { env: envA });
+  assert.equal(envRead.status, 0, envRead.stderr);
+  assert.match(envRead.stdout, /update:order/);
+  const envReview = run(["review", envLocked, "--allow-read", "--password-env", "KDNA_TEST_PASS_A"], { env: envA });
+  assert.equal(envReview.status, 0, envReview.stderr);
+  assert.match(envReview.stdout, /`update:order`/);
+  const binding = require(path.join(target, "public-contract-binding.json"));
+  const sessionReq = JSON.stringify({ request_id: "req:env-session", tuple: binding.tuple, budget_bytes: 1000000, mode: "catalog", selection: null, handle: null }) + "\n";
+  const envSession = run(["read", envLocked, "--session", "--allow-read", "--password-env", "KDNA_TEST_PASS_A"], { env: envA, input: sessionReq });
+  assert.equal(envSession.status, 0, envSession.stdout + envSession.stderr);
+  assert.equal(last(envSession.stdout).status, "catalog_only");
+  assert.equal(run(["unprotect", envLocked, "--output", envRestored, "--password-env", "KDNA_TEST_PASS_A"], { env: envA }).status, 0);
+
+  // diff with rotated passphrases via --left-password-env & --right-password-env
+  const rotatedDiff = run(["diff", envLocked, rotatedLocked, "--left-password-env", "KDNA_TEST_PASS_A", "--right-password-env", "KDNA_TEST_PASS_B"], { env: envBoth });
+  assert.equal(rotatedDiff.status, 0, rotatedDiff.stdout + rotatedDiff.stderr);
+  const diffRes = last(rotatedDiff.stdout);
+  assert.equal(diffRes.identical, false);
+  assert.ok(diffRes.judgments.changed.some((e) => e.id === "update:order"));
+  // mixing shared --password-env with --left-password-env fails closed with exit 2
+  assert.equal(run(["diff", envLocked, rotatedLocked, "--password-env", "KDNA_TEST_PASS_A", "--left-password-env", "KDNA_TEST_PASS_A"], { env: envBoth }).status, 2);
+});
