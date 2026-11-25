@@ -133,10 +133,14 @@ const CODE_NEXT_STEPS = {
   KDNA_ASSET_INPUT_INVALID: 'Check that the path is a readable .kdna regular file.',
   KDNA_MODEL_VIEW_UNAVAILABLE: 'Use --view raw, or install a kdna-read with the model-view projection.',
   READ_HANDLE_UNKNOWN: 'Request a fresh read and use a handle id that answer returned.',
-  KDNA_PASSWORD_REQUIRED: 'Pass --password-file <path> or --password-fd <fd> (3 or higher); passwords are never accepted on the command line.',
-  PROTECTION_AUTHENTICATION_FAILED: 'Check the password supplied via --password-file or --password-fd; encrypted payload authentication failed.',
-  KDNA_PASSWORD_INVALID: 'Supply a non-empty UTF-8 password via --password-file <path> or --password-fd <fd>.',
-  KDNA_PASSWORD_SOURCE_REQUIRED: 'Pass --password-file <path> or --password-fd <fd> (3 or higher).',
+  KDNA_PASSWORD_REQUIRED: 'Pass --password-env <var>, --password-prompt (TTY), --password-file <path>, or --password-fd <fd> (3 or higher); passwords are never accepted on the command line.',
+  PROTECTION_AUTHENTICATION_FAILED: 'Check the password supplied via --password-env, --password-prompt, --password-file, or --password-fd; encrypted payload authentication failed.',
+  KDNA_PASSWORD_INVALID: 'Supply a non-empty UTF-8 password via --password-env <var>, --password-prompt, --password-file <path>, or --password-fd <fd>.',
+  KDNA_PASSWORD_SOURCE_REQUIRED: 'Pass --password-env <var>, --password-prompt (TTY), --password-file <path>, or --password-fd <fd> (3 or higher).',
+  KDNA_PASSWORD_ENV_UNSET: 'Set the named environment variable to a non-empty passphrase before running the command.',
+  KDNA_PASSWORD_TTY_REQUIRED: 'Interactive --password-prompt requires a TTY terminal; in non-interactive shells or Agents, use --password-env <var>, --password-file <path>, or --password-fd <fd>.',
+  KDNA_PASSWORD_MISMATCH: 'The two entered passphrases did not match; re-run and enter the same passphrase twice.',
+  KDNA_PASSWORD_PROMPT_CANCELED: 'Passphrase entry was canceled before completion.',
   READ_SNAPSHOT_UNATTESTED: 'Run `kdna validate <file>` to inspect format and verification diagnostics.',
 };
 
@@ -182,6 +186,31 @@ function systemBlock(system) {
 
 function renderInspect(result) {
   if (!isObject(result)) return fallback('inspect: unexpected result', result);
+  if (result.status === 'metadata_only') {
+    const a = isObject(result.asset) ? result.asset : {};
+    const out = ['KDNA asset (unencrypted manifest only): ' + (assetLine(a) ?? '(unknown)')];
+    if (typeof a.title === 'string' && a.title) out.push('Title: ' + a.title);
+    if (typeof a.summary === 'string' && a.summary) out.push(wrap('Summary: ' + a.summary, ''));
+    if (isObject(a.creator) && typeof a.creator.name === 'string') {
+      out.push(`Creator: ${a.creator.name}${a.creator.kind ? ` (${a.creator.kind})` : ''}`);
+    }
+    if (Array.isArray(a.languages) && a.languages.length) out.push('Languages: ' + a.languages.join(', '));
+    const lic = typeof a.license === 'string' ? a.license : a.license?.identifier;
+    if (lic) out.push('License: ' + lic);
+    if (Array.isArray(a.keywords) && a.keywords.length) out.push('Keywords: ' + a.keywords.join(', '));
+    out.push(`Locked: ${result.locked === true ? 'yes' : 'no'}`);
+    if (isObject(result.protection)) {
+      const enc = result.protection.encryption;
+      const encLabel = enc?.profile ? `, ${enc.profile}` : '';
+      const entries = Array.isArray(result.protection.encrypted_entries) && result.protection.encrypted_entries.length
+        ? `, encrypted: ${result.protection.encrypted_entries.join(', ')}`
+        : '';
+      out.push(`Protection: ${result.protection.status ?? 'locked'} (${result.protection.profile ?? 'password'}${encLabel}${entries})`);
+    }
+    if (typeof result.plaintext_metadata_notice === 'string') out.push(wrap('Note: ' + result.plaintext_metadata_notice, ''));
+    out.push(...statesBlock(result.states));
+    return out.join('\n') + '\n';
+  }
   if (result.status !== 'accepted') return renderRejection('inspect', result);
   const out = ['KDNA asset: ' + (assetLine(result.asset) ?? '(unknown)')];
   out.push(`Format valid: ${result.format_valid === true ? 'yes' : 'no'}`);
@@ -234,9 +263,39 @@ function renderRejection(command, result) {
   const out = [`${command}: ${result?.status ?? 'unknown status'}${code ? ' ' + code : ''}`];
   if (typeof result?.message === 'string') out.push(wrap(result.message));
   else if (typeof result?.reason === 'string' && result.reason !== code) out.push(wrap(result.reason));
+  if (isObject(result?.unencrypted_manifest)) {
+    const m = result.unencrypted_manifest;
+    const label = [m.asset_id, m.version && `v${m.version}`, m.title && `— ${m.title}`].filter(Boolean).join(' ');
+    if (label) out.push(wrap('Unencrypted manifest: ' + label, ''));
+    if (isObject(m.creator) && typeof m.creator.name === 'string') out.push(`Creator: ${m.creator.name}`);
+  }
   const step = typeof result?.next === 'string' ? result.next : (code ? nextStep(code, command) : null);
   if (step) out.push('Next: ' + step);
   if (!code && typeof result?.next !== 'string') out.push(pretty(result));
+  return out.join('\n') + '\n';
+}
+
+function renderProtect(result) {
+  if (!isObject(result)) return fallback('protect: unexpected result', result);
+  if (result.status !== 'saved') return renderRejection('protect', result);
+  const out = [`Protected asset saved: ${result.output?.file ?? '?'}`];
+  if (typeof result.output?.bytes === 'number') out.push(`Bytes: ${result.output.bytes}`);
+  if (typeof result.output?.sha256 === 'string') out.push('SHA-256: ' + shortDigest('sha256:' + result.output.sha256));
+  if (isObject(result.protection)) {
+    const entries = Array.isArray(result.protection.encrypted_entries) ? result.protection.encrypted_entries.join(', ') : 'payload.kdnab';
+    out.push(`Protection: ${result.protection.profile ?? 'password'} (offline, encrypted: ${entries})`);
+  }
+  if (typeof result.plaintext_metadata_notice === 'string') out.push(wrap('Notice: ' + result.plaintext_metadata_notice, ''));
+  return out.join('\n') + '\n';
+}
+
+function renderUnprotect(result) {
+  if (!isObject(result)) return fallback('unprotect: unexpected result', result);
+  if (result.status !== 'saved') return renderRejection('unprotect', result);
+  const out = [`Unprotected asset saved: ${result.output?.file ?? '?'}`];
+  if (typeof result.output?.bytes === 'number') out.push(`Bytes: ${result.output.bytes}`);
+  if (typeof result.output?.sha256 === 'string') out.push('SHA-256: ' + shortDigest('sha256:' + result.output.sha256));
+  if (typeof result.unprotected_from?.source_A === 'string') out.push('Source A: ' + shortDigest(result.unprotected_from.source_A));
   return out.join('\n') + '\n';
 }
 
@@ -405,16 +464,82 @@ function preferEnglishRoles(languages, value) {
   return /[A-Za-z]/.test(sample) && !/[\u4e00-\u9fff]/.test(sample);
 }
 
-function renderJudgmentEntry(headingPrefix, id, value, reasonsByJudgment, reasonsById, examplesByJudgment, languages) {
+function indexConditions(list) {
+  const map = new Map();
+  if (!Array.isArray(list)) return map;
+  for (const item of list) {
+    if (isObject(item) && typeof item.id === 'string' && item.id) map.set(item.id, item);
+  }
+  return map;
+}
+
+function conditionStatement(cond, fallbackId = null) {
+  if (isObject(cond)) {
+    if (typeof cond.expression?.statement === 'string' && cond.expression.statement.trim()) return cond.expression.statement.trim();
+    if (typeof cond.statement === 'string' && cond.statement.trim()) return cond.statement.trim();
+  }
+  return fallbackId;
+}
+
+function exceptionBlockLines(label, entryOrItems, conditionsById, isZh, indent = '  ') {
+  let items;
+  if (Array.isArray(entryOrItems)) {
+    items = entryOrItems;
+  } else if (isObject(entryOrItems)) {
+    if (entryOrItems.state === 'none' || entryOrItems.value === null || entryOrItems.value === undefined) return [];
+    items = Array.isArray(entryOrItems.value) ? entryOrItems.value : [entryOrItems.value];
+  } else {
+    return [];
+  }
+  if (!items.length) return [];
+  const lines = [`${indent}${label}:`];
+  const itemIndent = indent + '    ';
+  for (const item of items) {
+    if (typeof item === 'string') lines.push(wrap('- ' + item, itemIndent));
+    else if (isObject(item)) lines.push(wrap('- ' + formatExceptionText(item, conditionsById, isZh), itemIndent));
+    else lines.push(wrap('- ' + JSON.stringify(item), itemIndent));
+  }
+  return lines;
+}
+
+function renderJudgmentEntry(headingPrefix, id, value, reasonsByJudgment, reasonsById, examplesByJudgment, languages, conditionsById = new Map()) {
   const out = ['', `${headingPrefix} ${id}${value.focus ? ' - ' + value.focus : ''}`];
+  const useEnglishRoles = preferEnglishRoles(languages, value);
   const statement = authoredStatement(value);
   if (statement) out.push(wrap(statement));
+  if (value.form === 'rule') {
+    out.push(wrap(`Form: ${useEnglishRoles ? 'rule (result-forming rule)' : 'rule（结果形成规则）'}`, '  '));
+    if (isObject(value.formation_rule)) {
+      if (typeof value.formation_rule.statement === 'string' && value.formation_rule.statement.trim()) {
+        out.push(wrap('Formation rule: ' + value.formation_rule.statement.trim(), '  '));
+      }
+      const ruleConds = (Array.isArray(value.formation_rule.condition_refs) ? value.formation_rule.condition_refs : [])
+        .map(ref => {
+          const cid = typeof ref === 'string' ? ref : ref?.id;
+          return conditionStatement(cid ? conditionsById.get(cid) : null, cid ?? null);
+        })
+        .filter(Boolean);
+      if (ruleConds.length) {
+        out.push('  Rule conditions:');
+        for (const c of ruleConds) out.push(wrap('- ' + c, '      '));
+      }
+    }
+  }
+  if (value.answer_kind === 'other' && isObject(value.answer_other)) {
+    const ao = value.answer_other;
+    const name = typeof ao.name === 'string' && ao.name.trim() ? ao.name.trim() : (useEnglishRoles ? 'Undecided' : '待定');
+    const def = typeof ao.definition === 'string' && ao.definition.trim() ? ao.definition.trim() : '';
+    const excl = typeof ao.exclusion_reason === 'string' && ao.exclusion_reason.trim() ? ao.exclusion_reason.trim() : '';
+    const line = useEnglishRoles
+      ? `Answer kind: other [open/undecided] - ${name}${def ? ': ' + def : ''}${excl ? ' (exclusion: ' + excl + ')' : ''}`
+      : `Answer kind: other（开放/待定）— ${name}${def ? '：' + def : ''}${excl ? '（说明：' + excl + '）' : ''}`;
+    out.push(wrap(line, '  '));
+  }
   if (value.scope?.statement) out.push(wrap('Scope: ' + value.scope.statement, '  '));
 
   // Method + components
   const methodTerm = value.method?.method?.term;
   const components = Array.isArray(value.method?.components) ? value.method.components : [];
-  const useEnglishRoles = preferEnglishRoles(languages, value);
   if (methodTerm || components.length) {
     out.push(`  Method (${methodTerm ?? 'unspecified'}):`);
     for (const comp of components) {
@@ -448,9 +573,9 @@ function renderJudgmentEntry(headingPrefix, id, value, reasonsByJudgment, reason
     }
   }
 
-  for (const [label, key] of [['Boundaries', 'boundaries'], ['Exceptions', 'exceptions'], ['Misuse', 'misuse']]) {
-    out.push(...stateBlockLines(label, value[key], '  '));
-  }
+  out.push(...stateBlockLines('Boundaries', value.boundaries, '  '));
+  out.push(...exceptionBlockLines('Exceptions', value.exceptions, conditionsById, !useEnglishRoles, '  '));
+  out.push(...stateBlockLines('Misuse', value.misuse, '  '));
 
   // Examples adopting this judgment
   const exList = examplesByJudgment.get(id) ?? [];
@@ -544,17 +669,20 @@ function renderRead(result) {
       if (c.asset?.scope) out.push(wrap('Asset scope: ' + c.asset.scope, ''));
       const hq = c.declarations?.highest_question?.value ?? (typeof c.declarations?.highest_question === 'string' ? c.declarations.highest_question : null);
       if (hq) out.push(wrap('Highest question: ' + hq, ''));
+      const compactLangs = c.asset?.languages;
+      const conditionsById = indexConditions(c.declarations?.conditions);
+      const assetUseEnglish = preferEnglishRoles(compactLangs, judgments[0]?.body);
       out.push(...renderSharedDeclarations(c.declarations?.shared_declarations));
       out.push(...stateBlockLines('Asset boundaries', c.declarations?.boundaries, ''));
+      out.push(...exceptionBlockLines('Asset exceptions', c.declarations?.exceptions, conditionsById, !assetUseEnglish, ''));
       out.push(...stateBlockLines('Asset anti-misuse', c.declarations?.misuse, ''));
       out.push('Selected: ' + judgments.map(j => j.id).join(', '));
       const { reasonsById, reasonsByJudgment, examplesByJudgment } = indexReasonsAndExamples(c.reasons, c.examples);
-      const compactLangs = c.asset?.languages;
       for (const j of judgments) {
-        if (isObject(j?.body)) out.push(...renderJudgmentEntry('Judgment', j.id, j.body, reasonsByJudgment, reasonsById, examplesByJudgment, compactLangs));
+        if (isObject(j?.body)) out.push(...renderJudgmentEntry('Judgment', j.id, j.body, reasonsByJudgment, reasonsById, examplesByJudgment, compactLangs, conditionsById));
       }
       for (const j of related) {
-        if (isObject(j?.body)) out.push(...renderJudgmentEntry('Related judgment (closure)', j.id, j.body, reasonsByJudgment, reasonsById, examplesByJudgment, compactLangs));
+        if (isObject(j?.body)) out.push(...renderJudgmentEntry('Related judgment (closure)', j.id, j.body, reasonsByJudgment, reasonsById, examplesByJudgment, compactLangs, conditionsById));
       }
       out.push(...renderRelationshipsBlock(c.relationships));
     }
@@ -572,18 +700,21 @@ function renderRead(result) {
       if (closure.declaration?.scope?.statement) out.push(wrap('Asset scope: ' + closure.declaration.scope.statement, ''));
       const hq = closure.declaration?.declarations?.highest_question?.value;
       if (typeof hq === 'string') out.push(wrap('Highest question: ' + hq, ''));
+      const declLangs = closure.declaration?.languages ?? n.asset?.languages;
+      const conditionsById = indexConditions(closure.assetConditions);
+      const assetUseEnglish = preferEnglishRoles(declLangs, closure.selectedJudgments[0]?.node?.value);
       out.push(...renderSharedDeclarations(closure.sharedDeclarations));
       if (closure.assetBoundaries.length) out.push(...listBlockLines('Asset boundaries', closure.assetBoundaries, ''));
       else out.push(...stateBlockLines('Asset boundaries', closure.declaration?.declarations?.boundaries, ''));
+      if (closure.assetExceptions.length) out.push(...exceptionBlockLines('Asset exceptions', closure.assetExceptions, conditionsById, !assetUseEnglish, ''));
       if (closure.assetMisuse.length) out.push(...listBlockLines('Asset anti-misuse', closure.assetMisuse, ''));
       if (ids.length) out.push('Selected: ' + ids.join(', '));
       const { reasonsById, reasonsByJudgment, examplesByJudgment } = indexReasonsAndExamples(closure.reasons, closure.examples);
-      const declLangs = closure.declaration?.languages ?? n.asset?.languages;
       for (const { id, node } of closure.selectedJudgments) {
-        out.push(...renderJudgmentEntry('Judgment', id, node.value, reasonsByJudgment, reasonsById, examplesByJudgment, declLangs));
+        out.push(...renderJudgmentEntry('Judgment', id, node.value, reasonsByJudgment, reasonsById, examplesByJudgment, declLangs, conditionsById));
       }
       for (const { id, node } of closure.relatedJudgments) {
-        out.push(...renderJudgmentEntry('Related judgment (closure)', id, node.value, reasonsByJudgment, reasonsById, examplesByJudgment, declLangs));
+        out.push(...renderJudgmentEntry('Related judgment (closure)', id, node.value, reasonsByJudgment, reasonsById, examplesByJudgment, declLangs, conditionsById));
       }
       out.push(...renderRelationshipsBlock(closure.relationships));
     }
@@ -740,14 +871,19 @@ function renderValidateInputHuman(result) { return safe(renderValidateInput, res
 
 function formatExceptionText(exc, conditionsById, isZh) {
   if (!isObject(exc)) return String(exc ?? '');
-  const condRefs = Array.isArray(exc.condition_refs) ? exc.condition_refs : [];
-  const condTexts = condRefs
-    .map(ref => {
-      const id = typeof ref === 'string' ? ref : ref?.id;
-      const cond = id ? conditionsById.get(id) : null;
-      return cond?.statement ?? id ?? null;
-    })
-    .filter(Boolean);
+  const rawRefs = [];
+  if (exc.when !== undefined && exc.when !== null) rawRefs.push(exc.when);
+  if (Array.isArray(exc.condition_refs)) rawRefs.push(...exc.condition_refs);
+  const seenCondIds = new Set();
+  const condTexts = [];
+  for (const ref of rawRefs) {
+    const id = typeof ref === 'string' ? ref : ref?.id;
+    if (!id || seenCondIds.has(id)) continue;
+    seenCondIds.add(id);
+    const cond = conditionsById?.get ? conditionsById.get(id) : null;
+    const text = conditionStatement(cond, id);
+    if (text) condTexts.push(text);
+  }
   const when = condTexts.length
     ? (isZh ? `触发条件：${condTexts.join('；')}` : `When: ${condTexts.join('; ')}`)
     : null;
@@ -757,6 +893,8 @@ function formatExceptionText(exc, conditionsById, isZh) {
       effectText = isZh
         ? `替代限制：${exc.effect.replacement.statement}`
         : `Replacement limit: ${exc.effect.replacement.statement}`;
+    } else if (exc.effect.kind === 'waive') {
+      effectText = isZh ? '效果：豁免原限制' : 'Effect: waive';
     } else if (exc.effect.kind === 'suspend' || exc.effect.kind === 'exempt') {
       effectText = isZh ? '效果：暂缓/豁免原限制' : `Effect: ${exc.effect.kind}`;
     } else if (typeof exc.effect.statement === 'string') {
@@ -858,6 +996,15 @@ function buildReviewDocument(view) {
   const languages = assetDecl?.languages ?? [];
   const useEnglish = preferEnglishRoles(languages, judgmentsById.get(orderedIds[0]));
 
+  const extractText = v => {
+    if (typeof v === 'string') return v.trim() ? v : null;
+    if (isObject(v)) {
+      if (typeof v.statement === 'string' && v.statement.trim()) return v.statement;
+      if (typeof v.value === 'string' && v.value.trim()) return v.value;
+    }
+    return null;
+  };
+
   const judgments = orderedIds.map((id, index) => {
     const j = judgmentsById.get(id);
     const methodTerm = j.method?.method?.term ?? null;
@@ -924,10 +1071,33 @@ function buildReviewDocument(view) {
       };
     });
 
+    const formationRule = j.form === 'rule' && isObject(j.formation_rule)
+      ? {
+          statement: extractText(j.formation_rule.statement),
+          conditions: (Array.isArray(j.formation_rule.condition_refs) ? j.formation_rule.condition_refs : [])
+            .map(ref => {
+              const cid = typeof ref === 'string' ? ref : ref?.id;
+              return conditionStatement(cid ? conditionsById.get(cid) : null, cid ?? null);
+            })
+            .filter(Boolean),
+        }
+      : null;
+    const answerOther = j.answer_kind === 'other' && isObject(j.answer_other)
+      ? {
+          name: extractText(j.answer_other.name),
+          definition: extractText(j.answer_other.definition),
+          exclusion_reason: extractText(j.answer_other.exclusion_reason),
+        }
+      : null;
+
     return {
       index: index + 1,
       id,
       focus: j.focus ?? null,
+      form: j.form ?? null,
+      answer_kind: j.answer_kind ?? null,
+      ...(answerOther ? { answer_other: answerOther } : {}),
+      ...(formationRule ? { formation_rule: formationRule } : {}),
       lifecycle: j.lifecycle ?? null,
       statement: authoredStatement(j) ?? null,
       scope: j.scope?.statement ?? null,
@@ -943,14 +1113,6 @@ function buildReviewDocument(view) {
   });
 
   const digest = letter => view?.digests?.[letter]?.observed ?? null;
-  const extractText = v => {
-    if (typeof v === 'string') return v.trim() ? v : null;
-    if (isObject(v)) {
-      if (typeof v.statement === 'string' && v.statement.trim()) return v.statement;
-      if (typeof v.value === 'string' && v.value.trim()) return v.value;
-    }
-    return null;
-  };
   const normalizeTextList = v => {
     if (typeof v === 'string') return v.trim() ? [v] : [];
     if (!Array.isArray(v)) {
@@ -1103,7 +1265,10 @@ function renderReviewMarkdown(review) {
     out.push('| --- | --- | --- | --- | --- | --- |');
     for (const j of review.judgments) {
       const q = escapeTableCell(j.focus) || '-';
-      const claim = conciseClaimForTable(j.statement, zh);
+      const badge = j.answer_kind === 'other'
+        ? (zh ? '[待定] ' : '[Open] ')
+        : (j.form === 'rule' ? (zh ? '[规则] ' : '[Rule] ') : '');
+      const claim = badge + conciseClaimForTable(j.statement, zh);
       const guard = formatGuardrailsCell(j, zh);
       out.push(`| ${j.index} | \`${escapeTableCell(j.id)}\` | ${q} | ${claim} | ${guard} | [ ] |`);
     }
@@ -1151,7 +1316,22 @@ function renderReviewMarkdown(review) {
   for (const j of (review.judgments ?? [])) {
     out.push('', `### ${j.index}. \`${j.id}\`${j.focus ? ` — ${j.focus}` : ''}`);
     if (j.lifecycle?.status) out.push(`- **${zh ? '状态' : 'Lifecycle'}**: ${j.lifecycle.status}`);
+    if (j.form === 'rule') out.push(`- **${zh ? '判断形态' : 'Form'}**: ${zh ? '结果形成规则 (`rule`)' : 'Result-forming rule (`rule`)'}`);
+    if (j.answer_kind === 'other' && isObject(j.answer_other)) {
+      const ao = j.answer_other;
+      const aoText = zh
+        ? `开放 / 待定（\`other\`）— ${ao.name ?? '待定'}${ao.definition ? `：${ao.definition}` : ''}${ao.exclusion_reason ? `（说明：${ao.exclusion_reason}）` : ''}`
+        : `Open / Undecided (\`other\`) - ${ao.name ?? 'Undecided'}${ao.definition ? `: ${ao.definition}` : ''}${ao.exclusion_reason ? ` (exclusion: ${ao.exclusion_reason})` : ''}`;
+      out.push(`- **${zh ? '回答类型' : 'Answer Kind'}**: ${aoText}`);
+    }
     if (j.statement) out.push(`- **${zh ? '核心判断' : 'Core Claim'}**: ${j.statement}`);
+    if (j.form === 'rule' && isObject(j.formation_rule)) {
+      if (j.formation_rule.statement) out.push(`- **${zh ? '形成规则' : 'Formation Rule'}**: ${j.formation_rule.statement}`);
+      if (Array.isArray(j.formation_rule.conditions) && j.formation_rule.conditions.length) {
+        out.push(`- **${zh ? '规则条件' : 'Rule Conditions'}**:`);
+        for (const c of j.formation_rule.conditions) out.push(`  - ${c}`);
+      }
+    }
     if (j.scope) out.push(`- **${zh ? '适用条件' : 'Applies When'}**: ${j.scope}`);
     if (j.method) {
       out.push(`- **${zh ? '判断方法' : 'Method'}** (\`${j.method.term ?? 'unspecified'}\`):`);
@@ -1214,6 +1394,8 @@ function renderReviewMarkdown(review) {
   return out.join('\n') + '\n';
 }
 
+function renderProtectHuman(result) { return safe(renderProtect, result, 'protect'); }
+function renderUnprotectHuman(result) { return safe(renderUnprotect, result, 'unprotect'); }
 function renderReviewHuman(review) { return safe(renderReviewMarkdown, review, 'review'); }
 
 module.exports = {
@@ -1223,6 +1405,8 @@ module.exports = {
   renderValidateInputHuman,
   renderReadHuman,
   renderRejectionHuman,
+  renderProtectHuman,
+  renderUnprotectHuman,
   compactReadResult,
   buildReviewDocument,
   renderReviewMarkdown,

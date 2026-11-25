@@ -621,3 +621,148 @@ test('diff: long 500+ and 2000+ char judgment tail edits are never clipped in hu
   assert.ok(verbose2000.includes(oldTail2000), '--verbose must never truncate removed tail of 2000+ char string');
   assert.ok(verbose2000.includes(newTail2000), '--verbose must never truncate added tail of 2000+ char string');
 });
+
+test('read --format human and kdna review render Core 0.6.0 conditional exceptions (when + waive/replace_limit), rule judgments, and answer_kind=other', () => {
+  const os = require('node:os');
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kdna-human-exc-'));
+  try {
+    for (const [lang, isZh] of [['en', false], ['zh-CN', true]]) {
+      const draftPath = path.join(tmpDir, `draft-${lang}.json`);
+      const assetPath = path.join(tmpDir, `asset-${lang}.kdna`);
+      const draft = {
+        format: 'kdna.draft/1',
+        asset: {
+          id: `exc-rule-open-${lang.toLowerCase()}`,
+          type: 'domain',
+          title: isZh ? '例外与规则渲染验证资产' : 'Exception Rule Open Render Test',
+          summary: isZh ? '验证条件例外、规则与开放议题在人类可读与审稿输出中的完整呈现。' : 'Verifies conditional exceptions, rules, and open answers in human read and review.',
+          language: lang,
+          version: '1.0.0',
+        },
+        scope: isZh ? '常规评审流程，不含突发安全止血。' : 'Routine reviews outside active security containment.',
+        actors: [{ id: 'author', name: isZh ? '测试作者' : 'Test Author', kind: 'person' }],
+        highest_question: isZh ? '如何在保留安全阀的同时处理未定议题？' : 'How should conditional guardrails and open questions be rendered?',
+        boundaries: isZh ? '仅适用于常规工作流。' : 'Applies only to routine workflows.',
+        exceptions: [{
+          when: isZh ? '线上出现已核实的 P0 级事故' : 'A verified P0 production outage is active',
+          statement: isZh ? 'P0 事故期间豁免资产级常规节拍限制。' : 'Waive routine asset pacing during active P0 outage.',
+          then: 'waive',
+        }],
+        judgments: [
+          {
+            id: 'j:exc',
+            focus: isZh ? '常规净改进门槛在故障止血时的条件替代' : 'Conditional replacement of routine net-health threshold during outages',
+            statement: isZh ? '常规评审要求净健康度提升。' : 'Routine reviews require measurable net health improvement.',
+            applies_when: isZh ? '评审日常代码变更时。' : 'Reviewing routine pull requests.',
+            boundaries: isZh ? '禁止引入未测试的数据迁移分支。' : 'Never applies when untested data migrations are introduced.',
+            exceptions: [{
+              when: isZh ? '核心交易链路中断需要十行内外科止血补丁' : 'Core checkout is down and needs a ten-line surgical patch',
+              statement: isZh ? '止血期间以最小爆炸半径替代常规整洁度要求。' : 'Suspend polish checks in favor of minimal-blast-radius restoration.',
+              then: 'replace_boundary',
+              replace_boundary: isZh ? '仅要求不造成不可逆数据损坏并登记事后复盘单。' : 'Require only zero irreversible data loss plus a mandatory post-incident ticket.',
+            }],
+          },
+          {
+            id: 'j:rule',
+            focus: isZh ? '根据故障面自动分级评审意见的规则' : 'Rule for triaging review defects by failure surface',
+            form: 'rule',
+            statement: isZh ? '按影响面将评审意见分为阻断与建议两档。' : 'Classify review comments into blocking versus nit tiers.',
+            formation_rule: {
+              statement: isZh ? '触及权限或资金一致性的问题一律标为阻断，其余标为建议。' : 'Mark authorization or ledger integrity defects blocking; label style polish Nit.',
+              conditions: [isZh ? '变更触及鉴权中间件或账务写路径。' : 'Diff touches auth middleware or ledger write paths.'],
+            },
+            applies_when: isZh ? '撰写评审意见时。' : 'Writing code review comments.',
+            boundaries: isZh ? '纯文档排版修订不适用。' : 'Excludes pure typography documentation edits.',
+          },
+          {
+            id: 'j:open',
+            focus: isZh ? '是否允许自动化机器人免人工复核合入依赖升级' : 'Whether automated bots may auto-merge dependency bumps without human sign-off',
+            statement: isZh ? '目前尚未定论，暂保留人工确认。' : 'Remains undecided while false-negative telemetry is gathered.',
+            applies_when: isZh ? '讨论依赖升级自动化策略时。' : 'Evaluating dependency-bump automation policies.',
+            boundaries: isZh ? '仅用于未来策略评估。' : 'Applies only to future policy evaluation.',
+            answer_kind: 'other',
+            answer_other: isZh ? '仍在收集六个月误报率数据，暂不锁定结论。' : 'Open policy question pending six months of telemetry.',
+          },
+        ],
+      };
+      fs.writeFileSync(draftPath, JSON.stringify(draft, null, 2));
+      const created = spawnSync(process.execPath, [CLI, 'create', '--draft', draftPath, '--output', assetPath, '--allow-create'], { encoding: 'utf8' });
+      assert.equal(created.status, 0, created.stdout + created.stderr);
+
+      // 1. read --mode exact_selection --format human (non-compact & compact)
+      for (const extra of [[], ['--compact']]) {
+        const readRun = spawnSync(process.execPath, [
+          CLI, 'read', assetPath, '--mode', 'exact_selection',
+          '--judgment-id', 'j:exc,j:rule,j:open', '--allow-read', '--format', 'human', ...extra,
+        ], { encoding: 'utf8' });
+        assert.equal(readRun.status, 0, readRun.stdout + readRun.stderr);
+        const out = readRun.stdout;
+        const flat = out.replace(/\s+/g, ' ');
+        if (isZh) {
+          assert.match(out, /Asset exceptions:/);
+          assert.match(flat, /触发条件：线上出现已核实的 P0 级事故/);
+          assert.match(flat, /效果：豁免原限制/);
+          assert.match(flat, /触发条件：核心交易链路中断需要十行内外科止血补丁/);
+          assert.match(flat, /替代限制：仅要求不造成不可逆数据损坏并登记事后复盘单/);
+          assert.match(flat, /Form: rule（结果形成规则）/);
+          assert.match(flat, /Formation rule: 触及权限或资金一致性的问题一律标为阻断/);
+          assert.match(flat, /变更触及鉴权中间件或账务写路径/);
+          assert.match(flat, /开放\/待定/);
+          assert.match(flat, /仍在收集六个月误报率数据/);
+        } else {
+          assert.match(out, /Asset exceptions:/);
+          assert.match(flat, /When: A verified P0 production outage is active/);
+          assert.match(flat, /Effect: waive/);
+          assert.match(flat, /When: Core checkout is down and needs a ten-line surgical patch/);
+          assert.match(flat, /Replacement limit: Require only zero irreversible data loss/);
+          assert.match(flat, /Form: rule \(result-forming rule\)/);
+          assert.match(flat, /Formation rule: Mark authorization or ledger integrity defects blocking/);
+          assert.match(flat, /Diff touches auth middleware or ledger write paths/);
+          assert.match(flat, /\[open\/undecided\]/);
+          assert.match(flat, /Open policy question pending six months of telemetry/);
+          assert.ok(!/[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]/u.test(out), 'English human read must contain zero CJK/fullwidth characters: ' + out);
+        }
+      }
+
+      // 2. kdna review (markdown)
+      const revRun = spawnSync(process.execPath, [CLI, 'review', assetPath, '--allow-read'], { encoding: 'utf8' });
+      assert.equal(revRun.status, 0, revRun.stdout + revRun.stderr);
+      const rev = revRun.stdout;
+      if (isZh) {
+        assert.match(rev, /触发条件：线上出现已核实的 P0 级事故/);
+        assert.match(rev, /效果：豁免原限制/);
+        assert.match(rev, /触发条件：核心交易链路中断需要十行内外科止血补丁/);
+        assert.match(rev, /替代限制：仅要求不造成不可逆数据损坏并登记事后复盘单/);
+        assert.match(rev, /\[规则\]/);
+        assert.match(rev, /\*\*形成规则\*\*:/);
+        assert.match(rev, /\[待定\]/);
+        assert.match(rev, /\*\*回答类型\*\*:/);
+      } else {
+        assert.match(rev, /When: A verified P0 production outage is active/);
+        assert.match(rev, /Effect: waive/);
+        assert.match(rev, /When: Core checkout is down and needs a ten-line surgical patch/);
+        assert.match(rev, /Replacement limit: Require only zero irreversible data loss/);
+        assert.match(rev, /\[Rule\]/);
+        assert.match(rev, /\*\*Formation Rule\*\*:/);
+        assert.match(rev, /\[Open\]/);
+        assert.match(rev, /\*\*Answer Kind\*\*:/);
+        assert.ok(!/[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]/u.test(rev), 'English review must contain zero CJK/fullwidth characters: ' + rev);
+      }
+    }
+
+    // Also verify real code-review-system exemplar (when present on disk) renders `When:` + `Replacement limit:` in BOTH read --format human and review
+    const crPath = path.resolve(__dirname, '..', '..', '..', 'private', 'kdna-library', 'staged', 'modern', 'out', 'kdna-code-review-system-1.0.2.en.kdna');
+    if (fs.existsSync(crPath)) {
+      const crRead = spawnSync(process.execPath, [CLI, 'read', crPath, '--mode', 'exact_selection', '--judgment-id', 'judgment:approve-on-net-code-health-improvement', '--allow-read', '--format', 'human'], { encoding: 'utf8', maxBuffer: 1 << 26 });
+      assert.equal(crRead.status, 0, crRead.stderr);
+      const crFlat = crRead.stdout.replace(/\s+/g, ' ');
+      assert.match(crFlat, /When: An active P0\/SEV-1 production outage/);
+      assert.match(crFlat, /Replacement limit: Require only that the surgical patch stops the live outage/);
+      const crRev = spawnSync(process.execPath, [CLI, 'review', crPath, '--allow-read'], { encoding: 'utf8', maxBuffer: 1 << 26 });
+      assert.equal(crRev.status, 0, crRev.stderr);
+      assert.match(crRev.stdout, /When: An active P0\/SEV-1 production outage/);
+    }
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});

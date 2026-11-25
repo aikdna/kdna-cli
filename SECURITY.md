@@ -2,13 +2,13 @@
 
 ## Supported versions
 
-The current `@aikdna/kdna-cli` `0.45.x` line (`0.45.2`, `0.45.1`, `0.45.0`), `0.44.x` line (`0.44.0`), and `0.43.x` line (`0.43.5`) are supported; earlier
+The current `@aikdna/kdna-cli` `0.46.x` line (`0.46.0`), `0.45.x` line (`0.45.2`, `0.45.1`, `0.45.0`), `0.44.x` line (`0.44.0`), and `0.43.x` line (`0.43.5`) are supported; earlier
 pre-`0.6.0` (`<= 0.36.1`) and `0.40.x`–`0.42.x` releases are unsupported.
 Reports should identify the exact package version or source commit affected.
 
 ## Current source boundary
 
-`@aikdna/kdna-cli@0.45.2` supports local offline `init`, `compile`,
+`@aikdna/kdna-cli@0.46.0` supports local offline `init`, `compile`,
 `validate-input`, `create`, `protect`, `unprotect`, `diff`, `review`, `convert`, `source-open`,
 `source-pack`, `inspect`, `validate`, and `read`, including a process-local
 retained Read session (`read --session`). It delegates native container
@@ -30,12 +30,14 @@ a Container `0.6.0` authenticated-encryption envelope (`kdna.envelope.aead`:
 `AES-256-GCM` payload encryption per `RFC-0018`), and `kdna unprotect` decrypts a
 password-protected `0.6.0` container back into an unprotected `0.6.0` container
 atomically.
-Passwords are read once per invocation from `--password-file <path>` or an
-inherited file descriptor `--password-fd <fd>` (`>= 3`), never from command-line
-arguments, and secret buffers are zeroed when the invocation completes. Keep an
-unencrypted authoring draft or public `.kdna` copy (or use `kdna unprotect`) for
-future `source-open` / `source-pack` revisions, as Source operations accept
-public containers only.
+Passwords are read once per side per invocation from `--password-env <var>`,
+`--password-prompt` (hidden TTY; fails closed on non-TTY), `--password-file <path>`,
+or an inherited file descriptor `--password-fd <fd>` (`>= 3`), never from command-line
+arguments, and secret buffers are zeroed when the invocation completes. Outer `kdna.json`
+manifest fields (`title`, `summary`, `creator`, `keywords`, `version`) remain unencrypted
+for file identification while `payload.kdnab` is AEAD-encrypted. Keep an unencrypted
+authoring draft or public `.kdna` copy (or use `kdna unprotect`) for future
+`source-open` / `source-pack` revisions, as Source operations accept public containers only.
 
 Session input must be valid UTF-8, with at most 1 MiB per line. Expansion
 handles are valid only for their original process-local snapshot and issuing

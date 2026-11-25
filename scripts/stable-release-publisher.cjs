@@ -41,7 +41,7 @@ async function publishVerified({
     'publisher retained artifact digest mismatch',
   );
   const manifest = JSON.parse(read(manifestPath).toString('utf8'));
-  const versions = { '@aikdna/kdna-cli': '0.45.2' };
+  const versions = { '@aikdna/kdna-cli': '0.46.0' };
   assert(
     Object.hasOwn(versions, manifest.name) &&
       manifest.version === versions[manifest.name] &&
