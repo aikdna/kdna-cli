@@ -5,6 +5,7 @@ Official command-line interface (`@aikdna/kdna-cli@0.46.0`) for authoring, passw
 Public, local, and password-protected `.kdna` workflows in `@aikdna/kdna-cli@0.46.0` run offline on **Node.js `>=22`** and **permanently require no online account**.
 
 - **Website & KDNA Reader (macOS):** [aikdna.com](https://aikdna.com) · [Download KDNA Reader & KDNA Whitepaper v1.0.2](https://aikdna.com/en/downloads)
+- **Official Exemplars & Benchmarks (Account-Free):** [Case Studies & `.kdna` Downloads](https://aikdna.com/en/explore/systems) ([Human-Sounding Writing `v1.0.1`](https://aikdna.com/en/explore/human-writing) · [Code Review `v1.0.2`](https://aikdna.com/en/explore/code-review))
 - **Specifications & Release Matrix:** [`aikdna/kdna`](https://github.com/aikdna/kdna) ([`release-coordinates.json`](https://github.com/aikdna/kdna/blob/main/docs/release-coordinates.json))
 - **Agent Skills & MCP:** [`aikdna/kdna-skills`](https://github.com/aikdna/kdna-skills) (`kdna-creator` & `kdna-loader`)
 - **Public Reference Works:** [`aikdna/kdna-assets`](https://github.com/aikdna/kdna-assets)
